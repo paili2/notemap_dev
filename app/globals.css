@@ -2,30 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 기본 색상 변수 */
 :root {
   --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --background-rgb: 255, 255, 255;
 }
 
+/* 다크 모드 색상 */
 @media (prefers-color-scheme: dark) {
   :root {
     --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --background-rgb: 0, 0, 0;
   }
 }
 
+/* 브라우저 기본 여백 제거 및 흰색 배경 강제 */
+html,
 body {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: rgb(var(--background-rgb));
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  min-height: 100%;
 }
 
+/* 스토리북에서 타일(체커보드) 배경 제거 */
+#storybook-root,
+.sb-show-main {
+  background-color: #ffffff;
+}
+
+/* Tailwind 유틸리티 확장 */
 @layer utilities {
   .text-balance {
     text-wrap: balance;
