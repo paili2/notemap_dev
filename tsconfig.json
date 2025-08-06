@@ -28,7 +28,7 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "src/components/templates/DefaultLayout"
+    "src/components/templates/DefaultLayout/**/*"
   ],
   "exclude": ["node_modules"]
 }
