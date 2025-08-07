@@ -1,7 +1,4 @@
 import clsx from "clsx";
-import { error } from "console";
-import { Variable } from "lucide-react";
-import { Span } from "next/dist/trace";
 import React, { InputHTMLAttributes, ReactNode } from "react";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -30,12 +27,7 @@ const Input = ({
       {iconLeft && <span className="icon-left">{iconLeft}</span>}
       <input
         {...props}
-        className={clsx(
-          "input-element outline-none w-full placeholder:text-sm",
-          {
-            "placeholder:text-red-500": variant === "error",
-          }
-        )}
+        className={"input-element outline-none w-full placeholder:text-sm"}
       />
       {iconRight && <span className="icon-right">{iconRight}</span>}
     </div>
