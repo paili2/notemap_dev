@@ -1,62 +1,41 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Search } from "lucide-react";
-import Input, { InputProps } from "./Input";
+import { Input } from "./Input";
 
-const meta: Meta<InputProps> = {
+const meta: Meta<typeof Input> = {
   title: "Atoms/Input",
   component: Input,
-  parameters: { layout: "centered" },
   tags: ["autodocs"],
-  argTypes: {
-    inputSize: {
-      control: { type: "select" },
-      options: ["small", "medium", "large"],
-    },
-    variant: {
-      control: { type: "select" },
-      options: ["default", "outlined", "filled", "error"],
-    },
-    placeholder: { control: "text" },
-    type: { control: "text" },
+  parameters: {
+    layout: "centered",
   },
 };
-
 export default meta;
-type Story = StoryObj<InputProps>;
+
+type Story = StoryObj<typeof Input>;
 
 export const Default: Story = {
   args: {
-    placeholder: "텍스트 입력",
-    inputSize: "medium",
-    variant: "default",
-    type: "text",
+    placeholder: "텍스트를 입력하세요",
   },
 };
 
-export const WithIcon: Story = {
+export const WithValue: Story = {
   args: {
-    placeholder: "검색어를 입력하세요",
-    inputSize: "medium",
-    variant: "outlined",
-    type: "search",
-    iconLeft: <Search size={16} />,
+    value: "기본 값",
+    readOnly: true,
   },
 };
 
-export const ErrorState: Story = {
+export const Password: Story = {
   args: {
-    placeholder: "잘못된 값",
-    inputSize: "medium",
-    variant: "error",
-    type: "text",
-  },
-};
-
-export const PasswordType: Story = {
-  args: {
-    placeholder: "비밀번호 입력",
-    inputSize: "medium",
-    variant: "outlined",
     type: "password",
+    placeholder: "비밀번호를 입력하세요",
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    placeholder: "비활성화 상태",
+    disabled: true,
   },
 };

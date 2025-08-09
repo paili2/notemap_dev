@@ -1,37 +1,22 @@
-import clsx from "clsx";
-import React, { InputHTMLAttributes, ReactNode } from "react";
+import * as React from "react";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
-  inputSize?: "small" | "medium" | "large";
-  variant?: "default" | "outlined" | "filled" | "error";
-  iconLeft?: ReactNode;
-  iconRight?: ReactNode;
-}
+import { cn } from "@/lib/utils";
 
-const Input = ({
-  inputSize = "medium",
-  variant = "default",
-  iconLeft,
-  iconRight,
-  ...props
-}: InputProps) => {
-  return (
-    <div
-      className={clsx(
-        `w-full input-wrapper flex items-center gap-2 px-5 py-2 rounded-full bg-white ${inputSize} ${variant}`,
-        {
-          "border border-red-500": variant === "error",
-        }
-      )}
-    >
-      {iconLeft && <span className="icon-left">{iconLeft}</span>}
+const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
+  ({ className, type, ...props }, ref) => {
+    return (
       <input
+        type={type}
+        className={cn(
+          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          className
+        )}
+        ref={ref}
         {...props}
-        className={"input-element outline-none w-full placeholder:text-sm"}
       />
-      {iconRight && <span className="icon-right">{iconRight}</span>}
-    </div>
-  );
-};
+    );
+  }
+);
+Input.displayName = "Input";
 
-export default Input;
+export { Input };

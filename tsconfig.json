@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "types": ["@types/jest", "@testing-library/jest-dom", "@storybook/jest"],
+    "types": ["vitest/globals", "@types/node", "@testing-library/jest-dom"],
     "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
@@ -14,22 +15,14 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "plugins": [{ "name": "next" }]
   },
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    "src/components/templates/DefaultLayout/**/*"
+    "types/**/*.d.ts"
   ],
-  "exclude": ["node_modules"],
-  "types": ["vitest/globals", "@types/node"]
+  "exclude": ["node_modules"]
 }

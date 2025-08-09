@@ -1,43 +1,38 @@
-import React, { InputHTMLAttributes } from "react";
-import clsx from "clsx";
+"use client";
 
+import * as React from "react";
+import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
+import { Check } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+// onCheckedChange 타입 반영
 export interface CheckboxProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "type"> {
-  label?: string;
-  size?: "small" | "medium" | "large";
+  extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
+  onCheckedChange?: (checked: boolean) => void;
 }
 
-const Checkbox = ({
-  label,
-  size = "medium",
-  disabled = false,
-  className,
-  ...props
-}: CheckboxProps) => {
-  return (
-    <label
-      className={clsx(
-        "flex items-center cursor-pointer select-none gap-2",
-        disabled && "opacity-50 cursor-not-allowed"
-      )}
+const Checkbox = React.forwardRef<
+  React.ElementRef<typeof CheckboxPrimitive.Root>,
+  CheckboxProps
+>(({ className, onCheckedChange, ...props }, ref) => (
+  <CheckboxPrimitive.Root
+    ref={ref}
+    className={cn(
+      "peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
+      className
+    )}
+    // 타입이 boolean만 되도록 보강
+    onCheckedChange={(checked) => onCheckedChange?.(checked === true)}
+    {...props}
+  >
+    <CheckboxPrimitive.Indicator
+      className={cn("flex items-center justify-center text-current")}
     >
-      <input
-        type="checkbox"
-        disabled={disabled}
-        className={clsx(
-          "accent-blue-500 cursor-pointer",
-          {
-            "w-4 h-4": size === "small",
-            "w-5 h-5": size === "medium",
-            "w-6 h-6": size === "large",
-          },
-          className
-        )}
-        {...props}
-      />
-      {label && <span>{label}</span>}
-    </label>
-  );
-};
+      <Check className="h-4 w-4" />
+    </CheckboxPrimitive.Indicator>
+  </CheckboxPrimitive.Root>
+));
+Checkbox.displayName = CheckboxPrimitive.Root.displayName;
 
-export default Checkbox;
+export { Checkbox };

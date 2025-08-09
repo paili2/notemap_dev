@@ -1,37 +1,68 @@
-// 로딩상태
-import React from "react";
-import clsx from "clsx";
+"use client";
 
-interface SpinnerProps {
-  size?: "small" | "medium" | "large";
-  color?: "primary" | "secondary" | "white" | "gray";
-  thickness?: "thin" | "normal" | "thick";
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+export const spinnerVariants = cva(
+  // 공통 스타일에서 border-t-transparent는 빼둡니다 (나중에 마지막에 추가)
+  "inline-block animate-spin rounded-full border-solid",
+  {
+    variants: {
+      size: {
+        small: "w-4 h-4",
+        medium: "w-6 h-6",
+        large: "w-8 h-8",
+      },
+      color: {
+        primary: "border-blue-500",
+        secondary: "border-gray-400",
+        white: "border-white",
+        gray: "border-gray-200",
+      },
+      thickness: {
+        thin: "border-2",
+        normal: "border-4",
+        thick: "border-[6px]",
+      },
+    },
+    defaultVariants: {
+      size: "medium",
+      color: "primary",
+      thickness: "normal",
+    },
+  }
+);
+
+export interface SpinnerProps
+  extends Omit<React.HTMLAttributes<HTMLDivElement>, "color">,
+    VariantProps<typeof spinnerVariants> {
+  label?: string;
 }
 
-const Spinner = ({
-  size = "medium",
-  color = "primary",
-  thickness = "normal",
-}: SpinnerProps) => {
-  return (
-    <div
-      className={clsx("animate-spin rounded-full border-t-transparent", {
-        // 크기
-        "w-4 h-4": size === "small",
-        "w-6 h-6": size === "medium",
-        "w-8 h-8": size === "large",
-        // 색상
-        "border-blue-500": color === "primary",
-        "border-gray-400": color === "secondary",
-        "border-white": color === "white",
-        "border-gray-200": color === "gray",
-        // 두께
-        "border-2": thickness === "thin",
-        "border-4": thickness === "normal",
-        "border-[6px]": thickness === "thick",
-      })}
-    />
-  );
-};
+const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
+  (
+    { className, size, color, thickness, label = "Loading…", ...props },
+    ref
+  ) => {
+    return (
+      <div
+        ref={ref}
+        role="status"
+        aria-label={label}
+        className={cn(
+          spinnerVariants({ size, color, thickness }),
+          // ✅ 투명 클래스를 "항상 마지막"에 둡니다
+          "border-t-transparent",
+          className
+        )}
+        {...props}
+      >
+        <span className="sr-only">{label}</span>
+      </div>
+    );
+  }
+);
+Spinner.displayName = "Spinner";
 
-export default Spinner;
+export { Spinner };

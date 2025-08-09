@@ -1,64 +1,124 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { Button } from "./Button"; // or "@/components/atoms/Button/Button"
+import { Plus, Loader2 } from "lucide-react";
 
-import Button from "./Button";
-
-const meta: Meta<typeof Button> = {
-  title: "Atoms/Button",
+const meta = {
+  title: "atoms/Button",
   component: Button,
   tags: ["autodocs"],
   parameters: { layout: "centered" },
+  args: {
+    children: "Button",
+    variant: "default",
+    size: "default",
+  },
   argTypes: {
     variant: {
-      control: { type: "radio" },
-      options: ["primary", "secondary", "danger"],
+      control: "select",
+      options: [
+        "default",
+        "destructive",
+        "outline",
+        "secondary",
+        "ghost",
+        "link",
+      ],
     },
     size: {
-      control: { type: "radio" },
-      options: ["sm", "md", "lg"],
+      control: "select",
+      options: ["default", "sm", "lg", "icon"],
     },
-    onClick: { action: "clicked" },
+    asChild: { control: "boolean" },
   },
-};
+} satisfies Meta<typeof Button>;
 
 export default meta;
-type Story = StoryObj<typeof Button>;
+type Story = StoryObj<typeof meta>;
 
-export const Primary: Story = {
-  args: {
-    children: "Primary Button",
-    variant: "primary",
-    size: "md",
-  },
+export const Default: Story = {};
+
+export const Variants: Story = {
+  render: (args) => (
+    <div className="flex flex-col gap-2">
+      <Button {...args} variant="default">
+        Default
+      </Button>
+      <Button {...args} variant="destructive">
+        Destructive
+      </Button>
+      <Button {...args} variant="outline">
+        Outline
+      </Button>
+      <Button {...args} variant="secondary">
+        Secondary
+      </Button>
+      <Button {...args} variant="ghost">
+        Ghost
+      </Button>
+      <Button {...args} variant="link">
+        Link
+      </Button>
+    </div>
+  ),
 };
 
-export const Secondary: Story = {
-  args: {
-    children: "Secondary Button",
-    variant: "secondary",
-    size: "md",
-  },
+export const Sizes: Story = {
+  render: (args) => (
+    <div className="flex items-center gap-2">
+      <Button {...args} size="sm">
+        Small
+      </Button>
+      <Button {...args} size="default">
+        Default
+      </Button>
+      <Button {...args} size="lg">
+        Large
+      </Button>
+      <Button {...args} size="icon" aria-label="Add">
+        <Plus />
+      </Button>
+    </div>
+  ),
 };
 
-export const Danger: Story = {
-  args: {
-    children: "Danger Button",
-    variant: "danger",
-    size: "md",
-  },
+export const WithIcon: Story = {
+  args: { children: undefined },
+  render: (args) => (
+    <div className="flex flex-col gap-2">
+      <Button {...args}>
+        <Plus className="mr-2" /> 새로 만들기
+      </Button>
+      <Button {...args} variant="secondary">
+        <Plus className="mr-2" /> 추가
+      </Button>
+      <Button {...args} variant="outline">
+        <Plus className="mr-2" /> 더하기
+      </Button>
+    </div>
+  ),
 };
 
-export const Large: Story = {
-  args: {
-    children: "Large Button",
-    variant: "primary",
-    size: "lg",
-  },
+export const LoadingStyle: Story = {
+  args: { children: undefined },
+  render: (args) => (
+    <Button {...args} disabled>
+      <Loader2 className="mr-2 animate-spin" />
+      로딩 중...
+    </Button>
+  ),
 };
 
-export const Small: Story = {
-  args: {
-    children: "Small Button",
-    variant: "primary",
-    size: "sm",
-  },
+export const AsChildLink: Story = {
+  args: { asChild: true, children: undefined },
+  render: (args) => (
+    <Button {...args}>
+      <a href="https://example.com" target="_blank" rel="noreferrer">
+        링크처럼 동작
+      </a>
+    </Button>
+  ),
+};
+
+export const Disabled: Story = {
+  args: { disabled: true },
 };

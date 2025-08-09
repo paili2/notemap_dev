@@ -1,4 +1,3 @@
-import Input from "@/components/atoms/Input/Input";
 import { Search } from "lucide-react";
 import Image from "next/image";
 
