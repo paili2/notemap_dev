@@ -11,7 +11,7 @@ import {
 } from "./Pagination";
 
 const meta: Meta<typeof Pagination> = {
-  title: "Atoms/Pagination",
+  title: "Molecules/Pagination",
   component: Pagination,
   parameters: { layout: "centered" },
 };
