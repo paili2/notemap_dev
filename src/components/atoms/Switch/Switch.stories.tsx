@@ -11,7 +11,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-// ✅ 완전 최소: 상태/라벨 없이, 브라우저 기본 포커스만
+// 완전 최소: 상태/라벨 없이, 브라우저 기본 포커스만
 export const UncontrolledOff: Story = {
   args: { id: "switch-off", "aria-label": "switch off", defaultChecked: false },
 };

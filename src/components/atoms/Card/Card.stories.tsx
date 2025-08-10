@@ -6,7 +6,7 @@ import {
   CardDescription,
   CardContent,
   CardFooter,
-} from "./Card"; // 또는 "@/components/atoms/Card/Card"
+} from "./Card";
 import { Button } from "@/components/atoms/Button/Button";
 
 const meta = {

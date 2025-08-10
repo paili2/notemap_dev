@@ -1,6 +1,4 @@
-// src/components/molecules/FormField.stories.tsx
 import type { Meta, StoryObj } from "@storybook/react";
-// 실제 경로에 맞게 변경하세요
 import { FormField, type FormFieldProps } from "./FormField";
 
 const meta = {

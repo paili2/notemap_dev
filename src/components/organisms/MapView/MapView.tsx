@@ -41,13 +41,8 @@ export function MapView({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const mapRef = React.useRef<any>(null);
   const markerObjsRef = React.useRef<any[]>([]);
-  const initialized = React.useRef(false); // ✅ StrictMode 이니셜라이즈 가드
+  const initialized = React.useRef(false); // StrictMode 이니셜라이즈 가드
   const resizeObsRef = React.useRef<ResizeObserver | null>(null);
-
-  React.useEffect(() => {
-    console.log("[MapView] appKey =", appKey); // 여기서 YOUR_KEY 나오면 위 1)~3) 중 하나 문제
-    loadKakaoMaps(appKey).catch((e) => console.error(e));
-  }, [appKey]);
 
   // 1) SDK 로드 & 지도 생성 (1회)
   React.useEffect(() => {
@@ -90,7 +85,7 @@ export function MapView({
         });
       }
 
-      // ✅ 초기 렌더 직후 레이아웃 보정
+      // 초기 렌더 직후 레이아웃 보정
       setTimeout(() => {
         try {
           const h = containerRef.current?.offsetHeight ?? 0;
@@ -103,7 +98,7 @@ export function MapView({
         } catch {}
       }, 0);
 
-      // ✅ 컨테이너 크기 변동 감지하여 relayout
+      // 컨테이너 크기 변동 감지하여 relayout
       if ("ResizeObserver" in window) {
         resizeObsRef.current = new ResizeObserver(() => {
           try {
@@ -113,7 +108,7 @@ export function MapView({
         resizeObsRef.current.observe(containerRef.current);
       }
 
-      // ✅ 윈도우 리사이즈 시에도 보정
+      // 윈도우 리사이즈 시에도 보정
       const onWinResize = () => {
         try {
           map.relayout();
@@ -196,7 +191,7 @@ export function MapView({
           ref={containerRef}
           className="w-full"
           style={{
-            // ✅ 높이 반드시 보장
+            // 높이 반드시 보장
             height: typeof height === "number" ? `${height}px` : height,
             minHeight: 200,
           }}

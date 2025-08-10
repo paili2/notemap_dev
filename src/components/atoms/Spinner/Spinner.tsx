@@ -52,7 +52,7 @@ const Spinner = React.forwardRef<HTMLDivElement, SpinnerProps>(
         aria-label={label}
         className={cn(
           spinnerVariants({ size, color, thickness }),
-          // ✅ 투명 클래스를 "항상 마지막"에 둡니다
+          // 투명 클래스를 마지막에 둬야함
           "border-t-transparent",
           className
         )}

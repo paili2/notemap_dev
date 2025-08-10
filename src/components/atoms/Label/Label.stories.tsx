@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Label } from "./Label"; // Label 컴포넌트 import 경로 확인!
+import { Label } from "./Label";
 
 const meta = {
   title: "atoms/Label",

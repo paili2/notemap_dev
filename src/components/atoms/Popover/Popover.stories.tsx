@@ -8,7 +8,7 @@ import {
 import { Button } from "@/components/atoms/Button/Button";
 
 // PopoverContent의 props를 기준으로 스토리 args 타입을 잡아야
-// align / side / sideOffset 등의 컨트롤이 타입 에러 없이 동작합니다.
+// align / side / sideOffset 등의 컨트롤이 타입 에러 없이 동작함
 
 type PopoverContentProps = React.ComponentProps<typeof PopoverContent>;
 

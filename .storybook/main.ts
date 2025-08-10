@@ -17,7 +17,7 @@ const config: StorybookConfig = {
   },
   docs: { autodocs: "tag" },
 
-  // ✅ 여기서 환경변수 주입 (preview iframe에 들어감)
+  // 여기서 환경변수 주입 (preview iframe에 들어감)
   env: (cfgEnv) => ({
     ...cfgEnv,
     NEXT_PUBLIC_KAKAO_MAP_KEY: process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "",

@@ -1,5 +1,5 @@
 import type { Preview } from "@storybook/react";
-import "../app/globals.css"; // Tailwind 글로벌 스타일
+import "../app/globals.css";
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 const preview: Preview = {
@@ -12,7 +12,7 @@ const preview: Preview = {
       ],
     },
     viewport: {
-      defaultViewport: "mobile1",
+      defaultViewport: "responsive",
     },
     actions: { argTypesRegex: "^on[A-Z].*" },
     controls: {

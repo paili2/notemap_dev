@@ -1,4 +1,3 @@
-// src/components/molecules/CommentItem/CommentItem.tsx
 import * as React from "react";
 import clsx from "clsx";
 import {

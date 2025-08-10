@@ -90,7 +90,7 @@ export const Range: Story = {
 /** 다중 날짜 선택 */
 export const Multiple: Story = {
   render: (args) => {
-    // ✅ multiple 모드에 맞게 undefined 허용
+    // multiple 모드에 맞게 undefined 허용
     const [dates, setDates] = React.useState<Date[] | undefined>(undefined);
 
     return (
@@ -98,8 +98,8 @@ export const Multiple: Story = {
         <Calendar
           {...args}
           mode="multiple"
-          selected={dates} // Date[] | undefined
-          onSelect={setDates} // (dates?: Date[] | undefined) => void
+          selected={dates}
+          onSelect={setDates}
         />
         <p className="mt-3 text-sm text-muted-foreground">
           {dates?.length ? `${dates.length}개 선택됨` : "선택 없음"}
