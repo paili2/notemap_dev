@@ -167,7 +167,7 @@ function SidebarContent({
       </nav>
 
       <div className="border-t p-3 text-xs text-muted-foreground">
-        © {new Date().getFullYear()} Cheolpanjeong
+        © {new Date().getFullYear()} NoteMap
       </div>
     </div>
   );

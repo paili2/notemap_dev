@@ -84,7 +84,7 @@ export function AuthPageLayout({
             )}
           </div>
           <div className="text-sm text-white/70">
-            © {new Date().getFullYear()} CheolpanJeong
+            © {new Date().getFullYear()} NoteMap
           </div>
         </div>
       </div>

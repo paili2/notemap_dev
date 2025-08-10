@@ -52,9 +52,7 @@ const meta: Meta<StoryProps> = {
       <div className="flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.svg" alt="logo" className="h-6 w-6" />
-        <span className="text-sm font-semibold truncate">
-          Cheolpanjeong Realty
-        </span>
+        <span className="text-sm font-semibold truncate">NoteMap</span>
       </div>
     ),
     __containerWidth: 280,
@@ -83,8 +81,7 @@ export const LongUserInfo: Story = {
   args: {
     user: {
       name: "김프론트엔드매니저-아주-아주-긴-이름",
-      email:
-        "really.long.email.address.for.demo@cheolpanjeong-realestate.co.kr",
+      email: "really.long.email.address.for.demo@NoteMap-realestate.co.kr",
       role: "Senior Product Manager",
     },
   },
