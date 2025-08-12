@@ -1,6 +1,5 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
 import { defineConfig } from "vitest/config";
 
 const dirname =
@@ -8,9 +7,11 @@ const dirname =
     ? __dirname
     : path.dirname(fileURLToPath(import.meta.url));
 
-// More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   test: {
+    globals: true,
+    // ✅ 이 줄 추가
+    typecheck: { tsconfig: "tsconfig.vitest.json" },
     projects: [
       {
         extends: true,
@@ -22,7 +23,7 @@ export default defineConfig({
             provider: "playwright",
             instances: [{ browser: "chromium" }],
           },
-          setupFiles: [".storybook/vitest.setup.ts"],
+          setupFiles: [".storybook/vitest.setup.ts"], // ← Vitest만 사용 (스토리북 preview에서 import 금지)
         },
       },
     ],

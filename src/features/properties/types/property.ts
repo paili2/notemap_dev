@@ -1,0 +1,1 @@
+// Property, PropertyStatus 등

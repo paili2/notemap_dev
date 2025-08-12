@@ -1,64 +1,56 @@
 declare global {
   interface Window {
     kakao?: any;
-    __kakaoMapsLoadingPromise__?: Promise<void> | null;
   }
 }
+
+let loading: Promise<any> | null = null;
 
 export function loadKakaoMaps(appKey: string) {
-  if (!appKey) {
-    throw new Error(
-      "Kakao Maps: appKey가 비어있습니다. .env.local을 확인하세요"
-    );
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("window unavailable"));
   }
 
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.kakao?.maps) return Promise.resolve();
+  // 이미 로드됨
+  if (window.kakao?.maps) return Promise.resolve(window.kakao);
 
-  if (window.__kakaoMapsLoadingPromise__)
-    return window.__kakaoMapsLoadingPromise__;
+  // 이전에 실패한 script 잔존 시 제거
+  const prev = document.querySelector<HTMLScriptElement>(
+    'script[data-kakao="sdk"]'
+  );
+  if (prev && !window.kakao?.maps) prev.remove();
 
-  window.__kakaoMapsLoadingPromise__ = new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[data-kakao="maps"]'
-    );
+  if (loading) return loading;
 
-    if (existing) {
-      if (window.kakao?.maps) {
-        resolve();
-        return;
-      }
-      existing.onload = () => {
-        try {
-          window.kakao.maps.load(() => resolve());
-        } catch (e) {
-          reject(new Error("Kakao Maps SDK load callback failed"));
-        }
-      };
-      existing.onerror = () =>
-        reject(new Error("Kakao Maps SDK load failed (existing)"));
-      return;
-    }
+  loading = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.dataset.kakao = "sdk";
+    s.async = true;
+    s.src =
+      `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
+        appKey
+      )}` + `&autoload=false&libraries=services,clusterer`;
 
-    const script = document.createElement("script");
-    script.async = true;
-    script.defer = true;
-    script.dataset.kakao = "maps";
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=${appKey}`;
-
-    script.onload = () => {
-      try {
-        window.kakao.maps.load(() => resolve());
-      } catch (e) {
-        reject(new Error("Kakao Maps SDK load callback failed"));
-      }
+    const fail = () => {
+      s.remove();
+      loading = null;
+      reject(new Error("Kakao Maps SDK load failed"));
     };
 
-    script.onerror = () => reject(new Error("Kakao Maps SDK load failed"));
-    document.head.appendChild(script);
+    s.onerror = fail;
+    s.onload = () => {
+      const k = (window as any).kakao;
+      if (!k?.maps?.load) return fail();
+      k.maps.load(() => resolve(k));
+    };
+
+    document.head.appendChild(s);
+
+    // 안전 타임아웃 (선택)
+    setTimeout(() => {
+      if (!window.kakao?.maps) fail();
+    }, 15000);
   });
 
-  return window.__kakaoMapsLoadingPromise__;
+  return loading;
 }
-
-export {};

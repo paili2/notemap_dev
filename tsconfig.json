@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "types": ["vitest/globals", "@types/node", "@testing-library/jest-dom"],
+    "types": ["@types/node", "@testing-library/jest-dom"],
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] },
     "lib": ["dom", "dom.iterable", "esnext"],
