@@ -1,208 +1,111 @@
 "use client";
 
 import * as React from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/atoms/Card/Card";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
 import { loadKakaoMaps } from "@/lib/kakaoLoader";
-import type {
-  LatLng,
-  MapMarker,
-  MapControls,
-} from "@/features/properties/types/map";
+import type { LatLng, MapMarker } from "@/features/properties/types/map";
 
-type MapViewProps = {
+type MapControls = {
+  zoom?: boolean;
+  mapType?: boolean;
+};
+
+type Props = {
   appKey: string;
   center?: LatLng;
   level?: number;
-  markers?: MapMarker[];
-  onMarkerClick?: (marker: MapMarker) => void;
-  onMapClick?: (pos: LatLng) => void;
-  fitToMarkers?: boolean;
-  controls?: MapControls;
-  title?: string;
-  className?: string;
-  height?: number | string;
+  markers?: MapMarker[]; // ← 추가
+  fitToMarkers?: boolean; // ← 추가
+  controls?: MapControls; // ← 추가
+  onMarkerClick?: (marker: MapMarker) => void; // ← 추가
 };
 
-export function MapView({
+export default function MapView({
   appKey,
   center = { lat: 37.5665, lng: 126.978 },
   level = 3,
   markers = [],
+  fitToMarkers = false,
+  controls,
   onMarkerClick,
-  onMapClick,
-  fitToMarkers = true,
-  controls = { zoom: true, mapType: false },
-  title = "지도",
-  className,
-  height = 500,
-}: MapViewProps) {
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const mapRef = React.useRef<any>(null);
-  const markerObjsRef = React.useRef<any[]>([]);
-  const initialized = React.useRef(false); // StrictMode 이니셜라이즈 가드
-  const resizeObsRef = React.useRef<ResizeObserver | null>(null);
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<any>(null); // kakao 타입은 any로
+  const markerObjsRef = useRef<any[]>([]); // kakao 타입은 any로
 
-  // 1) SDK 로드 & 지도 생성 (1회)
-  React.useEffect(() => {
-    let canceled = false;
+  // 지도 생성
+  useEffect(() => {
+    let cancelled = false;
 
     (async () => {
-      if (!appKey) {
-        console.warn(
-          "[MapView] NEXT_PUBLIC_KAKAO_MAP_KEY가 비어있어요. env 주입을 확인하세요."
-        );
-      }
+      try {
+        await loadKakaoMaps(appKey); // SDK 로딩 보장
+        if (cancelled || !containerRef.current) return;
 
-      await loadKakaoMaps(appKey);
-      if (canceled || initialized.current) return;
-      if (!containerRef.current) return;
+        const k = (window as any).kakao!;
+        const lat = Number(center.lat);
+        const lng = Number(center.lng);
 
-      const { kakao } = window as any;
-      const map = new kakao.maps.Map(containerRef.current, {
-        center: new kakao.maps.LatLng(center.lat, center.lng),
-        level,
-      });
-      mapRef.current = map;
-      initialized.current = true;
-
-      // 컨트롤 추가
-      if (controls.zoom) {
-        const zoomControl = new kakao.maps.ZoomControl();
-        map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
-      }
-      if (controls.mapType) {
-        const mapTypeControl = new kakao.maps.MapTypeControl();
-        map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
-      }
-
-      // 지도 클릭 이벤트
-      if (onMapClick) {
-        kakao.maps.event.addListener(map, "click", (mouseEvent: any) => {
-          const latlng = mouseEvent.latLng;
-          onMapClick({ lat: latlng.getLat(), lng: latlng.getLng() });
+        const map = new k.maps.Map(containerRef.current, {
+          center: new k.maps.LatLng(lat, lng),
+          level,
         });
-      }
+        mapRef.current = map;
 
-      // 초기 렌더 직후 레이아웃 보정
-      setTimeout(() => {
-        try {
-          const h = containerRef.current?.offsetHeight ?? 0;
-          if (h === 0) {
-            console.warn(
-              "[MapView] 컨테이너 높이가 0입니다. 부모 높이 또는 Storybook 데코레이터를 확인하세요."
-            );
-          }
-          map.relayout();
-        } catch {}
-      }, 0);
-
-      // 컨테이너 크기 변동 감지하여 relayout
-      if ("ResizeObserver" in window) {
-        resizeObsRef.current = new ResizeObserver(() => {
-          try {
-            map.relayout();
-          } catch {}
-        });
-        resizeObsRef.current.observe(containerRef.current);
-      }
-
-      // 윈도우 리사이즈 시에도 보정
-      const onWinResize = () => {
-        try {
-          map.relayout();
-        } catch {}
-      };
-      window.addEventListener("resize", onWinResize);
-
-      // cleanup
-      return () => {
-        window.removeEventListener("resize", onWinResize);
-        if (resizeObsRef.current && containerRef.current) {
-          resizeObsRef.current.unobserve(containerRef.current);
-          resizeObsRef.current.disconnect();
-          resizeObsRef.current = null;
+        // 컨트롤(초기 1회)
+        if (controls?.zoom) {
+          const zoomCtrl = new k.maps.ZoomControl();
+          map.addControl(zoomCtrl, k.maps.ControlPosition.RIGHT);
         }
-      };
+        if (controls?.mapType) {
+          const mapTypeCtrl = new k.maps.MapTypeControl();
+          map.addControl(mapTypeCtrl, k.maps.ControlPosition.TOPRIGHT);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     })();
 
     return () => {
-      canceled = true;
+      cancelled = true;
     };
-  }, [appKey, controls.mapType, controls.zoom]); // 생성 관련만
+    // controls는 제거 API가 없어 초기 1회만 반영
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appKey, center.lat, center.lng, level]);
 
-  // 2) 중심/레벨 변경 반영
-  React.useEffect(() => {
+  // 마커 렌더링 & 클릭 핸들러
+  useEffect(() => {
+    const k = (window as any).kakao;
     const map = mapRef.current;
-    const kakao = (window as any)?.kakao;
-    if (!map || !kakao?.maps) return;
-
-    map.setLevel(level);
-    map.setCenter(new kakao.maps.LatLng(center.lat, center.lng));
-
-    // 중심/레벨 변경 후 레이아웃 한번 더 보정
-    try {
-      map.relayout();
-    } catch {}
-  }, [center.lat, center.lng, level]);
-
-  // 3) 마커 반영
-  React.useEffect(() => {
-    const map = mapRef.current;
-    const kakao = (window as any)?.kakao;
-    if (!map || !kakao?.maps) return;
+    if (!k || !map) return;
 
     // 기존 마커 제거
     markerObjsRef.current.forEach((m) => m.setMap(null));
     markerObjsRef.current = [];
 
-    if (!markers.length) return;
+    if (!markers || markers.length === 0) return;
 
-    const bounds = new kakao.maps.LatLngBounds();
+    const bounds = new k.maps.LatLngBounds();
 
-    markers.forEach((m) => {
-      const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
-      const marker = new kakao.maps.Marker({ position: pos, title: m.title });
-      marker.setMap(map);
-      markerObjsRef.current.push(marker);
-      bounds.extend(pos);
+    markers.forEach((mData) => {
+      const marker = new k.maps.Marker({
+        position: new k.maps.LatLng(mData.position.lat, mData.position.lng),
+        title: mData.title,
+      });
 
       if (onMarkerClick) {
-        kakao.maps.event.addListener(marker, "click", () => onMarkerClick(m));
+        k.maps.event.addListener(marker, "click", () => onMarkerClick(mData));
       }
+
+      marker.setMap(map);
+      markerObjsRef.current.push(marker);
+      bounds.extend(new k.maps.LatLng(mData.position.lat, mData.position.lng));
     });
 
-    if (fitToMarkers && markers.length > 1) {
+    if (fitToMarkers && markers.length > 0) {
       map.setBounds(bounds);
-      try {
-        map.relayout();
-      } catch {}
     }
-  }, [JSON.stringify(markers), onMarkerClick, fitToMarkers]);
+  }, [markers, fitToMarkers, onMarkerClick]);
 
-  return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader className="py-3">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div
-          ref={containerRef}
-          className="w-full"
-          style={{
-            // 높이 반드시 보장
-            height: typeof height === "number" ? `${height}px` : height,
-            minHeight: 200,
-          }}
-        />
-      </CardContent>
-    </Card>
-  );
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }
-
-export default MapView;

@@ -1,55 +1,32 @@
-declare global {
-  interface Window {
-    kakao?: any;
-  }
-}
-
-let loading: Promise<any> | null = null;
+let loading: Promise<typeof window.kakao> | null = null;
 
 export function loadKakaoMaps(appKey: string) {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("window unavailable"));
+  if (typeof window === "undefined") return Promise.reject(new Error("SSR"));
+
+  if (window.kakao?.maps) {
+    // 이미 로드됨
+    return Promise.resolve(window.kakao);
   }
-
-  // 이미 로드됨
-  if (window.kakao?.maps) return Promise.resolve(window.kakao);
-
-  // 이전에 실패한 script 잔존 시 제거
-  const prev = document.querySelector<HTMLScriptElement>(
-    'script[data-kakao="sdk"]'
-  );
-  if (prev && !window.kakao?.maps) prev.remove();
-
   if (loading) return loading;
 
-  loading = new Promise((resolve, reject) => {
+  loading = new Promise<typeof window.kakao>((resolve, reject) => {
     const s = document.createElement("script");
-    s.dataset.kakao = "sdk";
+    s.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services,clusterer`;
     s.async = true;
-    s.src =
-      `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(
-        appKey
-      )}` + `&autoload=false&libraries=services,clusterer`;
 
-    const fail = () => {
-      s.remove();
+    s.onload = () => {
+      // autoload=false 이므로 여기서 한 번 더 load 필요
+      window.kakao.maps.load(() => {
+        resolve(window.kakao);
+      });
+    };
+    s.onerror = () => {
+      document.head.removeChild(s);
       loading = null;
       reject(new Error("Kakao Maps SDK load failed"));
     };
 
-    s.onerror = fail;
-    s.onload = () => {
-      const k = (window as any).kakao;
-      if (!k?.maps?.load) return fail();
-      k.maps.load(() => resolve(k));
-    };
-
     document.head.appendChild(s);
-
-    // 안전 타임아웃 (선택)
-    setTimeout(() => {
-      if (!window.kakao?.maps) fail();
-    }, 15000);
   });
 
   return loading;

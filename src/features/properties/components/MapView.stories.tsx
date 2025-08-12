@@ -1,78 +1,68 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MapView } from "@/features/properties/components/MapView";
+import React from "react";
+import MapView from "./MapView";
 
-// ✅ env 읽기 (Next/Vite 모두 대응)
-const KEY =
-  (process.env.NEXT_PUBLIC_KAKAO_MAP_KEY as string) ||
-  ((import.meta as any).env?.NEXT_PUBLIC_KAKAO_MAP_KEY as string) ||
-  "";
-
-// (선택) 빈 값이면 눈에 띄게 경고
-if (!KEY) {
-  // eslint-disable-next-line no-console
-  console.warn(
-    "[MapView] NEXT_PUBLIC_KAKAO_MAP_KEY가 비어있어요. .env.local과 Storybook 설정을 확인하세요."
-  );
-}
+// 실제 키가 없으면 Kakao SDK가 로드 실패합니다.
+const APP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "YOUR_KEY";
 
 const meta: Meta<typeof MapView> = {
-  title: "organisms/MapView",
+  title: "features/properties/MapView",
   component: MapView,
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "카카오 지도 컴포넌트. .env에 NEXT_PUBLIC_KAKAO_MAP_KEY가 설정되어 있어야 정상적으로 로드됩니다.",
+      },
+    },
+  },
   argTypes: {
-    appKey: { control: false, table: { disable: true } },
-    onMarkerClick: { action: "marker-click" },
-    onMapClick: { action: "map-click" },
+    appKey: {
+      control: "text",
+      description: "Kakao Maps JavaScript SDK App Key",
+    },
+    center: {
+      control: "object",
+      description: "{ lat: number; lng: number }",
+    },
+    level: {
+      control: { type: "number", min: 1, max: 14, step: 1 },
+      description: "지도의 확대/축소 레벨 (작을수록 더 확대)",
+    },
+  },
+  args: {
+    appKey: APP_KEY,
+    center: { lat: 37.5665, lng: 126.978 }, // 서울 시청 근처
+    level: 5,
   },
 };
 export default meta;
 
 type Story = StoryObj<typeof MapView>;
 
-const SEOUL = { lat: 37.5665, lng: 126.978 };
+// 기본 지도
+export const Default: Story = {};
 
-export const Default: Story = {
+// 확대 레벨 데모
+export const ZoomedIn: Story = {
   args: {
-    appKey: KEY,
-    title: "스토리북 지도",
-    center: SEOUL,
-    level: 5,
-    markers: [
-      { id: "cityhall", position: SEOUL, title: "서울시청" },
-      {
-        id: "deoksu",
-        position: { lat: 37.5658, lng: 126.9753 },
-        title: "덕수궁",
-      },
-    ],
-    fitToMarkers: true,
-  },
-};
-
-export const SingleMarker: Story = {
-  args: {
-    appKey: KEY,
-    title: "단일 마커",
-    center: SEOUL,
     level: 3,
-    markers: [{ id: "cityhall", position: SEOUL, title: "서울시청" }],
   },
 };
 
-export const ClickHandlers: Story = {
+// 다른 도시로 중심 이동 (부산)
+export const Busan: Story = {
   args: {
-    appKey: KEY,
-    title: "클릭 핸들러 예시",
-    center: SEOUL,
+    center: { lat: 35.1796, lng: 129.0756 },
     level: 5,
-    markers: [
-      { id: "a", position: SEOUL, title: "서울시청" },
-      {
-        id: "b",
-        position: { lat: 37.5702, lng: 126.982 },
-        title: "덕수궁 돌담길",
-      },
-    ],
-    fitToMarkers: true,
+  },
+};
+
+// 광역 뷰 (대한민국 대략 중앙/축소)
+export const WideKoreaView: Story = {
+  args: {
+    center: { lat: 36.5, lng: 127.9 },
+    level: 10,
   },
 };

@@ -1,6 +1,9 @@
-import { Search } from "lucide-react";
-import Image from "next/image";
+import MapHomePage from "@/features/properties/pages/MapHomePage";
 
 export default function Home() {
-  return <div></div>;
+  return (
+    <div>
+      <MapHomePage />
+    </div>
+  );
 }

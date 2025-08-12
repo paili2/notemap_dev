@@ -1,7 +1,7 @@
 export type LatLng = { lat: number; lng: number };
 
 export type MapMarker = {
-  id: string | number;
+  id: string;
   position: LatLng;
   title?: string;
 };
