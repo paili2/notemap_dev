@@ -56,7 +56,6 @@ export const Disabled: Story = {
   },
 };
 
-// 폼 맥락에서의 예시 (폭과 간격 포함)
 export const InAForm: Story = {
   render: (args: FormFieldProps) => (
     <div className="w-[360px] space-y-4">

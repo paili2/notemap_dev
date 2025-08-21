@@ -1,4 +1,3 @@
-import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/atoms/Badge/Badge";
 import { Button } from "@/components/atoms/Button/Button";
@@ -14,27 +13,7 @@ import {
   PopoverContent,
 } from "@/components/atoms/Popover/Popover";
 import { MapPin, Star } from "lucide-react";
-
-export type MapPinTooltipMode = "hover" | "click";
-
-export interface MapPinTooltipProps {
-  mode?: MapPinTooltipMode;
-  trigger: React.ReactNode;
-  thumbnailUrl?: string;
-  title: string;
-  priceText?: string;
-  status?: "available" | "pending" | "sold" | string;
-  address?: string;
-  distanceText?: string;
-  tags?: string[];
-  favorite?: boolean;
-  onClickView?: () => void;
-  onToggleFavorite?: (next: boolean) => void;
-  side?: "top" | "right" | "bottom" | "left";
-  align?: "start" | "center" | "end";
-  sideOffset?: number;
-  className?: string;
-}
+import { MapPinTooltipProps } from "./MapPinTooltip.types";
 
 export function MapPinTooltip({
   mode = "hover",

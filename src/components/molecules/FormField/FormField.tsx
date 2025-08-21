@@ -6,7 +6,7 @@ export interface FormFieldProps
   extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
   name: string;
-  labelWidth?: string; // 라벨 너비 조정 옵션
+  labelWidth?: string;
 }
 
 export function FormField({
@@ -14,7 +14,7 @@ export function FormField({
   name,
   type = "text",
   className,
-  labelWidth = "w-24", // 기본 96px
+  labelWidth = "w-24",
   ...props
 }: FormFieldProps) {
   return (

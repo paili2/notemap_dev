@@ -74,6 +74,16 @@ body {
     --chart-5: 340 75% 55%;
   }
 
+  /* 지도 위 커버 레이어는 기본적으로 클릭 통과 */
+  .map-overlay {
+    pointer-events: none;
+  }
+
+  /* 오버레이 안에서 실제 클릭 필요한 요소만 */
+  .map-overlay .interactive {
+    pointer-events: auto;
+  }
+
   * {
     @apply border-border;
   }

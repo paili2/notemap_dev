@@ -26,7 +26,7 @@ const rows: UserRow[] = [
   },
   {
     id: "u-2",
-    name: "박지훈",
+    name: "박경수",
     email: "jihoon@example.com",
     role: "manager",
     active: true,

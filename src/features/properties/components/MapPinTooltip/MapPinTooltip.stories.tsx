@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import * as React from "react";
 import { Button } from "@/components/atoms/Button/Button";
-import { MapPinTooltip } from "@/features/properties/components/MapPinTooltip";
+import { MapPinTooltip } from "@/features/properties/components/MapPinTooltip/MapPinTooltip";
 import { MapPin } from "lucide-react";
 
 const meta: Meta<typeof MapPinTooltip> = {

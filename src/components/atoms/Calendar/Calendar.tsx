@@ -1,4 +1,5 @@
-import * as React from "react";
+"use client";
+
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -8,6 +9,7 @@ import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/atoms/Button/Button";
+import { useEffect, useMemo, useRef } from "react";
 
 /** 외부에서 타입도 재사용할 수 있게 export */
 export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
@@ -29,7 +31,7 @@ function Calendar({
   ...props
 }: CalendarProps) {
   // 기본 클래스 객체 메모이즈 (불필요한 재생성 방지)
-  const defaultClassNames = React.useMemo(() => getDefaultClassNames(), []);
+  const defaultClassNames = useMemo(() => getDefaultClassNames(), []);
 
   // 안전한 variant 보정 (오타 등 들어와도 깨지지 않게)
   const safeButtonVariant = (
@@ -187,12 +189,12 @@ function CalendarDayButton({
   modifiers,
   ...props
 }: React.ComponentProps<typeof DayButton>) {
-  const defaultClassNames = React.useMemo(() => getDefaultClassNames(), []);
-  const ref = React.useRef<HTMLButtonElement>(null);
-  const focusedRef = React.useRef(false);
+  const defaultClassNames = useMemo(() => getDefaultClassNames(), []);
+  const ref = useRef<HTMLButtonElement>(null);
+  const focusedRef = useRef(false);
 
   // 포커스 상태 안정화 (StrictMode에서도 중복 포커스 방지)
-  React.useEffect(() => {
+  useEffect(() => {
     if (modifiers.focused && !focusedRef.current) {
       ref.current?.focus();
       focusedRef.current = true;

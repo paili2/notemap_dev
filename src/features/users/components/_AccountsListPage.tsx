@@ -1,168 +1,531 @@
 "use client";
 
-import * as React from "react";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/atoms/Badge/Badge";
-import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
-import { Label } from "@/components/atoms/Label/Label";
-import { Button } from "@/components/atoms/Button/Button";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuItem,
-} from "@/components/molecules/DropdownMenu/DropdownMenu";
+  Phone,
+  PhoneCall,
+  MapPin,
+  Banknote,
+  Pencil,
+  Trash2,
+  Shield,
+  X,
+  Eye,
+  FileText,
+  Image as ImageIcon,
+  EyeOff,
+} from "lucide-react";
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/atoms/Select/Select";
-import { MoreHorizontal } from "lucide-react";
-import type { RoleKey, UserRow } from "../types";
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+} from "@/components/atoms/Avatar/Avatar";
+import type { RoleKey, UserRow } from "@/features/users/types";
+import AccountEditModal from "./_AccountEditModal";
+import { useState } from "react";
+
+type Props = {
+  rows: UserRow[];
+  onChangeRole: (id: string, role: RoleKey) => void; // (필요 시 모달 등에서 사용)
+  onToggleActive: (id: string, next: boolean) => void;
+  onRemove: (id: string) => void;
+  onEdit: (row: UserRow) => void;
+  onApplyEdit?: (
+    id: string,
+    patch: Partial<UserRow> & {
+      phone?: string;
+      emergency_contact?: string;
+      address?: string;
+      salary_account?: string;
+      birthday?: string;
+      password?: string;
+      photo_url?: string;
+      id_photo_url?: string;
+      resident_register_url?: string;
+      resident_extract_url?: string;
+      family_relation_url?: string;
+    }
+  ) => void;
+};
 
 export default function AccountsListPage({
   rows,
-  onChangeRole,
   onToggleActive,
   onRemove,
-}: {
-  rows: UserRow[];
-  onChangeRole: (id: string, role: RoleKey) => void;
-  onToggleActive: (id: string, next: boolean) => void;
-  onRemove: (id: string) => void;
-}) {
+  onEdit,
+  onApplyEdit,
+}: Props) {
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailUser, setDetailUser] = useState<UserRow | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+
+  const openDetail = (u: UserRow) => {
+    setDetailUser(u);
+    setDetailOpen(true);
+  };
+  const closeDetail = () => {
+    setDetailOpen(false);
+    setTimeout(() => setDetailUser(null), 200);
+  };
+
+  const openEdit = (u: UserRow) => {
+    setEditUser(u);
+    setEditOpen(true);
+  };
+  const closeEdit = () => {
+    setEditOpen(false);
+    setTimeout(() => setEditUser(null), 200);
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-muted/50">
-          <tr className="text-left">
-            <th className="p-3 font-medium">이름</th>
-            <th className="p-3 font-medium">이메일</th>
-            <th className="p-3 font-medium">역할</th>
-            <th className="p-3 font-medium">상태</th>
-            <th className="p-3 font-medium text-right">액션</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {rows.map((u) => {
-            const readOnly = u.protected; // 보호계정만 제한
-            return (
-              <tr key={u.id} className={u.protected ? "opacity-90" : ""}>
-                <td className="p-3">
-                  {u.name}
-                  {u.protected && (
-                    <span className="ml-2 align-middle">
-                      <Badge variant="outline">보호됨</Badge>
-                    </span>
-                  )}
-                </td>
-                <td className="p-3 text-muted-foreground">{u.email}</td>
-                <td className="p-3">
-                  {readOnly ? (
-                    <Badge variant="secondary">
-                      {u.role === "owner"
-                        ? "메인관리자"
-                        : u.role === "manager"
-                        ? "팀장"
-                        : "사원"}
-                    </Badge>
-                  ) : (
-                    <RoleSelect
-                      value={u.role}
-                      onChange={(v) => {
-                        if (u.protected) return;
-                        onChangeRole(u.id, v);
-                      }}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {rows.length === 0 ? (
+        <div className="col-span-full rounded-xl border p-10 text-center text-muted-foreground">
+          데이터가 없습니다.
+        </div>
+      ) : (
+        rows.map((u) => {
+          // ====== 카드에 들어갈 필수정보 + 사진 ======
+          const phone = (u as any).phone ?? "";
+          const emergency = (u as any).emergency_contact ?? "";
+          const address =
+            (u as any).address ??
+            (u as any).addr ??
+            (u as any).address_line ??
+            "";
+          const salary = (u as any).salary_account ?? "";
+          const photo = (u as any).photo_url ?? "";
+
+          const toggleDisabled = (u as any).protected || u.role === "owner";
+          const isProtected = (u as any).protected || u.role === "owner";
+
+          return (
+            <article
+              key={u.id}
+              className="relative flex flex-col rounded-2xl border bg-background p-4 shadow-sm"
+            >
+              {/* 우상단 활성 토글 (옵션) */}
+              <button
+                type="button"
+                onClick={() => onToggleActive(u.id, !u.active)}
+                disabled={toggleDisabled}
+                title={
+                  toggleDisabled
+                    ? "이 계정은 상태를 변경할 수 없습니다."
+                    : u.active
+                    ? "비활성으로 전환"
+                    : "활성으로 전환"
+                }
+                aria-pressed={u.active}
+                aria-label={
+                  u.active
+                    ? "활성화됨, 비활성으로 전환"
+                    : "비활성, 활성으로 전환"
+                }
+                className={[
+                  "absolute right-4 top-4 inline-flex h-5 w-9 items-center rounded-full border transition-colors",
+                  toggleDisabled
+                    ? "bg-gray-200 border-gray-300 opacity-60 cursor-not-allowed"
+                    : u.active
+                    ? "bg-emerald-500 border-emerald-600"
+                    : "bg-gray-200 border-gray-300",
+                ].join(" ")}
+              >
+                <span
+                  className={[
+                    "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                    u.active ? "translate-x-4" : "translate-x-1",
+                  ].join(" ")}
+                />
+              </button>
+
+              {/* 상단: 아바타 + 이름/보호뱃지 (뱃지 영역 고정 크기) */}
+              <div className="flex items-start gap-3">
+                <button
+                  className="shrink-0"
+                  onClick={() => openDetail(u)}
+                  title="상세보기"
+                  aria-label={`${u.name} 상세보기`}
+                >
+                  <Avatar className="h-16 w-16 ring-1 ring-border">
+                    <AvatarImage
+                      src={photo || undefined}
+                      alt={`${u.name}의 프로필 사진`}
                     />
-                  )}
-                </td>
-                <td className="p-3">
-                  <span className={cn("inline-flex items-center gap-2")}>
-                    <Checkbox
-                      checked={u.active}
-                      disabled={readOnly}
-                      onCheckedChange={(v) => onToggleActive(u.id, Boolean(v))}
-                      id={`active-${u.id}`}
-                    />
-                    <Label htmlFor={`active-${u.id}`} className="text-sm">
-                      {u.active ? "활성" : "비활성"}
-                    </Label>
-                  </span>
-                </td>
-                <td className="p-3">
-                  <div className="flex justify-end">
-                    {readOnly ? (
-                      <span className="text-xs text-muted-foreground">-</span>
+                    <AvatarFallback className="text-lg font-semibold">
+                      {initials(u.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+
+                <div className="min-w-0 flex-1">
+                  {/* 이름/뱃지: 2행 그리드, 뱃지 높이 고정 + 너비 고정 */}
+                  <div className="grid grid-rows-[auto_18px] gap-0 min-h-[42px]">
+                    <h3 className="truncate text-base font-semibold leading-5">
+                      {u.name}
+                    </h3>
+                    {isProtected ? (
+                      <span className="inline-flex h-[18px] w-[44px] items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-[10px] text-amber-800">
+                        {/* 고정폭 뱃지: '보호' 텍스트 길이에 상관없이 동일 크기 */}
+                        <Shield className="mr-1 h-3 w-3" />
+                        보호
+                      </span>
                     ) : (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            aria-label={`${u.name} 더보기`}
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
-                          <DropdownMenuLabel>작업</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => alert("비밀번호 초기화")}
-                          >
-                            비밀번호 초기화
-                          </DropdownMenuItem>
-                          {!u.protected && (
-                            <DropdownMenuItem
-                              onClick={() => onRemove(u.id)}
-                              className="text-destructive"
-                            >
-                              계정 삭제
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      // 뱃지가 없을 때도 동일 높이/폭 확보
+                      <span className="invisible h-[18px] w-[44px]">.</span>
                     )}
                   </div>
-                </td>
-              </tr>
-            );
-          })}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                표시할 직원이 없습니다.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                </div>
+              </div>
+
+              {/* 본문: 필수정보 4줄 */}
+              <div className="mt-3 space-y-2 text-sm">
+                <Line
+                  icon={<Phone className="h-4 w-4" />}
+                  label="연락처"
+                  value={phone || "-"}
+                />
+                <Line
+                  icon={<PhoneCall className="h-4 w-4" />}
+                  label="비상연락처"
+                  value={emergency || "-"}
+                />
+                <Line
+                  icon={<MapPin className="h-4 w-4" />}
+                  label="주소"
+                  value={address || "-"}
+                />
+                <Line
+                  icon={<Banknote className="h-4 w-4" />}
+                  label="급여계좌"
+                  value={salary || "-"}
+                />
+              </div>
+
+              {/* 액션: 모든 카드에서 동일 Y위치(상단 콘텐츠가 동일 구조 + 아래 마진으로 정렬) */}
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  onClick={() => openDetail(u)}
+                  title="상세보기"
+                >
+                  <Eye className="h-4 w-4" />
+                  상세보기
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  onClick={() => openEdit(u)}
+                  title="수정"
+                >
+                  <Pencil className="h-4 w-4" />
+                  수정
+                </button>
+                <button
+                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  onClick={() => {
+                    if (confirm("해당 계정을 삭제할까요?")) onRemove(u.id);
+                  }}
+                  disabled={(u as any).protected}
+                  title="삭제"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  삭제
+                </button>
+              </div>
+            </article>
+          );
+        })
+      )}
+
+      {/* 상세보기 모달: 추가정보 노출 */}
+      {detailOpen && detailUser && (
+        <DetailModal user={detailUser} onClose={closeDetail} />
+      )}
+      {editOpen && editUser && (
+        <AccountEditModal
+          open={editOpen}
+          user={editUser}
+          onClose={closeEdit}
+          onSave={(patch) => {
+            typeof window !== "undefined" && console.debug("edit patch", patch);
+            onApplyEdit?.(editUser.id, patch);
+            closeEdit();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function RoleSelect({
+/** 한 줄 표현 (아이콘 + 라벨 + 값) */
+function Line({
+  icon,
+  label,
   value,
-  onChange,
 }: {
-  value: RoleKey;
-  onChange: (v: RoleKey) => void;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
 }) {
-  // owner로 변경 금지 → 선택지는 manager/staff만
-  const safeValue = value === "owner" ? "manager" : value;
   return (
-    <Select value={safeValue} onValueChange={(v: RoleKey) => onChange(v)}>
-      <SelectTrigger className="w-[140px]">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="manager">팀장</SelectItem>
-        <SelectItem value="staff">사원</SelectItem>
-      </SelectContent>
-    </Select>
+    <div className="flex items-start gap-2">
+      <span className="mt-0.5 text-muted-foreground">{icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[11px] text-muted-foreground">{label}</div>
+        <div className="truncate">{value}</div>
+      </div>
+    </div>
   );
+}
+
+/** 상세보기 모달: 추가정보 (사진/등본/초본/가족관계/신분증사진) */
+function DetailModal({
+  user,
+  onClose,
+}: {
+  user: UserRow;
+  onClose: () => void;
+}) {
+  const name = user.name;
+  const email = user.email;
+  const role = user.role;
+  const active = (user as any).active;
+
+  const phone = (user as any).phone ?? "";
+  const emergency = (user as any).emergency_contact ?? "";
+  const address =
+    (user as any).address ??
+    (user as any).addr ??
+    (user as any).address_line ??
+    "";
+  const salary = (user as any).salary_account ?? "";
+
+  // 추가정보
+  const photo = (user as any).photo_url ?? "";
+  const idPhoto = (user as any).id_photo_url ?? "";
+  const docResident = (user as any).resident_register_url ?? "";
+  const docExtract = (user as any).resident_extract_url ?? "";
+  const docFamily = (user as any).family_relation_url ?? "";
+  const birthday = (user as any).birthday ?? "";
+
+  // 비밀번호 (마스킹 + 토글)
+  const password = (user as any).password ?? "";
+  const [showPw, setShowPw] = useState(false);
+  const masked = password ? "•".repeat(Math.max(8, password.length)) : "—";
+
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="absolute left-1/2 top-1/2 w-[780px] max-w-[95vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-background shadow-xl">
+        <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className="text-sm font-semibold">계정 상세 정보</div>
+          <button
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border hover:bg-accent"
+            onClick={onClose}
+            aria-label="close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* 요약 헤더 */}
+          <div className="flex items-start gap-4">
+            <Avatar className="h-16 w-16 ring-1 ring-border">
+              <AvatarImage
+                src={photo || undefined}
+                alt={`${name}의 프로필 사진`}
+              />
+              <AvatarFallback className="text-lg font-semibold">
+                {initials(name)}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-semibold">{name}</div>
+              <div className="mt-1 flex flex-wrap gap-2 text-xs">
+                <Badge label={`권한: ${roleLabel(role as RoleKey)}`} />
+                <Badge label={`상태: ${active ? "활성" : "비활성"}`} />
+                {birthday && <Badge label={`생년월일: ${birthday}`} />}
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="이메일" value={email} />
+                <Field label="연락처" value={phone || "-"} />
+                <Field label="비상 연락처" value={emergency || "-"} />
+                <Field label="주소" value={address || "-"} />
+                <Field label="급여계좌" value={salary || "-"} />
+
+                {/* 비밀번호 표시 (기본 마스킹 + 토글 버튼) */}
+                <div className="sm:col-span-2">
+                  <div className="mb-1 text-[11px] text-muted-foreground">
+                    비밀번호
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">
+                      {showPw ? password || "—" : masked}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((v) => !v)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-md border hover:bg-accent"
+                      aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 표시"}
+                      title={showPw ? "비밀번호 숨기기" : "비밀번호 표시"}
+                    >
+                      {showPw ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 추가정보 블록 */}
+        <section className="rounded-xl bg-muted/20 p-4 sm:p-5">
+          <div className="mb-3 text-sm font-semibold">추가정보</div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <DocTile label="사진" url={photo} imagePreferred />
+            <DocTile label="신분증사진" url={idPhoto} imagePreferred />
+            <DocTile label="등본" url={docResident} />
+            <DocTile label="초본" url={docExtract} />
+            <DocTile label="가족관계증명서" url={docFamily} />
+          </div>
+        </section>
+      </div>
+
+      <div className="flex items-center justify-end gap-2 border-t px-4 py-3">
+        <button
+          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+          onClick={onClose}
+        >
+          닫기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** 추가정보 카드 (이미지/파일 자동 처리) */
+function DocTile({
+  label,
+  url,
+  imagePreferred,
+}: {
+  label: string;
+  url?: string;
+  imagePreferred?: boolean;
+}) {
+  const safeUrl = (url ?? "").trim();
+  const isImg = imagePreferred || isImageUrl(safeUrl);
+
+  if (!safeUrl) {
+    return (
+      <div className="rounded-lg border p-3">
+        <div className="mb-1 text-xs text-muted-foreground">{label}</div>
+        <div className="text-sm text-muted-foreground">첨부 없음</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+        {isImg ? (
+          <ImageIcon className="h-4 w-4" />
+        ) : (
+          <FileText className="h-4 w-4" />
+        )}
+        {label}
+      </div>
+      {isImg ? (
+        <a
+          href={safeUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="block overflow-hidden rounded-md border"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={safeUrl}
+            alt={`${label} 미리보기`}
+            className="h-40 w-full object-cover"
+          />
+        </a>
+      ) : (
+        <div className="flex items-center justify-between rounded-md border bg-muted/50 px-3 py-2 text-sm">
+          <span className="truncate">{fileNameFromUrl(safeUrl)}</span>
+          <a
+            href={safeUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border px-2 py-1 text-xs hover:bg-accent"
+          >
+            보기
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function fileNameFromUrl(u: string) {
+  try {
+    const url = new URL(u);
+    return decodeURIComponent(url.pathname.split("/").pop() || "");
+  } catch {
+    return u.split("?")[0].split("#")[0].split("/").pop() || u;
+  }
+}
+
+function isImageUrl(u: string) {
+  const ext = u.split("?")[0].split("#")[0].toLowerCase();
+  return /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
+}
+
+function Badge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] text-gray-700">
+      {label}
+    </span>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div className="truncate text-sm">{value}</div>
+    </div>
+  );
+}
+
+function initials(name: string) {
+  try {
+    const parts = name.trim().split(/\s+/);
+    const s =
+      parts.length >= 2
+        ? parts[0][0] + parts[parts.length - 1][0]
+        : parts[0][0];
+    return s.toUpperCase();
+  } catch {
+    return "U";
+  }
+}
+
+function roleLabel(r: RoleKey) {
+  switch (r) {
+    case "owner":
+      return "관리자";
+    case "manager":
+      return "팀장";
+    case "staff":
+      return "사원";
+    default:
+      return r;
+  }
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -9,46 +8,21 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/atoms/Card/Card";
+import { AuthPageLayoutProps } from "./AuthPageLayout.type";
 
 type Vars = CSSProperties & { ["--left-col"]?: string };
 
-export type AuthPageLayoutProps = {
-  // 좌측
-  logo?: React.ReactNode;
-  sideImageUrl?: string;
-  sideOverlay?: React.ReactNode;
-  leftWidthPx?: number; // 데스크톱 고정폭(px), 기본 560
-
-  // 우측(카드 모드에서만 사용)
-  title?: React.ReactNode;
-  subtitle?: React.ReactNode;
-  social?: React.ReactNode;
-  footer?: React.ReactNode;
-
-  // 공통
-  children: React.ReactNode;
-  className?: string;
-  rightClassName?: string;
-  cardClassName?: string;
-
-  /** 우측을 카드로 감쌀지 선택 (기본: card) */
-  frame?: "card" | "none";
-};
-
 export function AuthPageLayout({
-  // 좌측
   logo,
   sideImageUrl,
   sideOverlay,
   leftWidthPx = 560,
 
-  // 우측(카드 모드에서만)
   title,
   subtitle,
   social,
   footer,
 
-  // 공통
   children,
   className,
   rightClassName,
@@ -96,8 +70,8 @@ export function AuthPageLayout({
             )}
           </div>
 
-          <div className="text-sm text-white/70">
-            © {new Date().getFullYear()} NoteMap
+          <div className="text-sm tracking-tight bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            © {new Date().getFullYear()} K&N
           </div>
         </div>
       </div>

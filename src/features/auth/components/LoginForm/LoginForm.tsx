@@ -1,13 +1,9 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Eye, EyeOff, Loader2 } from "lucide-react";
-
+import { Mail, Loader2 } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
 import { Label } from "@/components/atoms/Label/Label";
@@ -20,26 +16,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/atoms/Form/Form";
+import { useState } from "react";
+import PasswordInput from "./PasswordInput";
+import { LoginSchema, type LoginValues } from "../../schemas/login";
+import { FormError } from "@/components/atoms/FormError/FormError";
 
-const LoginSchema = z.object({
-  email: z
-    .string({ required_error: "이메일을 입력해주세요." })
-    .email("유효한 이메일 형식이 아닙니다."),
-  password: z
-    .string({ required_error: "비밀번호를 입력해주세요." })
-    .min(6, "비밀번호는 최소 6자 이상이어야 합니다."),
-  remember: z.boolean().optional().default(false),
-});
-export type LoginValues = z.infer<typeof LoginSchema>;
-
-export function LoginForm() {
+export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
   const router = useRouter();
   const params = useSearchParams();
   const redirect = params.get("redirect") || "/";
-
-  const [showPw, setShowPw] = React.useState(false);
-  const [submitting, setSubmitting] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(LoginSchema),
@@ -47,8 +33,13 @@ export function LoginForm() {
     mode: "onChange",
   });
 
+  const {
+    control,
+    handleSubmit,
+    formState: { isValid, isSubmitting },
+  } = form;
+
   async function onSubmit(values: LoginValues) {
-    setSubmitting(true);
     setError(null);
     try {
       const res = await fetch("/api/auth/login", {
@@ -66,26 +57,23 @@ export function LoginForm() {
       router.replace(redirect);
     } catch (e: any) {
       setError(e?.message ?? "로그인 중 오류가 발생했어요.");
-    } finally {
-      setSubmitting(false);
     }
   }
 
   return (
     <div className="space-y-5">
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
-      )}
+      <FormError message={error} />
+
+      {/* form 전체 객체를 스프레드로 전달 */}
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="space-y-5"
+          noValidate
+        >
           {/* Email */}
           <FormField
-            control={form.control}
+            control={control}
             name="email"
             render={({ field }) => (
               <FormItem>
@@ -98,7 +86,7 @@ export function LoginForm() {
                       placeholder="you@example.com"
                       autoComplete="email"
                       autoFocus
-                      disabled={submitting}
+                      disabled={isSubmitting}
                       className="pr-9"
                       {...field}
                     />
@@ -115,53 +103,35 @@ export function LoginForm() {
 
           {/* Password */}
           <FormField
-            control={form.control}
+            control={control}
             name="password"
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
                   <FormLabel htmlFor="password">비밀번호</FormLabel>
-                  <Link
-                    href="/forgot"
+                  <button
+                    type="button"
+                    onClick={onForgotClick}
                     className="text-xs text-muted-foreground underline-offset-4 hover:underline"
                   >
                     비밀번호를 잊으셨나요?
-                  </Link>
+                  </button>
                 </div>
                 <FormControl>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPw ? "text" : "password"}
-                      placeholder="••••••••"
-                      autoComplete="current-password"
-                      disabled={submitting}
-                      className="pr-9"
-                      {...field}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPw((v) => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 hover:bg-accent"
-                      aria-label={showPw ? "비밀번호 숨기기" : "비밀번호 보기"}
-                      disabled={submitting}
-                    >
-                      {showPw ? (
-                        <EyeOff className="size-4 opacity-60" />
-                      ) : (
-                        <Eye className="size-4 opacity-60" />
-                      )}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="password"
+                    disabled={isSubmitting}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          {/* Remember me */}
+          {/* Remember */}
           <FormField
-            control={form.control}
+            control={control}
             name="remember"
             render={({ field }) => (
               <FormItem className="flex items-center space-x-2 space-y-0">
@@ -170,7 +140,7 @@ export function LoginForm() {
                     id="remember"
                     checked={field.value}
                     onCheckedChange={(v) => field.onChange(Boolean(v))}
-                    disabled={submitting}
+                    disabled={isSubmitting}
                   />
                 </FormControl>
                 <Label htmlFor="remember" className="text-sm font-normal">
@@ -179,13 +149,12 @@ export function LoginForm() {
               </FormItem>
             )}
           />
-
           <Button
             type="submit"
             className="w-full"
-            disabled={submitting || !form.formState.isValid}
+            disabled={isSubmitting || !isValid}
           >
-            {submitting ? (
+            {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 size-4 animate-spin" />
                 로그인 중...

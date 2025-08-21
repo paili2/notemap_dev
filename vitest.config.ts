@@ -10,7 +10,6 @@ const dirname =
 export default defineConfig({
   test: {
     globals: true,
-    // ✅ 이 줄 추가
     typecheck: { tsconfig: "tsconfig.vitest.json" },
     projects: [
       {

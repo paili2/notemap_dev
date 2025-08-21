@@ -14,15 +14,14 @@ import {
 import { Calendar } from "@/components/atoms/Calendar/Calendar";
 
 function buildYmdWhileTyping(raw: string) {
-  // 숫자만 뽑고 최대 8자리(YYYYMMDD)
   const digits = raw.replace(/\D/g, "").slice(0, 8);
   const y = digits.slice(0, 4);
-  const m = digits.slice(4, 6); // 0~2자리
-  const d = digits.slice(6, 8); // 0~2자리
+  const m = digits.slice(4, 6);
+  const d = digits.slice(6, 8);
 
   let out = y;
-  if (m.length > 0) out += "-" + m; // ❗패딩하지 않음
-  if (d.length > 0) out += "-" + d; // ❗패딩하지 않음
+  if (m.length > 0) out += "-" + m;
+  if (d.length > 0) out += "-" + d;
   return out;
 }
 
@@ -33,7 +32,7 @@ function normalizeYmdOnBlur(s: string) {
   if (!m) return s; // 형식 이상하면 원본 유지(필요시 비우도록 바꿀 수 있음)
 
   const yy = m[1];
-  const mm = m[2] ? m[2].padStart(2, "0") : ""; // 여기서만 패딩
+  const mm = m[2] ? m[2].padStart(2, "0") : "";
   const dd = m[3] ? m[3].padStart(2, "0") : "";
 
   const final = dd ? `${yy}-${mm}-${dd}` : mm ? `${yy}-${mm}` : yy;
@@ -126,8 +125,8 @@ export default function BirthdayPicker({
           side="bottom"
           align="end"
           sideOffset={8}
-          avoidCollisions={false} // ✅ flip/shift 안 함 → 항상 아래
-          sticky="always" // ✅ 스크롤/재배치에도 위치 유지
+          avoidCollisions={false}
+          sticky="always"
           className="p-0 w-auto"
         >
           <Calendar

@@ -1,7 +1,7 @@
 import type { Preview } from "@storybook/react";
 import "../app/globals.css";
 
-// ✅ 브라우저 런타임에서 process가 없을 때 대비 (Next 모듈 보호)
+// 브라우저 런타임에서 process가 없을 때 대비 (Next 모듈 보호)
 (globalThis as any).process ??= { env: {} };
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;

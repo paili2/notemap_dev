@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Resolver, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input } from "@/components/atoms/Input/Input";
@@ -8,7 +7,7 @@ import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
 import { Button } from "@/components/atoms/Button/Button";
 import { Textarea } from "@/components/atoms/Textarea/Textarea";
 import { cn } from "@/lib/utils";
-import { PropertyFormProps, PropertyFormValues } from "../types/propertyForm";
+import { PropertyFormProps, PropertyFormValues } from "./propertyForm.types";
 import { propertyFormSchema } from "@/features/properties/schemas/propertyForm";
 
 /** TODO: ImageUploader 컴포넌트 붙이기 (S3 직업로드/백엔드 경유 중 선택)

@@ -1,10 +1,10 @@
 import { DefaultLayout } from "@/components/layouts/DefaultLayout/DefaultLayout";
-import SettingsPage from "@/components/pages/Settings/SettingsPage";
+import UserSettingsPage from "@/features/users/pages/UserSettingsPage";
 
 const EmployeesPage = () => {
   return (
     <DefaultLayout>
-      <SettingsPage />
+      <UserSettingsPage />
     </DefaultLayout>
   );
 };

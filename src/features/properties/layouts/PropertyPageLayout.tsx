@@ -1,7 +1,5 @@
-// 지도와 리스트가 함께 있는 페이지 레이아웃
 "use client";
 
-import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface PropertyPageLayoutProps {

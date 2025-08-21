@@ -6,5 +6,5 @@ export type UserRow = {
   email: string;
   role: RoleKey;
   active: boolean;
-  protected?: boolean; // 메인관리자 보호
+  protected?: boolean;
 };

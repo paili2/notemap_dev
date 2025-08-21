@@ -10,7 +10,7 @@ const meta: Meta<typeof AuthPageLayout> = {
   args: {
     title: "로그인",
     subtitle: "계정에 접속해 프로젝트를 시작하세요.",
-    logo: <div className="text-xl font-bold">NoteMap</div>,
+    logo: <div className="text-xl font-bold">K&N</div>,
     sideImageUrl: "https://placehold.co/1200x1600?text=Brand",
   },
 };
@@ -43,7 +43,7 @@ export const WithOverlayCopy: Story = {
   args: {
     sideOverlay: (
       <div>
-        <h2 className="text-3xl font-semibold leading-tight">NoteMap</h2>
+        <h2 className="text-3xl font-semibold leading-tight">K&N</h2>
         <p className="mt-3 text-white/80">
           공간을 발견하고, 매물을 연결하세요.
         </p>

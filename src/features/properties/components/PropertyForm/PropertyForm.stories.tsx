@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { PropertyForm } from "./PropertyForm";
-import { PropertyFormValues } from "../types/propertyForm";
+import { PropertyFormValues } from "./propertyForm.types";
 
 const meta: Meta<typeof PropertyForm> = {
   title: "organisms/PropertyForm",
