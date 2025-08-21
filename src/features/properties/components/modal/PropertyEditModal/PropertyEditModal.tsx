@@ -67,6 +67,26 @@ const starToGrade = (n: number): Grade | undefined =>
 const gradeToStars = (g?: Grade): number =>
   g === "상" ? 4 : g === "중" ? 3 : g === "하" ? 1 : 0;
 
+/* 범위 문자열 유틸 (CreateModal과 동일 포맷) */
+const packRange = (min: string, max: string) => {
+  const A = (min || "").trim();
+  const B = (max || "").trim();
+  if (A && B) return `${A}~${B}`;
+  if (A) return `${A}~`;
+  if (B) return `~${B}`;
+  return "";
+};
+const parseRange = (s?: string): { min: string; max: string } => {
+  const raw = (s || "").trim();
+  if (!raw) return { min: "", max: "" };
+  // 허용: "A~B", "A~", "~B", 또는 단일값 "A"
+  if (raw.includes("~")) {
+    const [a, b] = raw.split("~");
+    return { min: (a || "").trim(), max: (b || "").trim() };
+  }
+  return { min: raw, max: "" };
+};
+
 /* ===== 컴포넌트 ===== */
 export type PropertyEditModalProps = {
   open: boolean;
@@ -109,7 +129,6 @@ export default function PropertyEditModal({
 
   useEffect(() => {
     if (!open) return;
-    // ...기존 프리필 로직들
     setVisibility(item.status ?? "공개");
     setDealStatus(item.dealStatus ?? "분양중");
   }, [open, item]);
@@ -139,14 +158,33 @@ export default function PropertyEditModal({
   const setAspectDir = (no: number, dir: string) =>
     setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r)));
 
-  /* ---------- 주차/준공/금액/면적/등기 ---------- */
+  /* ---------- 주차/준공/금액 ---------- */
   const [parkingType, setParkingType] = useState("");
   const [parkingStars, setParkingStars] = useState(0);
   const [hoverStars, setHoverStars] = useState(0);
   const [completionDate, setCompletionDate] = useState("");
   const [jeonsePrice, setJeonsePrice] = useState("");
-  const [exclusiveArea, setExclusiveArea] = useState("");
-  const [realArea, setRealArea] = useState("");
+
+  /* ---------- 전용/실평 (범위 + 단위 변환) ---------- */
+  const [exMinM2, setExMinM2] = useState("");
+  const [exMaxM2, setExMaxM2] = useState("");
+  const [exMinPy, setExMinPy] = useState("");
+  const [exMaxPy, setExMaxPy] = useState("");
+
+  const [realMinM2, setRealMinM2] = useState("");
+  const [realMaxM2, setRealMaxM2] = useState("");
+  const [realMinPy, setRealMinPy] = useState("");
+  const [realMaxPy, setRealMaxPy] = useState("");
+
+  const PYEONG = 3.3058;
+  const toPy = (m2: string) => {
+    const n = parseFloat(m2);
+    return Number.isFinite(n) ? (n / PYEONG).toFixed(2) : "";
+  };
+  const toM2 = (py: string) => {
+    const n = parseFloat(py);
+    return Number.isFinite(n) ? (n * PYEONG).toFixed(2) : "";
+  };
 
   /* ---------- 설비/등급/종류 ---------- */
   const [elevator, setElevator] = useState<"O" | "X">("O");
@@ -215,6 +253,7 @@ export default function PropertyEditModal({
     setRoomNo((item as any).roomNo ?? "");
     setStructure((item as any).structure ?? "3룸");
 
+    // --- 향 ---
     const orient = (item.orientations ?? []) as OrientationRow[];
     if (orient.length > 0) {
       const rows = orient
@@ -238,20 +277,29 @@ export default function PropertyEditModal({
     setCompletionDate((item as any).completionDate ?? "");
     setJeonsePrice(item.jeonsePrice ?? "");
 
-    setExclusiveArea((item as any).exclusiveArea ?? "");
-    setRealArea((item as any).realArea ?? "");
+    // --- 전용/실평: 생성 시 저장한 범위를 파싱해 프리필 ---
+    const { min: exMin, max: exMax } = parseRange((item as any).exclusiveArea);
+    const { min: realMin, max: realMax } = parseRange((item as any).realArea);
+
+    setExMinM2(exMin);
+    setExMaxM2(exMax);
+    setExMinPy(toPy(exMin));
+    setExMaxPy(toPy(exMax));
+
+    setRealMinM2(realMin);
+    setRealMaxM2(realMax);
+    setRealMinPy(toPy(realMin));
+    setRealMaxPy(toPy(realMax));
 
     setElevator(item.elevator ?? "O");
     setSlopeGrade(item.slopeGrade);
     setStructureGrade(item.structureGrade);
     setRegistry(item.registry);
 
-    setTotalBuildings(((item as any).totalBuildings ?? "") + "" || "");
-    setTotalFloors(((item as any).totalFloors ?? "") + "" || "");
-    setTotalHouseholds(((item as any).totalHouseholds ?? "") + "" || "");
-    setRemainingHouseholds(
-      ((item as any).remainingHouseholds ?? "") + "" || ""
-    );
+    setTotalBuildings(((item as any).totalBuildings ?? "") + "");
+    setTotalFloors(((item as any).totalFloors ?? "") + "");
+    setTotalHouseholds(((item as any).totalHouseholds ?? "") + "");
+    setRemainingHouseholds(((item as any).remainingHouseholds ?? "") + "");
     setTotalBuildingsType("select");
     setTotalFloorsType("select");
     setTotalHouseholdsType("select");
@@ -313,8 +361,6 @@ export default function PropertyEditModal({
 
   /* ---------- 저장 ---------- */
   const save = async () => {
-    // deed 인풋을 O/X로 정규화
-
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
       buildOrientationFields(aspects);
 
@@ -350,8 +396,9 @@ export default function PropertyEditModal({
       parkingGrade: starToGrade(parkingStars),
       completionDate,
 
-      exclusiveArea,
-      realArea,
+      // 전용/실평: 범위 포맷(m² 기준)으로 저장
+      exclusiveArea: packRange(exMinM2, exMaxM2),
+      realArea: packRange(realMinM2, realMaxM2),
 
       // 설비/등급/종류
       elevator,
@@ -388,11 +435,13 @@ export default function PropertyEditModal({
     onClose();
   };
 
-  /* ---------- 유효성(필요 시 완화 가능) ---------- */
+  /* ---------- 유효성 ---------- */
   const filled = (s: string) => s.trim().length > 0;
+  const hasRange = (min: string, max: string) => filled(min) || filled(max);
   const aspectsValid = aspects.length > 0 && aspects[0].dir.trim().length > 0;
   const optionsValid =
     options.length > 0 || (etcChecked && optionEtc.trim().length > 0);
+
   const canSave = useMemo(() => {
     const basic =
       filled(title) &&
@@ -401,15 +450,18 @@ export default function PropertyEditModal({
       filled(parkingType) &&
       filled(completionDate) &&
       filled(jeonsePrice) &&
-      filled(exclusiveArea) &&
-      filled(realArea);
+      hasRange(exMinM2, exMaxM2) &&
+      hasRange(realMinM2, realMaxM2);
+
     const numbers =
       filled(totalBuildings) &&
       filled(totalFloors) &&
       filled(totalHouseholds) &&
       filled(remainingHouseholds);
+
     const hasLines = unitLines.length > 0;
     const parkingOk = parkingStars > 0;
+
     return (
       basic && numbers && optionsValid && hasLines && parkingOk && aspectsValid
     );
@@ -420,8 +472,10 @@ export default function PropertyEditModal({
     parkingType,
     completionDate,
     jeonsePrice,
-    exclusiveArea,
-    realArea,
+    exMinM2,
+    exMaxM2,
+    realMinM2,
+    realMaxM2,
     totalBuildings,
     totalFloors,
     totalHouseholds,
@@ -496,11 +550,11 @@ export default function PropertyEditModal({
             <Button
               variant={mode === "R" ? "outline" : "secondary"}
               onClick={toggleMode}
+              title={mode === "KN" ? "K&N (공개 메모)" : "R (비밀 메모)"}
               className={cn(
                 "h-8 px-3 text-sm",
                 mode === "R" ? " bg-rose-600 text-white" : ""
               )}
-              title={mode === "KN" ? "K&N (공개 메모)" : "R (비밀 메모)"}
             >
               {mode === "KN" ? "K&N" : "R"}
             </Button>
@@ -571,9 +625,9 @@ export default function PropertyEditModal({
             })}
           </div>
 
-          {/* 우: 폼 (크리에이트와 동일한 입력 UI) */}
+          {/* 우: 폼 */}
           <div className="space-y-6">
-            {/* 매물명 / 엘리베이터 */}
+            {/* 매물명/엘리베이터 */}
             <div className="grid grid-cols-2">
               <Field label="매물명">
                 <Input
@@ -682,7 +736,7 @@ export default function PropertyEditModal({
               </Field>
             </div>
 
-            {/* 향(방향) */}
+            {/* 향 */}
             <Field label="향">
               {(() => {
                 const rows: { no: number; dir: string }[][] = [];
@@ -820,6 +874,7 @@ export default function PropertyEditModal({
               </Field>
             </div>
 
+            {/* 준공/최저실입 */}
             <div className="grid grid-cols-2 gap-6">
               <Field label="준공일">
                 <Input
@@ -837,27 +892,109 @@ export default function PropertyEditModal({
                   className="h-9"
                 />
               </Field>
-
-              <Field label="전용">
-                <Input
-                  value={exclusiveArea}
-                  onChange={(e) => setExclusiveArea(e.target.value)}
-                  placeholder="예: 59.84"
-                  className="h-9"
-                  inputMode="decimal"
-                />
-              </Field>
-              <Field label="실평">
-                <Input
-                  value={realArea}
-                  onChange={(e) => setRealArea(e.target.value)}
-                  placeholder="예: 18.1"
-                  className="h-9"
-                  inputMode="decimal"
-                />
-              </Field>
             </div>
 
+            {/* 전용 (범위) */}
+            <Field label="전용">
+              <div className="flex gap-2">
+                {/* m² */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={exMinM2}
+                    onChange={(e) => setExMinM2(e.target.value)}
+                    onBlur={(e) => setExMinPy(toPy(e.target.value))}
+                    placeholder="최소"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>m²</span>
+                  <span>~</span>
+                  <Input
+                    value={exMaxM2}
+                    onChange={(e) => setExMaxM2(e.target.value)}
+                    onBlur={(e) => setExMaxPy(toPy(e.target.value))}
+                    placeholder="최대"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>m²</span>
+                </div>
+                {/* 평 */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={exMinPy}
+                    onChange={(e) => setExMinPy(e.target.value)}
+                    onBlur={(e) => setExMinM2(toM2(e.target.value))}
+                    placeholder="최소"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>평</span>
+                  <span>~</span>
+                  <Input
+                    value={exMaxPy}
+                    onChange={(e) => setExMaxPy(e.target.value)}
+                    onBlur={(e) => setExMaxM2(toM2(e.target.value))}
+                    placeholder="최대"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>평</span>
+                </div>
+              </div>
+            </Field>
+
+            {/* 실평 (범위) */}
+            <Field label="실평">
+              <div className="flex gap-2">
+                {/* m² */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={realMinM2}
+                    onChange={(e) => setRealMinM2(e.target.value)}
+                    onBlur={(e) => setRealMinPy(toPy(e.target.value))}
+                    placeholder="최소"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>m²</span>
+                  <span>~</span>
+                  <Input
+                    value={realMaxM2}
+                    onChange={(e) => setRealMaxM2(e.target.value)}
+                    onBlur={(e) => setRealMaxPy(toPy(e.target.value))}
+                    placeholder="최대"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>m²</span>
+                </div>
+                {/* 평 */}
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={realMinPy}
+                    onChange={(e) => setRealMinPy(e.target.value)}
+                    onBlur={(e) => setRealMinM2(toM2(e.target.value))}
+                    placeholder="최소"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>평</span>
+                  <span>~</span>
+                  <Input
+                    value={realMaxPy}
+                    onChange={(e) => setRealMaxPy(e.target.value)}
+                    onBlur={(e) => setRealMaxM2(toM2(e.target.value))}
+                    placeholder="최대"
+                    className="h-9 w-20 text-right"
+                    inputMode="decimal"
+                  />
+                  <span>평</span>
+                </div>
+              </div>
+            </Field>
+
+            {/* 등기 */}
             <Field label="등기">
               <div className="flex flex-wrap gap-3">
                 {REGISTRY_LIST.map((r) => (
@@ -865,7 +1002,6 @@ export default function PropertyEditModal({
                     key={r}
                     className="inline-flex items-center gap-2 cursor-pointer select-none"
                   >
-                    {/* 실제 라디오는 숨김 */}
                     <input
                       type="radio"
                       name="registry"
@@ -874,14 +1010,13 @@ export default function PropertyEditModal({
                       onChange={(e) => setRegistry(e.target.value as Registry)}
                       className="sr-only peer"
                     />
-                    {/* 라디오 비주얼 */}
                     <span
                       className="
-            inline-grid h-4 w-4 place-items-center rounded-full border border-blue-500
-            peer-focus-visible:ring-2 peer-focus-visible:ring-blue-300 peer-focus-visible:ring-offset-2
-            before:content-[''] before:block before:h-2 before:w-2 before:rounded-full before:bg-blue-600
-            before:scale-0 before:transition-transform peer-checked:before:scale-100
-          "
+                        inline-grid h-4 w-4 place-items-center rounded-full border border-blue-500
+                        peer-focus-visible:ring-2 peer-focus-visible:ring-blue-300 peer-focus-visible:ring-offset-2
+                        before:content-[''] before:block before:h-2 before:w-2 before:rounded-full before:bg-blue-600
+                        before:scale-0 before:transition-transform peer-checked:before:scale-100
+                      "
                     />
                     <span className="text-sm">{r}</span>
                   </label>
@@ -889,9 +1024,8 @@ export default function PropertyEditModal({
               </div>
             </Field>
 
-            {/* 경사/구조(등급) + 구조별 입력(한 행 전체) */}
+            {/* 경사/구조(등급) + 구조별 입력 */}
             <div className="grid grid-cols-2 gap-6">
-              {/* 경사도 */}
               <Field label="경사도">
                 <div className="flex items-center gap-1">
                   {(["상", "중", "하"] as Grade[]).map((g) => (
@@ -920,7 +1054,6 @@ export default function PropertyEditModal({
                 </div>
               </Field>
 
-              {/* 구조(등급) */}
               <Field label="구조(등급)">
                 <div className="flex items-center gap-1">
                   {(["상", "중", "하"] as Grade[]).map((g) => (
@@ -1136,7 +1269,7 @@ export default function PropertyEditModal({
           </div>
         </div>
 
-        {/* 하단(왼쪽) 버튼 */}
+        {/* 하단 버튼 */}
         <div className="px-5 py-3 border-t flex items-center gap-3">
           <Button variant="outline" onClick={onClose}>
             취소

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-/* ====== 타입 (이 파일 하나로 자급자족) ====== */
 export type LatLng = { lat: number; lng: number };
 
 export type MapMarker = {

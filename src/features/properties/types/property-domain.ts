@@ -1,8 +1,45 @@
 // 공용 도메인 타입 (수정/보기 모달 등에서 재사용)
 
+// --- Registry ---
 export const REGISTRY_LIST = ["주택", "APT", "OP", "도/생", "근/생"] as const;
 export type Registry = (typeof REGISTRY_LIST)[number];
 
+// --- Grade ---
+export type Grade = "상" | "중" | "하";
+
+// --- Orientation ---
+export type OrientationValue =
+  | "동"
+  | "서"
+  | "남"
+  | "북"
+  | "남동"
+  | "남서"
+  | "북동"
+  | "북서"
+  | "동서"
+  | "남북";
+
+export type OrientationRow = {
+  ho: number; // 호수 (1, 2, 3 …)
+  value: OrientationValue | "";
+};
+
+// (선택) UI에서 셀렉트 돌릴 때 쓰게 export 해두면 편함
+export const ORIENTATIONS: readonly OrientationValue[] = [
+  "동",
+  "서",
+  "남",
+  "북",
+  "남동",
+  "남서",
+  "북동",
+  "북서",
+  "동서",
+  "남북",
+] as const;
+
+// --- 공통 엔티티 ---
 export type UnitLine = {
   rooms: number;
   baths: number;
@@ -15,7 +52,7 @@ export type UnitLine = {
 export type Visibility = "공개" | "보류" | "비공개";
 export type DealStatus = "분양중" | "예약중" | "계약중" | "계약완료";
 
-/** 수정모달에서 쓰는 뷰 아이템 형태(현재 구조 유지) */
+// --- View (수정모달에서 쓰는 아이템) ---
 export type PropertyViewItem = {
   id?: string;
   title: string;
@@ -28,8 +65,8 @@ export type PropertyViewItem = {
   jeonsePrice?: string;
   elevator?: "O" | "X";
 
-  slopeGrade?: "상" | "중" | "하";
-  structureGrade?: "상" | "중" | "하";
+  slopeGrade?: Grade; // ← 통일
+  structureGrade?: Grade; // ← 통일
 
   options?: string[];
   optionEtc?: string;
@@ -58,7 +95,7 @@ export type PropertyViewItem = {
   deed?: "O" | "X";
 };
 
-/** 수정모달에서 서버로 보낼 업데이트 페이로드 */
+// --- Update DTO ---
 export type UpdatePayload = {
   title?: string;
   address?: string;
@@ -75,14 +112,16 @@ export type UpdatePayload = {
   aspect2?: string;
   aspect3?: string;
   jeonsePrice?: string;
-  parkingGrade?: "상" | "중" | "하";
+
+  parkingGrade?: Grade; // ← 통일
   elevator?: "O" | "X";
-  slopeGrade?: "상" | "중" | "하";
-  structureGrade?: "상" | "중" | "하";
+  slopeGrade?: Grade; // ← 통일
+  structureGrade?: Grade; // ← 통일
   totalBuildings?: string;
   totalFloors?: string;
   remainingHouseholds?: string;
   totalHouseholds?: string;
+
   options?: string[];
   optionEtc?: string;
   publicMemo?: string;
@@ -91,21 +130,20 @@ export type UpdatePayload = {
   unitLines?: UnitLine[];
   images?: string[];
 
-  parkingType?: string; // ← 추가
-  completionDate?: string; // ← 추가
+  parkingType?: string;
+  completionDate?: string;
 
   exclusiveArea?: string; // 전용
   realArea?: string; // 실평
   deed?: "O" | "X";
 
-  orientations?: OrientationRow[]; // ← 향 배열 쓰면 추가
+  orientations?: OrientationRow[];
 
   status?: Visibility;
   dealStatus?: DealStatus;
 };
 
-export type Grade = "상" | "중" | "하";
-
+// --- Create DTO ---
 export type CreatePayload = {
   title: string;
   address?: string;
@@ -127,13 +165,14 @@ export type CreatePayload = {
 
   elevator?: "O" | "X";
 
-  slopeGrade?: "상" | "중" | "하";
-  structureGrade?: "상" | "중" | "하";
+  slopeGrade?: Grade; // ← 통일
+  structureGrade?: Grade; // ← 통일
 
   totalBuildings?: string; // 총 개동
   totalFloors?: string; // 총 층수
   totalHouseholds?: string; // 총 세대수
   remainingHouseholds?: string; // 잔여세대
+
   options: string[];
   optionEtc?: string;
 
@@ -150,28 +189,25 @@ export type CreatePayload = {
   parkingGrade?: Grade | undefined; // 별점→등급 매핑 결과
   completionDate?: string; // "2024.04.14" 같은 문자열
   exclusiveArea?: string; // 전용
-  realArea?: string;
+  realArea?: string; // 실평
 
-  status: Visibility; // ← 게시상태
-  dealStatus: DealStatus; // ← 거래상태
+  status: Visibility; // 게시상태
+  dealStatus: DealStatus; // 거래상태
   orientations?: OrientationRow[];
 };
 
-// 뷰모달 전용 상세 타입 (뷰에서 추가로 쓰는 필드만 확장)
+// --- View(상세) ---
 export type PropertyViewDetails = PropertyViewItem & {
-  // 향(방향) - 1/2/3호별
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
 
-  // 주차/준공
   parkingType?: string;
   parkingGrade?: Grade | undefined;
   completionDate?: string | Date;
   exclusiveArea?: string;
   realArea?: string;
 
-  // 숫자 정보
   totalBuildings?: string | number;
   totalFloors?: string | number;
   totalHouseholds?: string | number;
@@ -182,27 +218,8 @@ export type PropertyViewDetails = PropertyViewItem & {
   aspect?: string; // 예: "남동"
   aspectNo?: string; // 예: "1호"
 
-  status: Visibility; // ← 게시상태
-  dealStatus: DealStatus; // ← 거래상태
+  status: Visibility;
+  dealStatus: DealStatus;
 
   orientations?: OrientationRow[];
-};
-
-// --- 향(orientation) 타입 추가 ---
-
-export type OrientationValue =
-  | "동"
-  | "서"
-  | "남"
-  | "북"
-  | "남동"
-  | "남서"
-  | "북동"
-  | "북서"
-  | "동서"
-  | "남북";
-
-export type OrientationRow = {
-  ho: number; // 호수 (1, 2, 3 …)
-  value: OrientationValue | ""; // 선택값 (없음은 빈 문자열)
 };

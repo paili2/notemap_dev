@@ -1,4 +1,3 @@
-// src/features/properties/data/propertyRepo.ts
 import type {
   CreatePayload,
   PropertyViewDetails,

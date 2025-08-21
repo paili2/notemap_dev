@@ -1,3 +1,4 @@
+// features/properties/components/modal/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import {
@@ -122,6 +123,40 @@ function formatDateOnly(dateStr?: string | Date) {
   // 문자열이면 그대로(백엔드가 "2024.04.14" 형태로 줄 수 있음)
   return dateStr;
 }
+
+/* ==== 전용/실평 범위 표시 유틸 (m² + 평) ==== */
+const PYEONG = 3.3058;
+const toPy = (m2?: string) => {
+  const n = parseFloat(String(m2 ?? "").trim());
+  return Number.isFinite(n) ? (n / PYEONG).toFixed(2) : "";
+};
+const parseRange = (s?: string): { min: string; max: string } => {
+  const raw = (s || "").trim();
+  if (!raw) return { min: "", max: "" };
+  if (raw.includes("~")) {
+    const [a, b] = raw.split("~");
+    return { min: (a || "").trim(), max: (b || "").trim() };
+  }
+  // 단일값도 허용
+  return { min: raw, max: "" };
+};
+const formatRangeWithPy = (s?: string) => {
+  const { min, max } = parseRange(s);
+  const hasMin = !!min.trim();
+  const hasMax = !!max.trim();
+  if (!hasMin && !hasMax) return "-";
+
+  const minPy = hasMin ? toPy(min) : "";
+  const maxPy = hasMax ? toPy(max) : "";
+
+  if (hasMin && hasMax) {
+    return `${min}~${max} m² (${minPy}~${maxPy} 평)`;
+  }
+  if (hasMin) {
+    return `${min}~ m² (${minPy}~ 평)`;
+  }
+  return `~${max} m² (~${maxPy} 평)`;
+};
 
 export type PropertyViewModalProps = {
   open: boolean;
@@ -736,28 +771,26 @@ export default function PropertyViewModal({
                 </Field>
               </div>
 
-              {/* 전용/실평/등기 (보기 모드) */}
-              <div className="grid grid-cols-3 gap-6">
-                <Field label="전용">
-                  <div className="h-9 flex items-center">
-                    {show(item.exclusiveArea)}
-                  </div>
-                </Field>
+              {/* 전용/실평/등기*/}
+              <Field label="전용">
+                <div className="h-9 flex items-center">
+                  {formatRangeWithPy(item.exclusiveArea)}
+                </div>
+              </Field>
 
-                <Field label="실평">
-                  <div className="h-9 flex items-center">
-                    {show(item.realArea)}
-                  </div>
-                </Field>
+              <Field label="실평">
+                <div className="h-9 flex items-center">
+                  {formatRangeWithPy(item.realArea)}
+                </div>
+              </Field>
 
-                <Field label="등기">
-                  <div className="h-9 flex items-center">
-                    {selectedRegistryView.length
-                      ? selectedRegistryView.join(", ")
-                      : "-"}
-                  </div>
-                </Field>
-              </div>
+              <Field label="등기">
+                <div className="h-9 flex items-center">
+                  {selectedRegistryView.length
+                    ? selectedRegistryView.join(", ")
+                    : "-"}
+                </div>
+              </Field>
 
               {/* 경사도/구조 */}
               <div className="grid grid-cols-2 gap-6">
@@ -1046,17 +1079,17 @@ export default function PropertyViewModal({
                 </Field>
               </div>
 
-              {/* 전용/실평/등기 (한 줄) */}
+              {/* 전용/실평/등기 (한 줄) - 보기와 동일 포맷으로 노출 */}
               <div className="grid grid-cols-3 gap-6">
                 <Field label="전용">
                   <div className="h-9 flex items-center">
-                    {show(item.exclusiveArea)}
+                    {formatRangeWithPy(item.exclusiveArea)}
                   </div>
                 </Field>
 
                 <Field label="실평">
                   <div className="h-9 flex items-center">
-                    {show(item.realArea)}
+                    {formatRangeWithPy(item.realArea)}
                   </div>
                 </Field>
 
