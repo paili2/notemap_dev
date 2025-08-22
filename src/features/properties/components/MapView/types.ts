@@ -1,11 +1,4 @@
-import { LatLng, MapMarker } from "../../types/map";
-
-export type MapControls = {
-  zoom?: boolean;
-  mapType?: boolean;
-  roadview?: boolean;
-  overlay?: boolean;
-};
+import type { LatLng, MapMarker } from "@/features/properties/types/map";
 
 export type MapViewProps = {
   appKey: string;
@@ -13,10 +6,12 @@ export type MapViewProps = {
   level?: number;
   markers?: MapMarker[];
   fitToMarkers?: boolean;
+
   useDistrict?: boolean;
   showNativeLayerControl?: boolean;
   controlRightOffsetPx?: number;
   controlTopOffsetPx?: number;
+
   onMarkerClick?: (id: string) => void;
   onMapClick?: (latlng: LatLng) => void;
   onMapReady?: (ctx: { map: any; kakao: any }) => void;

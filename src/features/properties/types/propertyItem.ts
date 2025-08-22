@@ -4,8 +4,8 @@ import type {
   Visibility,
   Registry,
   Grade,
-  PropertyViewDetails,
 } from "./property-domain";
+import { PropertyViewDetails } from "./property-view";
 
 /**
  * 목록/지도에서 쓰는 경량 아이템.

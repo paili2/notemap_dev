@@ -9,10 +9,12 @@ import TopRightButtons from "../components/top/TopRightButtons";
 import MapQuickControls from "../components/top/MapQuickControls";
 import type { AdvFilters } from "@/features/properties/types/advFilters";
 import MapTopBar, { FilterKey } from "../components/top/MapTopBar";
-import { CreatePayload, PropertyViewDetails } from "../types/property-domain";
+
 import PropertyCreateModal from "../components/modal/PropertyCreateModal/PropertyCreateModal";
 import PropertyViewModal from "../components/modal/PropertyViewModal/PropertyViewModal";
-import PinContextMenu from "../components/MapView/PinContextMenu/PinContextMenu";
+import PinContextMenu from "../components/map/PinContextMenu/PinContextMenu";
+import { PropertyViewDetails } from "../types/property-view";
+import { CreatePayload } from "../types/property-dto";
 
 const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "YOUR_KEY";
 

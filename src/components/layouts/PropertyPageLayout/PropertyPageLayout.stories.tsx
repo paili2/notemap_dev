@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { PropertyPageLayout } from "@/features/properties/layouts/PropertyPageLayout";
+import { PropertyPageLayout } from "@/components/layouts/PropertyPageLayout/PropertyPageLayout";
 import { Card } from "@/components/atoms/Card/Card";
 import { Input } from "@/components/atoms/Input/Input";
 import { Button } from "@/components/atoms/Button/Button";

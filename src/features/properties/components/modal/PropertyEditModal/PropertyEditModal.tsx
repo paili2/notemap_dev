@@ -1,8 +1,8 @@
 // features/properties/components/modal/PropertyEditModal/PropertyEditModal.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Fragment } from "react";
-import { X, Phone, Star, RefreshCw, Trash2, Plus, Check } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { X, Phone, Check, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
@@ -20,80 +20,34 @@ import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 import type {
   DealStatus,
   Visibility,
-  UpdatePayload,
   Registry,
   UnitLine,
-  PropertyViewItem,
   OrientationRow,
   Grade,
+  OrientationValue,
 } from "@/features/properties/types/property-domain";
+
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
 
-/* ===== 상수/유틸 ===== */
-const ALL_OPTIONS = [
-  "에어컨",
-  "냉장고",
-  "김치냉장고",
-  "세탁기",
-  "건조기",
-  "공기순환기",
-  "건조대",
-  "식기세척기",
-  "스타일러",
-  "시스템장",
-  "비데",
-  "붙박이",
-  "개별창고",
-];
+// 공용 타입(이중정의 금지!)
+import type { AspectRowLite } from "@/features/properties/components/common/types";
 
-const ORIENTATIONS = [
-  "동",
-  "서",
-  "남",
-  "북",
-  "남동",
-  "남서",
-  "북동",
-  "북서",
-  "동서",
-  "남북",
-] as const;
+// 공용 컴포넌트
+import Field from "../../common/Field";
+import ImagesGrid from "../../common/ImagesGrid";
+import AspectsEditor from "../../common/AspectsEditor";
+import StarsRating from "../../common/StarsRating";
+import StructureLines from "../../common/StructureLines";
 
-const STRUCTURE_PRESETS = ["1/1", "2/1", "3/1", "3/2", "4/2", "4/3"] as const;
-
-const starToGrade = (n: number): Grade | undefined =>
-  n >= 4 ? "상" : n >= 2 ? "중" : n > 0 ? "하" : undefined;
-
-const gradeToStars = (g?: Grade): number =>
-  g === "상" ? 4 : g === "중" ? 3 : g === "하" ? 1 : 0;
-
-/* 범위 문자열 유틸 (CreateModal과 동일 포맷) */
-const packRange = (min: string, max: string) => {
-  const A = (min || "").trim();
-  const B = (max || "").trim();
-  if (A && B) return `${A}~${B}`;
-  if (A) return `${A}~`;
-  if (B) return `~${B}`;
-  return "";
-};
-const parseRange = (s?: string): { min: string; max: string } => {
-  const raw = (s || "").trim();
-  if (!raw) return { min: "", max: "" };
-  // 허용: "A~B", "A~", "~B", 또는 단일값 "A"
-  if (raw.includes("~")) {
-    const [a, b] = raw.split("~");
-    return { min: (a || "").trim(), max: (b || "").trim() };
-  }
-  return { min: raw, max: "" };
-};
-
-/* ===== 컴포넌트 ===== */
-export type PropertyEditModalProps = {
-  open: boolean;
-  item: PropertyViewItem;
-  onClose: () => void;
-  onSubmit?: (data: UpdatePayload) => void | Promise<void>;
-};
+// 로컬 유틸/타입
+import { parsePreset } from "../../../lib/area";
+import { parseRange } from "../PropertyViewModal/utils";
+import { PropertyEditModalProps } from "./types";
+import NumberSelector from "./components/NumberSelector";
+import { ALL_OPTIONS, STRUCTURE_PRESETS } from "../../common/constants";
+import { packRange, toM2, toPy } from "../../../lib/area";
+import { gradeToStars } from "../../../lib/grade";
+import { UpdatePayload } from "@/features/properties/types/property-dto";
 
 export default function PropertyEditModal({
   open,
@@ -101,7 +55,9 @@ export default function PropertyEditModal({
   onClose,
   onSubmit,
 }: PropertyEditModalProps) {
-  /* ---------- 이미지(좌측 4칸) ---------- */
+  if (!open) return null;
+
+  /* ---------- 이미지(좌측 4칸, 모두 이미지) ---------- */
   const [images, setImages] = useState<string[]>(["", "", "", ""]);
   const fileInputs = [
     useRef<HTMLInputElement>(null),
@@ -122,16 +78,8 @@ export default function PropertyEditModal({
   };
 
   /* ---------- 상단 상태 ---------- */
-  const STATUS_OPTIONS = ["공개", "보류", "비공개"] as const;
-  const DEAL_OPTIONS = ["분양중", "예약중", "계약중", "계약완료"] as const;
   const [visibility, setVisibility] = useState<Visibility>("공개");
   const [dealStatus, setDealStatus] = useState<DealStatus>("분양중");
-
-  useEffect(() => {
-    if (!open) return;
-    setVisibility(item.status ?? "공개");
-    setDealStatus(item.dealStatus ?? "분양중");
-  }, [open, item]);
 
   /* ---------- 기본/연락처 ---------- */
   const [title, setTitle] = useState("");
@@ -146,22 +94,20 @@ export default function PropertyEditModal({
   const [roomNo, setRoomNo] = useState("");
   const [structure, setStructure] = useState("3룸");
 
-  /* ---------- 향(방향) ---------- */
-  type AspectRow = { no: number; dir: string };
-  const [aspects, setAspects] = useState<AspectRow[]>([{ no: 1, dir: "" }]);
+  /* ---------- 향(방향) : 공용 타입 사용 ---------- */
+  const [aspects, setAspects] = useState<AspectRowLite[]>([{ no: 1, dir: "" }]);
   const addAspect = () =>
     setAspects((prev) => [...prev, { no: prev.length + 1, dir: "" }]);
   const removeAspect = (no: number) =>
     setAspects((prev) =>
       prev.filter((r) => r.no !== no).map((r, i) => ({ ...r, no: i + 1 }))
     );
-  const setAspectDir = (no: number, dir: string) =>
+  const setAspectDir = (no: number, dir: OrientationValue | "") =>
     setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r)));
 
   /* ---------- 주차/준공/금액 ---------- */
   const [parkingType, setParkingType] = useState("");
   const [parkingStars, setParkingStars] = useState(0);
-  const [hoverStars, setHoverStars] = useState(0);
   const [completionDate, setCompletionDate] = useState("");
   const [jeonsePrice, setJeonsePrice] = useState("");
 
@@ -175,16 +121,6 @@ export default function PropertyEditModal({
   const [realMaxM2, setRealMaxM2] = useState("");
   const [realMinPy, setRealMinPy] = useState("");
   const [realMaxPy, setRealMaxPy] = useState("");
-
-  const PYEONG = 3.3058;
-  const toPy = (m2: string) => {
-    const n = parseFloat(m2);
-    return Number.isFinite(n) ? (n / PYEONG).toFixed(2) : "";
-  };
-  const toM2 = (py: string) => {
-    const n = parseFloat(py);
-    return Number.isFinite(n) ? (n * PYEONG).toFixed(2) : "";
-  };
 
   /* ---------- 설비/등급/종류 ---------- */
   const [elevator, setElevator] = useState<"O" | "X">("O");
@@ -210,15 +146,14 @@ export default function PropertyEditModal({
   >("select");
   const [remainingHouseholds, setRemainingHouseholds] = useState("");
 
-  /* ---------- 유닛 라인 ---------- */
-  const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
-
   /* ---------- 옵션/메모 ---------- */
   const [options, setOptions] = useState<string[]>([]);
   const [etcChecked, setEtcChecked] = useState(false);
   const [optionEtc, setOptionEtc] = useState("");
   const [publicMemo, setPublicMemo] = useState("");
   const [secretMemo, setSecretMemo] = useState("");
+
+  const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
 
   /* ---------- 모드(KN/R) ---------- */
   const [mode, setMode] = useState<"KN" | "R">("KN");
@@ -256,19 +191,22 @@ export default function PropertyEditModal({
     // --- 향 ---
     const orient = (item.orientations ?? []) as OrientationRow[];
     if (orient.length > 0) {
-      const rows = orient
+      const rows: AspectRowLite[] = orient
         .filter((o) => o && typeof o.ho === "number")
         .sort((a, b) => a.ho - b.ho)
-        .map(({ ho, value }) => ({ no: ho, dir: value ?? "" }));
+        .map(({ ho, value }) => ({
+          no: ho,
+          dir: (value ?? "") as AspectRowLite["dir"],
+        }));
       setAspects(rows.length > 0 ? rows : [{ no: 1, dir: "" }]);
     } else {
-      const rows: AspectRow[] = [];
+      const rows: AspectRowLite[] = [];
       const a1 = (item as any).aspect1 ?? "";
       const a2 = (item as any).aspect2 ?? "";
       const a3 = (item as any).aspect3 ?? "";
-      if (a1) rows.push({ no: 1, dir: a1 });
-      if (a2) rows.push({ no: 2, dir: a2 });
-      if (a3) rows.push({ no: 3, dir: a3 });
+      if (a1) rows.push({ no: 1, dir: a1 as AspectRowLite["dir"] });
+      if (a2) rows.push({ no: 2, dir: a2 as AspectRowLite["dir"] });
+      if (a3) rows.push({ no: 3, dir: a3 as AspectRowLite["dir"] });
       setAspects(rows.length ? rows : [{ no: 1, dir: "" }]);
     }
 
@@ -277,7 +215,7 @@ export default function PropertyEditModal({
     setCompletionDate((item as any).completionDate ?? "");
     setJeonsePrice(item.jeonsePrice ?? "");
 
-    // --- 전용/실평: 생성 시 저장한 범위를 파싱해 프리필 ---
+    // --- 전용/실평: 범위 파싱 ---
     const { min: exMin, max: exMax } = parseRange((item as any).exclusiveArea);
     const { min: realMin, max: realMax } = parseRange((item as any).realArea);
 
@@ -322,10 +260,6 @@ export default function PropertyEditModal({
   );
 
   /* ---------- 유닛 라인 ---------- */
-  const parsePreset = (s: string) => {
-    const [r, b] = s.split("/").map((n) => parseInt(n, 10));
-    return { rooms: r || 0, baths: b || 0 };
-  };
   const addLineFromPreset = (preset: string) => {
     const { rooms, baths } = parsePreset(preset);
     setUnitLines((prev) => [
@@ -393,10 +327,15 @@ export default function PropertyEditModal({
       // 금액/주차/면적/등기
       jeonsePrice,
       parkingType,
-      parkingGrade: starToGrade(parkingStars),
+      parkingGrade: ((): Grade | undefined => {
+        if (parkingStars >= 4) return "상";
+        if (parkingStars >= 2) return "중";
+        if (parkingStars > 0) return "하";
+        return undefined;
+      })(),
       completionDate,
 
-      // 전용/실평: 범위 포맷(m² 기준)으로 저장
+      // 전용/실평: 범위 포맷(m² 기준)
       exclusiveArea: packRange(exMinM2, exMaxM2),
       realArea: packRange(realMinM2, realMaxM2),
 
@@ -486,8 +425,7 @@ export default function PropertyEditModal({
     aspectsValid,
   ]);
 
-  if (!open) return null;
-
+  /* ---------- 렌더 ---------- */
   return (
     <div className="fixed inset-0 z-[130]">
       {/* dim */}
@@ -496,14 +434,9 @@ export default function PropertyEditModal({
         onClick={onClose}
         aria-hidden
       />
+
       {/* panel */}
-      <div
-        className="
-          absolute left-1/2 top-1/2 w-[980px] max-w-[95vw] max-h-[92vh]
-          -translate-x-1/2 -translate-y-1/2
-          rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col
-        "
-      >
+      <div className="absolute left-1/2 top-1/2 w-[980px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
           <div className="flex items-center gap-2">
@@ -511,7 +444,7 @@ export default function PropertyEditModal({
               {title || item.title || "매물 수정"}
             </h2>
 
-            {/* 게시 상태 Select */}
+            {/* 게시 상태 */}
             <Select
               value={visibility}
               onValueChange={(v) => setVisibility(v as Visibility)}
@@ -520,15 +453,13 @@ export default function PropertyEditModal({
                 <SelectValue placeholder="게시상태" />
               </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTIONS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
+                <SelectItem value="공개">공개</SelectItem>
+                <SelectItem value="보류">보류</SelectItem>
+                <SelectItem value="비공개">비공개</SelectItem>
               </SelectContent>
             </Select>
 
-            {/* 거래 상태 Select */}
+            {/* 거래 상태 */}
             <Select
               value={dealStatus}
               onValueChange={(v) => setDealStatus(v as DealStatus)}
@@ -537,11 +468,10 @@ export default function PropertyEditModal({
                 <SelectValue placeholder="거래상태" />
               </SelectTrigger>
               <SelectContent>
-                {DEAL_OPTIONS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
+                <SelectItem value="분양중">분양중</SelectItem>
+                <SelectItem value="예약중">예약중</SelectItem>
+                <SelectItem value="계약중">계약중</SelectItem>
+                <SelectItem value="계약완료">계약완료</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -566,64 +496,14 @@ export default function PropertyEditModal({
         </div>
 
         {/* 바디 */}
-        <div
-          className="
-            grid grid-cols-[300px_1fr] gap-6 px-5 py-4
-            flex-1 min-h-0 overflow-y-auto overscroll-y-contain
-          "
-        >
-          {/* 좌: 이미지 업로드 4칸 */}
-          <div className="space-y-3">
-            {[0, 1, 2, 3].map((i) => {
-              const isContract = i === 3;
-              return (
-                <div
-                  key={i}
-                  className={[
-                    "relative rounded-lg overflow-hidden border bg-muted/30",
-                    isContract ? "h-[360px]" : "h-[160px]",
-                  ].join(" ")}
-                >
-                  <div className="absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
-                    {isContract ? "파일" : `사진 ${i + 1}`}
-                  </div>
-
-                  {images[i] ? (
-                    <img
-                      src={images[i]}
-                      alt={isContract ? "contract" : `photo-${i}`}
-                      className={[
-                        "block w-full h-full",
-                        isContract ? "object-contain bg-white" : "object-cover",
-                      ].join(" ")}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      {isContract ? "파일 업로드" : "파일 업로드"}
-                    </div>
-                  )}
-
-                  <div className="absolute right-2 bottom-2 flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => pickImage(i)}
-                    >
-                      {images[i] ? "수정" : "업로드"}
-                    </Button>
-                  </div>
-
-                  <input
-                    ref={fileInputs[i]}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => onPickFile(i, e)}
-                  />
-                </div>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+          {/* 좌: 이미지(공용 ImagesGrid, 4개 모두 이미지) */}
+          <ImagesGrid
+            images={images}
+            onPickImage={pickImage}
+            fileInputs={fileInputs}
+            onPickFile={onPickFile}
+          />
 
           {/* 우: 폼 */}
           <div className="space-y-6">
@@ -738,88 +618,12 @@ export default function PropertyEditModal({
 
             {/* 향 */}
             <Field label="향">
-              {(() => {
-                const rows: { no: number; dir: string }[][] = [];
-                for (let i = 0; i < aspects.length; i += 2)
-                  rows.push(aspects.slice(i, i + 2));
-
-                const Cell = ({
-                  row,
-                }: {
-                  row: { no: number; dir: string };
-                }) => (
-                  <div className="flex items-center gap-2">
-                    <span className="w-10 text-right">{row.no}호</span>
-                    <Select
-                      value={row.dir}
-                      onValueChange={(v) => setAspectDir(row.no, v)}
-                    >
-                      <SelectTrigger className="w-[110px] h-9">
-                        <SelectValue placeholder="방향" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ORIENTATIONS.map((o) => (
-                          <SelectItem key={o} value={o}>
-                            {o}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {aspects.length > 1 && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        type="button"
-                        onClick={() => removeAspect(row.no)}
-                        title="삭제"
-                        className="h-8 w-8 p-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                );
-
-                return (
-                  <div className="grid grid-cols-[1fr_1fr_auto] gap-x-3 gap-y-2">
-                    {rows.map((pair, rowIdx) => {
-                      const isLastRow = rowIdx === rows.length - 1;
-                      return (
-                        <Fragment key={`aspect-row-${rowIdx}`}>
-                          <div>
-                            {pair[0] ? (
-                              <Cell row={pair[0]} />
-                            ) : (
-                              <div className="h-9" />
-                            )}
-                          </div>
-                          <div>
-                            {pair[1] ? (
-                              <Cell row={pair[1]} />
-                            ) : (
-                              <div className="h-9" />
-                            )}
-                          </div>
-                          <div className="flex items-center justify-end">
-                            {isLastRow && (
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="ghost"
-                                onClick={addAspect}
-                                title="추가"
-                                className="h-8 w-8 p-0 bg-transparent hover:bg-transparent focus-visible:ring-0 border-none shadow-none"
-                              >
-                                <Plus className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </Fragment>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              <AspectsEditor
+                aspects={aspects}
+                addAspect={addAspect}
+                removeAspect={removeAspect}
+                setAspectDir={setAspectDir}
+              />
             </Field>
 
             {/* 주차유형/주차평점 */}
@@ -834,43 +638,7 @@ export default function PropertyEditModal({
               </Field>
 
               <Field label="주차평점">
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => {
-                    const active = (hoverStars || parkingStars) >= n;
-                    return (
-                      <button
-                        key={n}
-                        type="button"
-                        aria-label={`별 ${n}개`}
-                        className="p-1 leading-none"
-                        onClick={() => setParkingStars(n)}
-                        onMouseEnter={() => setHoverStars(n)}
-                        onMouseLeave={() => setHoverStars(0)}
-                      >
-                        <Star
-                          className={cn(
-                            "h-5 w-5 transition-colors",
-                            active
-                              ? "fill-amber-400 text-amber-400"
-                              : "text-gray-300"
-                          )}
-                        />
-                      </button>
-                    );
-                  })}
-                  {parkingStars > 0 && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      type="button"
-                      onClick={() => setParkingStars(0)}
-                      title="초기화"
-                      className="ml-1"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                <StarsRating value={parkingStars} onChange={setParkingStars} />
               </Field>
             </div>
 
@@ -907,8 +675,7 @@ export default function PropertyEditModal({
                     className="h-9 w-20 text-right"
                     inputMode="decimal"
                   />
-                  <span>m²</span>
-                  <span>~</span>
+                  <span>m²</span> <span>~</span>
                   <Input
                     value={exMaxM2}
                     onChange={(e) => setExMaxM2(e.target.value)}
@@ -929,8 +696,7 @@ export default function PropertyEditModal({
                     className="h-9 w-20 text-right"
                     inputMode="decimal"
                   />
-                  <span>평</span>
-                  <span>~</span>
+                  <span>평</span> <span>~</span>
                   <Input
                     value={exMaxPy}
                     onChange={(e) => setExMaxPy(e.target.value)}
@@ -957,8 +723,7 @@ export default function PropertyEditModal({
                     className="h-9 w-20 text-right"
                     inputMode="decimal"
                   />
-                  <span>m²</span>
-                  <span>~</span>
+                  <span>m²</span> <span>~</span>
                   <Input
                     value={realMaxM2}
                     onChange={(e) => setRealMaxM2(e.target.value)}
@@ -979,8 +744,7 @@ export default function PropertyEditModal({
                     className="h-9 w-20 text-right"
                     inputMode="decimal"
                   />
-                  <span>평</span>
-                  <span>~</span>
+                  <span>평</span> <span>~</span>
                   <Input
                     value={realMaxPy}
                     onChange={(e) => setRealMaxPy(e.target.value)}
@@ -1010,21 +774,14 @@ export default function PropertyEditModal({
                       onChange={(e) => setRegistry(e.target.value as Registry)}
                       className="sr-only peer"
                     />
-                    <span
-                      className="
-                        inline-grid h-4 w-4 place-items-center rounded-full border border-blue-500
-                        peer-focus-visible:ring-2 peer-focus-visible:ring-blue-300 peer-focus-visible:ring-offset-2
-                        before:content-[''] before:block before:h-2 before:w-2 before:rounded-full before:bg-blue-600
-                        before:scale-0 before:transition-transform peer-checked:before:scale-100
-                      "
-                    />
+                    <span className="inline-grid h-4 w-4 place-items-center rounded-full border border-blue-500 before:content-[''] before:block before:h-2 before:w-2 before:rounded-full before:bg-blue-600 before:scale-0 before:transition-transform peer-checked:before:scale-100" />
                     <span className="text-sm">{r}</span>
                   </label>
                 ))}
               </div>
             </Field>
 
-            {/* 경사/구조(등급) + 구조별 입력 */}
+            {/* 경사/구조(등급) */}
             <div className="grid grid-cols-2 gap-6">
               <Field label="경사도">
                 <div className="flex items-center gap-1">
@@ -1081,123 +838,22 @@ export default function PropertyEditModal({
                   )}
                 </div>
               </Field>
-
-              <div className="col-span-2">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-medium">구조별 입력</div>
-                    <div className="flex flex-wrap gap-1">
-                      {STRUCTURE_PRESETS.map((p) => (
-                        <Button
-                          key={p}
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          type="button"
-                          onClick={() => addLineFromPreset(p)}
-                        >
-                          {p}
-                        </Button>
-                      ))}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-7 px-2 text-xs"
-                        type="button"
-                        onClick={addEmptyLine}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        직접추가
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {unitLines.length === 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        프리셋을 누르거나 ‘직접추가’를 눌러 행을 추가하세요.
-                      </div>
-                    )}
-
-                    {unitLines.map((line, idx) => (
-                      <div
-                        key={idx}
-                        className="grid grid-cols-[88px_auto_auto_minmax(180px,1fr)_32px] items-center gap-2"
-                      >
-                        <Input
-                          value={`${line.rooms || ""}/${line.baths || ""}`}
-                          onChange={(e) => {
-                            const v = e.target.value.replace(/\s/g, "");
-                            const [r, b] = v.split("/");
-                            updateLine(idx, {
-                              rooms: parseInt(r || "0", 10) || 0,
-                              baths: parseInt(b || "0", 10) || 0,
-                            });
-                          }}
-                          placeholder="2/1"
-                          className="h-9 text-center"
-                        />
-
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={line.duplex}
-                            onCheckedChange={(c) =>
-                              updateLine(idx, { duplex: !!c })
-                            }
-                          />
-                          <span>복층</span>
-                        </label>
-
-                        <label className="inline-flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={line.terrace}
-                            onCheckedChange={(c) =>
-                              updateLine(idx, { terrace: !!c })
-                            }
-                          />
-                          <span>테라스</span>
-                        </label>
-
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            value={line.primary}
-                            onChange={(e) =>
-                              updateLine(idx, { primary: e.target.value })
-                            }
-                            placeholder="직접입력"
-                            className="h-9"
-                            inputMode="numeric"
-                          />
-                          <Input
-                            value={line.secondary}
-                            onChange={(e) =>
-                              updateLine(idx, { secondary: e.target.value })
-                            }
-                            placeholder="직접입력"
-                            className="h-9"
-                            inputMode="numeric"
-                          />
-                        </div>
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          type="button"
-                          onClick={() => removeLine(idx)}
-                          title="행 삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
+
+            {/* 구조별 입력: 공용 StructureLines */}
+            <StructureLines
+              lines={unitLines}
+              onAddPreset={addLineFromPreset}
+              onAddEmpty={addEmptyLine}
+              onUpdate={updateLine}
+              onRemove={removeLine}
+              presets={STRUCTURE_PRESETS}
+            />
 
             {/* 옵션 + 기타 */}
             <div className="space-y-2">
               <div className="text-sm font-medium">옵션</div>
+
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-center">
                 {ALL_OPTIONS.map((op) => (
                   <label
@@ -1280,75 +936,6 @@ export default function PropertyEditModal({
           </Button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/* ---------- 작은 컴포넌트 ---------- */
-function Field({
-  label,
-  children,
-}: {
-  label: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-[80px_1fr] items-center gap-3 text-[13px]">
-      <div className="text-muted-foreground">{label}</div>
-      <div>{children}</div>
-    </div>
-  );
-}
-
-function NumberSelector({
-  items,
-  type,
-  setType,
-  value,
-  setValue,
-}: {
-  items: string[];
-  type: "select" | "custom";
-  setType: (t: "select" | "custom") => void;
-  value: string;
-  setValue: (v: string) => void;
-}) {
-  return (
-    <div className="flex gap-2 items-center">
-      <Select
-        value={type === "select" ? value : "custom"}
-        onValueChange={(val) => {
-          if (val === "custom") {
-            setType("custom");
-            setValue("");
-          } else {
-            setType("select");
-            setValue(val);
-          }
-        }}
-      >
-        <SelectTrigger className="w-24 h-9">
-          <SelectValue placeholder="선택" />
-        </SelectTrigger>
-        <SelectContent className="max-h-64 overflow-auto">
-          {items.map((n) => (
-            <SelectItem key={n} value={n}>
-              {n}
-            </SelectItem>
-          ))}
-          <SelectItem value="custom">직접입력</SelectItem>
-        </SelectContent>
-      </Select>
-
-      {type === "custom" && (
-        <Input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="예: 2"
-          className="w-20 h-9 text-center"
-          inputMode="numeric"
-        />
-      )}
     </div>
   );
 }
