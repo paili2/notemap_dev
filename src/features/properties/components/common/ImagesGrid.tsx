@@ -3,6 +3,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/atoms/Button/Button";
+import Image from "next/image";
 
 type Props = {
   images: string[];
@@ -54,7 +55,7 @@ export default function ImagesGrid({
                   </div>
                 </object>
               ) : (
-                <img
+                <Image
                   src={url}
                   alt={isContract ? "contract-file" : `photo-${i}`}
                   className={`block w-full h-full ${

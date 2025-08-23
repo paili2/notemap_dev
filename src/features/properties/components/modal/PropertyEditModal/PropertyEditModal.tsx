@@ -49,14 +49,23 @@ import { packRange, toM2, toPy } from "../../../lib/area";
 import { gradeToStars } from "../../../lib/grade";
 import { UpdatePayload } from "@/features/properties/types/property-dto";
 
-export default function PropertyEditModal({
+/* ====== 외부 유틸(의존성 경고 방지) ====== */
+const filled = (s: string) => s.trim().length > 0;
+const hasRange = (min: string, max: string) => filled(min) || filled(max);
+
+/** 래퍼: open이 false면 Body 자체를 렌더하지 않음(훅 호출 X) */
+export default function PropertyEditModal(props: PropertyEditModalProps) {
+  if (!props.open) return null;
+  return <PropertyEditModalBody {...props} />;
+}
+
+/** 실제 훅/상태/렌더는 이 바디 컴포넌트 하나에서만 */
+function PropertyEditModalBody({
   open,
   item,
   onClose,
   onSubmit,
 }: PropertyEditModalProps) {
-  if (!open) return null;
-
   /* ---------- 이미지(좌측 4칸, 모두 이미지) ---------- */
   const [images, setImages] = useState<string[]>(["", "", "", ""]);
   const fileInputs = [
@@ -375,8 +384,6 @@ export default function PropertyEditModal({
   };
 
   /* ---------- 유효성 ---------- */
-  const filled = (s: string) => s.trim().length > 0;
-  const hasRange = (min: string, max: string) => filled(min) || filled(max);
   const aspectsValid = aspects.length > 0 && aspects[0].dir.trim().length > 0;
   const optionsValid =
     options.length > 0 || (etcChecked && optionEtc.trim().length > 0);

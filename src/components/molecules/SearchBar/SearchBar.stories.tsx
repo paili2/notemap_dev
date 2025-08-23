@@ -16,7 +16,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-export const 긴Placeholder: Story = {
+export const LongPlaceholder: Story = {
   args: {
     placeholder: "주소, 가격, 키워드로 검색하세요",
   },

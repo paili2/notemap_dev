@@ -1,3 +1,4 @@
+// ./src/features/properties/components/modal/PropertyCreateModal/PropertyCreateModal.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,14 +40,18 @@ import { packRange, parsePreset, toM2, toPy } from "../../../lib/area";
 import { starsToGrade } from "../../../lib/grade";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 
-export default function PropertyCreateModal({
-  open,
+/** 래퍼: open이 false면 아예 바디를 렌더하지 않음(훅은 바디에서만 호출) */
+export default function PropertyCreateModal(props: PropertyCreateModalProps) {
+  if (!props.open) return null;
+  return <PropertyCreateModalBody {...props} />;
+}
+
+/** 실제 훅/상태는 전부 여기서 "항상 같은 순서"로 호출 */
+function PropertyCreateModalBody({
   onClose,
   onSubmit,
   initialAddress,
-}: PropertyCreateModalProps) {
-  if (!open) return null;
-
+}: Omit<PropertyCreateModalProps, "open">) {
   // === 이미지 업로드 ===
   const [images, setImages] = useState<string[]>(["", "", "", ""]);
   const fileInputs = [
@@ -74,8 +79,8 @@ export default function PropertyCreateModal({
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
   useEffect(() => {
-    if (open) setAddress(initialAddress ?? "");
-  }, [open, initialAddress]);
+    setAddress(initialAddress ?? "");
+  }, [initialAddress]);
 
   const [officeName, setOfficeName] = useState("");
   const [officePhone, setOfficePhone] = useState("");
@@ -87,16 +92,12 @@ export default function PropertyCreateModal({
 
   // === 향 ===
   const [aspects, setAspects] = useState<AspectRowLite[]>([{ no: 1, dir: "" }]);
-  useEffect(() => {
-    if (open) setAspects([{ no: 1, dir: "" }]);
-  }, [open]);
   const addAspect = () =>
     setAspects((prev) => [...prev, { no: prev.length + 1, dir: "" }]);
   const removeAspect = (no: number) =>
     setAspects((prev) =>
       prev.filter((r) => r.no !== no).map((r, i) => ({ ...r, no: i + 1 }))
     );
-
   const setAspectDir = (no: number, dir: OrientationValue | "") =>
     setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r)));
 
@@ -191,7 +192,6 @@ export default function PropertyCreateModal({
         secondary: "",
       },
     ]);
-
   const updateLine = (idx: number, patch: Partial<UnitLine>) =>
     setUnitLines((prev) =>
       prev.map((l, i) => (i === idx ? { ...l, ...patch } : l))
@@ -222,7 +222,6 @@ export default function PropertyCreateModal({
       filled(totalFloors) &&
       filled(totalHouseholds) &&
       filled(remainingHouseholds);
-
     const basic =
       filled(title) &&
       filled(address) &&
@@ -437,6 +436,7 @@ export default function PropertyCreateModal({
                 </Field>
               </div>
             </div>
+
             <Field label="주소">
               <Input
                 value={address}
@@ -445,6 +445,7 @@ export default function PropertyCreateModal({
                 className="h-9"
               />
             </Field>
+
             {/* 분양사무실/연락처 */}
             <Field label="분양사무실">
               <div className="flex gap-2">
@@ -470,6 +471,7 @@ export default function PropertyCreateModal({
                 </div>
               </div>
             </Field>
+
             {/* 개동/층수 */}
             <div className="grid grid-cols-2">
               {/* 총 개동 */}
@@ -514,6 +516,7 @@ export default function PropertyCreateModal({
                   )}
                 </div>
               </Field>
+
               {/* 총 층수 */}
               <Field label="총 층수">
                 <div className="flex gap-2 items-center">
@@ -555,6 +558,7 @@ export default function PropertyCreateModal({
                 </div>
               </Field>
             </div>
+
             {/* 세대/잔여 */}
             <div className="grid grid-cols-2">
               {/* 총 세대수 */}
@@ -599,6 +603,7 @@ export default function PropertyCreateModal({
                   )}
                 </div>
               </Field>
+
               {/* 잔여세대 */}
               <Field label="잔여세대">
                 <div className="flex gap-2 items-center">
@@ -642,6 +647,7 @@ export default function PropertyCreateModal({
                 </div>
               </Field>
             </div>
+
             {/* 향 */}
             <Field label="향">
               <AspectsEditor
@@ -651,6 +657,7 @@ export default function PropertyCreateModal({
                 setAspectDir={setAspectDir}
               />
             </Field>
+
             {/* 주차/별점 */}
             <div className="grid grid-cols-2 gap-6">
               <Field label="주차유형">
@@ -665,6 +672,7 @@ export default function PropertyCreateModal({
                 <StarsRating value={parkingStars} onChange={setParkingStars} />
               </Field>
             </div>
+
             {/* 준공/최저실입 */}
             <div className="grid grid-cols-2 gap-6">
               <Field label="준공일">
@@ -684,6 +692,7 @@ export default function PropertyCreateModal({
                 />
               </Field>
             </div>
+
             {/* 전용 (범위) */}
             <Field label="전용">
               <div className="flex gap-2">
@@ -731,6 +740,7 @@ export default function PropertyCreateModal({
                 </div>
               </div>
             </Field>
+
             {/* 실평 (범위) */}
             <Field label="실평">
               <div className="flex gap-2">
@@ -778,6 +788,7 @@ export default function PropertyCreateModal({
                 </div>
               </div>
             </Field>
+
             {/* 등기 */}
             <Field label="등기">
               <div className="flex flex-wrap gap-3">
@@ -802,6 +813,7 @@ export default function PropertyCreateModal({
                 ))}
               </div>
             </Field>
+
             {/* 경사도/구조(등급) */}
             <div className="grid grid-cols-2 gap-6">
               <Field label="경사도">
@@ -831,6 +843,7 @@ export default function PropertyCreateModal({
                   )}
                 </div>
               </Field>
+
               <Field label="구조(등급)">
                 <div className="flex items-center gap-1">
                   {(["상", "중", "하"] as const).map((g) => (
@@ -859,6 +872,7 @@ export default function PropertyCreateModal({
                 </div>
               </Field>
             </div>
+
             {/* 구조별 입력 */}
             <StructureLines
               lines={unitLines}
@@ -868,10 +882,10 @@ export default function PropertyCreateModal({
               onRemove={removeLine}
               presets={STRUCTURE_PRESETS}
             />
+
             {/* 옵션 + 기타 */}
             <div className="space-y-2">
               <div className="text-sm font-medium">옵션</div>
-              {/* 3열 그리드 유지: sm=2, md=3 */}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-center">
                 {ALL_OPTIONS.map((op) => (
                   <label
@@ -914,6 +928,7 @@ export default function PropertyCreateModal({
                 </div>
               </div>
             </div>
+
             {/* 메모 */}
             <div
               className={cn(
@@ -937,6 +952,7 @@ export default function PropertyCreateModal({
                 placeholder={mode === "KN" ? "공개 가능한 메모" : "내부 메모"}
               />
             </div>
+
             {/* 하단 버튼 */}
             <div className="flex items-center justify-end gap-2">
               <Button variant="outline" onClick={onClose}>

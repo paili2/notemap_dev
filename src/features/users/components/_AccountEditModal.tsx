@@ -1,6 +1,7 @@
+// ./src/features/users/components/_AccountEditModal.tsx
 "use client";
 
-import { X, Eye, EyeOff, Image as ImageIcon, FileText } from "lucide-react";
+import { X, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/atoms/Input/Input";
 import type { RoleKey, UserRow } from "@/features/users/types";
 import {
@@ -12,7 +13,7 @@ import {
 } from "@/components/atoms/Select/Select";
 import BirthdayPicker from "@/components/organisms/BirthdayPicker/BirthdayPicker";
 import { Button } from "@/components/atoms/Button/Button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Patch = Partial<UserRow> & {
   email?: string;
@@ -37,14 +38,8 @@ type UploadField =
   | "resident_extract_url"
   | "family_relation_url";
 
-export default function AccountEditModal({
-  open,
-  user,
-  onClose,
-  onSave,
-  uploadEndpoint = "/api/upload",
-  maxUploadBytes = 5 * 1024 * 1024,
-}: {
+/** 래퍼: open이 false면 바디 자체를 렌더하지 않음(훅은 바디에서만 호출) */
+export default function AccountEditModal(props: {
   open: boolean;
   user: UserRow;
   onClose: () => void;
@@ -52,8 +47,25 @@ export default function AccountEditModal({
   uploadEndpoint?: string;
   maxUploadBytes?: number;
 }) {
-  if (!open) return null;
+  if (!props.open) return null;
+  return <AccountEditModalBody {...props} />;
+}
 
+/** 모든 훅은 여기 최상단에서 “항상 같은 순서”로 호출 */
+function AccountEditModalBody({
+  user,
+  onClose,
+  onSave,
+  uploadEndpoint = "/api/upload",
+  maxUploadBytes = 5 * 1024 * 1024,
+}: {
+  open: boolean; // 래퍼에서만 사용하지만 props 스프레드로 들어오므로 타입 유지
+  user: UserRow;
+  onClose: () => void;
+  onSave: (patch: Patch) => void;
+  uploadEndpoint?: string;
+  maxUploadBytes?: number;
+}) {
   // 기본 필드
   const [name, setName] = useState(user.name);
   const [phone, setPhone] = useState<string>((user as any).phone ?? "");
@@ -66,48 +78,48 @@ export default function AccountEditModal({
       (user as any).address_line ??
       ""
   );
-  const [salary, setSalary] = React.useState<string>(
+  const [salary, setSalary] = useState<string>(
     (user as any).salary_account ?? ""
   );
-  const [email, setEmail] = React.useState<string>(user.email);
-  const [role, setRole] = React.useState<RoleKey>(user.role as RoleKey);
-  const [birthday, setBirthday] = React.useState<string>(
+  const [email, setEmail] = useState<string>(user.email);
+  const [role, setRole] = useState<RoleKey>(user.role as RoleKey);
+  const [birthday, setBirthday] = useState<string>(
     (user as any).birthday ?? ""
   );
 
   // 비밀번호(새 값만 입력, 공란이면 변경 없음)
-  const [pw, setPw] = React.useState("");
-  const [pw2, setPw2] = React.useState("");
-  const [showPw, setShowPw] = React.useState(false);
-  const [showPw2, setShowPw2] = React.useState(false);
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showPw2, setShowPw2] = useState(false);
   const pwMismatch = (pw || pw2) && pw !== pw2;
   const pwTooShort = pw.length > 0 && pw.length < 8;
 
   // 파일/문서 URL
-  const [photoUrl, setPhotoUrl] = React.useState<string>(
+  const [photoUrl, setPhotoUrl] = useState<string>(
     (user as any).photo_url ?? ""
   );
-  const [idPhotoUrl, setIdPhotoUrl] = React.useState<string>(
+  const [idPhotoUrl, setIdPhotoUrl] = useState<string>(
     (user as any).id_photo_url ?? ""
   );
-  const [residentRegUrl, setResidentRegUrl] = React.useState<string>(
+  const [residentRegUrl, setResidentRegUrl] = useState<string>(
     (user as any).resident_register_url ?? ""
   );
-  const [residentExtUrl, setResidentExtUrl] = React.useState<string>(
+  const [residentExtUrl, setResidentExtUrl] = useState<string>(
     (user as any).resident_extract_url ?? ""
   );
-  const [familyUrl, setFamilyUrl] = React.useState<string>(
+  const [familyUrl, setFamilyUrl] = useState<string>(
     (user as any).family_relation_url ?? ""
   );
 
   // 업로드 상태
-  const [uploading, setUploading] = React.useState<UploadField | null>(null);
-  const [uploadErrors, setUploadErrors] = React.useState<
+  const [uploading, setUploading] = useState<UploadField | null>(null);
+  const [uploadErrors, setUploadErrors] = useState<
     Partial<Record<UploadField, string>>
   >({});
 
-  // user 바뀌면 폼 리셋
-  React.useEffect(() => {
+  // user 바뀌면 폼 리셋 (훅은 조건 없이 선언, 값만 갱신)
+  useEffect(() => {
     setName(user.name);
     setEmail(user.email);
     setRole(user.role as RoleKey);

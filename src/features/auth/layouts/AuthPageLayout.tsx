@@ -9,6 +9,7 @@ import {
   CardContent,
 } from "@/components/atoms/Card/Card";
 import { AuthPageLayoutProps } from "./AuthPageLayout.type";
+import Image from "next/image";
 
 type Vars = CSSProperties & { ["--left-col"]?: string };
 
@@ -43,7 +44,7 @@ export function AuthPageLayout({
       {/* Left / Brand Panel */}
       <div className="relative hidden h-full lg:block">
         {sideImageUrl ? (
-          <img
+          <Image
             src={sideImageUrl}
             alt=""
             className="absolute inset-0 h-full w-full object-cover"

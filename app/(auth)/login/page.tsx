@@ -1,7 +1,10 @@
+import { Suspense } from "react";
 import SignInPage from "@/features/auth/pages/SignInPage";
 
-const Page = () => {
-  return <SignInPage></SignInPage>;
-};
-
-export default Page;
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <SignInPage />
+    </Suspense>
+  );
+}

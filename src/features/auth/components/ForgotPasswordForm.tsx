@@ -14,14 +14,15 @@ import {
   FormMessage,
 } from "@/components/atoms/Form/Form";
 import { ForgotSchema, ForgotValues } from "../schemas/forgot";
+import { useState } from "react";
 
 export function ForgotPasswordForm({
   onBackToLogin,
 }: {
   onBackToLogin?: () => void;
 }) {
-  const [submitting, setSubmitting] = React.useState(false);
-  const [msg, setMsg] = React.useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   const form = useForm<ForgotValues>({
     resolver: zodResolver(ForgotSchema),

@@ -1,17 +1,7 @@
 // features/properties/components/modal/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
-import {
-  X,
-  Star,
-  Phone,
-  Pencil,
-  Trash2,
-  Check,
-  Undo2,
-  RefreshCw,
-  Plus,
-} from "lucide-react";
+import { X, Star, Phone, Pencil, Trash2, Check, Undo2 } from "lucide-react";
 import { Badge } from "@/components/atoms/Badge/Badge";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/utils";
@@ -39,6 +29,7 @@ import {
   formatRangeWithPy,
 } from "./utils";
 import { PropertyViewDetails } from "@/features/properties/types/property-view";
+import Image from "next/image";
 
 export type PropertyViewModalProps = {
   open: boolean;
@@ -49,16 +40,20 @@ export type PropertyViewModalProps = {
   onSave?: (patch: Partial<PropertyViewDetails>) => Promise<void> | void;
 };
 
-export default function PropertyViewModal({
-  open,
+/** 래퍼: open이 false면 바디를 렌더하지 않음(훅은 바디에서만 호출) */
+export default function PropertyViewModal(props: PropertyViewModalProps) {
+  if (!props.open) return null;
+  return <PropertyViewModalBody {...props} />;
+}
+
+/** 모든 훅/상태는 여기 최상단에서 "항상 같은 순서"로 호출 */
+function PropertyViewModalBody({
   onClose,
   item,
   onAddFavorite,
   onDelete,
   onSave,
 }: PropertyViewModalProps) {
-  if (!open) return null;
-
   // 공개/비밀 메모 토글
   const [mode, setMode] = useState<"KN" | "R">(loadInitialMode);
   const [isEditing, setIsEditing] = useState(false);
@@ -153,7 +148,6 @@ export default function PropertyViewModal({
   const [parkingStars, setParkingStars] = useState<number>(
     gradeToStars(item.parkingGrade)
   );
-
   const [options, setOptions] = useState<string[]>(item.options ?? []);
   const [optionEtc, setOptionEtc] = useState(item.optionEtc ?? "");
   const toggleOption = (name: string) =>
@@ -217,6 +211,7 @@ export default function PropertyViewModal({
   const setMemoValue = (v: string) =>
     mode === "KN" ? setPublicMemo(v) : setSecretMemo(v);
 
+  // item 바뀔 때 값만 동기화 (훅 선언은 위에서 한 번만)
   useEffect(() => {
     setTitle(item.title ?? "");
     setAddress(item.address ?? "");
@@ -258,14 +253,11 @@ export default function PropertyViewModal({
     setImages([0, 1, 2, 3].map((i) => (item.images ?? [])[i] ?? ""));
   }, [item]);
 
+  // 외부 수정 모달
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PropertyViewDetails | null>(
     null
   );
-
-  useEffect(() => {
-    if (open) setIsEditing(false);
-  }, [open]);
 
   const cancelEdit = () => setIsEditing(false);
 
@@ -413,11 +405,13 @@ export default function PropertyViewModal({
                     {isContract ? "파일" : `사진 ${i + 1}`}
                   </div>
                   {url ? (
-                    <img
+                    <Image
                       src={url}
                       alt={isContract ? "contract" : `photo-${i}`}
+                      fill
+                      sizes="(max-width: 980px) 95vw, 980px"
                       className={cn(
-                        "block w-full h-full",
+                        "block",
                         isContract ? "object-contain bg-white" : "object-cover"
                       )}
                     />
@@ -694,8 +688,8 @@ export default function PropertyViewModal({
           ) : (
             /* ===== Edit ===== */
             <div className="space-y-6">
-              {/* (편집 섹션: 기존 코드 유지) */}
-              {/* ... 중략 (질문 내용의 Edit 섹션 그대로) ... */}
+              {/* 여기 편집 섹션에 필요한 인풋들/컨트롤을 배치하세요.
+                  훅을 추가로 만들지 말고, 위에서 만든 상태만 사용하세요. */}
             </div>
           )}
         </div>
@@ -710,7 +704,6 @@ export default function PropertyViewModal({
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    // 외부 Edit 모달 사용
                     setEditTarget(item);
                     setEditOpen(true);
                   }}
