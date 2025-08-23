@@ -83,7 +83,7 @@
     "vitest": "^3.2.4"
   },
   "engines": {
-    "node": "20.19.0"
+    "node": ">=20.18.0 <21"
   },
   "resolutions": {
     "@storybook/addon-a11y": "8.6.14",
