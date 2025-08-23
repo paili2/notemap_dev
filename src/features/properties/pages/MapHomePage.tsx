@@ -16,7 +16,7 @@ import PinContextMenu from "../components/map/PinContextMenu/PinContextMenu";
 import { PropertyViewDetails } from "../types/property-view";
 import { CreatePayload } from "../types/property-dto";
 
-const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "YOUR_KEY";
+// const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "YOUR_KEY";
 
 const STORAGE_KEY = "properties";
 
@@ -367,6 +367,17 @@ const MapHomePage: React.FC = () => {
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(plain));
   }, [items]);
+
+  const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
+
+  if (!KAKAO_MAP_KEY) {
+    return (
+      <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
+        NEXT_PUBLIC_KAKAO_JS_KEY 환경변수가 설정되지 않았습니다. (Vercel
+        프로젝트 환경변수에 추가 후 재배포 필요)
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0">
