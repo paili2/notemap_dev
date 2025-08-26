@@ -2,21 +2,52 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardHeader, CardTitle } from "@/components/atoms/Card/Card";
-import type { LatLng, MapMarker } from "@/features/properties/types/map";
-import MapView from "../components/MapView/MapView";
+import type { LatLng, MapMarker } from "@/features/map/types/map";
+import MapView from "../../map/MapView/MapView";
 import type { PropertyItem } from "../types/propertyItem";
-import TopRightButtons from "../components/top/TopRightButtons";
-import MapQuickControls from "../components/top/MapQuickControls";
+import TopRightButtons from "../../map/top/TopRightButtons/TopRightButtons";
+import MapQuickControls from "../../map/top/MapQuickControls/MapQuickControls";
 import type { AdvFilters } from "@/features/properties/types/advFilters";
-import MapTopBar, { FilterKey } from "../components/top/MapTopBar";
 
 import PropertyCreateModal from "../components/modal/PropertyCreateModal/PropertyCreateModal";
 import PropertyViewModal from "../components/modal/PropertyViewModal/PropertyViewModal";
-import PinContextMenu from "../components/map/PinContextMenu/PinContextMenu";
+import PinContextMenu from "../../map/PinContextMenu/PinContextMenu";
 import { PropertyViewDetails } from "../types/property-view";
 import { CreatePayload } from "../types/property-dto";
+import { FilterKey } from "@/features/map/top/MapTopBar/types";
+import MapTopBar from "@/features/map/top/MapTopBar/MapTopBar";
 
-// const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "YOUR_KEY";
+// === 거리 유틸 & 근접 매물 찾기 ===
+type LL = { lat: number; lng: number };
+
+function distanceMeters(a: LL, b: LL) {
+  const R = 6371000; // m
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  return R * c;
+}
+
+/** target에서 가장 가까운 매물(임계값 m 이내만 인정) 찾기 */
+function findNearestItem(
+  target: LL,
+  items: PropertyItem[],
+  maxMeters = 30 // ← 필요시 20~50m로 조정
+) {
+  if (!items?.length) return null;
+  let best: { item: PropertyItem; dist: number } | null = null;
+  for (const it of items) {
+    const d = distanceMeters(target, it.position);
+    if (!best || d < best.dist) best = { item: it, dist: d };
+  }
+  return best && best.dist <= maxMeters ? best : null;
+}
 
 const STORAGE_KEY = "properties";
 
@@ -259,8 +290,8 @@ const MapHomePage: React.FC = () => {
       jeonsePrice: p.priceText ?? "",
 
       // 선택/예비 필드(없으면 보기에서 기본값으로 보이도록)
-      images: [], // p에 이미지 없으니 일단 빈 배열
-      options: [], // 보기에서 기본 3개(에어컨/냉장고/세탁기) 강제 노출됨
+      images: [],
+      options: [],
       optionEtc: "",
       registry: "주택",
       unitLines: [],
@@ -340,7 +371,6 @@ const MapHomePage: React.FC = () => {
       view: p.view
         ? {
             ...p.view,
-            // 혹시 잘못 들어온 형태를 방지
             registry:
               typeof (p as any).view?.registry === "string"
                 ? (p as any).view?.registry
@@ -352,7 +382,6 @@ const MapHomePage: React.FC = () => {
   }
 
   useEffect(() => {
-    // 얕은 복사로 순수 POJO 보장(Proxy/희박배열 방지용)
     const plain = items.map((p) => ({
       ...p,
       view: p.view
@@ -369,6 +398,54 @@ const MapHomePage: React.FC = () => {
   }, [items]);
 
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
+
+  // ✅ 마커 클릭 쉴드: 마커 클릭 직후 지도 클릭 무시
+  const markerClickShieldRef = useRef(0);
+
+  const handleMarkerClick = useCallback(
+    async (id: string) => {
+      markerClickShieldRef.current = Date.now(); // 마커 클릭 시각 기록
+
+      if (id === "__draft__") return;
+      const item = items.find((p) => p.id === id);
+      if (!item) return;
+
+      setMenuTargetId(id);
+      setSelectedId(id);
+      setDraftPin(null);
+      setFitAllOnce(false);
+
+      setMenuAnchor(item.position);
+      setMenuAddress(item.address ?? null);
+      setMenuOpen(true);
+
+      if (!item.address) {
+        const addr = await resolveAddress(item.position);
+        setMenuAddress((prev) => prev ?? addr ?? null);
+      }
+    },
+    [items, resolveAddress]
+  );
+
+  const handleMapClick = useCallback(
+    async (latlng: LatLng) => {
+      // 마커 클릭 직후 250ms 내 지도 클릭은 무시 (버블/연속 클릭 방지)
+      if (Date.now() - markerClickShieldRef.current < 250) return;
+
+      setSelectedId(null);
+      setMenuTargetId(null);
+      setDraftPin(latlng);
+      setFitAllOnce(false);
+
+      setMenuAnchor(latlng);
+      setMenuAddress("선택 위치");
+      setMenuOpen(true);
+
+      const addr = await resolveAddress(latlng);
+      setMenuAddress(addr || "선택 위치");
+    },
+    [resolveAddress]
+  );
 
   if (!KAKAO_MAP_KEY) {
     return (
@@ -393,38 +470,8 @@ const MapHomePage: React.FC = () => {
           showNativeLayerControl={false}
           controlRightOffsetPx={32}
           controlTopOffsetPx={10}
-          onMarkerClick={async (id) => {
-            if (id === "__draft__") return;
-            const item = items.find((p) => p.id === id);
-            if (!item) return;
-
-            setMenuTargetId(id);
-            setSelectedId(id);
-            setDraftPin(null);
-            setFitAllOnce(false);
-
-            setMenuAnchor(item.position);
-            setMenuAddress(item.address ?? null);
-            setMenuOpen(true);
-
-            if (!item.address) {
-              const addr = await resolveAddress(item.position);
-              setMenuAddress((prev) => prev ?? addr ?? null);
-            }
-          }}
-          onMapClick={async (latlng) => {
-            setSelectedId(null);
-            setMenuTargetId(null);
-            setDraftPin(latlng);
-            setFitAllOnce(false);
-
-            setMenuAnchor(latlng);
-            setMenuAddress("선택 위치");
-            setMenuOpen(true);
-
-            const addr = await resolveAddress(latlng);
-            setMenuAddress(addr || "선택 위치");
-          }}
+          onMarkerClick={handleMarkerClick} // ✅ 쉴드 적용 핸들러
+          onMapClick={handleMapClick} // ✅ 쉴드 적용 핸들러
           onMapReady={({ kakao, map }) => {
             setKakaoSDK(kakao);
             setMapInstance(map);
@@ -477,8 +524,92 @@ const MapHomePage: React.FC = () => {
         onChangeFilter={setFilter}
         value={q}
         onChangeSearch={setQ}
-        onSubmitSearch={(v) => {
-          console.log("search:", v);
+        onSubmitSearch={async (v) => {
+          if (!v.trim()) return;
+          const kakao = (window as any).kakao;
+          if (!kakao) return;
+
+          if (!geocoderRef.current) {
+            geocoderRef.current = new kakao.maps.services.Geocoder();
+          }
+          const geocoder = geocoderRef.current as any;
+
+          const looksLikeJibeon =
+            /(?:산\s*)?\d+-?\d*/.test(v) || /동\s*\d+/.test(v);
+
+          geocoder.addressSearch(v, async (result: any[], status: string) => {
+            if (status !== kakao.maps.services.Status.OK || !result?.[0]) {
+              alert("주소를 찾을 수 없어요.");
+              return;
+            }
+
+            const r0 = result[0];
+
+            // 1) 지번 좌표 우선: 사용자가 지번을 입력했거나, road_address가 빈 경우
+            const pick =
+              looksLikeJibeon && r0.address
+                ? r0.address
+                : r0.road_address || r0.address;
+
+            // 좌표 선택 (x=lng, y=lat)
+            let latlng = {
+              lat: parseFloat(pick.y ?? r0.y),
+              lng: parseFloat(pick.x ?? r0.x),
+            };
+
+            // 2) 역지오코딩으로 표시 주소 정규화
+            const normAddr: { road?: string; jibun?: string } = {};
+            await new Promise<void>((resolve) => {
+              geocoder.coord2Address(
+                latlng.lng,
+                latlng.lat,
+                (res: any, s: string) => {
+                  if (s === kakao.maps.services.Status.OK && res?.[0]) {
+                    normAddr.road =
+                      res[0].road_address?.address_name || undefined;
+                    normAddr.jibun = res[0].address?.address_name || undefined;
+                  }
+                  resolve();
+                }
+              );
+            });
+
+            // 3) 기존 매물 근접 여부 (산지/필지 오차 고려 50m 권장)
+            let nearest: { item: PropertyItem; dist: number } | null = null;
+            for (const it of items) {
+              const d = distanceMeters(latlng, it.position);
+              if (!nearest || d < nearest.dist) nearest = { item: it, dist: d };
+            }
+
+            // 공통 초기화
+            setSelectedId(null);
+            setMenuTargetId(null);
+            setFitAllOnce(false);
+
+            // 4) 스냅/분기
+            const SNAP_M = 50; // ← 환경 맞게 30~50m 조절
+            if (nearest && nearest.dist <= SNAP_M) {
+              // 기존 매물로 스냅 + 매물보기
+              latlng = nearest.item.position;
+              setDraftPin(null);
+              setSelectedId(nearest.item.id);
+              setMenuTargetId(nearest.item.id);
+              setMenuAnchor(nearest.item.position);
+              setMenuAddress(
+                nearest.item.address ?? normAddr.road ?? normAddr.jibun ?? v
+              );
+              setMenuOpen(true);
+            } else {
+              // 신규 장소 등록
+              setDraftPin(latlng);
+              setMenuAnchor(latlng);
+              const display = looksLikeJibeon
+                ? normAddr.jibun ?? normAddr.road ?? v
+                : normAddr.road ?? normAddr.jibun ?? v;
+              setMenuAddress(display);
+              setMenuOpen(true);
+            }
+          });
         }}
       />
 
@@ -552,7 +683,7 @@ const MapHomePage: React.FC = () => {
             };
 
           const orientations = (payload.orientations ?? [])
-            .map((o) => ({ ho: Number(o.ho), value: o.value })) // 숫자 보정
+            .map((o) => ({ ho: Number(o.ho), value: o.value }))
             .sort((a, b) => a.ho - b.ho);
 
           const pick = (ho: number) =>
@@ -572,60 +703,40 @@ const MapHomePage: React.FC = () => {
             title: payload.title,
             address: payload.address,
             priceText: payload.jeonsePrice ?? undefined,
-            status: payload.status, // 게시상태(공개/보류/비공개)
+            status: payload.status,
             dealStatus: payload.dealStatus,
             type: "아파트",
             position: pos,
             favorite: false,
             view: {
-              // 연락처 (보기에서 필요시 표시)
               officePhone: payload.officePhone,
               officePhone2: payload.officePhone2,
-
-              // 시설/주차
               elevator: payload.elevator,
               parkingType: payload.parkingType,
               parkingGrade: payload.parkingGrade,
-
-              // 날짜/면적
               completionDate: payload.completionDate,
               exclusiveArea: payload.exclusiveArea,
               realArea: payload.realArea,
-
-              // 단지 정보 (CreatePayload에 없으면 any 캐스팅)
               totalBuildings: (payload as any).totalBuildings,
               totalFloors: (payload as any).totalFloors,
               totalHouseholds: payload.totalHouseholds,
               remainingHouseholds: (payload as any).remainingHouseholds,
-
-              // 향
               orientations,
               aspect: payload.aspect,
               aspectNo: payload.aspectNo,
-
-              // 등급
               slopeGrade: payload.slopeGrade,
               structureGrade: payload.structureGrade,
-
-              // 옵션
               options: payload.options,
               optionEtc: payload.optionEtc,
-
-              // 등기/구조별
               registry:
                 typeof (payload as any).registry === "string"
                   ? (payload as any).registry
                   : "주택",
               unitLines: payload.unitLines,
-
-              // 메모/이미지
               publicMemo: payload.publicMemo,
               secretMemo: payload.secretMemo,
               images: payload.images,
-
-              // (선택) 보기 로직에서 참조한다면 중복 저장
               dealStatus: payload.dealStatus,
-
               aspect1,
               aspect2,
               aspect3,

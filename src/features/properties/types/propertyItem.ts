@@ -1,4 +1,4 @@
-import type { LatLng } from "./map";
+import type { LatLng } from "../../map/types/map";
 import type {
   DealStatus,
   Visibility,

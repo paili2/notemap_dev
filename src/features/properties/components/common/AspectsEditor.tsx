@@ -12,11 +12,12 @@ import {
   SelectValue,
 } from "@/components/atoms/Select/Select";
 
-import { type OrientationValue } from "@/features/properties/types/property-domain";
+import {
+  AspectRowLite,
+  type OrientationValue,
+} from "@/features/properties/types/property-domain";
 
 import { ORIENTATIONS as DEFAULT_ORIENTATIONS } from "@/features/properties/components/common/constants";
-
-import { AspectRowLite } from "./types";
 
 type Props = {
   aspects: AspectRowLite[];
@@ -52,7 +53,7 @@ export default function AspectsEditor({
         <SelectTrigger className="w-[110px] h-9">
           <SelectValue placeholder="방향" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="popper" className="z-[1205]">
           {list.map((o) => (
             <SelectItem key={o} value={o}>
               {o}

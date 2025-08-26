@@ -25,6 +25,8 @@ export type OrientationRow = {
   value: OrientationValue | "";
 };
 
+export type AspectRowLite = { no: number; dir: OrientationValue | "" };
+
 // --- 공통 엔티티 ---
 export type UnitLine = {
   rooms: number;

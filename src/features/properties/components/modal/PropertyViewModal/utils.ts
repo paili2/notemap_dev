@@ -1,3 +1,5 @@
+import { toPy } from "@/features/properties/lib/area";
+
 export function fmt(d?: string | Date) {
   if (!d) return "-";
   let date: Date | null = null;
@@ -43,12 +45,6 @@ export function toInputDateString(d?: string | Date) {
   return `${y}.${m}.${dd}`;
 }
 
-/* ==== 전용/실평 범위 표시 유틸 (m² + 평) ==== */
-const PYEONG = 3.3058;
-export const toPy = (m2?: string) => {
-  const n = parseFloat(String(m2 ?? "").trim());
-  return Number.isFinite(n) ? (n / PYEONG).toFixed(2) : "";
-};
 export const parseRange = (s?: string): { min: string; max: string } => {
   const raw = (s || "").trim();
   if (!raw) return { min: "", max: "" };

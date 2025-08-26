@@ -1,7 +1,7 @@
-export const PYEONG = 3.3058;
+export const PYEONG = 3.305785; // 1평 = 3.305785㎡
 
-export const toPy = (m2: string) => {
-  const n = parseFloat(m2);
+export const toPy = (m2?: string) => {
+  const n = parseFloat(String(m2 ?? "").trim());
   return Number.isFinite(n) ? (n / PYEONG).toFixed(2) : "";
 };
 

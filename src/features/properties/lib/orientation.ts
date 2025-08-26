@@ -1,9 +1,8 @@
 import type {
+  AspectRowLite,
   OrientationRow,
   OrientationValue,
 } from "@/features/properties/types/property-domain";
-
-export type AspectRowLite = { no: number; dir: string };
 
 /** aspects(폼 상태) → orientations/legacy 파생값 묶음 */
 export function buildOrientationFields(aspects: AspectRowLite[]): {

@@ -1,24 +1,32 @@
-// features/properties/components/modal/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
-import { X, Star, Phone, Pencil, Trash2, Check, Undo2 } from "lucide-react";
-import { Badge } from "@/components/atoms/Badge/Badge";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { X, Phone, Pencil, Trash2, Check, Undo2 } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/utils";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type {
   Registry,
   UnitLine,
 } from "@/features/properties/types/property-domain";
+import { PropertyViewDetails } from "@/features/properties/types/property-view";
+
 import PropertyEditModal from "../PropertyEditModal/PropertyEditModal";
 
-// 공용 컴포넌트
+// 공용 컴포넌트 (뷰 전용 / 폼 공용)
 import Field from "../../common/Field";
 import MetaBlock from "../../common/MetaBlock";
-
-// 뷰 전용 컴포넌트/유틸
 import OrientationBadges from "./OrientationBadges";
+
+import DisplayImagesSection from "../../common/view/DisplayImagesSection";
+import DealBadges from "../../common/view/DealBadges";
+import StarsRow from "../../common/view/StarsRow";
+import StructureLinesList from "../../common/view/StructureLinesList";
+import OptionsBadges from "../../common/view/OptionsBadges";
+import MemoPanel from "../../common/view/MemoPanel";
+
+// 뷰 유틸
 import {
   loadInitialMode,
   persistMode,
@@ -28,8 +36,6 @@ import {
   formatDateOnly,
   formatRangeWithPy,
 } from "./utils";
-import { PropertyViewDetails } from "@/features/properties/types/property-view";
-import Image from "next/image";
 
 export type PropertyViewModalProps = {
   open: boolean;
@@ -40,13 +46,11 @@ export type PropertyViewModalProps = {
   onSave?: (patch: Partial<PropertyViewDetails>) => Promise<void> | void;
 };
 
-/** 래퍼: open이 false면 바디를 렌더하지 않음(훅은 바디에서만 호출) */
 export default function PropertyViewModal(props: PropertyViewModalProps) {
   if (!props.open) return null;
   return <PropertyViewModalBody {...props} />;
 }
 
-/** 모든 훅/상태는 여기 최상단에서 "항상 같은 순서"로 호출 */
 function PropertyViewModalBody({
   onClose,
   item,
@@ -54,7 +58,6 @@ function PropertyViewModalBody({
   onDelete,
   onSave,
 }: PropertyViewModalProps) {
-  // 공개/비밀 메모 토글
   const [mode, setMode] = useState<"KN" | "R">(loadInitialMode);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,20 +70,7 @@ function PropertyViewModalBody({
     });
   }, []);
 
-  // 보기용 파생값
   const imagesView = item.images ?? ["", "", "", ""];
-  const baseOptions = (item.options ?? []).filter(Boolean);
-
-  // 콤마/전각 콤마/일본식 구분자
-  const etcTags = String(item.optionEtc ?? "")
-    .split(/[,\uFF0C\u3001]/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  const selectedOptionsView = Array.from(new Set([...baseOptions, ...etcTags]));
-  const selectedRegistryView = item.registry ? [item.registry] : [];
-  const parkingStarsView = gradeToStars(item.parkingGrade as any);
-
   const displayStatus = item.status ?? "공개";
   const displayDeal = item.dealStatus ?? "분양중";
 
@@ -93,7 +83,7 @@ function PropertyViewModalBody({
     await onDelete();
   };
 
-  // ====== Edit 폼 상태 ======
+  // ====== (뷰 내부의 임시 편집 상태들 — 외부 에딧모달과 별개) ======
   const [images, setImages] = useState<string[]>(["", "", "", ""]);
   const fileInputs = [
     useRef<HTMLInputElement>(null),
@@ -101,7 +91,6 @@ function PropertyViewModalBody({
     useRef<HTMLInputElement>(null),
     useRef<HTMLInputElement>(null),
   ];
-  const pickImage = (idx: number) => fileInputs[idx].current?.click();
   const onPickFile = (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -156,7 +145,6 @@ function PropertyViewModalBody({
     );
 
   const [registry, setRegistry] = useState<Registry>(item.registry ?? "주택");
-
   const [slopeGrade, setSlopeGrade] = useState<
     PropertyViewDetails["slopeGrade"]
   >(item.slopeGrade ?? "상");
@@ -211,7 +199,6 @@ function PropertyViewModalBody({
   const setMemoValue = (v: string) =>
     mode === "KN" ? setPublicMemo(v) : setSecretMemo(v);
 
-  // item 바뀔 때 값만 동기화 (훅 선언은 위에서 한 번만)
   useEffect(() => {
     setTitle(item.title ?? "");
     setAddress(item.address ?? "");
@@ -253,7 +240,7 @@ function PropertyViewModalBody({
     setImages([0, 1, 2, 3].map((i) => (item.images ?? [])[i] ?? ""));
   }, [item]);
 
-  // 외부 수정 모달
+  // 외부 수정 모달 상태
   const [editOpen, setEditOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<PropertyViewDetails | null>(
     null
@@ -333,6 +320,26 @@ function PropertyViewModalBody({
     item.aspectNo,
   ]);
 
+  /**
+   * ✅ 핵심: 수정 모달을 포털로 body에 렌더 (뷰 모달은 숨김)
+   *  - 지도/다른 스택 컨텍스트 위로 강제
+   */
+  if (editOpen) {
+    return createPortal(
+      <PropertyEditModal
+        open
+        item={editTarget ?? item}
+        onClose={() => setEditOpen(false)}
+        onSubmit={async (patch) => {
+          await onSave?.(patch as Partial<PropertyViewDetails>);
+          setEditOpen(false);
+        }}
+      />,
+      document.body
+    );
+  }
+
+  // ===== View 모달 렌더 =====
   return (
     <div className="fixed inset-0 z-[110]">
       {/* 배경 딤 */}
@@ -341,6 +348,7 @@ function PropertyViewModalBody({
         onClick={onClose}
         aria-hidden
       />
+
       {/* 패널 */}
       <div
         className="
@@ -361,12 +369,7 @@ function PropertyViewModalBody({
             <h2 className="text-lg font-semibold">
               {isEditing ? title || "매물 수정" : item.title || "매물"}
             </h2>
-            <Badge variant="secondary">{displayStatus}</Badge>
-            <Badge
-              variant={displayDeal === "계약완료" ? "destructive" : "outline"}
-            >
-              {displayDeal}
-            </Badge>
+            <DealBadges status={displayStatus} dealStatus={displayDeal} />
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -388,396 +391,228 @@ function PropertyViewModalBody({
 
         {/* 바디 */}
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-          {/* 좌: 이미지 */}
-          <div className="space-y-3">
-            {[0, 1, 2, 3].map((i) => {
-              const isContract = i === 3;
-              const url = isEditing ? images[i] : imagesView[i];
-              return (
-                <div
-                  key={i}
-                  className={cn(
-                    "relative rounded-lg overflow-hidden border bg-muted/30",
-                    isContract ? "h-[360px]" : "h-[160px]"
-                  )}
-                >
-                  <div className="absolute left-2 top-2 z-10 rounded bg-black/60 px-1.5 py-0.5 text-[11px] text-white">
-                    {isContract ? "파일" : `사진 ${i + 1}`}
-                  </div>
-                  {url ? (
-                    <Image
-                      src={url}
-                      alt={isContract ? "contract" : `photo-${i}`}
-                      fill
-                      sizes="(max-width: 980px) 95vw, 980px"
-                      className={cn(
-                        "block",
-                        isContract ? "object-contain bg-white" : "object-cover"
-                      )}
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-muted-foreground">
-                      이미지 없음
-                    </div>
-                  )}
-                  {isEditing && (
-                    <>
-                      <div className="absolute right-2 bottom-2 flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => pickImage(i)}
-                        >
-                          {images[i] ? "수정" : "업로드"}
-                        </Button>
-                      </div>
-                      <input
-                        ref={fileInputs[i]}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => onPickFile(i, e)}
-                      />
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          {/* 좌: 이미지 (공용) */}
+          <DisplayImagesSection
+            images={isEditing ? images : imagesView}
+            fileInputs={fileInputs}
+            onPickFile={onPickFile}
+            isEditing={isEditing}
+          />
 
-          {/* 우: View / Edit */}
-          {!isEditing ? (
-            /* ===== View ===== */
-            <div className="space-y-6 text-[13px]">
-              <div className="h-9 grid grid-cols-2 gap-3">
-                <Field label="주소">
-                  <div className="h-9 flex items-center">
-                    {item.address ?? "-"}
-                  </div>
-                </Field>
-                <Field label="엘리베이터">
-                  <div className="h-9 flex items-center">
-                    {item.elevator ?? "O"}
-                  </div>
-                </Field>
-              </div>
-
-              <Field label="분양사무실">
-                <div className="h-9 grid grid-cols-2 gap-3">
-                  <div className="flex items-center gap-1">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="px-2 py-1 rounded bg-white">
-                      {item.officePhone ?? "-"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="px-2 py-1 rounded bg-white">
-                      {item.officePhone2 ?? "-"}
-                    </span>
-                  </div>
-                </div>
-              </Field>
-
-              <div className="h-9 grid grid-cols-2 gap-3">
-                <Field label="총 개동">
-                  <div className="h-9 flex items-center">
-                    {stripManual(item.totalBuildings)}
-                  </div>
-                </Field>
-                <Field label="총 층수">
-                  <div className="h-9 flex items-center">
-                    {stripManual(item.totalFloors)}
-                  </div>
-                </Field>
-              </div>
-
-              <div className="h-9 grid grid-cols-2 gap-3">
-                <Field label="총 세대수">
-                  <div className="h-9 flex items-center">
-                    {stripManual(item.totalHouseholds)}
-                  </div>
-                </Field>
-                <Field label="잔여세대">
-                  <div className="h-9 flex items-center">
-                    {stripManual(item.remainingHouseholds)}
-                  </div>
-                </Field>
-              </div>
-
-              <Field label="향">
-                {Array.isArray(item.orientations) &&
-                item.orientations.length > 0 ? (
-                  <OrientationBadges data={item.orientations} />
-                ) : (
-                  (() => {
-                    const arr: { no: number; dir: string }[] = [];
-                    if (item.aspect1) arr.push({ no: 1, dir: item.aspect1 });
-                    if (item.aspect2) arr.push({ no: 2, dir: item.aspect2 });
-                    if (item.aspect3) arr.push({ no: 3, dir: item.aspect3 });
-                    if (arr.length === 0 && item.aspect) {
-                      const n = parseInt(
-                        String(item.aspectNo ?? "").replace(/\D/g, "") || "1",
-                        10
-                      );
-                      arr.push({
-                        no: Number.isNaN(n) ? 1 : n,
-                        dir: item.aspect,
-                      });
-                    }
-                    return arr.length > 0 ? (
-                      <div className="flex gap-6">
-                        {arr.map((a) => (
-                          <div key={a.no} className="flex gap-3">
-                            <span className="h-9 flex items-center">
-                              {a.no}호:
-                            </span>
-                            <span className="h-9 flex items-center">
-                              {a.dir}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-9 flex items-center">-</div>
-                    );
-                  })()
-                )}
-              </Field>
-
-              <div className="grid grid-cols-2 gap-6">
-                <Field label="주차유형">
-                  <div className="h-9 flex items-center">
-                    {item.parkingType ?? "답사지 확인"}
-                  </div>
-                </Field>
-                <Field label="주차평점">
-                  <div className="h-9 flex items-center gap-1">
-                    {Array.from({ length: 5 }).map((_, i) => {
-                      const filled = i < parkingStarsView;
-                      return (
-                        <Star
-                          key={i}
-                          className={cn(
-                            "h-5 w-5",
-                            filled
-                              ? "fill-current text-yellow-500"
-                              : "text-gray-300"
-                          )}
-                        />
-                      );
-                    })}
-                  </div>
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <Field label="준공일">
-                  {formatDateOnly(item.completionDate)}
-                </Field>
-                <Field label="최저실입">
-                  <div className="h-9 flex items-center">
-                    {item.jeonsePrice ?? "-"}
-                  </div>
-                </Field>
-              </div>
-
-              <Field label="전용">
+          {/* 우: View */}
+          <div className="space-y-6 text-[13px]">
+            <div className="h-9 grid grid-cols-2 gap-3">
+              <Field label="주소">
                 <div className="h-9 flex items-center">
-                  {formatRangeWithPy(item.exclusiveArea)}
+                  {item.address ?? "-"}
                 </div>
               </Field>
-              <Field label="실평">
+              <Field label="엘리베이터">
                 <div className="h-9 flex items-center">
-                  {formatRangeWithPy(item.realArea)}
+                  {item.elevator ?? "O"}
                 </div>
               </Field>
+            </div>
 
-              <Field label="등기">
+            <Field label="분양사무실">
+              <div className="h-9 grid grid-cols-2 gap-3">
+                <div className="flex items-center gap-1">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <span className="px-2 py-1 rounded bg-white">
+                    {item.officePhone ?? "-"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <span className="px-2 py-1 rounded bg-white">
+                    {item.officePhone2 ?? "-"}
+                  </span>
+                </div>
+              </div>
+            </Field>
+
+            <div className="h-9 grid grid-cols-2 gap-3">
+              <Field label="총 개동">
                 <div className="h-9 flex items-center">
-                  {selectedRegistryView.length
-                    ? selectedRegistryView.join(", ")
-                    : "-"}
+                  {stripManual(item.totalBuildings)}
                 </div>
               </Field>
-
-              <div className="grid grid-cols-2 gap-6">
-                <Field label="경사도">
-                  <div className="flex items-center gap-1">
-                    <span className="px-3 py-1 rounded-md bg-blue-700 text-white font-semibold shadow-sm">
-                      {item.slopeGrade ?? "상"}
-                    </span>
-                  </div>
-                </Field>
-                <Field label="구조(등급)">
-                  <div className="flex items-center gap-1">
-                    <span className="px-3 py-1 rounded-md bg-blue-700 text-white font-semibold shadow-sm">
-                      {item.structureGrade ?? "상"}
-                    </span>
-                  </div>
-                </Field>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-sm font-medium">구조별 입력</div>
-                {(item.unitLines?.length ?? 0) === 0 ? (
-                  <div className="text-xs text-muted-foreground">
-                    3/2 복층 테라스
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {item.unitLines!.map((l, idx) => (
-                      <div
-                        key={idx}
-                        className="rounded border px-2 py-1 text-xs flex flex-wrap items-center gap-2"
-                      >
-                        <span>
-                          {l.rooms}/{l.baths}
-                        </span>
-                        <span className="opacity-60">|</span>
-                        <span>복층 {l.duplex ? "O" : "X"}</span>
-                        <span className="opacity-60">|</span>
-                        <span>테라스 {l.terrace ? "O" : "X"}</span>
-                        {(l.primary || l.secondary) && (
-                          <>
-                            <span className="opacity-60">|</span>
-                            <span>
-                              {l.primary || "-"} / {l.secondary || "-"}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {selectedOptionsView.length > 0 && (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">옵션</div>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedOptionsView.map((op) => (
-                      <Badge key={op} variant="secondary">
-                        {op}
-                      </Badge>
-                    ))}
-                  </div>
+              <Field label="총 층수">
+                <div className="h-9 flex items-center">
+                  {stripManual(item.totalFloors)}
                 </div>
-              )}
+              </Field>
+            </div>
 
-              {mode === "KN" ? (
-                <div className="rounded-md border bg-amber-50/60 p-3">
-                  <div className="text-sm font-medium mb-1">특이사항(공개)</div>
-                  <div className="whitespace-pre-wrap text-[13px]">
-                    {item.publicMemo ?? "공개 가능한 메모"}
-                  </div>
+            <div className="h-9 grid grid-cols-2 gap-3">
+              <Field label="총 세대수">
+                <div className="h-9 flex items-center">
+                  {stripManual(item.totalHouseholds)}
                 </div>
+              </Field>
+              <Field label="잔여세대">
+                <div className="h-9 flex items-center">
+                  {stripManual(item.remainingHouseholds)}
+                </div>
+              </Field>
+            </div>
+
+            <Field label="향">
+              {Array.isArray(item.orientations) &&
+              item.orientations.length > 0 ? (
+                <OrientationBadges data={item.orientations} />
               ) : (
-                <div className="rounded-md border bg-rose-50/70 p-3">
-                  <div className="text-sm font-medium mb-1 text-rose-600">
-                    리베이트 / 비밀 메모 (R)
-                  </div>
-                  <div className="whitespace-pre-wrap text-[13px]">
-                    {item.secretMemo ?? "내부 메모"}
-                  </div>
-                </div>
+                (() => {
+                  const arr: { no: number; dir: string }[] = [];
+                  if (item.aspect1) arr.push({ no: 1, dir: item.aspect1 });
+                  if (item.aspect2) arr.push({ no: 2, dir: item.aspect2 });
+                  if (item.aspect3) arr.push({ no: 3, dir: item.aspect3 });
+                  if (arr.length === 0 && item.aspect) {
+                    const n = parseInt(
+                      String(item.aspectNo ?? "").replace(/\D/g, "") || "1",
+                      10
+                    );
+                    arr.push({ no: Number.isNaN(n) ? 1 : n, dir: item.aspect });
+                  }
+                  return arr.length > 0 ? (
+                    <div className="flex gap-6">
+                      {arr.map((a) => (
+                        <div key={a.no} className="flex gap-3">
+                          <span className="h-9 flex items-center">
+                            {a.no}호:
+                          </span>
+                          <span className="h-9 flex items-center">{a.dir}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="h-9 flex items-center">-</div>
+                  );
+                })()
               )}
+            </Field>
 
-              <MetaBlock item={item} />
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="주차유형">
+                <div className="h-9 flex items-center">
+                  {item.parkingType ?? "답사지 확인"}
+                </div>
+              </Field>
+              <Field label="주차평점">
+                <StarsRow value={gradeToStars(item.parkingGrade as any)} />
+              </Field>
             </div>
-          ) : (
-            /* ===== Edit ===== */
-            <div className="space-y-6">
-              {/* 여기 편집 섹션에 필요한 인풋들/컨트롤을 배치하세요.
-                  훅을 추가로 만들지 말고, 위에서 만든 상태만 사용하세요. */}
+
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="준공일">
+                {formatDateOnly(item.completionDate)}
+              </Field>
+              <Field label="최저실입">
+                <div className="h-9 flex items-center">
+                  {item.jeonsePrice ?? "-"}
+                </div>
+              </Field>
             </div>
-          )}
+
+            <Field label="전용">
+              <div className="h-9 flex items-center">
+                {formatRangeWithPy(item.exclusiveArea)}
+              </div>
+            </Field>
+            <Field label="실평">
+              <div className="h-9 flex items-center">
+                {formatRangeWithPy(item.realArea)}
+              </div>
+            </Field>
+
+            <Field label="등기">
+              <div className="h-9 flex items-center">
+                {item.registry ?? "-"}
+              </div>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-6">
+              <Field label="경사도">
+                <div className="flex items-center gap-1">
+                  <span className="px-3 py-1 rounded-md bg-blue-700 text-white font-semibold shadow-sm">
+                    {item.slopeGrade ?? "상"}
+                  </span>
+                </div>
+              </Field>
+              <Field label="구조(등급)">
+                <div className="flex items-center gap-1">
+                  <span className="px-3 py-1 rounded-md bg-blue-700 text-white font-semibold shadow-sm">
+                    {item.structureGrade ?? "상"}
+                  </span>
+                </div>
+              </Field>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-sm font-medium">구조별 입력</div>
+              <StructureLinesList lines={item.unitLines} />
+            </div>
+
+            <OptionsBadges
+              options={item.options ?? []}
+              optionEtc={item.optionEtc}
+            />
+
+            <MemoPanel
+              mode={mode}
+              publicMemo={item.publicMemo}
+              secretMemo={item.secretMemo}
+            />
+
+            <MetaBlock item={item} />
+          </div>
         </div>
 
         {/* 풋터 */}
         <div className="shrink-0 border-t px-5 py-3 flex items-center">
           <div className="text-[12px] text-muted-foreground" />
           <div className="ml-4 flex-1 flex items-center justify-between">
-            {!isEditing ? (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setEditTarget(item);
-                    setEditOpen(true);
-                  }}
-                  title="수정"
-                  className="border-none shadow-transparent w-8"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDelete}
-                  title="삭제"
-                  disabled={!onDelete}
-                  className={cn(
-                    "border-none shadow-transparent text-rose-600 hover:bg-rose-50 w-8",
-                    !onDelete && "opacity-60"
-                  )}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={cancelEdit}
-                  title="취소"
-                  className="border-none shadow-transparent"
-                >
-                  <Undo2 className="h-4 w-4 mr-1" />
-                  취소
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={saveEdit}
-                  disabled={saving || !title.trim()}
-                  title="저장"
-                >
-                  <Check className="h-4 w-4 mr-1" />
-                  {saving ? "저장중..." : "저장"}
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditTarget(item);
+                  setEditOpen(true);
+                }}
+                title="수정"
+                className="border-none shadow-transparent w-8"
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDelete}
+                title="삭제"
+                disabled={!onDelete}
+                className={cn(
+                  "border-none shadow-transparent text-rose-600 hover:bg-rose-50 w-8",
+                  !onDelete && "opacity-60"
+                )}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
 
             <div className="flex items-center gap-2">
-              {!isEditing && (
-                <Button
-                  variant="secondary"
-                  onClick={onAddFavorite}
-                  disabled={!onAddFavorite}
-                  title="즐겨찾기"
-                >
-                  즐겨찾기
-                </Button>
-              )}
+              <Button
+                variant="secondary"
+                onClick={onAddFavorite}
+                disabled={!onAddFavorite}
+                title="즐겨찾기"
+              >
+                즐겨찾기
+              </Button>
             </div>
           </div>
         </div>
       </div>
-
-      {/* 외부 수정 모달 */}
-      {editOpen && (
-        <PropertyEditModal
-          open={editOpen}
-          item={editTarget ?? item}
-          onClose={() => setEditOpen(false)}
-          onSubmit={async (patch) => {
-            await onSave?.(patch as Partial<PropertyViewDetails>);
-            setEditOpen(false);
-          }}
-        />
-      )}
     </div>
   );
 }
