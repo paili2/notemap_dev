@@ -17,6 +17,8 @@ import { PropertyViewDetails } from "../types/property-view";
 import { CreatePayload } from "../types/property-dto";
 import { FilterKey } from "@/features/map/top/MapTopBar/types";
 import MapTopBar from "@/features/map/top/MapTopBar/MapTopBar";
+import ToggleSidebar from "@/features/map/top/ToggleSidebar/ToggleSidebar";
+import { Sidebar } from "@/features/sidebar";
 
 import { distanceMeters } from "@/features/properties/lib/geo/distance";
 import { ImageItem } from "../types/media";
@@ -47,6 +49,9 @@ const MapHomePage: React.FC = () => {
 
   // 지도 상태
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
+
+  // 사이드바 상태
+  const [useSidebar, setUseSidebar] = useState<boolean>(false);
 
   // 기본 검색/필터
   const [query, setQuery] = useState("");
@@ -632,21 +637,24 @@ const MapHomePage: React.FC = () => {
         }}
       />
 
-      {/* 지적편집도 */}
+      {/* 지적편집도
       <MapQuickControls
         isDistrictOn={useDistrict}
         onToggleDistrict={handleToggleDistrict}
         offsetTopPx={12}
+      /> */}
+
+      {/* 사이드바 버튼 */}
+      <ToggleSidebar
+        isSidebarOn={useSidebar}
+        onToggleSidebar={() => setUseSidebar(!useSidebar)}
+        offsetTopPx={12}
       />
 
-      {/* 우상단: K&N/즐겨찾기 */}
-      <TopRightButtons
-        onOpenKN={() => {
-          if (!selectedId && filtered[0]) setSelectedId(filtered[0].id);
-          setViewOpen(true);
-        }}
-        onOpenFavorites={() => setFavOpen(true)}
-        mapTypeOffsetTop={72}
+      {/* 사이드바 모달 */}
+      <Sidebar
+        isSidebarOn={useSidebar}
+        onToggleSidebar={() => setUseSidebar(!useSidebar)}
       />
 
       {/* 좌상단 선택 미니 카드 */}
