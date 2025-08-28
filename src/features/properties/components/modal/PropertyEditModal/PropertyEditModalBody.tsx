@@ -265,10 +265,13 @@ export default function PropertyEditModalBody({
 
     // 이미지
     if (Array.isArray(initialData.images) && initialData.images.length > 0) {
-      setImagesByCard([
-        [...initialData.images.map((u) => ({ url: u, name: "" }))],
-        [],
-      ]);
+      const mapped = initialData.images.map((u) =>
+        typeof u === "string"
+          ? { url: u, name: "" }
+          : { url: u.url, name: u.name ?? "" }
+      ); // mapped: ImageItem[]
+
+      setImagesByCard([mapped, []]);
     }
 
     setTitle(initialData.title ?? "");
