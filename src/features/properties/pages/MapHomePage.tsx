@@ -1,3 +1,4 @@
+// src/features/properties/pages/MapHomePage.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,42 +18,14 @@ import { CreatePayload } from "../types/property-dto";
 import { FilterKey } from "@/features/map/top/MapTopBar/types";
 import MapTopBar from "@/features/map/top/MapTopBar/MapTopBar";
 
-// === 거리 유틸 & 근접 매물 찾기 ===
-type LL = { lat: number; lng: number };
-
-function distanceMeters(a: LL, b: LL) {
-  const R = 6371000; // m
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
-  return R * c;
-}
-
-/** target에서 가장 가까운 매물(임계값 m 이내만 인정) 찾기 */
-function findNearestItem(
-  target: LL,
-  items: PropertyItem[],
-  maxMeters = 30 // ← 필요시 20~50m로 조정
-) {
-  if (!items?.length) return null;
-  let best: { item: PropertyItem; dist: number } | null = null;
-  for (const it of items) {
-    const d = distanceMeters(target, it.position);
-    if (!best || d < best.dist) best = { item: it, dist: d };
-  }
-  return best && best.dist <= maxMeters ? best : null;
-}
+import { distanceMeters } from "@/features/properties/lib/geo/distance";
+import { ImageItem } from "../types/media";
 
 const STORAGE_KEY = "properties";
 
 const MapHomePage: React.FC = () => {
-  const [favOpen, setFavOpen] = useState(false);
+  const [, setFavOpen] = useState(false);
+
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
   const [menuAddress, setMenuAddress] = useState<string | null>(null);
@@ -67,14 +40,13 @@ const MapHomePage: React.FC = () => {
 
   const [draftPin, setDraftPin] = useState<LatLng | null>(null);
 
-  // 메뉴(핀 위·오른쪽)
+  // 메뉴(핀)
   const [menuAnchor, setMenuAnchor] = useState<LatLng | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuTargetId, setMenuTargetId] = useState<string | null>(null);
 
   // 지도 상태
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // 기본 검색/필터
   const [query, setQuery] = useState("");
@@ -88,12 +60,58 @@ const MapHomePage: React.FC = () => {
   });
   const [filter, setFilter] = useState<FilterKey>("all");
   const [q, setQ] = useState("");
-  const [fabOpen, setFabOpen] = useState(false);
 
   // 데이터
   const [items, setItems] = useState<PropertyItem[]>(loadProperties);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  /** -------------------------
+   * 이미지 정규화 유틸
+   * -------------------------*/
+  const ok = (u: string) => /^https?:|^data:|^blob:/.test(u);
+
+  function normalizeOneImage(it: any): ImageItem | null {
+    if (typeof it === "string")
+      return ok(it) ? { url: it, name: "", caption: "" } : null;
+    if (it && typeof it === "object" && typeof it.url === "string") {
+      if (!ok(it.url)) return null;
+      return {
+        url: it.url,
+        name: it.name ?? "",
+        caption: it.caption ?? "",
+        dataUrl: it.dataUrl,
+      };
+    }
+    return null;
+  }
+
+  function normalizeImages(imgs: unknown): ImageItem[] {
+    if (!Array.isArray(imgs)) return [];
+    return imgs.map(normalizeOneImage).filter(Boolean) as ImageItem[];
+  }
+
+  function normalizeImageCards(cards: unknown): ImageItem[][] {
+    if (!Array.isArray(cards)) return [];
+    return cards
+      .map((group) => normalizeImages(group))
+      .filter((g) => g.length > 0);
+  }
+
+  function flattenCards(cards: ImageItem[][]): ImageItem[] {
+    const out: ImageItem[] = [];
+    const seen = new Set<string>();
+    for (const g of cards) {
+      for (const it of g) {
+        const key = it.dataUrl || it.url;
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(it);
+      }
+    }
+    return out;
+  }
+
+  // 저장
   useEffect(() => {
     saveProperties(items);
   }, [items]);
@@ -120,7 +138,7 @@ const MapHomePage: React.FC = () => {
     }));
     if (draftPin) {
       base.unshift({
-        id: "__draft__", // 임시 ID
+        id: "__draft__",
         title: "신규 등록 위치",
         position: { lat: draftPin.lat, lng: draftPin.lng },
       });
@@ -133,7 +151,7 @@ const MapHomePage: React.FC = () => {
     [items, selectedId]
   );
 
-  // 기존의 merge 로직 대신 어댑터 사용
+  // 어댑터
   const selectedViewItem = useMemo(() => {
     if (!selected) return null;
     const extra = (selected as any).view ?? {};
@@ -142,22 +160,14 @@ const MapHomePage: React.FC = () => {
 
   // 지도 센터
   const [fixedCenter] = useState<LatLng>({ lat: 37.5665, lng: 126.978 });
-
-  const handleToggleDistrict = useCallback(() => {
-    setUseDistrict((prev) => {
-      const next = !prev;
-      if (next) setDrawerOpen(true);
-      return next;
-    });
-  }, []);
+  const handleToggleDistrict = useCallback(() => setUseDistrict((p) => !p), []);
 
   const resolveAddress = useCallback(async (latlng: LatLng) => {
     try {
       const kakao = (window as any).kakao;
       if (!kakao) return null;
-      if (!geocoderRef.current) {
+      if (!geocoderRef.current)
         geocoderRef.current = new kakao.maps.services.Geocoder();
-      }
       const geocoder = geocoderRef.current as any;
 
       const coord = new kakao.maps.LatLng(latlng.lat, latlng.lng);
@@ -171,9 +181,7 @@ const MapHomePage: React.FC = () => {
               const road = r0.road_address?.address_name;
               const jibun = r0.address?.address_name;
               resolve(road || jibun || null);
-            } else {
-              resolve(null);
-            }
+            } else resolve(null);
           }
         );
       });
@@ -183,55 +191,70 @@ const MapHomePage: React.FC = () => {
     }
   }, []);
 
+  // patch 반영
   function applyPatchToItem(
     p: PropertyItem,
     patch: Partial<PropertyViewDetails>
   ): PropertyItem {
     return {
       ...p,
-      // 헤더(상태/제목/주소/가격)
       status: (patch as any).status ?? p.status,
       dealStatus: (patch as any).dealStatus ?? (p as any).dealStatus,
       title: patch.title ?? p.title,
       address: patch.address ?? p.address,
-      priceText: patch.jeonsePrice ?? p.priceText,
-
-      // 상세 보기 필드
+      priceText: patch.salePrice ?? p.priceText,
       view: {
         ...(p as any).view,
 
-        // 미디어/메모/연락처
-        images: patch.images ?? (p as any).view?.images,
+        listingStars:
+          typeof patch.listingStars === "number"
+            ? patch.listingStars
+            : (p as any).view?.listingStars,
+
+        elevator: patch.elevator ?? (p as any).view?.elevator,
+
+        // 미디어
+        ...(() => {
+          const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
+
+          if (Array.isArray(cand)) {
+            const cards = normalizeImageCards(cand);
+            return { imageCards: cards, images: flattenCards(cards) };
+          }
+
+          if ("images" in patch && Array.isArray(patch.images)) {
+            return { images: normalizeImages(patch.images) };
+          }
+
+          return {
+            images: (p as any).view?.images,
+            imageCards: (p as any).view?.imageCards,
+          };
+        })(),
+
         publicMemo: patch.publicMemo ?? (p as any).view?.publicMemo,
         secretMemo: patch.secretMemo ?? (p as any).view?.secretMemo,
         officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
         officePhone2:
           (patch as any).officePhone2 ?? (p as any).view?.officePhone2,
 
-        // 옵션/등기/구조별
         options: patch.options ?? (p as any).view?.options,
         optionEtc: patch.optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: patch.unitLines ?? (p as any).view?.unitLines,
 
-        // 설비/주차
-        elevator: patch.elevator ?? (p as any).view?.elevator,
         parkingType: patch.parkingType ?? (p as any).view?.parkingType,
-        parkingGrade:
-          (patch as any).parkingGrade ?? (p as any).view?.parkingGrade,
+        parkingCount: patch.parkingCount ?? (p as any).view?.parkingCount,
 
-        // 등급
         slopeGrade: patch.slopeGrade ?? (p as any).view?.slopeGrade,
         structureGrade: patch.structureGrade ?? (p as any).view?.structureGrade,
 
-        // 향 (신규 필드) + 하위호환
         aspect: (patch as any).aspect ?? (p as any).view?.aspect,
         aspectNo: (patch as any).aspectNo ?? (p as any).view?.aspectNo,
         aspect1: (patch as any).aspect1 ?? (p as any).view?.aspect1,
         aspect2: (patch as any).aspect2 ?? (p as any).view?.aspect2,
         aspect3: (patch as any).aspect3 ?? (p as any).view?.aspect3,
 
-        // 단지 숫자들
         totalBuildings:
           (patch as any).totalBuildings ?? (p as any).view?.totalBuildings,
         totalFloors: (patch as any).totalFloors ?? (p as any).view?.totalFloors,
@@ -241,25 +264,43 @@ const MapHomePage: React.FC = () => {
           (patch as any).remainingHouseholds ??
           (p as any).view?.remainingHouseholds,
 
-        // 날짜/면적
         completionDate: patch.completionDate ?? (p as any).view?.completionDate,
         exclusiveArea: patch.exclusiveArea ?? (p as any).view?.exclusiveArea,
         realArea: patch.realArea ?? (p as any).view?.realArea,
 
-        // 보기 쪽에서 dealStatus를 참조할 수도 있으니 동기화
         dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
       },
     };
   }
 
+  // 보기 어댑터
   function toViewDetails(p: PropertyItem): PropertyViewDetails {
     const v = (p as any).view ?? {};
 
+    const cards: ImageItem[][] = Array.isArray(v.imageCards)
+      ? normalizeImageCards((v as any).imageCards)
+      : Array.isArray((v as any).imagesByCard)
+      ? normalizeImageCards((v as any).imagesByCard)
+      : [];
+
+    const imagesSafe: ImageItem[] =
+      cards.length > 0
+        ? flattenCards(cards)
+        : Array.isArray(v.images)
+        ? (v.images.map(normalizeOneImage).filter(Boolean) as ImageItem[])
+        : [];
+
+    // ✅ orientations 정규화(ori)
     const ori: { ho: number; value: string }[] = Array.isArray(v.orientations)
-      ? [...v.orientations].map((o: any) => ({
+      ? (v.orientations as any[]).map((o) => ({
           ho: Number(o.ho),
           value: String(o.value),
         }))
+      : [];
+
+    // ✅ 파일 카드(세로) 정규화
+    const filesSafe: ImageItem[] = Array.isArray((v as any).fileItems)
+      ? normalizeImages((v as any).fileItems)
       : [];
 
     const pick = (ho: number) => ori.find((o) => o.ho === ho)?.value;
@@ -281,23 +322,28 @@ const MapHomePage: React.FC = () => {
       "남동";
 
     return {
-      // 기본 식별/표시 필드
       status: (p.status as any) ?? "공개",
       dealStatus: (p as any).dealStatus ?? "분양중",
       title: p.title,
       address: p.address ?? "",
       type: (p.type as any) ?? "주택",
-      jeonsePrice: p.priceText ?? "",
+      salePrice: p.priceText ?? "",
 
-      // 선택/예비 필드(없으면 보기에서 기본값으로 보이도록)
-      images: [],
+      images: imagesSafe,
+      imageCards: cards,
+
+      // 런타임에서 DisplayImagesSection에 files로 넘겨 사용
+      fileItems: filesSafe, // TS가 싫어하면 아래 as any로 전체 캐스팅됨
+
       options: [],
       optionEtc: "",
       registry: "주택",
       unitLines: [],
 
-      elevator: "O",
+      listingStars: typeof v.listingStars === "number" ? v.listingStars : 0,
+      elevator: (v.elevator as "O" | "X") ?? "O",
       parkingType: "답사지 확인",
+      parkingCount: v.parkingCount ?? "",
       completionDate: undefined,
 
       aspect1: a1,
@@ -315,14 +361,13 @@ const MapHomePage: React.FC = () => {
       publicMemo: "",
       secretMemo: "",
 
-      // 메타(임시)
       createdByName: "여준호",
       createdAt: "2025-08-16 09:05",
       inspectedByName: "홍길동",
       inspectedAt: "2025.08.16 10:30",
       updatedByName: "이수정",
       updatedAt: "2025/08/16 11:40",
-    };
+    } as any; // ← fileItems가 타입에 없으면 전체를 any로 캐스팅
   }
 
   function normalizeLoaded(value: unknown): PropertyItem[] {
@@ -381,30 +426,14 @@ const MapHomePage: React.FC = () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(plain));
   }
 
-  useEffect(() => {
-    const plain = items.map((p) => ({
-      ...p,
-      view: p.view
-        ? {
-            ...p.view,
-            registry:
-              typeof (p as any).view?.registry === "string"
-                ? (p as any).view?.registry
-                : "주택",
-          }
-        : undefined,
-    }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(plain));
-  }, [items]);
-
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 
-  // ✅ 마커 클릭 쉴드: 마커 클릭 직후 지도 클릭 무시
+  // 마커 클릭 쉴드
   const markerClickShieldRef = useRef(0);
 
   const handleMarkerClick = useCallback(
     async (id: string) => {
-      markerClickShieldRef.current = Date.now(); // 마커 클릭 시각 기록
+      markerClickShieldRef.current = Date.now();
 
       if (id === "__draft__") return;
       const item = items.find((p) => p.id === id);
@@ -429,7 +458,6 @@ const MapHomePage: React.FC = () => {
 
   const handleMapClick = useCallback(
     async (latlng: LatLng) => {
-      // 마커 클릭 직후 250ms 내 지도 클릭은 무시 (버블/연속 클릭 방지)
       if (Date.now() - markerClickShieldRef.current < 250) return;
 
       setSelectedId(null);
@@ -470,8 +498,8 @@ const MapHomePage: React.FC = () => {
           showNativeLayerControl={false}
           controlRightOffsetPx={32}
           controlTopOffsetPx={10}
-          onMarkerClick={handleMarkerClick} // ✅ 쉴드 적용 핸들러
-          onMapClick={handleMapClick} // ✅ 쉴드 적용 핸들러
+          onMarkerClick={handleMarkerClick}
+          onMapClick={handleMapClick}
           onMapReady={({ kakao, map }) => {
             setKakaoSDK(kakao);
             setMapInstance(map);
@@ -481,6 +509,7 @@ const MapHomePage: React.FC = () => {
               kakao.maps.event.trigger(map, "resize");
             }, 0);
           }}
+          allowCreateOnMapClick={false}
         />
 
         {mapInstance && kakaoSDK && menuAnchor && menuOpen && (
@@ -496,7 +525,6 @@ const MapHomePage: React.FC = () => {
             onClose={() => {
               setMenuOpen(false);
               if (!menuTargetId) {
-                // 신규핀일 때만 핀/앵커/주소 같이 정리
                 setDraftPin(null);
                 setMenuAnchor(null);
                 setMenuAddress(null);
@@ -544,20 +572,16 @@ const MapHomePage: React.FC = () => {
             }
 
             const r0 = result[0];
-
-            // 1) 지번 좌표 우선: 사용자가 지번을 입력했거나, road_address가 빈 경우
             const pick =
               looksLikeJibeon && r0.address
                 ? r0.address
                 : r0.road_address || r0.address;
 
-            // 좌표 선택 (x=lng, y=lat)
             let latlng = {
               lat: parseFloat(pick.y ?? r0.y),
               lng: parseFloat(pick.x ?? r0.x),
             };
 
-            // 2) 역지오코딩으로 표시 주소 정규화
             const normAddr: { road?: string; jibun?: string } = {};
             await new Promise<void>((resolve) => {
               geocoder.coord2Address(
@@ -574,22 +598,18 @@ const MapHomePage: React.FC = () => {
               );
             });
 
-            // 3) 기존 매물 근접 여부 (산지/필지 오차 고려 50m 권장)
             let nearest: { item: PropertyItem; dist: number } | null = null;
             for (const it of items) {
               const d = distanceMeters(latlng, it.position);
               if (!nearest || d < nearest.dist) nearest = { item: it, dist: d };
             }
 
-            // 공통 초기화
             setSelectedId(null);
             setMenuTargetId(null);
             setFitAllOnce(false);
 
-            // 4) 스냅/분기
-            const SNAP_M = 50; // ← 환경 맞게 30~50m 조절
+            const SNAP_M = 50;
             if (nearest && nearest.dist <= SNAP_M) {
-              // 기존 매물로 스냅 + 매물보기
               latlng = nearest.item.position;
               setDraftPin(null);
               setSelectedId(nearest.item.id);
@@ -600,7 +620,6 @@ const MapHomePage: React.FC = () => {
               );
               setMenuOpen(true);
             } else {
-              // 신규 장소 등록
               setDraftPin(latlng);
               setMenuAnchor(latlng);
               const display = looksLikeJibeon
@@ -648,8 +667,8 @@ const MapHomePage: React.FC = () => {
         <PropertyViewModal
           open={true}
           onClose={() => setViewOpen(false)}
-          item={selectedViewItem}
-          onSave={async (patch) => {
+          data={selectedViewItem}
+          onSave={async (patch: Partial<PropertyViewDetails>) => {
             setItems((prev) =>
               prev.map((p) =>
                 p.id === selectedId ? applyPatchToItem(p, patch) : p
@@ -664,93 +683,112 @@ const MapHomePage: React.FC = () => {
         />
       )}
 
-      <PropertyCreateModal
-        open={createOpen}
-        key={prefillAddress ?? "blank"}
-        initialAddress={prefillAddress}
-        onClose={() => {
-          setCreateOpen(false);
-          setDraftPin(null);
-          setPrefillAddress(undefined);
-          setMenuOpen(false);
-        }}
-        onSubmit={(payload: CreatePayload) => {
-          const id = `${Date.now()}`;
-          const pos = draftPin ??
-            (selected ? selected.position : undefined) ?? {
-              lat: 37.5665,
-              lng: 126.978,
+      {createOpen && (
+        <PropertyCreateModal
+          open={createOpen}
+          key={prefillAddress ?? "blank"}
+          initialAddress={prefillAddress}
+          onClose={() => {
+            setCreateOpen(false);
+            setDraftPin(null);
+            setPrefillAddress(undefined);
+            setMenuOpen(false);
+          }}
+          onSubmit={(payload: CreatePayload) => {
+            const id = `${Date.now()}`;
+            const pos = draftPin ??
+              (selected ? selected.position : undefined) ?? {
+                lat: 37.5665,
+                lng: 126.978,
+              };
+
+            const orientations = (payload.orientations ?? [])
+              .map((o) => ({ ho: Number(o.ho), value: o.value }))
+              .sort((a, b) => a.ho - b.ho);
+
+            const pick = (ho: number) =>
+              orientations.find((o) => o.ho === ho)?.value;
+            const aspect1 =
+              pick(1) ??
+              (payload.aspectNo === "1호" ? payload.aspect : undefined);
+            const aspect2 =
+              pick(2) ??
+              (payload.aspectNo === "2호" ? payload.aspect : undefined);
+            const aspect3 =
+              pick(3) ??
+              (payload.aspectNo === "3호" ? payload.aspect : undefined);
+
+            // ✅ 이미지: 카드 + 파일 + 평탄
+            const cards = normalizeImageCards(
+              (payload as any).imageCards ??
+                (payload as any).imagesByCard ?? // ← 업로드에서 오는 카드 배열
+                (Array.isArray((payload as any).images)
+                  ? [(payload as any).images]
+                  : [])
+            );
+            const flat = flattenCards(cards);
+            const files = normalizeImages((payload as any).fileItems);
+
+            const next: PropertyItem = {
+              id,
+              title: payload.title,
+              address: payload.address,
+              priceText: payload.salePrice ?? undefined,
+              status: payload.status,
+              dealStatus: payload.dealStatus,
+              type: "아파트",
+              position: pos,
+              favorite: false,
+              view: {
+                officePhone: payload.officePhone,
+                officePhone2: payload.officePhone2,
+                listingStars: payload.listingStars ?? 0,
+                elevator: payload.elevator,
+                parkingType: payload.parkingType,
+                parkingCount: payload.parkingCount,
+                completionDate: payload.completionDate,
+                exclusiveArea: payload.exclusiveArea,
+                realArea: payload.realArea,
+                totalBuildings: (payload as any).totalBuildings,
+                totalFloors: (payload as any).totalFloors,
+                totalHouseholds: payload.totalHouseholds,
+                remainingHouseholds: (payload as any).remainingHouseholds,
+                orientations,
+                aspect: payload.aspect,
+                aspectNo: payload.aspectNo,
+                slopeGrade: payload.slopeGrade,
+                structureGrade: payload.structureGrade,
+                options: payload.options,
+                optionEtc: payload.optionEtc,
+                registry:
+                  typeof (payload as any).registry === "string"
+                    ? (payload as any).registry
+                    : "주택",
+                unitLines: payload.unitLines,
+                publicMemo: payload.publicMemo,
+                secretMemo: payload.secretMemo,
+
+                // ✅ 저장 포맷
+                imageCards: cards,
+                images: flat,
+                fileItems: files,
+
+                dealStatus: payload.dealStatus,
+                aspect1,
+                aspect2,
+                aspect3,
+              },
             };
 
-          const orientations = (payload.orientations ?? [])
-            .map((o) => ({ ho: Number(o.ho), value: o.value }))
-            .sort((a, b) => a.ho - b.ho);
-
-          const pick = (ho: number) =>
-            orientations.find((o) => o.ho === ho)?.value;
-          const aspect1 =
-            pick(1) ??
-            (payload.aspectNo === "1호" ? payload.aspect : undefined);
-          const aspect2 =
-            pick(2) ??
-            (payload.aspectNo === "2호" ? payload.aspect : undefined);
-          const aspect3 =
-            pick(3) ??
-            (payload.aspectNo === "3호" ? payload.aspect : undefined);
-
-          const next: PropertyItem = {
-            id,
-            title: payload.title,
-            address: payload.address,
-            priceText: payload.jeonsePrice ?? undefined,
-            status: payload.status,
-            dealStatus: payload.dealStatus,
-            type: "아파트",
-            position: pos,
-            favorite: false,
-            view: {
-              officePhone: payload.officePhone,
-              officePhone2: payload.officePhone2,
-              elevator: payload.elevator,
-              parkingType: payload.parkingType,
-              parkingGrade: payload.parkingGrade,
-              completionDate: payload.completionDate,
-              exclusiveArea: payload.exclusiveArea,
-              realArea: payload.realArea,
-              totalBuildings: (payload as any).totalBuildings,
-              totalFloors: (payload as any).totalFloors,
-              totalHouseholds: payload.totalHouseholds,
-              remainingHouseholds: (payload as any).remainingHouseholds,
-              orientations,
-              aspect: payload.aspect,
-              aspectNo: payload.aspectNo,
-              slopeGrade: payload.slopeGrade,
-              structureGrade: payload.structureGrade,
-              options: payload.options,
-              optionEtc: payload.optionEtc,
-              registry:
-                typeof (payload as any).registry === "string"
-                  ? (payload as any).registry
-                  : "주택",
-              unitLines: payload.unitLines,
-              publicMemo: payload.publicMemo,
-              secretMemo: payload.secretMemo,
-              images: payload.images,
-              dealStatus: payload.dealStatus,
-              aspect1,
-              aspect2,
-              aspect3,
-            },
-          };
-
-          setItems((prev) => [next, ...prev]);
-          setSelectedId(id);
-          setMenuTargetId(id);
-          setDraftPin(null);
-          setPrefillAddress(undefined);
-          setCreateOpen(false);
-        }}
-      />
+            setItems((prev) => [next, ...prev]);
+            setSelectedId(id);
+            setMenuTargetId(id);
+            setDraftPin(null);
+            setPrefillAddress(undefined);
+            setCreateOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

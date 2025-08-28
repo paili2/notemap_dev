@@ -29,7 +29,7 @@ export type PropertyItem = {
   position: LatLng;
 
   // 요약/배지
-  priceText?: string; // 리스트 카드에서 쓰는 요약가
+  priceText?: string | number; // 리스트 카드에서 쓰는 요약가
   elevator?: "O" | "X";
   parkingGrade?: Grade;
   registry?: Registry;

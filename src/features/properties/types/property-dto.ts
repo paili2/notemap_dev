@@ -1,3 +1,4 @@
+import { ImageItem } from "./media";
 import {
   DealStatus,
   Grade,
@@ -20,44 +21,55 @@ export type CreatePayload = {
   floor?: string;
   roomNo?: string;
   structure?: string;
+
+  // 향
   aspect?: string;
   aspectNo?: string;
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
-  jeonsePrice?: string;
+  orientations?: OrientationRow[];
 
+  // 가격/평점/주차
+  salePrice?: string; // 매매가
+  parkingType?: string; // 예: "자주식", "답사지 확인"
+  parkingCount?: string | number;
+
+  // 설비/등급/날짜
+  listingStars?: number;
   elevator?: "O" | "X";
+  slopeGrade?: Grade;
+  structureGrade?: Grade;
+  completionDate?: string; // "2024.04.14" 같은 문자열
 
-  slopeGrade?: Grade; // ← 통일
-  structureGrade?: Grade; // ← 통일
+  // 단지 숫자
+  totalBuildings?: string;
+  totalFloors?: string;
+  totalHouseholds?: string;
+  remainingHouseholds?: string;
 
-  totalBuildings?: string; // 총 개동
-  totalFloors?: string; // 총 층수
-  totalHouseholds?: string; // 총 세대수
-  remainingHouseholds?: string; // 잔여세대
-
+  // 옵션/메모/등기/구조
   options: string[];
   optionEtc?: string;
-
   publicMemo?: string;
   secretMemo?: string;
-
   registry?: Registry;
-
   unitLines?: UnitLine[];
 
-  images: string[]; // object URL들
+  // 이미지
+  images?: (ImageItem | string)[];
+  imageCards?: ImageItem[][];
+  fileItems?: ImageItem[];
 
-  parkingType?: string; // 예: "자주식", "답사지 확인"
-  parkingGrade?: Grade | undefined; // 별점→등급 매핑 결과
-  completionDate?: string; // "2024.04.14" 같은 문자열
+  // 면적
   exclusiveArea?: string; // 전용
   realArea?: string; // 실평
+  extraExclusiveAreas?: string[];
+  extraRealAreas?: string[];
 
+  // 상태
   status: Visibility; // 게시상태
   dealStatus: DealStatus; // 거래상태
-  orientations?: OrientationRow[];
 };
 
 // --- Update DTO ---
@@ -71,22 +83,34 @@ export type UpdatePayload = {
   floor?: string;
   roomNo?: string;
   structure?: string;
+
+  // 향
   aspect?: string;
   aspectNo?: string;
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
-  jeonsePrice?: string;
+  orientations?: OrientationRow[];
 
-  parkingGrade?: Grade;
+  // 가격/평점/주차
+  salePrice?: string | number | null;
+  listingGrade?: Grade;
+  parkingType?: string;
+  parkingCount?: string | number | null;
+
+  // 설비/등급/날짜
   elevator?: "O" | "X";
   slopeGrade?: Grade;
   structureGrade?: Grade;
+  completionDate?: string;
+
+  // 단지 숫자
   totalBuildings?: string;
   totalFloors?: string;
-  remainingHouseholds?: string;
   totalHouseholds?: string;
+  remainingHouseholds?: string;
 
+  // 옵션/메모/등기/구조
   options?: string[];
   optionEtc?: string;
   publicMemo?: string;
@@ -95,15 +119,13 @@ export type UpdatePayload = {
   unitLines?: UnitLine[];
   images?: string[];
 
-  parkingType?: string;
-  completionDate?: string;
+  // 면적
+  exclusiveArea?: string;
+  realArea?: string;
+  extraExclusiveAreas?: string[];
+  extraRealAreas?: string[];
 
-  exclusiveArea?: string; // 전용
-  realArea?: string; // 실평
-  deed?: "O" | "X";
-
-  orientations?: OrientationRow[];
-
+  // 상태
   status?: Visibility;
   dealStatus?: DealStatus;
 };

@@ -1,22 +1,45 @@
 import * as React from "react";
-
 import { cn } from "@/lib/utils";
 
-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+type Props = React.ComponentProps<"input"> & {
+  leftIcon?: React.ReactNode;
+  rightIcon?: React.ReactNode;
+};
+
+const Input = React.forwardRef<HTMLInputElement, Props>(
+  ({ className, type, leftIcon, rightIcon, ...props }, ref) => {
     return (
-      <input
-        type={type}
+      <div
         className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          "flex items-center h-9 w-full rounded-md border border-input bg-transparent shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring",
           className
         )}
-        ref={ref}
-        {...props}
-      />
+      >
+        {leftIcon && (
+          <span className="pl-2 text-gray-400 flex items-center">
+            {leftIcon}
+          </span>
+        )}
+        <input
+          type={type}
+          className={cn(
+            "flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm",
+            leftIcon ? "pl-2" : "",
+            rightIcon ? "pr-2" : ""
+          )}
+          ref={ref}
+          {...props}
+        />
+        {rightIcon && (
+          <span className="pr-2 text-gray-400 flex items-center">
+            {rightIcon}
+          </span>
+        )}
+      </div>
     );
   }
 );
+
 Input.displayName = "Input";
 
 export { Input };

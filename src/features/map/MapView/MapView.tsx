@@ -16,6 +16,8 @@ const MapView: React.FC<MapViewProps> = ({
   showNativeLayerControl = false,
   controlRightOffsetPx = 0,
   controlTopOffsetPx = 0,
+  /** ✅ 기본값 false: 지도 클릭으로 생성 금지 */
+  allowCreateOnMapClick = false,
   onMarkerClick,
   onMapClick,
   onMapReady,
@@ -31,10 +33,12 @@ const MapView: React.FC<MapViewProps> = ({
   });
 
   useDistrictOverlay(kakao, map, useDistrict);
-  // 클릭 시 임시 "신규 등록 위치"는 만들지 않음 (검색 시만 신규 분기)
-  useMapClick(kakao, map, onMapClick, { showNewMarker: false });
 
-  // ✅ 500m가 level 6인 환경 기준으로 경계 조정
+  // ✅ 지도 클릭 리스너는 스위치 켜졌을 때만 바인딩
+  if (allowCreateOnMapClick) {
+    useMapClick(kakao, map, onMapClick, { showNewMarker: false });
+  }
+
   useClustererWithLabels(kakao, map, markers, {
     hitboxSizePx: 56,
     onMarkerClick,

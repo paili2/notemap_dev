@@ -1,103 +1,61 @@
+// 뷰 전용 유틸
+
 import { toPy } from "@/features/properties/lib/area";
 
-export function fmt(d?: string | Date) {
-  if (!d) return "-";
-  let date: Date | null = null;
+export const asStr = (v: unknown) => (v == null ? "" : String(v));
 
-  if (typeof d === "string") {
-    const try1 = new Date(d);
-    if (!isNaN(try1.getTime())) {
-      date = try1;
-    } else {
-      const m = d
-        .trim()
-        .match(
-          /^(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2}))?$/
-        );
-      if (m) {
-        const y = parseInt(m[1], 10);
-        const mo = parseInt(m[2], 10) - 1;
-        const dd = parseInt(m[3], 10);
-        const hh = m[4] ? parseInt(m[4], 10) : 0;
-        const mm = m[5] ? parseInt(m[5], 10) : 0;
-        date = new Date(y, mo, dd, hh, mm);
-      }
-    }
-  } else {
-    date = d;
-  }
+export const asNum = (v: unknown) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
-  if (!date || isNaN(date.getTime())) return typeof d === "string" ? d : "-";
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, "0");
-  const dd = `${date.getDate()}`.padStart(2, "0");
-  const hh = `${date.getHours()}`.padStart(2, "0");
-  const mm = `${date.getMinutes()}`.padStart(2, "0");
-  return `${y}.${m}.${dd} ${hh}:${mm}`;
-}
-
-export function toInputDateString(d?: string | Date) {
-  if (!d) return "";
-  if (typeof d === "string") return d;
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, "0");
-  const dd = `${d.getDate()}`.padStart(2, "0");
-  return `${y}.${m}.${dd}`;
-}
-
-export const parseRange = (s?: string): { min: string; max: string } => {
-  const raw = (s || "").trim();
+// "a~b" → {min, max}
+export const unpackRange = (s?: string | null) => {
+  const raw = asStr(s).trim();
   if (!raw) return { min: "", max: "" };
-  if (raw.includes("~")) {
-    const [a, b] = raw.split("~");
-    return { min: (a || "").trim(), max: (b || "").trim() };
-  }
-  return { min: raw, max: "" };
-};
-export const formatRangeWithPy = (s?: string) => {
-  const { min, max } = parseRange(s);
-  const hasMin = !!min.trim();
-  const hasMax = !!max.trim();
-  if (!hasMin && !hasMax) return "-";
-
-  const minPy = hasMin ? toPy(min) : "";
-  const maxPy = hasMax ? toPy(max) : "";
-
-  if (hasMin && hasMax) return `${min}~${max} m² (${minPy}~${maxPy} 평)`;
-  if (hasMin) return `${min}~ m² (${minPy}~ 평)`;
-  return `~${max} m² (~${maxPy} 평)`;
+  const [min, max] = raw.split("~", 2);
+  return { min: (min ?? "").trim(), max: (max ?? "").trim() };
 };
 
-/* ==== 등급/별점 ==== */
-export type Grade = "상" | "중" | "하";
-export const gradeToStars = (g?: Grade) =>
-  g === "상" ? 5 : g === "중" ? 3 : g === "하" ? 1 : 0;
-export const starsToGrade = (n: number): Grade | undefined =>
-  n >= 4 ? "상" : n >= 2 ? "중" : n > 0 ? "하" : undefined;
-
-/* ==== 로컬 스토리지 모드 ==== */
-const MODE_KEY = "propertyView:mode";
-export function loadInitialMode(): "KN" | "R" {
-  if (typeof window === "undefined") return "KN";
-  const saved = window.localStorage.getItem(MODE_KEY);
-  return saved === "R" ? "R" : "KN";
-}
-export function persistMode(next: "KN" | "R") {
-  try {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("propertyView:mode", next);
-    }
-  } catch {}
-}
-
-/* ==== 날짜 포맷 ==== */
-export function formatDateOnly(dateStr?: string | Date) {
-  if (!dateStr) return "-";
-  if (dateStr instanceof Date) {
-    const y = dateStr.getFullYear();
-    const m = String(dateStr.getMonth() + 1).padStart(2, "0");
-    const day = String(dateStr.getDate()).padStart(2, "0");
-    return `${y}.${m}.${day}`;
+// Date|string → YYYY.MM.DD (대충 보기용)
+export const fmtYMD = (v: unknown) => {
+  if (!v) return "";
+  if (v instanceof Date) {
+    const y = v.getFullYear();
+    const m = `${v.getMonth() + 1}`.padStart(2, "0");
+    const d = `${v.getDate()}`.padStart(2, "0");
+    return `${y}.${m}.${d}`;
   }
-  return dateStr;
-}
+  const s = asStr(v);
+  // 2024-03-01 또는 2024.03.01 형태 대응
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10).replace(/-/g, ".");
+  if (/^\d{4}\.\d{2}\.\d{2}/.test(s)) return s.slice(0, 10);
+  return s;
+};
+
+// 10000 → "10,000"
+export const comma = (v: unknown) => {
+  const n = asNum(v);
+  if (n === undefined) return asStr(v);
+  return n.toLocaleString();
+};
+
+// OrientationRow 호환 추출
+export const pickOrientation = (o: unknown): string =>
+  (o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "";
+
+export const formatRangeWithPy = (range?: string | null) => {
+  const raw = (range ?? "").trim();
+  if (!raw) return "-";
+
+  const [a, b] = raw.split("~", 2);
+  const aM2 = (a ?? "").trim();
+  const bM2 = (b ?? "").trim();
+
+  const aPy = aM2 ? toPy(aM2) : "";
+  const bPy = bM2 ? toPy(bM2) : "";
+
+  const m2Part = `${aM2 || "-"} ~ ${bM2 || "-"} m²`;
+  const pyPart = `${aPy || "-"} ~ ${bPy || "-"} 평`;
+  return `${m2Part} (${pyPart})`;
+};

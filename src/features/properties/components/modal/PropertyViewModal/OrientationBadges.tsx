@@ -1,20 +1,20 @@
-import * as React from "react";
-import type { OrientationRow } from "@/features/properties/types/property-domain";
+// features/properties/components/modal/PropertyViewModal/OrientationBadges.tsx
+"use client";
 
 export default function OrientationBadges({
-  data,
+  rows,
 }: {
-  data?: OrientationRow[] | null;
+  rows: { no: number; dir: string }[];
 }) {
-  if (!data?.length) return null;
+  if (!rows?.length) return <div className="text-sm text-slate-500">-</div>;
   return (
     <div className="flex flex-wrap gap-2">
-      {data.map((o) => (
+      {rows.map((r) => (
         <span
-          key={o.ho}
-          className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs"
+          key={r.no}
+          className="inline-flex items-center h-8 rounded-md border px-3 text-sm bg-white"
         >
-          {o.ho}호: {o.value}
+          {r.no}호 · {r.dir}
         </span>
       ))}
     </div>
