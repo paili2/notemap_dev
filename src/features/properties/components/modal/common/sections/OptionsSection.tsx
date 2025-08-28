@@ -1,8 +1,6 @@
-// features/properties/components/modal/common/sections/OptionsSection.tsx
 "use client";
 
-import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
 import { Input } from "@/components/atoms/Input/Input";
 import { Plus, X } from "lucide-react";
@@ -219,7 +217,7 @@ export default function OptionsSection({
               const baseIndex = rowIdx * 2;
 
               return (
-                <React.Fragment key={rowIdx}>
+                <Fragment key={rowIdx}>
                   {/* 1열: 체크박스(첫 줄만) */}
                   <div className="min-h-9 flex items-center">
                     {isFirstRow ? (
@@ -277,7 +275,7 @@ export default function OptionsSection({
                       </button>
                     )}
                   </div>
-                </React.Fragment>
+                </Fragment>
               );
             })
           ) : (

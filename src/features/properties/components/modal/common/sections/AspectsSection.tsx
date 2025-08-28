@@ -1,4 +1,3 @@
-// features/properties/components/modal/common/sections/AspectsSection.tsx
 "use client";
 
 import { Fragment } from "react";

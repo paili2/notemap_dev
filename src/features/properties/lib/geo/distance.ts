@@ -1,4 +1,3 @@
-// src/lib/geo/distance.ts
 export type LatLng = Readonly<{ lat: number; lng: number }>;
 
 export const EARTH_RADIUS_M = 6_371_000; // m

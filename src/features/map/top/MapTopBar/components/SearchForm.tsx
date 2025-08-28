@@ -1,9 +1,9 @@
 "use client";
 
-import * as React from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/atoms/Input/Input";
+import { useState } from "react";
 
 type Props = {
   value?: string; // controlled
@@ -22,7 +22,7 @@ export default function SearchForm({
   placeholder = "장소, 주소, 버스 검색",
   className,
 }: Props) {
-  const [inner, setInner] = React.useState(defaultValue ?? "");
+  const [inner, setInner] = useState(defaultValue ?? "");
   const controlled = value !== undefined;
   const inputValue = controlled ? (value as string) : inner;
 

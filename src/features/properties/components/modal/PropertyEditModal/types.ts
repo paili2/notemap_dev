@@ -1,5 +1,3 @@
-// features/properties/components/modal/PropertyEditModal/types.ts
-
 import type {
   DealStatus,
   Grade,

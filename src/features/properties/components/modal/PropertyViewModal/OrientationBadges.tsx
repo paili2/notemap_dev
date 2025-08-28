@@ -1,4 +1,3 @@
-// features/properties/components/modal/PropertyViewModal/OrientationBadges.tsx
 "use client";
 
 export default function OrientationBadges({

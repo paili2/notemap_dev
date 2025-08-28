@@ -1,4 +1,3 @@
-// features/properties/components/MapView/hooks/useMapClick.ts
 import { useEffect, useRef } from "react";
 
 type LatLng = { lat: number; lng: number };

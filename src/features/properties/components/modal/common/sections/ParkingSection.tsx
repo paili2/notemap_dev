@@ -1,7 +1,5 @@
-// features/properties/components/modal/common/sections/ParkingSection.tsx
 "use client";
 
-import * as React from "react";
 import Field from "../Field";
 import { Input } from "@/components/atoms/Input/Input";
 import {
@@ -11,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/atoms/Select/Select";
+import { useEffect, useState } from "react";
 
 type Props = {
   parkingType: string;
@@ -32,11 +31,11 @@ export default function ParkingSection({
     (PRESETS as readonly string[]).includes(v);
 
   // 내부 셀렉트/커스텀 입력 값 — 외부 parkingType 변화에도 동기화
-  const [selectValue, setSelectValue] = React.useState<string>("");
-  const [custom, setCustom] = React.useState<string>("");
+  const [selectValue, setSelectValue] = useState<string>("");
+  const [custom, setCustom] = useState<string>("");
 
   // 🔄 prop → 내부 상태 동기화 (초기/수정모달 프리필 모두 대응)
-  React.useEffect(() => {
+  useEffect(() => {
     if (!parkingType) {
       setSelectValue("");
       setCustom("");
@@ -52,7 +51,7 @@ export default function ParkingSection({
   }, [parkingType]);
 
   // 내부 상태 → 상위 값 반영
-  React.useEffect(() => {
+  useEffect(() => {
     if (selectValue === "custom") {
       setParkingType(custom.trim());
     } else {

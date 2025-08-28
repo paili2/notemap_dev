@@ -1,10 +1,10 @@
 "use client";
 
-import * as React from "react";
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import ImageCarouselUpload from "../ImageCarouselUpload";
 import { ImageItem } from "@/features/properties/types/media";
+import { useRef } from "react";
 
 // 🔧 ImageFile을 ImageItem alias로 통일해서 타입 일관성 확보
 export type ImageFile = ImageItem;
@@ -43,7 +43,7 @@ export default function ImagesSection({
   maxFiles,
 }: Props) {
   const list = imagesByCard?.length ? imagesByCard : [[], []];
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <section className="flex flex-col gap-3">

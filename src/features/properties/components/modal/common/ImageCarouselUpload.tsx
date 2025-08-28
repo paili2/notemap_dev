@@ -1,10 +1,10 @@
 "use client";
 
-import * as React from "react";
 import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/utils";
 import { ImageItem } from "@/features/properties/types/media";
+import { useEffect, useId, useRef, useState } from "react";
 
 type Props = {
   items: ImageItem[];
@@ -33,15 +33,15 @@ export default function ImageCarouselUpload({
   tallHeightClass = "h-80",
   objectFit,
 }: Props) {
-  const id = React.useId();
+  const id = useId();
   const count = items?.length ?? 0;
 
-  const [current, setCurrent] = React.useState(0);
-  const [localCaptions, setLocalCaptions] = React.useState<string[]>(() =>
+  const [current, setCurrent] = useState(0);
+  const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => it.caption ?? "")
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     setLocalCaptions((prev) => {
       const next = [...prev];
       if (items.length > prev.length) {
@@ -59,7 +59,7 @@ export default function ImageCarouselUpload({
     });
   }, [items]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (current > 0 && current >= count) setCurrent(count - 1);
   }, [count, current]);
 
@@ -67,7 +67,7 @@ export default function ImageCarouselUpload({
   const goNext = () => count > 0 && setCurrent((c) => (c + 1) % count);
 
   // 드래그/스와이프
-  const dragX = React.useRef<number | null>(null);
+  const dragX = useRef<number | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     dragX.current = e.clientX;
@@ -84,7 +84,7 @@ export default function ImageCarouselUpload({
   };
 
   // 키보드(좌/우) 내비게이션
-  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowLeft") {
       e.preventDefault();

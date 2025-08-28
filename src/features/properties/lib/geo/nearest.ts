@@ -1,4 +1,3 @@
-// src/lib/geo/nearest.ts
 import { distanceMeters, LatLng } from "./distance";
 
 export type MarkerLike = Readonly<{

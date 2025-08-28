@@ -1,4 +1,3 @@
-// features/properties/components/modal/common/sections/FooterButtons.tsx
 "use client";
 
 import { useState } from "react";

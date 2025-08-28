@@ -1,6 +1,5 @@
 // 구조별 입력 행 리스트
 
-// features/properties/components/common/StructureLines.tsx
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";

@@ -1,7 +1,5 @@
-// features/properties/components/modal/common/sections/AreaSetsSection.tsx
 "use client";
 
-import * as React from "react";
 import Field from "../Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { toPy, toM2 } from "@/features/properties/lib/area"; // <- area.ts 경로에 맞게 조정

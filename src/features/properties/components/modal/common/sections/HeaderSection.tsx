@@ -1,7 +1,5 @@
-// features/properties/components/modal/common/sections/HeaderSection.tsx
 "use client";
 
-import * as React from "react";
 import { X as XIcon, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import StarsRating from "../StarsRating";

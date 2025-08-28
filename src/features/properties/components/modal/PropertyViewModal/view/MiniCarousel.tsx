@@ -1,11 +1,11 @@
 "use client";
 
-import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // 프로젝트에서 쓰는 ImageItem 타입( url, caption, dataUrl, name … )
 import type { ImageItem } from "@/features/properties/types/media";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   images: ImageItem[]; // 카드 안의 최대 20장
@@ -27,9 +27,9 @@ export default function MiniCarousel({
   onImageClick,
 }: Props) {
   const count = images?.length ?? 0;
-  const [cur, setCur] = React.useState(0);
+  const [cur, setCur] = useState(0);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (cur > 0 && cur >= count) setCur(count - 1);
   }, [count, cur]);
 
@@ -37,7 +37,7 @@ export default function MiniCarousel({
   const goNext = () => count && setCur((c) => (c + 1) % count);
 
   // 드래그/스와이프
-  const dragX = React.useRef<number | null>(null);
+  const dragX = useRef<number | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     dragX.current = e.clientX;

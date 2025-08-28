@@ -1,9 +1,8 @@
-// features/properties/components/modal/PropertyViewModal/view/LightboxModal.tsx
 "use client";
 
-import * as React from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ImageItem } from "@/features/properties/types/media";
+import { useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -24,15 +23,15 @@ export default function LightboxModal({
   objectFit = "contain",
   withThumbnails = false,
 }: Props) {
-  const [index, setIndex] = React.useState(initialIndex);
+  const [index, setIndex] = useState(initialIndex);
 
   // 초기 인덱스 동기화
-  React.useEffect(() => {
+  useEffect(() => {
     if (open) setIndex(initialIndex);
   }, [open, initialIndex]);
 
   // ESC / ← → 키
-  React.useEffect(() => {
+  useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

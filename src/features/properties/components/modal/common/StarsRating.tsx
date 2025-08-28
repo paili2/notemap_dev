@@ -1,4 +1,3 @@
-// features/properties/components/modal/common/StarsRating.tsx
 "use client";
 
 import * as React from "react";

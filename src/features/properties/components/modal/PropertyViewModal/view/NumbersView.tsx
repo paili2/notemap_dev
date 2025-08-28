@@ -1,4 +1,3 @@
-// features/properties/components/modal/PropertyViewModal/view/NumbersView.tsx
 "use client";
 
 import Field from "../../common/Field";

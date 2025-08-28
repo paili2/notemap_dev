@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Eye, Plus, X } from "lucide-react";
 import ContextMenuItem from "./ContextMenuItem";
 import { ContextMenuPanelProps } from "./types";

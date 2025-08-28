@@ -1,4 +1,3 @@
-// features/properties/components/modal/PropertyViewModal/view/ParkingView.tsx
 "use client";
 
 import Field from "../../common/Field";

@@ -1,4 +1,3 @@
-// src/features/properties/pages/MapHomePage.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -6,8 +5,6 @@ import { Card, CardHeader, CardTitle } from "@/components/atoms/Card/Card";
 import type { LatLng, MapMarker } from "@/features/map/types/map";
 import MapView from "../../map/MapView/MapView";
 import type { PropertyItem } from "../types/propertyItem";
-import TopRightButtons from "../../map/top/TopRightButtons/TopRightButtons";
-import MapQuickControls from "../../map/top/MapQuickControls/MapQuickControls";
 import type { AdvFilters } from "@/features/properties/types/advFilters";
 
 import PropertyCreateModal from "../components/modal/PropertyCreateModal/PropertyCreateModal";

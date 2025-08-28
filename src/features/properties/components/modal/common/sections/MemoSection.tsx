@@ -1,9 +1,8 @@
-// features/properties/components/modal/common/sections/MemoSection.tsx
 "use client";
 
-import * as React from "react";
 import { Textarea } from "@/components/atoms/Textarea/Textarea";
 import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
 
 type Props = {
   mode: "KN" | "R";
@@ -40,10 +39,10 @@ export default function MemoSection({
     placeholder ?? (mode === "KN" ? "공개 가능한 메모" : "내부 메모");
   const inputId = id ?? (mode === "KN" ? "memo-public" : "memo-secret");
 
-  const ref = React.useRef<HTMLTextAreaElement | null>(null);
+  const ref = useRef<HTMLTextAreaElement | null>(null);
 
   // autoGrow: 입력할 때마다 높이 재계산
-  React.useEffect(() => {
+  useEffect(() => {
     if (!autoGrow || !ref.current) return;
     const el = ref.current;
     el.style.height = "auto";

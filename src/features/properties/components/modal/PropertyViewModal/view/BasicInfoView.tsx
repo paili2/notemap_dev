@@ -1,4 +1,3 @@
-// features/properties/components/modal/PropertyViewModal/view/BasicInfoView.tsx
 "use client";
 
 import Field from "../../common/Field";

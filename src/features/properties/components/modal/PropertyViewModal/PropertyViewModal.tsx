@@ -1,7 +1,5 @@
-// features/properties/components/modal/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
-import * as React from "react";
 import { Trash2 } from "lucide-react";
 import type { PropertyViewDetails } from "@/features/properties/types/property-view";
 
@@ -16,6 +14,7 @@ import AreaSetsView from "./view/AreaSetsView";
 import StructureLinesList from "./view/StructureLinesList";
 import OptionsBadges from "./view/OptionsBadges";
 import MemoPanel from "./view/MemoPanel";
+import { useState } from "react";
 
 type MemoTab = "KN" | "R";
 
@@ -41,7 +40,7 @@ export default function PropertyViewModal({
 }) {
   if (!open || !data) return null;
 
-  const [memoTab, setMemoTab] = React.useState<MemoTab>("KN");
+  const [memoTab, setMemoTab] = useState<MemoTab>("KN");
 
   return (
     <div className="fixed inset-0 z-[100]">

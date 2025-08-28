@@ -1,7 +1,5 @@
-// features/properties/components/modal/common/sections/CompletionRegistrySection.tsx
 "use client";
 
-import * as React from "react";
 import Field from "../Field";
 import { Input } from "@/components/atoms/Input/Input";
 import type {

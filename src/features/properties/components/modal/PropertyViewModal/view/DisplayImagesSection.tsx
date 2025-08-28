@@ -1,9 +1,8 @@
-// features/properties/components/modal/PropertyViewModal/view/DisplayImagesSection.tsx
 "use client";
 
-import * as React from "react";
 import type { ImageItem } from "@/features/properties/types/media";
 import LightboxModal from "./LightboxModal";
+import { useState } from "react";
 
 type AnyImg = ImageItem | string | null | undefined;
 
@@ -62,9 +61,9 @@ export default function DisplayImagesSection({ cards, images, files }: Props) {
   const hasFileCard = fileCard.length > 0;
 
   // 라이트박스 상태
-  const [open, setOpen] = React.useState(false);
-  const [lightboxImages, setLightboxImages] = React.useState<ImageItem[]>([]);
-  const [startIndex, setStartIndex] = React.useState(0);
+  const [open, setOpen] = useState(false);
+  const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
+  const [startIndex, setStartIndex] = useState(0);
 
   const openLightbox = (group: ImageItem[], index = 0) => {
     setLightboxImages(group);
