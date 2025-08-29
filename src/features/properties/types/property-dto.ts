@@ -57,7 +57,7 @@ export type CreatePayload = {
   unitLines?: UnitLine[];
 
   // 이미지
-  images?: (ImageItem | string)[];
+  images?: string[];
   imageCards?: ImageItem[][];
   fileItems?: ImageItem[];
 

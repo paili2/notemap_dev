@@ -67,7 +67,7 @@ export default function MiniCarousel({
       ? "aspect-video"
       : aspect === "square"
       ? "aspect-square"
-      : "h-64"; // tall
+      : "h-64";
 
   if (!count) {
     return (

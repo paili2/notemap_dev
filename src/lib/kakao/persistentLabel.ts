@@ -15,7 +15,7 @@ export function createPersistentLabel({
   map,
   position,
   text,
-  maxVisibleLevel = 5, // ✅ 300m 근사(= level 5)에서도 보이게
+  maxVisibleLevel = 5, // 300m 근사(= level 5)에서도 보이게
   zIndex = 10_000,
 }: PersistentLabelOptions) {
   const el = document.createElement("div");

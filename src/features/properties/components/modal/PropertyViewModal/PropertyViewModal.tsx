@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Trash2, Pencil } from "lucide-react";
 import type { PropertyViewDetails } from "@/features/properties/types/property-view";
 
 import HeaderSectionView from "./view/HeaderSectionView";
@@ -14,7 +15,6 @@ import AreaSetsView from "./view/AreaSetsView";
 import StructureLinesList from "./view/StructureLinesList";
 import OptionsBadges from "./view/OptionsBadges";
 import MemoPanel from "./view/MemoPanel";
-import { useState } from "react";
 
 type MemoTab = "KN" | "R";
 
@@ -31,12 +31,14 @@ export default function PropertyViewModal({
   data,
   onSave,
   onDelete,
+  onEdit,
 }: {
   open: boolean;
   onClose: () => void;
   data: PropertyViewDetails;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
+  onEdit?: () => void | Promise<void>;
 }) {
   if (!open || !data) return null;
 
@@ -60,20 +62,30 @@ export default function PropertyViewModal({
 
         {/* 본문 */}
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-          {/* 좌: 이미지(카드별로) */}
-          <DisplayImagesSection
-            cards={
-              Array.isArray((data as any).imageCards)
-                ? (data as any).imageCards
-                : undefined
-            }
-            files={
-              Array.isArray((data as any).fileItems)
-                ? (data as any).fileItems
-                : undefined
-            }
-            images={Array.isArray(data.images) ? data.images : undefined} // 레거시 대비
-          />
+          {/* 좌: 이미지 카드 */}
+          {(() => {
+            const imageCards = Array.isArray((data as any).imageCards)
+              ? (data as any).imageCards
+              : undefined;
+            const fileItems = Array.isArray((data as any).fileItems)
+              ? (data as any).fileItems
+              : undefined;
+            const legacyImages = Array.isArray((data as any).images)
+              ? (data as any).images
+              : undefined;
+
+            const cardGroups = imageCards;
+
+            return (
+              <div className="space-y-4">
+                <DisplayImagesSection
+                  cards={cardGroups}
+                  images={legacyImages}
+                  files={fileItems}
+                />
+              </div>
+            );
+          })()}
 
           {/* 우: 상세 정보 */}
           <div className="space-y-6">
@@ -121,7 +133,7 @@ export default function PropertyViewModal({
               optionEtc={data.optionEtc ?? ""}
             />
 
-            {/* 메모: K&N <-> R */}
+            {/* 메모 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">메모</div>
@@ -134,7 +146,6 @@ export default function PropertyViewModal({
                         ? "bg-amber-500 text-white"
                         : "bg-white text-gray-700"
                     }`}
-                    title="공개 메모 (K&N)"
                   >
                     K&N
                   </button>
@@ -146,7 +157,6 @@ export default function PropertyViewModal({
                         ? "bg-rose-600 text-white"
                         : "bg-white text-gray-700"
                     }`}
-                    title="비밀 메모 (R)"
                   >
                     R
                   </button>
@@ -162,28 +172,49 @@ export default function PropertyViewModal({
           </div>
         </div>
 
-        {/* 하단: 삭제/닫기 */}
+        {/* 하단: 수정/삭제/닫기 */}
         <div className="px-5 py-3 border-t flex items-center justify-between">
-          {onDelete && (
-            <button
-              type="button"
-              onClick={async () => {
-                if (!confirm("정말 삭제할까요?")) return;
-                await onDelete();
-              }}
-              className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50"
-              aria-label="삭제"
-            >
-              <Trash2 className="h-4 w-4" />
-              삭제
-            </button>
-          )}
+          <div className="flex gap-2">
+            {/* ✅ 수정: onEdit 있을 때만, 삭제 왼쪽에 */}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={async () => {
+                  await onEdit();
+                }}
+                className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
+                aria-label="수정"
+                title="수정"
+              >
+                <Pencil className="h-4 w-4" />
+                수정
+              </button>
+            )}
+
+            {/* 삭제: onDelete 있을 때만 */}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!confirm("정말 삭제할까요?")) return;
+                  await onDelete();
+                }}
+                className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50"
+                aria-label="삭제"
+                title="삭제"
+              >
+                <Trash2 className="h-4 w-4" />
+                삭제
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
             onClick={onClose}
             className="inline-flex items-center gap-2 rounded-md border px-3 h-9 hover:bg-muted"
             aria-label="닫기"
+            title="닫기"
           >
             닫기
           </button>

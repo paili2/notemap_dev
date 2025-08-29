@@ -129,14 +129,14 @@ export default function HeaderSection({
         <ElevatorSegment value={elevator} onChange={setElevator} />
 
         {/* 닫기 */}
-        <button
+        {/* <button
           type="button"
           onClick={onClose}
           className="ml-2 shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100"
           aria-label="닫기"
         >
           <XIcon className="h-4 w-4 text-gray-700" />
-        </button>
+        </button> */}
       </div>
     </header>
   );

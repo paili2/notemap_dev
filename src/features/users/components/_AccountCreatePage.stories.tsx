@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { action } from "@storybook/addon-actions";
-// ⬇️ 변경: rest -> http, HttpResponse (+ delay)
+// ⬇변경: rest -> http, HttpResponse (+ delay)
 import { http, HttpResponse, delay } from "msw";
 import AccountCreatePage, { CreateAccountPayload } from "./_AccountCreatePage";
 
@@ -11,11 +11,11 @@ const meta: Meta<typeof AccountCreatePage> = {
     react: { strictMode: false },
     msw: {
       handlers: [
-        // ⬇️ rest.post -> http.post
+        // rest.post -> http.post
         http.post("/api/upload", async (req) => {
-          // ⬇️ ctx.delay -> await delay
+          // ctx.delay -> await delay
           await delay(300);
-          // ⬇️ res(ctx.status, ctx.json) -> return HttpResponse.json(data, { status })
+          // res(ctx.status, ctx.json) -> return HttpResponse.json(data, { status })
           return HttpResponse.json(
             {
               url: "https://example-bucket.s3.amazonaws.com/mock/photo-uuid.jpg",

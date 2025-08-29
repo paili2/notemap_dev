@@ -9,7 +9,6 @@ type Props = {
   value: string;
   setValue: (v: string) => void;
 
-  // 🔽 모두 선택 사항 (기존 호출부 영향 없음)
   id?: string;
   placeholder?: string;
   disabled?: boolean;

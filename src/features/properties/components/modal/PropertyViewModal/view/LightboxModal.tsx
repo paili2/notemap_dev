@@ -2,17 +2,16 @@
 
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ImageItem } from "@/features/properties/types/media";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
   images: ImageItem[];
   initialIndex?: number;
   onClose: () => void;
-  /** 기본: contain */
   objectFit?: "contain" | "cover";
-  /** 썸네일 표시 여부 */
   withThumbnails?: boolean;
+  title?: string;
 };
 
 export default function LightboxModal({
@@ -22,15 +21,26 @@ export default function LightboxModal({
   onClose,
   objectFit = "contain",
   withThumbnails = false,
+  title,
 }: Props) {
   const [index, setIndex] = useState(initialIndex);
 
-  // 초기 인덱스 동기화
   useEffect(() => {
     if (open) setIndex(initialIndex);
   }, [open, initialIndex]);
 
-  // ESC / ← → 키
+  const prev = useCallback(
+    () =>
+      setIndex((i) =>
+        images.length ? (i - 1 + images.length) % images.length : 0
+      ),
+    [images.length]
+  );
+  const next = useCallback(
+    () => setIndex((i) => (images.length ? (i + 1) % images.length : 0)),
+    [images.length]
+  );
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -40,18 +50,25 @@ export default function LightboxModal({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, index, images.length]);
+  }, [open, onClose, prev, next]);
 
   if (!open || !images?.length) return null;
 
   const fitClass = objectFit === "cover" ? "object-cover" : "object-contain";
-  const cur = images[index];
 
-  const prev = () => setIndex((i) => (i - 1 + images.length) % images.length);
-  const next = () => setIndex((i) => (i + 1) % images.length);
+  const safeIndex = Math.min(Math.max(index, 0), images.length - 1);
+  const cur = images[safeIndex];
 
-  // 오버레이 클릭 시 닫기, 내부 클릭은 전파 막기
+  const albumTitle =
+    (title && title.trim()) ||
+    images[0]?.caption?.trim?.() ||
+    images[0]?.name?.trim?.() ||
+    "";
+
   const stop = (e: React.MouseEvent) => e.stopPropagation();
+
+  // 썸네일 열 폭 (grid에서 1열 고정폭으로 사용)
+  const thumbColWidth = 112; // px (w-28)
 
   return (
     <div
@@ -74,79 +91,113 @@ export default function LightboxModal({
         </button>
       </div>
 
-      {/* 메인 이미지 영역 */}
-      <div
-        className="relative flex-1 flex items-center justify-center px-10"
-        onClick={stop}
-      >
-        {/* 좌우 버튼 */}
-        {images.length > 1 && (
-          <>
-            <button
-              onClick={prev}
-              aria-label="이전"
-              className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-            <button
-              onClick={next}
-              aria-label="다음"
-              className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          </>
-        )}
+      {/* 본문: Grid 레이아웃 (썸네일=1열, 메인=2열, 제목=2열) */}
+      <div className="relative px-4 pb-4 flex-1" onClick={stop}>
+        <div
+          className={
+            withThumbnails && images.length > 1
+              ? // 1열: 고정폭 썸네일, 2열: 메인
+                `grid gap-4 items-start`
+              : // 썸네일 없으면 단일열
+                `grid gap-4 items-start`
+          }
+          // tailwind 任의 템플릿: 1열 고정 112px, 2열 auto
+          style={{
+            gridTemplateColumns:
+              withThumbnails && images.length > 1
+                ? `${thumbColWidth}px 1fr`
+                : "1fr",
+          }}
+        >
+          {/* 1열: 왼쪽 세로 썸네일 컬럼 */}
+          {withThumbnails && images.length > 1 && (
+            <div className="w-28">
+              <div className="max-h-[78vh] overflow-y-auto pr-1">
+                <div className="flex flex-col gap-2">
+                  {images.map((im, i) => {
+                    const active = i === safeIndex;
+                    const t = (
+                      im?.caption ||
+                      im?.name ||
+                      `썸네일 ${i + 1}`
+                    ).trim();
+                    return (
+                      <button
+                        key={i}
+                        className={`relative h-20 w-full rounded border ${
+                          active ? "border-white" : "border-white/30"
+                        }`}
+                        onClick={() => setIndex(i)}
+                        aria-label={t}
+                        title={t}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={im?.dataUrl ?? im?.url}
+                          alt={t}
+                          className="h-full w-full object-cover rounded"
+                          draggable={false}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        {active && (
+                          <span className="absolute inset-0 ring-2 ring-white rounded pointer-events-none" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
-        {/* 메인 이미지 */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cur.dataUrl ?? cur.url}
-          alt={cur.name || cur.caption || `이미지 ${index + 1}`}
-          className={`max-h-[80vh] max-w-[90vw] ${fitClass} select-none`}
-          draggable={false}
-        />
+          {/* 2열: 우측 메인 이미지 영역 */}
+          <div className="relative flex items-center justify-center">
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={prev}
+                  aria-label="이전"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white"
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
+                <button
+                  onClick={next}
+                  aria-label="다음"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/25 text-white"
+                >
+                  <ChevronRight className="h-6 w-6" />
+                </button>
+              </>
+            )}
 
-        {/* 오른쪽 위 카운터 */}
-        <div className="absolute top-3 right-16 rounded bg-black/60 text-white text-xs px-2 py-0.5">
-          {index + 1} / {images.length}
+            {/* 메인 이미지 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={cur?.dataUrl ?? cur?.url}
+              alt={albumTitle || `이미지 ${safeIndex + 1}`}
+              className={`max-h-[78vh] max-w-[85vw] ${fitClass} select-none`}
+              draggable={false}
+            />
+
+            {/* 카운터 (우측 상단) */}
+            <div className="absolute top-3 right-3 md:right-6 rounded bg-black/60 text-white text-xs px-2 py-0.5">
+              {safeIndex + 1} / {images.length}
+            </div>
+          </div>
+
+          {/* 2열(메인열) 아래에 제목 배치: 메인과 정확히 가운데 정렬 */}
+          {albumTitle && (
+            <div
+              className="col-start-2 text-center text-white text-lg whitespace-pre-wrap break-words px-2"
+              title={albumTitle}
+            >
+              {albumTitle}
+            </div>
+          )}
         </div>
       </div>
-
-      {/* 썸네일 바 (옵션) */}
-      {withThumbnails && images.length > 1 && (
-        <div className="px-4 py-3 bg-black/60" onClick={stop}>
-          <div className="flex gap-2 overflow-x-auto">
-            {images.map((im, i) => {
-              const active = i === index;
-              return (
-                <button
-                  key={i}
-                  className={`relative flex-shrink-0 h-16 w-28 rounded border ${
-                    active ? "border-white" : "border-white/30"
-                  }`}
-                  onClick={() => setIndex(i)}
-                  aria-label={`썸네일 ${i + 1}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={im.dataUrl ?? im.url}
-                    alt={im.name || im.caption || `썸네일 ${i + 1}`}
-                    className="h-full w-full object-cover rounded"
-                    draggable={false}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  {active && (
-                    <span className="absolute inset-0 ring-2 ring-white rounded pointer-events-none" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -34,7 +34,7 @@ export default function ParkingSection({
   const [selectValue, setSelectValue] = useState<string>("");
   const [custom, setCustom] = useState<string>("");
 
-  // 🔄 prop → 내부 상태 동기화 (초기/수정모달 프리필 모두 대응)
+  // prop → 내부 상태 동기화 (초기/수정모달 프리필 모두 대응)
   useEffect(() => {
     if (!parkingType) {
       setSelectValue("");

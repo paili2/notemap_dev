@@ -21,7 +21,6 @@ const config: SBConfigWithVite = {
   framework: { name: "@storybook/nextjs", options: {} },
   docs: { autodocs: "tag" },
 
-  // 여기서만 환경변수 주입 (process.env.NAME 형태로 사용 가능)
   env: (cfgEnv) => ({
     ...cfgEnv,
     NEXT_PUBLIC_KAKAO_MAP_KEY: process.env.NEXT_PUBLIC_KAKAO_MAP_KEY ?? "",
@@ -30,14 +29,12 @@ const config: SBConfigWithVite = {
   core: { builder: "@storybook/builder-vite" },
 
   viteFinal: async (cfg) => {
-    // 자동 JSX 런타임
     cfg.esbuild = {
       ...(cfg.esbuild ?? {}),
       jsx: "automatic",
       jsxImportSource: "react",
     };
 
-    // 별칭
     const SRC = fileURLToPath(new URL("../src", import.meta.url));
     const MOCK_NAV = fileURLToPath(
       new URL("./mocks/next-navigation.ts", import.meta.url)

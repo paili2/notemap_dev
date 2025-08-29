@@ -54,14 +54,14 @@ export default function HeaderSectionView({
           {elevator}
         </span>
 
-        <button
+        {/* <button
           type="button"
           onClick={onClose}
-          className="ml-2 shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100"
+          className="group ml-2 shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full"
           aria-label="닫기"
         >
-          <XIcon className="h-4 w-4 text-gray-700" />
-        </button>
+          <XIcon className="h-4 w-4 text-gray-700 group-hover:text-red-600" />
+        </button> */}
       </div>
     </header>
   );

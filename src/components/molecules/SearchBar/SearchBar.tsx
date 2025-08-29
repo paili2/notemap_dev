@@ -1,4 +1,3 @@
-// (Input + Icon + Button)
 import { Input } from "@/components/atoms/Input/Input";
 import { Button } from "@/components/atoms/Button/Button";
 import { Search } from "lucide-react";

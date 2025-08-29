@@ -60,7 +60,7 @@ export default function PropertyCreateModalBody({
   onSubmit,
   initialAddress,
 }: Omit<PropertyCreateModalProps, "open">) {
-  const [imagesByCard, setImagesByCard] = useState<ImageFile[][]>([[], []]);
+  const [imagesByCard, setImagesByCard] = useState<ImageFile[][]>([[], []]); // 내부 미리보기 전용
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
@@ -119,6 +119,7 @@ export default function PropertyCreateModalBody({
   const addPhotoFolder = () => setImagesByCard((prev) => [...prev, []]);
 
   // objectURL 정리 (언마운트 시 메모리 누수 방지)
+  const [fileItems, setFileItems] = useState<FileItem[]>([]);
   useEffect(() => {
     return () => {
       imagesByCard.flat().forEach((f) => {
@@ -128,15 +129,15 @@ export default function PropertyCreateModalBody({
         if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
       });
     };
-  }, [imagesByCard]); // fileItems는 외부 변경 드묾. 안전하게 추가해도 무방.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imagesByCard]);
 
-  const [fileItems, setFileItems] = useState<FileItem[]>([]);
   const onAddFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const items: FileItem[] = [];
     for (const f of Array.from(files)) {
-      const dataUrl = await readAsDataURL(f); // ✅
-      items.push({ name: f.name, url: dataUrl }); // ← 세로카드는 뷰에도 이 배열 안 쓰면 생략 가능
+      const dataUrl = await readAsDataURL(f);
+      items.push({ name: f.name, url: dataUrl });
     }
     setFileItems((prev) => [...prev, ...items].slice(0, MAX_FILES));
   };
@@ -386,6 +387,23 @@ export default function PropertyCreateModalBody({
       setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
     );
 
+    const imageCards = imagesByCard.map((card) =>
+      card.map((f) => ({
+        // 새로고침 후에도 살아있는 data: URL을 기본 url로 저장
+        url: f.dataUrl ?? f.url,
+        dataUrl: f.dataUrl,
+        name: f.name ?? "",
+        caption: f.caption ?? "",
+      }))
+    );
+
+    const fileItemsPayload = fileItems.map((f) => ({
+      url: f.url, // 여긴 dataUrl 저장 중이니 그대로 사용 가능
+      name: f.name,
+      caption: f.caption ?? "",
+    }));
+
+    // (레거시) 합친 이미지 배열도 유지 — 기존 화면/타입 호환
     const imagesFlat = imagesByCard.flat().map((f) => f.dataUrl ?? f.url);
 
     const payload: CreatePayload = {
@@ -436,9 +454,10 @@ export default function PropertyCreateModalBody({
       secretMemo,
       registry: registryOne,
       unitLines,
-      images: imagesFlat,
-      extraExclusiveAreas,
-      extraRealAreas,
+
+      images: imagesFlat, // 레거시
+      imageCards, // 카드별 그룹
+      fileItems: fileItemsPayload,
     };
 
     await onSubmit?.(payload);
@@ -462,7 +481,6 @@ export default function PropertyCreateModalBody({
           setElevator={setElevator}
           onClose={onClose}
         />
-
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
           <ImagesSection
             imagesByCard={imagesByCard}
@@ -488,6 +506,7 @@ export default function PropertyCreateModalBody({
               setOfficePhone2={setOfficePhone2}
             />
 
+            {/* ✅ 타입 오류 수정: value/Setter 올바르게 전달 */}
             <NumbersSection
               numberItems={numberItems}
               totalBuildingsType={totalBuildingsType}
@@ -574,14 +593,13 @@ export default function PropertyCreateModalBody({
                 setValue={setSecretMemo}
               />
             </div>
-
-            <FooterButtons
-              onClose={onClose}
-              onSave={save}
-              canSave={isSaveEnabled}
-            />
           </div>
         </div>
+        <FooterButtons
+          onClose={onClose}
+          onSave={save}
+          canSave={isSaveEnabled}
+        />
       </div>
     </div>
   );

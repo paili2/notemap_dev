@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/atoms/Button/Button";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, ArrowLeft } from "lucide-react";
 
 type Props = {
   onClose: () => void;
@@ -19,46 +18,66 @@ export default function FooterButtons({ onClose, onSave, canSave }: Props) {
       setIsSaving(true);
       await Promise.resolve(onSave());
     } catch (e) {
-      // 필요하면 여기서 toast 처리해도 됨
-      // toast.error("저장 중 오류가 발생했어요.");
       console.error(e);
     } finally {
       setIsSaving(false);
     }
   };
 
+  const canSaveNow = canSave && !isSaving;
+  const canCancelNow = !isSaving;
+
   return (
     <div
-      className="px-5 py-3 border-t flex items-center justify-end gap-3"
+      className="px-5 py-3 border-t flex items-center justify-between"
       aria-busy={isSaving ? "true" : "false"}
     >
-      <Button
+      {/* 취소 (왼쪽) */}
+      <button
         type="button"
-        variant="outline"
         onClick={onClose}
-        disabled={isSaving}
+        disabled={!canCancelNow}
+        className={[
+          "inline-flex items-center gap-2 rounded-md border px-3 h-9",
+          "text-red-600",
+          canCancelNow
+            ? "hover:bg-red-50"
+            : "opacity-50 cursor-not-allowed pointer-events-none",
+        ].join(" ")}
+        aria-label="취소"
+        title="취소"
       >
+        <ArrowLeft className="h-4 w-4" />
         취소
-      </Button>
+      </button>
 
-      <Button
+      {/* 저장 (오른쪽) */}
+      <button
         type="button"
         onClick={handleSave}
-        disabled={!canSave || isSaving}
-        aria-disabled={!canSave || isSaving}
+        disabled={!canSaveNow}
+        aria-disabled={!canSaveNow}
+        className={[
+          "inline-flex items-center gap-2 rounded-md border px-3 h-9",
+          canSaveNow
+            ? "text-blue-600 hover:bg-blue-50"
+            : "text-blue-300 opacity-50 cursor-not-allowed pointer-events-none",
+        ].join(" ")}
+        aria-label="저장"
+        title="저장"
       >
         {isSaving ? (
           <>
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             저장중…
           </>
         ) : (
           <>
-            <Check className="mr-1 h-4 w-4" />
+            <Check className="h-4 w-4" />
             저장
           </>
         )}
-      </Button>
+      </button>
     </div>
   );
 }

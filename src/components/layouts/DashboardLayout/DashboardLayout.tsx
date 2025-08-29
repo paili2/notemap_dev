@@ -1,4 +1,3 @@
-// 헤더 + 사이드바 + 콘텐츠 영역
 "use client";
 
 import * as React from "react";

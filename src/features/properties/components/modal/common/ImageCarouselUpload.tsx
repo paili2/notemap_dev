@@ -221,7 +221,7 @@ export default function ImageCarouselUpload({
           type="text"
           value={currentCaption}
           onChange={(e) => handleCaptionChange(e.target.value)}
-          placeholder="이 이미지의 설명을 입력하세요"
+          placeholder="제목을 입력하세요"
           className="flex-1 min-w-0 h-9 rounded-md border px-3 text-sm outline-none focus:ring-2 focus:ring-blue-200"
         />
 

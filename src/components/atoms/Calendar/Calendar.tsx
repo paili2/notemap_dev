@@ -30,10 +30,8 @@ function Calendar({
   i18nLocale = "ko-KR",
   ...props
 }: CalendarProps) {
-  // 기본 클래스 객체 메모이즈 (불필요한 재생성 방지)
   const defaultClassNames = useMemo(() => getDefaultClassNames(), []);
 
-  // 안전한 variant 보정 (오타 등 들어와도 깨지지 않게)
   const safeButtonVariant = (
     ["default", "secondary", "destructive", "outline", "ghost", "link"] as const
   ).includes(buttonVariant as any)

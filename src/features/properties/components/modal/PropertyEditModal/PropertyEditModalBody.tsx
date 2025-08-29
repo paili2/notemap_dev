@@ -365,7 +365,7 @@ export default function PropertyEditModalBody({
       setAspects(
         initialData.orientations.map((o, idx) => ({
           no: idx + 1,
-          // ✅ dir 존재/이름이 달라도 안전
+          // dir 존재/이름이 달라도 안전
           dir: (pickOrientation(o) as OrientationValue) || "",
         }))
       );
@@ -507,7 +507,7 @@ export default function PropertyEditModalBody({
 
     const imagesFlat = imagesByCard.flat().map((f) => f.url);
 
-    // ✅ 타입 주석 제거하고, 호출 시에만 캐스팅 (id도 문자열로 정규화)
+    // 타입 주석 제거하고, 호출 시에만 캐스팅 (id도 문자열로 정규화)
     const payload = {
       id: String((initialData as any)?.id ?? ""),
       status: visibility,
@@ -589,7 +589,6 @@ export default function PropertyEditModalBody({
             onChangeFileItemCaption={onChangeFileItemCaption}
             maxFiles={MAX_FILES}
           />
-
           <div className="space-y-6">
             <BasicInfoSection
               address={address}
@@ -686,14 +685,13 @@ export default function PropertyEditModalBody({
                 setValue={setSecretMemo}
               />
             </div>
-
-            <FooterButtons
-              onClose={onClose}
-              onSave={save}
-              canSave={isSaveEnabled}
-            />
           </div>
         </div>
+        <FooterButtons
+          onClose={onClose}
+          onSave={save}
+          canSave={isSaveEnabled}
+        />
       </div>
     </div>
   );

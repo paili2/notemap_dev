@@ -8,6 +8,13 @@ import {
 } from "@/features/properties/types/property-domain";
 import { ImageItem } from "./media";
 
+/** 저장 전용 레퍼런스 타입(IndexedDB 키 참조) */
+export type ImageRefLite = {
+  idbKey: string;
+  name?: string;
+  caption?: string;
+};
+
 export type PropertyViewDetails = {
   id?: string;
   title?: string;
@@ -58,6 +65,12 @@ export type PropertyViewDetails = {
   images?: ImageItem[] | string[];
   imageCards?: ImageItem[][];
   fileItems?: ImageItem[];
+
+  // ====== ✅ 저장 전용(로컬스토리지 경량화용) ======
+  /** 카드별 이미지의 IndexedDB 레퍼런스 배열 */
+  _imageCardRefs?: ImageRefLite[][];
+  /** 파일 패널(세로열) 이미지의 IndexedDB 레퍼런스 배열 */
+  _fileItemRefs?: ImageRefLite[];
 
   completionDate?: string | Date | null;
   salePrice?: string | number | null;

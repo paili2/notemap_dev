@@ -8,7 +8,6 @@ import type {
 } from "@/features/properties/types/property-domain";
 import { formatDate } from "@/features/properties/lib/formatDate";
 
-// "상/중/하" 등급 고정 목록
 const GRADES: ReadonlyArray<Grade> = ["상", "중", "하"];
 
 type Props = {
@@ -158,7 +157,7 @@ function PillRadioGroup<T extends string>({
                 onChange(opt);
               }}
               onClick={(e) => {
-                // ✅ allowUnset: 이미 선택된 항목 클릭 시 해제
+                // allowUnset: 이미 선택된 항목 클릭 시 해제
                 if (allowUnset && checked) {
                   e.preventDefault(); // 기본 체크 동작 막기
                   onChange(undefined);

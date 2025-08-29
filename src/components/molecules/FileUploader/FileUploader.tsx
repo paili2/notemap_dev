@@ -1,5 +1,3 @@
-// 드래그&드롭 업로드 + 썸네일
-
 import * as React from "react";
 import clsx from "clsx";
 import { Button } from "@/components/atoms/Button/Button"; // shadcn/ui

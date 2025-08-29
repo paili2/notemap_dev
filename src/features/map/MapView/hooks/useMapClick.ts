@@ -34,7 +34,7 @@ export function useMapClick(
       // 외부 콜백 실행
       onMapClick?.({ lat, lng });
 
-      // 🔕 기본은 신규등록 마커/라벨을 만들지 않음
+      // 기본은 신규등록 마커/라벨을 만들지 않음
       if (!showNewMarker) return;
 
       // ---- 임시 마커 ----

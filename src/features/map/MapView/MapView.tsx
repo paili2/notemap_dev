@@ -34,7 +34,7 @@ const MapView: React.FC<MapViewProps> = ({
 
   useDistrictOverlay(kakao, map, useDistrict);
 
-  // ✅ 지도 클릭 리스너는 스위치 켜졌을 때만 바인딩
+  // 지도 클릭 리스너는 스위치 켜졌을 때만 바인딩
   if (allowCreateOnMapClick) {
     useMapClick(kakao, map, onMapClick, { showNewMarker: false });
   }
