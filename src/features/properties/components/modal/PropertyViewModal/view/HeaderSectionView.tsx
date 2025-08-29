@@ -1,6 +1,6 @@
-"use client";
+// HeaderSectionView.tsx
 
-import { X as XIcon } from "lucide-react";
+"use client";
 
 import { cn } from "@/lib/utils";
 import StarsRating from "../../common/StarsRating";
@@ -22,8 +22,14 @@ export default function HeaderSectionView({
         <span className="shrink-0 text-[20px] font-semibold text-gray-800">
           매물평점
         </span>
-        <div className="shrink-0 w-[180px]">
-          <StarsRating value={listingStars} readOnly />
+
+        {/* ✅ 가운데 정렬 & 라인-높이 간섭 제거 */}
+        <div className="shrink-0 w-[180px] flex items-center leading-none">
+          <StarsRating
+            value={listingStars}
+            readOnly
+            className="leading-none antialiased"
+          />
         </div>
 
         <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
@@ -53,15 +59,6 @@ export default function HeaderSectionView({
         >
           {elevator}
         </span>
-
-        {/* <button
-          type="button"
-          onClick={onClose}
-          className="group ml-2 shrink-0 inline-flex h-8 w-8 items-center justify-center rounded-full"
-          aria-label="닫기"
-        >
-          <XIcon className="h-4 w-4 text-gray-700 group-hover:text-red-600" />
-        </button> */}
       </div>
     </header>
   );

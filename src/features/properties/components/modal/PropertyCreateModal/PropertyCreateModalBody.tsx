@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { set as idbSet } from "idb-keyval";
 
 import HeaderSection from "../common/sections/HeaderSection";
-import ImagesSection from "../common/sections/ImagesSection";
+import ImagesSection, {
+  type ImageFile,
+} from "../common/sections/ImagesSection";
 import BasicInfoSection from "../common/sections/BasicInfoSection";
 import NumbersSection from "../common/sections/NumbersSection";
 import AspectsSection from "../common/sections/AspectsSection";
@@ -34,53 +37,98 @@ import {
 import type { PropertyCreateModalProps } from "./types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
 import { ALL_OPTIONS, STRUCTURE_PRESETS } from "../common/constants";
-import type { ImageFile } from "../common/sections/ImagesSection";
 
-const readAsDataURL = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onload = () => resolve(String(fr.result));
-    fr.onerror = reject;
-    fr.readAsDataURL(file);
-  });
-
-// 이미지/파일 업로드 제한
+/* -------------------- 상수 -------------------- */
 const MAX_PER_CARD = 20;
 const MAX_FILES = 20;
 
-type FileItem = { name: string; url: string; caption?: string };
-
+/* -------------------- 공용 유틸 -------------------- */
 const filled = (s: string) => s.trim().length > 0;
 const hasPair = (min: string, max: string) => filled(min) && filled(max);
 const setPack = (minM2: string, maxM2: string, minPy: string, maxPy: string) =>
   packRange(minM2.trim() || toM2(minPy), maxM2.trim() || toM2(maxPy));
+
+/* -------------------- 로컬 타입 -------------------- */
+// 화면에서 쓰는 미리보기(IndexedDB에 Blob을 저장하고, 미리보기는 objectURL 사용)
+type UIImage = {
+  url: string; // blob:... 미리보기 URL (또는 원격 URL)
+  name: string;
+  caption?: string;
+  idbKey?: string; // IndexedDB 키 (저장용)
+};
+
+// 우측 세로 리스트(미리보기 + 선택적으로 idbKey 포함)
+type FileItem = {
+  name: string;
+  url: string;
+  caption?: string;
+  idbKey?: string;
+};
+
+/* -------------------- IndexedDB 저장 유틸 -------------------- */
+const makeImgKey = (scope: "card" | "vertical") =>
+  `prop:new:${scope}:${crypto.randomUUID()}`;
+
+async function putBlobToIDB(key: string, blob: Blob) {
+  await idbSet(key, blob);
+}
+
+/* ======================================================== */
 
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
   initialAddress,
 }: Omit<PropertyCreateModalProps, "open">) {
-  const [imagesByCard, setImagesByCard] = useState<ImageFile[][]>([[], []]); // 내부 미리보기 전용
+  /* ---------- 이미지(좌측 카드형) ---------- */
+  // 내부 상태는 imageFolders로 통일
+  const [imageFolders, setImageFolders] = useState<UIImage[][]>([[]]); // 카드1, 카드2, ...
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
   };
   const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
 
-  const onChangeFileItemCaption = (index: number, text: string) => {
-    setFileItems((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
-    );
+  // 새 이미지 추가 → 즉시 IndexedDB 저장 + idbKey 부여
+  const onPickFilesToFolder = async (
+    idx: number,
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newItems: UIImage[] = [];
+    for (const f of Array.from(files)) {
+      const key = makeImgKey("card");
+      await putBlobToIDB(key, f);
+      newItems.push({
+        idbKey: key,
+        url: URL.createObjectURL(f), // 미리보기
+        name: f.name,
+      });
+    }
+
+    setImageFolders((prev) => {
+      const next = [...prev];
+      const current = next[idx] ?? [];
+      next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
+      return next;
+    });
+
+    // 같은 파일 다시 선택 가능하도록 초기화
+    e.target.value = "";
   };
 
+  const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
+
   const onChangeImageCaption = (
-    cardIdx: number,
+    folderIdx: number,
     imageIdx: number,
     text: string
   ) => {
-    setImagesByCard((prev) =>
+    setImageFolders((prev) =>
       prev.map((arr, i) =>
-        i !== cardIdx
+        i !== folderIdx
           ? arr
           : arr.map((img, j) =>
               j === imageIdx ? { ...img, caption: text } : img
@@ -89,40 +137,34 @@ export default function PropertyCreateModalBody({
     );
   };
 
-  const onPickFilesToCard = async (
-    idx: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = e.target.files;
-    if (!files) return;
+  /* ---------- 이미지(우측 세로) ---------- */
+  const [fileItems, setFileItems] = useState<FileItem[]>([]);
+  const onAddFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
-    const newItems: ImageFile[] = [];
+    const items: FileItem[] = [];
     for (const f of Array.from(files)) {
-      const dataUrl = await readAsDataURL(f); // ✅ dataUrl 생성
-      newItems.push({
-        url: URL.createObjectURL(f), // 미리보기용 blob
-        dataUrl, // 저장/뷰용 data URL
+      const key = makeImgKey("vertical");
+      await putBlobToIDB(key, f);
+      items.push({
         name: f.name,
+        url: URL.createObjectURL(f),
+        idbKey: key, // ✅ 세로도 idbKey 보관
       });
     }
-
-    setImagesByCard((prev) => {
-      const next = [...prev];
-      const current = next[idx] ?? [];
-      next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
-      return next;
-    });
-
-    e.target.value = "";
+    setFileItems((prev) => [...prev, ...items].slice(0, MAX_FILES));
   };
 
-  const addPhotoFolder = () => setImagesByCard((prev) => [...prev, []]);
+  const onChangeFileItemCaption = (index: number, text: string) => {
+    setFileItems((prev) =>
+      prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
+    );
+  };
 
   // objectURL 정리 (언마운트 시 메모리 누수 방지)
-  const [fileItems, setFileItems] = useState<FileItem[]>([]);
   useEffect(() => {
     return () => {
-      imagesByCard.flat().forEach((f) => {
+      imageFolders.flat().forEach((f) => {
         if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
       });
       fileItems.forEach((f) => {
@@ -130,18 +172,9 @@ export default function PropertyCreateModalBody({
       });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imagesByCard]);
+  }, [imageFolders, fileItems]);
 
-  const onAddFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const items: FileItem[] = [];
-    for (const f of Array.from(files)) {
-      const dataUrl = await readAsDataURL(f);
-      items.push({ name: f.name, url: dataUrl });
-    }
-    setFileItems((prev) => [...prev, ...items].slice(0, MAX_FILES));
-  };
-
+  /* ---------- 기본 필드들 ---------- */
   const [title, setTitle] = useState("");
   const [address, setAddress] = useState("");
   useEffect(() => {
@@ -265,7 +298,7 @@ export default function PropertyCreateModalBody({
   const removeLine = (idx: number) =>
     setUnitLines((prev) => prev.filter((_, i) => i !== idx));
 
-  // 유효성
+  /* ---------- 유효성 ---------- */
   const baseHasExclusive = useMemo(
     () =>
       hasPair(baseAreaSet.exMinM2, baseAreaSet.exMaxM2) ||
@@ -360,110 +393,185 @@ export default function PropertyCreateModalBody({
     aspectsValid,
   ]);
 
-  // 저장
+  /* ---------- 저장 ---------- */
   const save = async () => {
     if (!title.trim()) return;
 
-    const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
-      buildOrientationFields(aspects);
+    try {
+      console.time("save-build");
 
-    const exclusiveArea = setPack(
-      baseAreaSet.exMinM2,
-      baseAreaSet.exMaxM2,
-      baseAreaSet.exMinPy,
-      baseAreaSet.exMaxPy
-    );
-    const realArea = setPack(
-      baseAreaSet.realMinM2,
-      baseAreaSet.realMaxM2,
-      baseAreaSet.realMinPy,
-      baseAreaSet.realMaxPy
-    );
+      const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
+        buildOrientationFields(aspects);
 
-    const extraExclusiveAreas = extraAreaSets.map((s) =>
-      setPack(s.exMinM2, s.exMaxM2, s.exMinPy, s.exMaxPy)
-    );
-    const extraRealAreas = extraAreaSets.map((s) =>
-      setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
-    );
+      const exclusiveArea = setPack(
+        baseAreaSet.exMinM2,
+        baseAreaSet.exMaxM2,
+        baseAreaSet.exMinPy,
+        baseAreaSet.exMaxPy
+      );
+      const realArea = setPack(
+        baseAreaSet.realMinM2,
+        baseAreaSet.realMaxM2,
+        baseAreaSet.realMinPy,
+        baseAreaSet.realMaxPy
+      );
 
-    const imageCards = imagesByCard.map((card) =>
-      card.map((f) => ({
-        // 새로고침 후에도 살아있는 data: URL을 기본 url로 저장
-        url: f.dataUrl ?? f.url,
-        dataUrl: f.dataUrl,
-        name: f.name ?? "",
-        caption: f.caption ?? "",
-      }))
-    );
+      const extraExclusiveAreas = extraAreaSets.map((s) =>
+        setPack(s.exMinM2, s.exMaxM2, s.exMinPy, s.exMaxPy)
+      );
+      const extraRealAreas = extraAreaSets.map((s) =>
+        setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
+      );
 
-    const fileItemsPayload = fileItems.map((f) => ({
-      url: f.url, // 여긴 dataUrl 저장 중이니 그대로 사용 가능
-      name: f.name,
-      caption: f.caption ?? "",
-    }));
+      // ------------- 이미지 포맷 -------------
+      const imageCardsUI = imageFolders.map((card) =>
+        card.map(({ url, name, caption }) => ({
+          url,
+          name,
+          ...(caption ? { caption } : {}),
+        }))
+      );
 
-    // (레거시) 합친 이미지 배열도 유지 — 기존 화면/타입 호환
-    const imagesFlat = imagesByCard.flat().map((f) => f.dataUrl ?? f.url);
+      const imageFoldersStored = imageFolders.map((card) =>
+        card.map(({ idbKey, url, name, caption }) =>
+          idbKey
+            ? { idbKey, name, ...(caption ? { caption } : {}) }
+            : { url, name, ...(caption ? { caption } : {}) }
+        )
+      );
 
-    const payload: CreatePayload = {
-      status: visibility,
-      dealStatus,
-      title,
-      address,
-      officeName,
-      officePhone,
-      officePhone2,
-      moveIn,
-      floor,
-      roomNo,
-      structure,
-      aspect,
-      aspectNo,
-      ...(aspect1 ? { aspect1 } : {}),
-      ...(aspect2 ? { aspect2 } : {}),
-      ...(aspect3 ? { aspect3 } : {}),
-      orientations,
-      salePrice,
-      parkingType,
-      parkingCount,
-      completionDate,
-      exclusiveArea,
-      realArea,
-      listingStars,
-      elevator,
-      totalBuildings:
-        totalBuildingsType === "select"
-          ? totalBuildings
-          : `${totalBuildings}(직접입력)`,
-      totalFloors:
-        totalFloorsType === "select" ? totalFloors : `${totalFloors}(직접입력)`,
-      totalHouseholds:
-        totalHouseholdsType === "select"
-          ? totalHouseholds
-          : `${totalHouseholds}(직접입력)`,
-      remainingHouseholds:
-        remainingHouseholdsType === "select"
-          ? remainingHouseholds
-          : `${remainingHouseholds}(직접입력)`,
-      slopeGrade,
-      structureGrade,
-      options,
-      optionEtc: etcChecked ? optionEtc.trim() : "",
-      publicMemo,
-      secretMemo,
-      registry: registryOne,
-      unitLines,
+      const imagesFlatStrings: string[] = imageFolders.flat().map((f) => f.url);
+      const imageCardCounts = imageFolders.map((card) => card.length);
 
-      images: imagesFlat, // 레거시
-      imageCards, // 카드별 그룹
-      fileItems: fileItemsPayload,
-    };
+      const verticalImagesStored = fileItems.map((f) =>
+        f.idbKey
+          ? {
+              idbKey: f.idbKey,
+              name: f.name,
+              ...(f.caption ? { caption: f.caption } : {}),
+            }
+          : {
+              url: f.url,
+              name: f.name,
+              ...(f.caption ? { caption: f.caption } : {}),
+            }
+      );
+      const verticalImagesUI = fileItems.map((f) => ({
+        url: f.url,
+        name: f.name,
+        ...(f.caption ? { caption: f.caption } : {}),
+        ...(f.idbKey ? { idbKey: f.idbKey } : {}),
+      }));
 
-    await onSubmit?.(payload);
-    onClose();
+      const payload: CreatePayload & {
+        imageFolders: Array<
+          Array<{
+            idbKey?: string;
+            url?: string;
+            name?: string;
+            caption?: string;
+          }>
+        >;
+        imagesByCard: Array<
+          Array<{ url: string; name: string; caption?: string }>
+        >;
+        imageCards: Array<
+          Array<{ url: string; name: string; caption?: string }>
+        >;
+        imageCardCounts: number[];
+        verticalImages: Array<{
+          idbKey?: string;
+          url?: string;
+          name?: string;
+          caption?: string;
+        }>;
+        images: string[];
+        fileItems?: Array<{
+          idbKey?: string;
+          url?: string;
+          name?: string;
+          caption?: string;
+        }>;
+        extraExclusiveAreas: string[];
+        extraRealAreas: string[];
+      } = {
+        status: visibility,
+        dealStatus,
+        title,
+        address,
+        officeName,
+        officePhone,
+        officePhone2,
+        moveIn,
+        floor,
+        roomNo,
+        structure,
+        aspect,
+        aspectNo,
+        ...(aspect1 ? { aspect1 } : {}),
+        ...(aspect2 ? { aspect2 } : {}),
+        ...(aspect3 ? { aspect3 } : {}),
+        orientations,
+        salePrice,
+        parkingType,
+        parkingCount,
+        completionDate,
+        exclusiveArea,
+        realArea,
+        listingStars,
+        elevator,
+        totalBuildings,
+        totalFloors,
+        totalHouseholds,
+        remainingHouseholds,
+        slopeGrade,
+        structureGrade,
+        options,
+        optionEtc: etcChecked ? optionEtc.trim() : "",
+        publicMemo,
+        secretMemo,
+        registry: registryOne,
+        unitLines,
+
+        imageFolders: imageFoldersStored,
+        imagesByCard: imageCardsUI,
+        imageCards: imageCardsUI,
+        imageCardCounts,
+        verticalImages: verticalImagesStored,
+
+        images: imagesFlatStrings,
+        fileItems: verticalImagesUI,
+
+        extraExclusiveAreas,
+        extraRealAreas,
+      };
+
+      console.timeEnd("save-build");
+      console.log("[PropertyCreate] payload", payload);
+
+      // ✔️ onSubmit에서 resolve가 안 되더라도 모달이 안 갇히게 방지
+      //    - 정상 완료 시: await 후 닫기
+      //    - onSubmit이 오래 걸리거나 실패: 로그 남기고 그래도 닫기(필요 시 알림)
+      let ok = true;
+      try {
+        await Promise.resolve(onSubmit?.(payload));
+      } catch (e) {
+        ok = false;
+        console.error("[PropertyCreate] onSubmit error:", e);
+        alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
+      } finally {
+        // onSubmit이 resolve되지 않는 케이스를 막기 위해 어쨌든 닫아줌
+        onClose();
+      }
+
+      // ok가 false면 필요한 경우 여기서 추가 처리 가능
+    } catch (e) {
+      console.error("[PropertyCreate] save() failed before submit:", e);
+      alert("저장 준비 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
+    }
   };
 
+  /* ---------- UI ---------- */
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -481,11 +589,13 @@ export default function PropertyCreateModalBody({
           setElevator={setElevator}
           onClose={onClose}
         />
+
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
+          {/* NOTE: ImagesSection이 아직 imagesByCard prop을 요구한다면 아래처럼 캐스팅 전달 */}
           <ImagesSection
-            imagesByCard={imagesByCard}
+            imagesByCard={imageFolders as unknown as ImageFile[][]} // ← 내부는 imageFolders로 사용
             onOpenPicker={openImagePicker}
-            onChangeFiles={onPickFilesToCard}
+            onChangeFiles={onPickFilesToFolder}
             registerInputRef={registerImageInput}
             onAddPhotoFolder={addPhotoFolder}
             maxPerCard={MAX_PER_CARD}
@@ -506,7 +616,6 @@ export default function PropertyCreateModalBody({
               setOfficePhone2={setOfficePhone2}
             />
 
-            {/* ✅ 타입 오류 수정: value/Setter 올바르게 전달 */}
             <NumbersSection
               numberItems={numberItems}
               totalBuildingsType={totalBuildingsType}
@@ -595,6 +704,7 @@ export default function PropertyCreateModalBody({
             </div>
           </div>
         </div>
+
         <FooterButtons
           onClose={onClose}
           onSave={save}

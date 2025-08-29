@@ -34,21 +34,21 @@ const STORAGE_KEY = "properties";
 const okUrl = (u: string) => /^https?:|^data:|^blob:/.test(u);
 const isDataLike = (s: string) => s.startsWith("data:");
 const isBlobLike = (s: string) => s.startsWith("blob:");
-const isHttpLike = (s: string) => s.startsWith("http");
+const isHttpLike = (s: string) => /^https?:/i.test(s);
+const isImageRefLike = (x: any): x is ImageRef =>
+  !!x && typeof x === "object" && typeof x.idbKey === "string";
 
 function normalizeOneImage(it: any): ImageItem | null {
   if (!it) return null;
+
+  // idbKey만 있는 참조 객체는 화면에 바로 못 그림 (hydrate가 필요)
+  if (isImageRefLike(it)) return null;
+
   if (typeof it === "string")
     return okUrl(it) ? { url: it, name: "", caption: "" } : null;
 
   if (typeof it === "object") {
-    // (A) 저장된 레퍼런스(ImageRef) 형식: { idbKey, name, caption }  -> 아직 URL 없음
-    if (typeof it.idbKey === "string" && !it.url && !it.dataUrl) {
-      // hydrate 전까진 표시 불가
-      return null;
-    }
-
-    // (B) url/dataUrl 보유한 일반 ImageItem
+    // url 또는 dataUrl 보유
     const url =
       typeof it.url === "string"
         ? it.url
@@ -122,22 +122,37 @@ function persistToLocalStorage(key: string, items: PropertyItem[]) {
 }
 
 /** ============== IndexedDB 재료화(저장) / 수화(복원) ============== */
-/** 업로드된 이미지(카드/파일)를 IndexedDB에 Blob으로 저장하고, refs만 반환 */
+/**
+ * 업로드된 이미지들을 저장 가능한 참조(ImageRef)로 변환한다.
+ * - payload에 refs(imageFolders/verticalImages)가 있으면 그대로 사용
+ * - url/dataUrl만 있는 경우에만 IndexedDB에 저장하거나 url: 프리픽스 참조로 변환
+ * - blob: URL도 fetch해서 Blob으로 저장(영구 보관)
+ */
 async function materializeToRefs(
   propertyId: string,
   cards: any[][],
   files: any[]
 ) {
   const cardRefs: ImageRef[][] = [];
+
   for (let gi = 0; gi < (cards?.length || 0); gi++) {
     const group = cards[gi] || [];
     const refs: ImageRef[] = [];
+
     for (let ii = 0; ii < group.length; ii++) {
       const it = group[ii] || {};
+
+      // A) 이미 참조 객체면 그대로 사용
+      if (isImageRefLike(it)) {
+        refs.push({ idbKey: it.idbKey, name: it.name, caption: it.caption });
+        continue;
+      }
+
+      // B) url/dataUrl만 있는 일반 아이템
       const source: string | undefined = it.dataUrl || it.url;
       if (!source) continue;
 
-      // http(s)는 굳이 IndexedDB에 안 넣어도 됨 → idbKey에 'url:' prefix로 저장
+      // http/https → 굳이 저장하지 않고 'url:' 프리픽스 참조로 보관
       if (isHttpLike(source)) {
         refs.push({
           idbKey: `url:${source}`,
@@ -147,27 +162,42 @@ async function materializeToRefs(
         continue;
       }
 
-      // data 또는 blob은 Blob을 추출해서 보관
-      let blob: Blob;
+      // data: → Blob화 후 IndexedDB 저장
       if (isDataLike(source)) {
-        blob = dataUrlToBlob(source);
-      } else if (isBlobLike(source)) {
-        const res = await fetch(source);
-        blob = await res.blob();
-      } else {
+        const blob = dataUrlToBlob(source);
+        const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
+        await putImageBlob(idbKey, blob);
+        refs.push({ idbKey, name: it.name, caption: it.caption });
         continue;
       }
 
-      const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
-      await putImageBlob(idbKey, blob);
-      refs.push({ idbKey, name: it.name, caption: it.caption });
+      // blob: → fetch해서 Blob으로 저장 (영구 보관)
+      if (isBlobLike(source)) {
+        try {
+          const res = await fetch(source);
+          const blob = await res.blob();
+          const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
+          await putImageBlob(idbKey, blob);
+          refs.push({ idbKey, name: it.name, caption: it.caption });
+        } catch (e) {
+          console.warn("blob: fetch 실패로 스킵", e);
+        }
+        continue;
+      }
     }
+
     if (refs.length) cardRefs.push(refs);
   }
 
   const fileRefs: ImageRef[] = [];
   for (let fi = 0; fi < (files?.length || 0); fi++) {
     const it = files[fi] || {};
+
+    if (isImageRefLike(it)) {
+      fileRefs.push({ idbKey: it.idbKey, name: it.name, caption: it.caption });
+      continue;
+    }
+
     const source: string | undefined = it.dataUrl || it.url;
     if (!source) continue;
 
@@ -180,19 +210,26 @@ async function materializeToRefs(
       continue;
     }
 
-    let blob: Blob;
     if (isDataLike(source)) {
-      blob = dataUrlToBlob(source);
-    } else if (isBlobLike(source)) {
-      const res = await fetch(source);
-      blob = await res.blob();
-    } else {
+      const blob = dataUrlToBlob(source);
+      const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
+      await putImageBlob(idbKey, blob);
+      fileRefs.push({ idbKey, name: it.name, caption: it.caption });
       continue;
     }
 
-    const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
-    await putImageBlob(idbKey, blob);
-    fileRefs.push({ idbKey, name: it.name, caption: it.caption });
+    if (isBlobLike(source)) {
+      try {
+        const res = await fetch(source);
+        const blob = await res.blob();
+        const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
+        await putImageBlob(idbKey, blob);
+        fileRefs.push({ idbKey, name: it.name, caption: it.caption });
+      } catch (e) {
+        console.warn("blob(file): fetch 실패로 스킵", e);
+      }
+      continue;
+    }
   }
 
   return { cardRefs, fileRefs };
@@ -357,8 +394,17 @@ const MapHomePage: React.FC = () => {
 
   const selectedViewItem = useMemo(() => {
     if (!selected) return null;
-    const extra = (selected as any).view ?? {};
-    return { ...toViewDetails(selected), ...extra } as PropertyViewDetails;
+    const extra = ((selected as any).view ?? {}) as Record<string, unknown>;
+
+    // 값이 정의된(=== undefined가 아닌) 키만 덮어쓰기
+    const definedExtra = Object.fromEntries(
+      Object.entries(extra).filter(([, v]) => v !== undefined)
+    );
+
+    return {
+      ...toViewDetails(selected),
+      ...definedExtra,
+    } as PropertyViewDetails;
   }, [selected]);
 
   /** 지도 관련 */
@@ -450,12 +496,6 @@ const MapHomePage: React.FC = () => {
       view: {
         ...(p as any).view,
 
-        listingStars:
-          typeof patch.listingStars === "number"
-            ? patch.listingStars
-            : (p as any).view?.listingStars,
-        elevator: (patch as any).elevator ?? (p as any).view?.elevator,
-
         // 미디어 (카드/평탄)
         ...(() => {
           const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
@@ -472,36 +512,40 @@ const MapHomePage: React.FC = () => {
           };
         })(),
 
-        // 파일(세로)
         fileItems: Array.isArray((patch as any).fileItems)
           ? normalizeImages((patch as any).fileItems)
           : (p as any).view?.fileItems,
 
+        // refs도 유지/갱신
+        _imageCardRefs: Array.isArray((patch as any)._imageCardRefs)
+          ? (patch as any)._imageCardRefs
+          : (p as any).view?._imageCardRefs,
+
+        _fileItemRefs: Array.isArray((patch as any)._fileItemRefs)
+          ? (patch as any)._fileItemRefs
+          : (p as any).view?._fileItemRefs,
+
+        // 이하 기존 필드들
         publicMemo: (patch as any).publicMemo ?? (p as any).view?.publicMemo,
         secretMemo: (patch as any).secretMemo ?? (p as any).view?.secretMemo,
         officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
         officePhone2:
           (patch as any).officePhone2 ?? (p as any).view?.officePhone2,
-
         options: (patch as any).options ?? (p as any).view?.options,
         optionEtc: (patch as any).optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: (patch as any).unitLines ?? (p as any).view?.unitLines,
-
         parkingType: (patch as any).parkingType ?? (p as any).view?.parkingType,
         parkingCount:
           (patch as any).parkingCount ?? (p as any).view?.parkingCount,
-
         slopeGrade: (patch as any).slopeGrade ?? (p as any).view?.slopeGrade,
         structureGrade:
           (patch as any).structureGrade ?? (p as any).view?.structureGrade,
-
         aspect: (patch as any).aspect ?? (p as any).view?.aspect,
         aspectNo: (patch as any).aspectNo ?? (p as any).view?.aspectNo,
         aspect1: (patch as any).aspect1 ?? (p as any).view?.aspect1,
         aspect2: (patch as any).aspect2 ?? (p as any).view?.aspect2,
         aspect3: (patch as any).aspect3 ?? (p as any).view?.aspect3,
-
         totalBuildings:
           (patch as any).totalBuildings ?? (p as any).view?.totalBuildings,
         totalFloors: (patch as any).totalFloors ?? (p as any).view?.totalFloors,
@@ -510,13 +554,11 @@ const MapHomePage: React.FC = () => {
         remainingHouseholds:
           (patch as any).remainingHouseholds ??
           (p as any).view?.remainingHouseholds,
-
         completionDate:
           (patch as any).completionDate ?? (p as any).view?.completionDate,
         exclusiveArea:
           (patch as any).exclusiveArea ?? (p as any).view?.exclusiveArea,
         realArea: (patch as any).realArea ?? (p as any).view?.realArea,
-
         dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
       },
     };
@@ -626,7 +668,7 @@ const MapHomePage: React.FC = () => {
   if (!KAKAO_MAP_KEY) {
     return (
       <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
-        NEXT_PUBLIC_KAKAO_JS_KEY 환경변수가 설정되지 않았습니다. (Vercel
+        NEXT_PUBLIC_KAKAO_MAP_KEY 환경변수가 설정되지 않았습니다. (Vercel
         프로젝트 환경변수에 추가 후 재배포 필요)
       </div>
     );
@@ -865,29 +907,35 @@ const MapHomePage: React.FC = () => {
               pick(3) ??
               (payload.aspectNo === "3호" ? payload.aspect : undefined);
 
-            // 1) 업로드 들어온 이미지들 정규화
-            const cardsRaw =
+            // ================= refs 우선 사용 =================
+            const refsCardsRaw = Array.isArray((payload as any).imageFolders)
+              ? ((payload as any).imageFolders as any[][])
+              : undefined;
+            const refsFilesRaw = Array.isArray((payload as any).verticalImages)
+              ? ((payload as any).verticalImages as any[])
+              : undefined;
+
+            const cardsUiRaw =
               (payload as any).imageCards ??
               (payload as any).imagesByCard ??
               (Array.isArray((payload as any).images)
                 ? [(payload as any).images]
                 : []);
-            const filesRaw = (payload as any).fileItems;
+            const filesUiRaw = (payload as any).fileItems;
 
-            const cards = normalizeImageCards(cardsRaw);
-            const files = normalizeImages(filesRaw);
+            const cardsInput = refsCardsRaw ?? cardsUiRaw;
+            const filesInput = refsFilesRaw ?? filesUiRaw;
 
-            // 2) IndexedDB에 저장 → refs만 얻음
+            // IndexedDB에 저장/참조화
             const { cardRefs, fileRefs } = await materializeToRefs(
               id,
-              cards,
-              files
+              cardsInput,
+              filesInput
             );
 
-            // 3) 뷰에서 바로 보이도록, refs를 즉시 수화해서 url도 같이 채운 버전
+            // 즉시 보이도록 hydrate
             const hydratedCards: any[][] = [];
-            for (let gi = 0; gi < cardRefs.length; gi++) {
-              const g = cardRefs[gi];
+            for (const g of cardRefs) {
               const arr: any[] = [];
               for (const r of g) {
                 const url = await getImageUrlFromRef(r);
@@ -941,10 +989,11 @@ const MapHomePage: React.FC = () => {
                 publicMemo: payload.publicMemo,
                 secretMemo: payload.secretMemo,
 
+                // 저장용 참조
                 _imageCardRefs: cardRefs,
                 _fileItemRefs: fileRefs,
 
-                // 화면 포맷: 즉시 수화된 url도 함께 둠
+                // 화면 포맷
                 imageCards: hydratedCards,
                 images: hydratedCards.flat(),
                 fileItems: hydratedFiles,
@@ -968,13 +1017,11 @@ const MapHomePage: React.FC = () => {
       {editOpen && selectedViewItem && (
         <PropertyEditModal
           open={true}
-          // 뷰 모달과 겹칠 수 있으므로, DOM상 아래에 렌더해서 위에 보이게 함
           initialData={selectedViewItem}
           onClose={() => setEditOpen(false)}
           onSubmit={async (payload) => {
-            // Edit 모달에서 올라온 payload → 기존 아이템에 patch 반영
             const patch: Partial<PropertyViewDetails> = {
-              id: (payload as any).id, // 아이디 유지용 (applyPatchToItem 내부에선 사용X)
+              id: (payload as any).id,
               title: (payload as any).title,
               address: (payload as any).address,
               salePrice: (payload as any).salePrice,
@@ -1006,10 +1053,79 @@ const MapHomePage: React.FC = () => {
               publicMemo: (payload as any).publicMemo,
               secretMemo: (payload as any).secretMemo,
 
-              // 이미지: Edit 모달은 images(평탄)만 보내고 있음
+              // 레거시 평탄도 그대로 두고 (뷰는 cards를 우선 사용)
               images: (payload as any).images,
-              // 필요하면 imageCards/fileItems도 여기에 세팅 가능
             };
+
+            // 카드 데이터 coming from modal
+            const cardsFromPayload =
+              (payload as any).imageCards ?? (payload as any).imagesByCard;
+            if (Array.isArray(cardsFromPayload)) {
+              (patch as any).imageCards = cardsFromPayload;
+            } else if (Array.isArray((payload as any).images)) {
+              // 카드가 전혀 없을 때만 마지막 수단으로 1카드로 묶기
+              (patch as any).imageCards = [(payload as any).images];
+            }
+
+            // 세로 파일 카드 즉시 반영 (있을 때만)
+            if (Array.isArray((payload as any).fileItems)) {
+              (patch as any).fileItems = (payload as any).fileItems;
+            }
+
+            // ====== 영구 보관을 위해 refs로 재료화 + 즉시 hydrate ======
+            try {
+              const propertyId = String(
+                (payload as any).id ?? selectedId ?? ""
+              );
+              // 1) refs 소스 결정 (그대로 유지)
+              const refsCardsRaw = Array.isArray((payload as any).imageFolders)
+                ? ((payload as any).imageFolders as any[][])
+                : (patch as any).imageCards ?? [];
+              const refsFilesRaw = Array.isArray(
+                (payload as any).verticalImages
+              )
+                ? ((payload as any).verticalImages as any[])
+                : (patch as any).fileItems ?? [];
+
+              // 2) ✅ 절대 정규화하지 말고 **원본을 그대로** 넘긴다
+              const { cardRefs, fileRefs } = await materializeToRefs(
+                propertyId,
+                refsCardsRaw,
+                refsFilesRaw
+              );
+
+              // 3) patch에 refs 넣어서 localStorage 영구 보관
+              (patch as any)._imageCardRefs = cardRefs;
+              (patch as any)._fileItemRefs = fileRefs;
+
+              // 4) 즉시 화면 반영을 위해 hydrate한 url도 patch에 주입
+              const hydratedCards: any[][] = [];
+              for (const g of cardRefs) {
+                const arr: any[] = [];
+                for (const r of g) {
+                  const url = await getImageUrlFromRef(r);
+                  if (url) arr.push({ url, name: r.name, caption: r.caption });
+                }
+                if (arr.length) hydratedCards.push(arr);
+              }
+              const hydratedFiles: any[] = [];
+              for (const r of fileRefs) {
+                const url = await getImageUrlFromRef(r);
+                if (url)
+                  hydratedFiles.push({ url, name: r.name, caption: r.caption });
+              }
+
+              if (hydratedCards.length) {
+                (patch as any).imageCards = hydratedCards;
+                (patch as any).images = hydratedCards.flat();
+              }
+              if (hydratedFiles.length) {
+                (patch as any).fileItems = hydratedFiles;
+              }
+            } catch (e) {
+              console.warn("[edit] materialize/hydrate 실패:", e);
+              // 실패하더라도 patch의 imageCards/fileItems는 그대로 반영됨(세션 한정)
+            }
 
             setItems((prev) =>
               prev.map((p) =>

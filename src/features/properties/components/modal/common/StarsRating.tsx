@@ -14,6 +14,8 @@ type Props = {
   size?: "sm" | "md";
   /** 스크린리더 라벨 */
   ariaLabel?: string;
+  /** 부모에서 정렬/간격 제어용 */
+  className?: string;
 };
 
 export default function StarsRating({
@@ -23,6 +25,7 @@ export default function StarsRating({
   allowClear = true,
   size = "md",
   ariaLabel = "별점 선택",
+  className,
 }: Props) {
   const [hover, setHover] = React.useState<number | null>(null);
   const effective = hover ?? value;
@@ -61,7 +64,12 @@ export default function StarsRating({
       aria-readonly={readOnly || undefined}
       tabIndex={canInteract ? 0 : -1}
       onKeyDown={onKeyDown}
-      className="inline-flex items-center gap-1 outline-none focus:ring-2 focus:ring-blue-200 rounded"
+      // 가운데 정렬/라인-높이 간섭 최소화
+      className={cn(
+        "inline-flex items-center gap-1 outline-none rounded",
+        "focus:ring-2 focus:ring-blue-200",
+        className
+      )}
       onMouseLeave={() => setHover(null)}
     >
       {[1, 2, 3, 4, 5].map((n) => {
@@ -84,15 +92,17 @@ export default function StarsRating({
             title={`${n}점`}
           >
             <Star
-              // stroke 색상은 text-*, 채우기는 fill={currentColor}로 제어
+              // baseline 간극 방지: block
               className={cn(
                 starSize,
+                "block",
                 active ? "text-amber-500" : "text-gray-300"
               )}
-              strokeWidth={1.75}
-              // lucide Star는 path fill="none"이 기본이므로,
-              // svg에 fill을 직접 주어 채워줍니다.
+              // 살짝 두꺼운 스트로크로 더 또렷하게
+              strokeWidth={2}
               fill={active ? "currentColor" : "none"}
+              // 원하면 더 선명하게:
+              // shapeRendering="geometricPrecision"
             />
           </button>
         );

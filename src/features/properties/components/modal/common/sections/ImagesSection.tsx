@@ -71,7 +71,7 @@ export default function ImagesSection({
         maxCount={maxFiles}
         layout="tall"
         tallHeightClass="h-80"
-        objectFit="contain"
+        objectFit="cover" // ✅ 가로 카드와 동일하게 꽉 채워 보이도록
         onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
         onOpenPicker={() => fileInputRef.current?.click()}
         registerInputRef={(el) => (fileInputRef.current = el)}

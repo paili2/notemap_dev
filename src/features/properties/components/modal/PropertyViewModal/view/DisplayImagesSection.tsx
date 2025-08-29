@@ -2,47 +2,37 @@
 
 import type { ImageItem } from "@/features/properties/types/media";
 import LightboxModal from "./LightboxModal";
+import MiniCarousel from "./MiniCarousel";
 import { useState } from "react";
 
 type AnyImg = ImageItem | string | null | undefined;
 
 type Props = {
-  /** 가로형 이미지 카드(업로드 카드들) */
   cards?: Array<Array<AnyImg>>;
-  /** 레거시 평탄 이미지 배열(카드가 없을 때만 1카드로 사용) */
   images?: Array<AnyImg>;
-  /** 세로 파일 카드(업로드 화면의 '파일' 카드) */
   files?: Array<AnyImg>;
+  showNames?: boolean;
 };
 
 const isOkUrl = (u: string) => /^https?:|^data:|^blob:/.test(u);
 
-/** url 없고 dataUrl만 있어도 통과 */
 function normOne(it: AnyImg): ImageItem | null {
   if (!it) return null;
-
-  if (typeof it === "string") {
+  if (typeof it === "string")
     return isOkUrl(it) ? { url: it, name: "", caption: "" } : null;
-  }
 
-  if (typeof it === "object") {
-    const raw = it as any;
-    const u = typeof raw.url === "string" ? String(raw.url) : "";
-    const d = typeof raw.dataUrl === "string" ? String(raw.dataUrl) : "";
+  const raw = it as any;
+  const u = typeof raw.url === "string" ? String(raw.url) : "";
+  const d = typeof raw.dataUrl === "string" ? String(raw.dataUrl) : "";
+  if (!isOkUrl(u) && !/^data:/.test(d)) return null;
+  const finalUrl = isOkUrl(u) ? u : d;
 
-    if (!isOkUrl(u) && !/^data:/.test(d)) return null;
-
-    const finalUrl = isOkUrl(u) ? u : d;
-
-    return {
-      url: finalUrl,
-      name: typeof raw.name === "string" ? raw.name : "",
-      caption: typeof raw.caption === "string" ? raw.caption : "",
-      dataUrl: d || undefined,
-    };
-  }
-
-  return null;
+  return {
+    url: finalUrl,
+    name: typeof raw.name === "string" ? raw.name : "",
+    caption: typeof raw.caption === "string" ? raw.caption : "",
+    dataUrl: d || undefined,
+  };
 }
 
 function normList(list?: Array<AnyImg>): ImageItem[] {
@@ -50,23 +40,24 @@ function normList(list?: Array<AnyImg>): ImageItem[] {
   return list.map(normOne).filter(Boolean) as ImageItem[];
 }
 
-export default function DisplayImagesSection({ cards, images, files }: Props) {
-  // 카드 정규화 (카드별 분리 유지)
+export default function DisplayImagesSection({
+  cards,
+  images,
+  files,
+  showNames = false,
+}: Props) {
   const cardGroups: ImageItem[][] = Array.isArray(cards)
     ? cards.map((g) => normList(g)).filter((g) => g.length > 0)
     : [];
 
-  // 카드가 없으면 레거시 images를 1카드로
   if (cardGroups.length === 0 && Array.isArray(images)) {
     const legacy = normList(images);
     if (legacy.length) cardGroups.push(legacy);
   }
 
-  // 세로 파일 카드
   const fileCard = normList(files);
   const hasFileCard = fileCard.length > 0;
 
-  // 라이트박스
   const [open, setOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
   const [startIndex, setStartIndex] = useState(0);
@@ -98,31 +89,27 @@ export default function DisplayImagesSection({ cards, images, files }: Props) {
             key={`card-${gi}`}
             className="rounded-xl border bg-gray-50/60 p-3"
           >
-            <div
-              className="relative aspect-video overflow-hidden rounded-md border bg-black/5 cursor-pointer"
-              onClick={() => openLightbox(group, 0)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={main.dataUrl ?? main.url}
-                alt={main.name || main.caption || "대표 이미지"}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                decoding="async"
+            <div className="relative aspect-video overflow-hidden rounded-md border bg-white">
+              <MiniCarousel
+                images={group}
+                aspect="video"
+                objectFit="cover"
+                showDots
+                showIndex // ✅ 1 / N 표시 켜기
+                indexPlacement="top-right" // ✅ 우상단 위치
+                onImageClick={(i) => openLightbox(group, i)}
               />
-              {/* 우상단 장수 배지 */}
-              <div className="absolute top-2 right-2 rounded bg-black/55 text-white text-xs px-2 py-0.5">
-                {group.length}장
-              </div>
-              {/* 좌하단 파일명(있으면) */}
-              {main.name ? (
+
+              {/* 🔻 기존 '7장' 배지는 제거 */}
+              {/* <div className="absolute top-2 right-2 ...">{group.length}장</div> */}
+
+              {showNames && main.name ? (
                 <div className="absolute bottom-2 left-2 max-w-[75%] rounded bg-black/40 text-white text-[11px] px-2 py-0.5 truncate">
                   {main.name}
                 </div>
               ) : null}
             </div>
 
-            {/* 🔽 카드 캡션(대표 이미지의 caption을 카드 아래에 표시) */}
             {mainCaption && (
               <p className="mt-2 text-xs text-gray-600 whitespace-pre-wrap break-words text-center">
                 {mainCaption}
@@ -132,41 +119,27 @@ export default function DisplayImagesSection({ cards, images, files }: Props) {
         );
       })}
 
-      {/* 세로 파일 카드 */}
+      {/* 세로(파일) 카드 */}
       {hasFileCard && (
         <div className="rounded-xl border bg-gray-50/60 p-3">
-          <div
-            className="relative h-80 overflow-hidden rounded-md border bg-black/5 cursor-pointer"
-            onClick={() => openLightbox(fileCard, 0)}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={fileCard[0].dataUrl ?? fileCard[0].url}
-              alt={fileCard[0].name || fileCard[0].caption || "파일 이미지"}
-              className="w-full h-full object-contain"
-              loading="lazy"
-              decoding="async"
+          <div className="relative h-80 overflow-hidden rounded-md border bg-white">
+            <MiniCarousel
+              images={fileCard}
+              aspect="auto" // 부모 높이 꽉 채움
+              objectFit="cover" // 생성 화면과 동일하게 크롭
+              showDots
+              showIndex // ✅ 1 / N 표시
+              indexPlacement="top-right" // ✅ 우상단 위치
+              onImageClick={(i) => openLightbox(fileCard, i)}
+              className="absolute inset-0"
             />
-            <div className="absolute top-2 right-2 rounded bg-black/55 text-white text-xs px-2 py-0.5">
-              {fileCard.length}장
-            </div>
-            {fileCard[0].name ? (
-              <div className="absolute bottom-2 left-2 max-w-[75%] rounded bg-black/40 text-white text-[11px] px-2 py-0.5 truncate text-center">
-                {fileCard[0].name}
-              </div>
-            ) : null}
-          </div>
 
-          {/* 🔽 파일 카드 캡션(첫 이미지 caption) */}
-          {fileCard[0].caption?.trim() ? (
-            <p className="mt-2 text-xs text-gray-600 whitespace-pre-wrap break-words">
-              {fileCard[0].caption}
-            </p>
-          ) : null}
+            {/* 🔻 기존 '7장' 배지는 제거 */}
+            {/* <div className="absolute top-2 right-2 ...">{fileCard.length}장</div> */}
+          </div>
         </div>
       )}
 
-      {/* 공용 라이트박스 */}
       <LightboxModal
         open={open}
         images={lightboxImages}

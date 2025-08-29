@@ -66,6 +66,6 @@ const config: Config = {
       },
     },
   },
-  plugins: [animate], // ⬅️ 최상위로 이동
+  plugins: [require("tailwindcss-animate"), require("tailwind-scrollbar-hide")],
 };
 export default config;

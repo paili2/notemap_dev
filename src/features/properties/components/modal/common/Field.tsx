@@ -4,7 +4,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Gap = 1 | 2 | 3 | 4; // Tailwind 정적 클래스 매핑 목적
+type Gap = 1 | 2 | 3 | 4;
 type Align = "start" | "center" | "end";
 type LongLabelMode = "truncate" | "wrap";
 
@@ -31,6 +31,9 @@ export type FieldProps = {
   htmlFor?: string;
   /** label을 실제 <label>로 렌더링 (htmlFor와 함께 쓰면 좋음) */
   renderAsLabel?: boolean;
+
+  /** ✅ 라벨/컨텐츠 영역 최소 높이(px). 기본 36px(h-9) */
+  rowMinHeight?: number | string;
 };
 
 export default function Field({
@@ -48,6 +51,7 @@ export default function Field({
   longLabelMode = "truncate",
   htmlFor,
   renderAsLabel = false,
+  rowMinHeight = 36, // ✅ 기본 36px (Tailwind h-9)
 }: FieldProps) {
   const gapClass =
     gap === 1 ? "gap-1" : gap === 2 ? "gap-2" : gap === 3 ? "gap-3" : "gap-4";
@@ -68,8 +72,7 @@ export default function Field({
   // 긴 라벨 처리
   const isTruncate = longLabelMode === "truncate";
   const longLabelClass = isTruncate
-    ? // truncate가 제대로 동작하려면 overflow-hidden 필요
-      "truncate overflow-hidden"
+    ? "truncate overflow-hidden"
     : "whitespace-normal break-keep";
 
   const LabelTag: "div" | "label" = renderAsLabel ? "label" : "div";
@@ -86,23 +89,44 @@ export default function Field({
       style={{ gridTemplateColumns: gridCols }}
     >
       <LabelTag
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore: htmlFor는 <label>일 때만 의미 있음
+        // @ts-ignore htmlFor는 <label>일 때만 의미 있음
         htmlFor={renderAsLabel ? htmlFor : undefined}
         className={cn(
-          "text-muted-foreground",
-          // wrap 모드가 아니면 nowrap 유지
+          // ✅ 수직 가운데 + 동일 라인높이 간섭 제거
+          "flex items-center text-muted-foreground leading-none",
           noWrapLabel && longLabelMode !== "wrap" && "whitespace-nowrap",
           dense && "pt-0.5",
           longLabelClass,
           labelClassName
         )}
-        style={labelMaxWidth ? { maxWidth: labelMaxWidth } : undefined}
+        style={{
+          ...(labelMaxWidth ? { maxWidth: labelMaxWidth } : null),
+          // ✅ 라벨도 동일한 최소 높이
+          minHeight:
+            typeof rowMinHeight === "number"
+              ? `${rowMinHeight}px`
+              : rowMinHeight,
+        }}
       >
         {label}
       </LabelTag>
 
-      <div className={cn("min-w-0", contentClassName)}>{children}</div>
+      <div
+        className={cn(
+          // ✅ 컨텐츠도 수직 가운데 + 라인하이트 간섭 제거
+          "min-w-0 flex items-center leading-none",
+          contentClassName
+        )}
+        style={{
+          // ✅ 컨텐츠도 동일한 최소 높이
+          minHeight:
+            typeof rowMinHeight === "number"
+              ? `${rowMinHeight}px`
+              : rowMinHeight,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

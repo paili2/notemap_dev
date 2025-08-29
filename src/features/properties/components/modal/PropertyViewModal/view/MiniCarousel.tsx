@@ -1,176 +1,201 @@
+// MiniCarousel.tsx
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-// 프로젝트에서 쓰는 ImageItem 타입( url, caption, dataUrl, name … )
+import * as React from "react";
 import type { ImageItem } from "@/features/properties/types/media";
-import { useEffect, useRef, useState } from "react";
+
+type IndexPlacement = "top-right" | "top-left" | "bottom-right" | "bottom-left";
 
 type Props = {
-  images: ImageItem[]; // 카드 안의 최대 20장
-  aspect?: "video" | "square" | "tall";
+  images: ImageItem[];
+  /** "video"면 16:9, "square"면 1:1, "auto"면 부모 높이 채움 */
+  aspect?: "video" | "square" | "auto";
+  /** 이미지 fit 방식 */
   objectFit?: "cover" | "contain";
+  /** 하단 점(페이지네이션) 표시 */
   showDots?: boolean;
-  showCountBadge?: boolean;
-  className?: string;
+  /** 이미지 클릭 콜백 */
   onImageClick?: (index: number) => void;
+  /** (선택) 추가 클래스 */
+  className?: string;
+  /** 1 / N 인덱스 배지 표시 */
+  showIndex?: boolean;
+  /** 인덱스 배지 위치 (기본: 우상단) */
+  indexPlacement?: IndexPlacement;
 };
 
 export default function MiniCarousel({
   images,
-  aspect = "video",
+  aspect = "auto",
   objectFit = "cover",
-  showDots = true,
-  showCountBadge = true,
-  className,
+  showDots = false,
   onImageClick,
+  className,
+  showIndex = true,
+  indexPlacement = "top-right",
 }: Props) {
-  const count = images?.length ?? 0;
-  const [cur, setCur] = useState(0);
+  const [idx, setIdx] = React.useState(0);
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const hasImages = Array.isArray(images) && images.length > 0;
 
-  useEffect(() => {
-    if (cur > 0 && cur >= count) setCur(count - 1);
-  }, [count, cur]);
+  React.useEffect(() => {
+    if (!hasImages) return;
+    setIdx((cur) => Math.max(0, Math.min(cur, images.length - 1)));
+  }, [hasImages, images.length]);
 
-  const goPrev = () => count && setCur((c) => (c - 1 + count) % count);
-  const goNext = () => count && setCur((c) => (c + 1) % count);
-
-  // 드래그/스와이프
-  const dragX = useRef<number | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
-    dragX.current = e.clientX;
+  const go = (n: number) => {
+    if (!hasImages) return;
+    const len = images.length;
+    setIdx(((n % len) + len) % len);
   };
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (dragX.current == null) return;
-    const dx = e.clientX - dragX.current;
-    if (dx > 40) goPrev();
-    if (dx < -40) goNext();
-    dragX.current = null;
-  };
-  const onPointerCancel = () => (dragX.current = null);
+  const prev = () => go(idx - 1);
+  const next = () => go(idx + 1);
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "ArrowLeft") {
-      e.preventDefault();
-      goPrev();
-    }
-    if (e.key === "ArrowRight") {
-      e.preventDefault();
-      goNext();
-    }
-  };
+  // 키보드 내비
+  React.useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    el.addEventListener("keydown", onKey);
+    return () => el.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, images.length]);
 
-  const boxAspect =
+  const aspectClass =
     aspect === "video"
       ? "aspect-video"
       : aspect === "square"
       ? "aspect-square"
-      : "h-64";
+      : "";
 
-  if (!count) {
-    return (
-      <div className={cn("rounded-md border bg-gray-50/60 p-2", className)}>
-        <div
-          className={cn(
-            "rounded-md border bg-white grid place-items-center text-xs text-gray-400",
-            boxAspect
-          )}
-        >
-          이미지 없음
-        </div>
-      </div>
-    );
-  }
+  const wrapClasses = [
+    "relative w-full select-none outline-none",
+    aspect === "auto" ? "h-full" : aspectClass,
+    className || "",
+  ].join(" ");
 
-  const img = images[cur];
+  const indexPos =
+    indexPlacement === "top-right"
+      ? "top-2 right-2"
+      : indexPlacement === "top-left"
+      ? "top-2 left-2"
+      : indexPlacement === "bottom-left"
+      ? "bottom-2 left-2"
+      : "bottom-2 right-2";
 
   return (
-    <div
-      role="group"
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-      className={cn(
-        "relative rounded-md border bg-white overflow-hidden",
-        className
-      )}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-    >
-      <div
-        className={cn("relative w-full select-none", boxAspect)}
-        onClick={() => onImageClick?.(cur)}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          key={`${img.url}-${cur}`}
-          src={img.dataUrl ?? img.url}
-          alt={img.caption || img.name || `image-${cur + 1}`}
-          className={cn(
-            "w-full h-full",
-            objectFit === "cover" ? "object-cover" : "object-contain"
-          )}
-          loading="lazy"
-          decoding="async"
-          draggable={false}
-          onError={(e) =>
-            ((e.currentTarget as HTMLImageElement).style.opacity = "0.2")
-          }
-        />
-
-        {/* 좌/우 버튼 */}
-        {count > 1 && (
-          <>
-            <button
-              type="button"
-              aria-label="이전"
-              onClick={goPrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-full bg-black/40 hover:bg-black/55 text-white p-2"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              aria-label="다음"
-              onClick={goNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center rounded-full bg-black/40 hover:bg-black/55 text-white p-2"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </>
-        )}
-
-        {/* 카운트 배지 */}
-        {showCountBadge && count > 1 && (
-          <div className="absolute bottom-2 right-2 rounded-md bg-black/55 text-white text-[11px] px-2 py-0.5">
-            {cur + 1} / {count}
-          </div>
-        )}
-
-        {/* 점 네비게이션 */}
-        {showDots && count > 1 && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-            {images.map((_, i) => (
-              <button
+    <div ref={wrapRef} tabIndex={0} className={wrapClasses}>
+      {/* Slides */}
+      <div className="absolute inset-0 overflow-hidden rounded-md">
+        {hasImages &&
+          images.map((img, i) => {
+            const src = img.dataUrl ?? img.url;
+            return (
+              <div
                 key={i}
-                aria-label={`슬라이드 ${i + 1}`}
-                onClick={() => setCur(i)}
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full",
-                  i === cur ? "bg-white" : "bg-white/50 hover:bg-white/80"
+                className={[
+                  "absolute inset-0 transition-opacity duration-300 ease-in-out",
+                  i === idx ? "opacity-100" : "opacity-0",
+                  objectFit === "contain" ? "grid place-items-center" : "",
+                ].join(" ")}
+                onClick={() => onImageClick?.(i)}
+                role="button"
+              >
+                {objectFit === "cover" ? (
+                  <div
+                    className="absolute inset-0 bg-no-repeat bg-center bg-cover"
+                    style={{ backgroundImage: `url("${src}")` }}
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={src}
+                    alt={img.name || img.caption || `image-${i + 1}`}
+                    className="max-w-full max-h-full w-auto h-auto object-contain object-center"
+                    loading="lazy"
+                    decoding="async"
+                    draggable={false}
+                  />
                 )}
-              />
-            ))}
+              </div>
+            );
+          })}
+
+        {!hasImages && (
+          <div className="absolute inset-0 grid place-items-center text-gray-400 text-sm">
+            이미지가 없습니다
           </div>
         )}
       </div>
 
-      {/* 캡션(있을 때만) */}
-      {img.caption && img.caption.trim() && (
-        <div className="px-2 py-1 border-t bg-gray-50 text-[12px] text-gray-600 line-clamp-2">
-          {img.caption}
+      {hasImages && images.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={prev}
+            aria-label="이전"
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-10 h-9 w-9 grid place-items-center text-gray-600 hover:text-gray-800 focus:outline-none"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M15 5L8 12L15 19"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="다음"
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-10 h-9 w-9 grid place-items-center text-gray-600 hover:text-gray-800 focus:outline-none"
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M9 5L16 12L9 19"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* Dots (in-photo) */}
+      {showDots && hasImages && images.length > 1 && (
+        <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1.5">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setIdx(i)}
+              aria-label={`go-${i}`}
+              className={[
+                "h-1.5 rounded-full transition-all",
+                i === idx
+                  ? "w-5 bg-gray-700"
+                  : "w-2.5 bg-gray-400 hover:bg-gray-500",
+              ].join(" ")}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 1 / N 인덱스 배지 */}
+      {showIndex && hasImages && images.length > 1 && (
+        <div
+          className={[
+            "absolute z-10 rounded-md bg-black/55 text-white text-xs px-2 py-0.5",
+            indexPos,
+          ].join(" ")}
+        >
+          {idx + 1} / {images.length}
         </div>
       )}
     </div>

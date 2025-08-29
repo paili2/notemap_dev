@@ -67,7 +67,6 @@ export default function LightboxModal({
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
-  // 썸네일 열 폭 (grid에서 1열 고정폭으로 사용)
   const thumbColWidth = 112; // px (w-28)
 
   return (
@@ -91,17 +90,14 @@ export default function LightboxModal({
         </button>
       </div>
 
-      {/* 본문: Grid 레이아웃 (썸네일=1열, 메인=2열, 제목=2열) */}
+      {/* 본문 */}
       <div className="relative px-4 pb-4 flex-1" onClick={stop}>
         <div
           className={
             withThumbnails && images.length > 1
-              ? // 1열: 고정폭 썸네일, 2열: 메인
-                `grid gap-4 items-start`
-              : // 썸네일 없으면 단일열
-                `grid gap-4 items-start`
+              ? "grid gap-4 items-stretch"
+              : "grid gap-4 items-stretch"
           }
-          // tailwind 任의 템플릿: 1열 고정 112px, 2열 auto
           style={{
             gridTemplateColumns:
               withThumbnails && images.length > 1
@@ -109,10 +105,10 @@ export default function LightboxModal({
                 : "1fr",
           }}
         >
-          {/* 1열: 왼쪽 세로 썸네일 컬럼 */}
+          {/* 왼쪽 썸네일 컬럼 */}
           {withThumbnails && images.length > 1 && (
             <div className="w-28">
-              <div className="max-h-[78vh] overflow-y-auto pr-1">
+              <div className="max-h-[78vh] overflow-y-auto pr-1 scrollbar-hide">
                 <div className="flex flex-col gap-2">
                   {images.map((im, i) => {
                     const active = i === safeIndex;
@@ -151,8 +147,8 @@ export default function LightboxModal({
             </div>
           )}
 
-          {/* 2열: 우측 메인 이미지 영역 */}
-          <div className="relative flex items-center justify-center">
+          {/* 메인 이미지 영역: 고정 높이로 세로 중앙 정렬 */}
+          <div className="relative h-[78vh] flex items-center justify-center">
             {images.length > 1 && (
               <>
                 <button
@@ -172,28 +168,34 @@ export default function LightboxModal({
               </>
             )}
 
-            {/* 메인 이미지 */}
+            {/* 메인 이미지: 컨테이너 높이에 맞춰 항상 세로 중앙 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={cur?.dataUrl ?? cur?.url}
               alt={albumTitle || `이미지 ${safeIndex + 1}`}
-              className={`max-h-[78vh] max-w-[85vw] ${fitClass} select-none`}
+              className={`block max-h-full max-w-[85vw] ${fitClass} select-none`}
               draggable={false}
             />
 
-            {/* 카운터 (우측 상단) */}
+            {/* 카운터 */}
             <div className="absolute top-3 right-3 md:right-6 rounded bg-black/60 text-white text-xs px-2 py-0.5">
               {safeIndex + 1} / {images.length}
             </div>
           </div>
 
-          {/* 2열(메인열) 아래에 제목 배치: 메인과 정확히 가운데 정렬 */}
+          {/* 제목: 이미지 영역 밖에 배치 (세로 중앙 정렬에 영향 X) */}
           {albumTitle && (
             <div
-              className="col-start-2 text-center text-white text-lg whitespace-pre-wrap break-words px-2"
-              title={albumTitle}
+              className={
+                withThumbnails && images.length > 1 ? "col-start-2" : ""
+              }
             >
-              {albumTitle}
+              <div
+                className="text-center text-white text-lg whitespace-pre-wrap break-words px-2"
+                title={albumTitle}
+              >
+                {albumTitle}
+              </div>
             </div>
           )}
         </div>
