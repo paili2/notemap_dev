@@ -25,7 +25,9 @@ const Input = React.forwardRef<HTMLInputElement, Props>(
           className={cn(
             "flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm",
             leftIcon ? "pl-2" : "",
-            rightIcon ? "pr-2" : ""
+            rightIcon ? "pr-2" : "",
+            type === "number" &&
+              "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           )}
           ref={ref}
           {...props}
