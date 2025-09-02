@@ -6,6 +6,9 @@ import { Plus } from "lucide-react";
 import { OptionsSectionProps } from "./types";
 import OptionCell from "./OptionCell";
 
+/** 필요시 레거시 문자열 분리용 */
+const SPLIT_RE = /[,\n;/]+/;
+
 export default function OptionsSection({
   PRESET_OPTIONS,
   options,
@@ -15,17 +18,20 @@ export default function OptionsSection({
   optionEtc,
   setOptionEtc,
 }: OptionsSectionProps) {
-  /** 안전 기본값 & 노옵 setter */
+  /** 안전게이트 */
   const safeOptions = Array.isArray(options) ? options : [];
-  const safeOptionEtc = optionEtc ?? "";
   const safeSetOptions =
-    typeof setOptions === "function" ? setOptions : (_v: string[]) => {};
+    typeof setOptions === "function" ? setOptions : (_: string[]) => {};
   const safeSetEtcChecked =
-    typeof setEtcChecked === "function" ? setEtcChecked : (_v: boolean) => {};
+    typeof setEtcChecked === "function" ? setEtcChecked : (_: boolean) => {};
   const safeSetOptionEtc =
-    typeof setOptionEtc === "function" ? setOptionEtc : (_v: string) => {};
+    typeof setOptionEtc === "function" ? setOptionEtc : (_: string) => {};
+  const legacyEtc = (optionEtc ?? "")
+    .split(SPLIT_RE)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  /** 프리셋/커스텀 분리 */
+  /** 프리셋 / 커스텀 분리 */
   const presetSet = useMemo(
     () => new Set(PRESET_OPTIONS.map((v) => v.toLowerCase())),
     [PRESET_OPTIONS]
@@ -39,7 +45,13 @@ export default function OptionsSection({
     [safeOptions, presetSet]
   );
 
-  /** 커스텀 입력 목록(로컬) */
+  /** 내부에서 확실히 제어할 체크 상태 */
+  const [etcOn, setEtcOn] = useState<boolean>(() => !!etcChecked);
+  useEffect(() => {
+    setEtcOn(!!etcChecked);
+  }, [etcChecked]);
+
+  /** 커스텀 입력 로컬 상태 */
   const [customInputs, setCustomInputs] = useState<string[]>(
     customFromOptions.length > 0 ? customFromOptions : []
   );
@@ -48,53 +60,59 @@ export default function OptionsSection({
     customInputsRef.current = customInputs;
   }, [customInputs]);
 
-  /** echo 가드: 내가 setOptions 한 직후 1회 외부 반영 이펙트 스킵 */
+  /** 외부 -> 내부 반영에서 루프 방지 */
   const echoGuardRef = useRef(false);
 
-  /** 외부 변경 반영 + 체크 ON일 땐 최소 1칸 보장 */
+  /** 외부 → 로컬 반영 (options가 바뀌면 커스텀 목록 동기화) */
   useEffect(() => {
     if (echoGuardRef.current) {
-      echoGuardRef.current = false; // 한 번만 스킵
+      echoGuardRef.current = false;
       return;
     }
-    setCustomInputs((prev) => {
-      const empties = prev.filter((v) => !v.trim());
-      const merged = [...customFromOptions, ...empties];
-      if (etcChecked) return merged.length >= 1 ? merged : [""];
-      return merged;
-    });
-  }, [customFromOptions, etcChecked]);
+    setCustomInputs(customFromOptions);
+  }, [customFromOptions]);
 
-  /** 기존 단일 입력값 흡수 */
+  /** 최초 레거시 optionEtc 흡수: 체크 ON일 때만 */
   useEffect(() => {
-    if (safeOptionEtc && etcChecked) {
+    if (legacyEtc.length && etcOn) {
       setCustomInputs((prev) => {
-        const next = [...prev];
-        if (next.length === 0) return [safeOptionEtc];
-        if (!next[0]) next[0] = safeOptionEtc;
-        return next;
+        const seen = new Set<string>();
+        const merged = [...prev, ...legacyEtc].filter((v) => {
+          const k = v.trim().toLowerCase();
+          if (!k || seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+        return merged;
       });
       safeSetOptionEtc("");
     }
-  }, [safeOptionEtc, etcChecked, safeSetOptionEtc]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  /** options 동기화 (프리셋 + 커스텀 유니크) — 프리셋 동일 텍스트는 제외 */
+  /** 체크가 켜졌는데 입력이 0개면, 빈 인풋 1칸 자동 생성 */
+  useEffect(() => {
+    if (etcOn && customInputsRef.current.length === 0) {
+      setCustomInputs([""]);
+    }
+  }, [etcOn]);
+
+  /** options 동기화(프리셋 유지 + 커스텀 유니크) */
   const syncOptions = (nextCustomInputs: string[]) => {
-    const uniques: string[] = [];
     const seen = new Set<string>();
+    const uniqCustoms: string[] = [];
     for (const v of nextCustomInputs) {
       const t = v.trim();
       if (!t) continue;
-      const key = t.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      uniques.push(t);
+      const k = t.toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      uniqCustoms.push(t);
     }
-    const customsNotPreset = uniques.filter(
-      (t) => !presetSet.has(t.trim().toLowerCase())
+    const customsNotPreset = uniqCustoms.filter(
+      (t) => !presetSet.has(t.toLowerCase())
     );
-
-    echoGuardRef.current = true; // ✅ 다음 외부 반영 1회 무시
+    echoGuardRef.current = true;
     safeSetOptions([...presetSelected, ...customsNotPreset]);
   };
 
@@ -106,13 +124,44 @@ export default function OptionsSection({
     else safeSetOptions([...safeOptions, op]);
   };
 
-  /** 칸 추가/삭제/편집 */
+  /** onCheckedChange 값 보정 -> boolean */
+  const toBool = (v: any, cur: boolean): boolean => {
+    if (typeof v === "boolean") return v;
+    if (v === "indeterminate") return true;
+    if (v === "on") return !cur;
+    if (v && typeof v === "object" && "target" in v) {
+      const checked = (v as any)?.target?.checked;
+      if (typeof checked === "boolean") return checked;
+    }
+    return !cur;
+  };
+
+  /** 직접입력 토글(내부/부모 동시 반영) */
+  const toggleEtc = (val: any) => {
+    const next = toBool(val, etcOn);
+    setEtcOn(next);
+    safeSetEtcChecked(next);
+    if (!next) {
+      // 끄면 커스텀 비우고 프리셋만 남김
+      setCustomInputs([]);
+      echoGuardRef.current = true;
+      safeSetOptions(presetSelected);
+    } else {
+      // 켤 때 입력이 없으면 1칸 자동 생성
+      setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
+    }
+  };
+
+  /** 입력칸 조작 */
   const addCustomFieldAfter = (index?: number) => {
-    safeSetEtcChecked(true);
+    if (!etcOn) {
+      setEtcOn(true);
+      safeSetEtcChecked(true);
+    }
     setCustomInputs((prev) => {
       const copy = [...prev];
       const insertAt = typeof index === "number" ? index + 1 : copy.length;
-      copy.splice(insertAt, 0, ""); // 한 칸 추가
+      copy.splice(insertAt, 0, "");
       return copy;
     });
   };
@@ -121,14 +170,11 @@ export default function OptionsSection({
     setCustomInputs((prev) => {
       const copy = [...prev];
       copy.splice(idx, 1);
-      const next = etcChecked && copy.length === 0 ? [""] : copy;
-      // 삭제는 즉시 커밋(UX 선호에 따라 onBlur로 미룰 수도)
-      syncOptions(next);
-      return next;
+      syncOptions(copy);
+      return copy;
     });
   };
 
-  /** 로컬만 업데이트(타이핑 중) */
   const handleCustomChangeLocal = (idx: number, val: string) => {
     setCustomInputs((prev) => {
       const next = [...prev];
@@ -137,12 +183,11 @@ export default function OptionsSection({
     });
   };
 
-  /** onBlur 등에서 커밋 */
   const commitSync = () => {
     syncOptions(customInputsRef.current);
   };
 
-  /** 2개씩 끊어 줄(row) 배열 만들기 */
+  /** 2개씩 끊어 줄(row) */
   const rows: Array<[string | undefined, string | undefined]> = useMemo(() => {
     const r: Array<[string | undefined, string | undefined]> = [];
     for (let i = 0; i < customInputs.length; i += 2) {
@@ -151,7 +196,7 @@ export default function OptionsSection({
     return r;
   }, [customInputs]);
 
-  /** 폭 클래스 (그리드 안정화) */
+  /** 레이아웃 클래스 */
   const CELL_W_BASE = "w-[200px]";
   const CELL_W_MD = "md:w-[220px]";
   const INPUT_W_BASE = "w-[160px]";
@@ -174,112 +219,104 @@ export default function OptionsSection({
         ))}
       </div>
 
-      {/* 직접입력 */}
+      {/* 직접입력: 라벨을 각 줄의 첫 번째 셀로 배치(첫 줄만 체크박스/라벨, 이후 줄은 빈 자리) */}
       <div className="space-y-2">
         <div className="grid grid-cols-[auto_200px_200px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-2 gap-y-2 items-center">
-          {etcChecked ? (
-            rows.map((pair, rowIdx) => {
-              const isFirstRow = rowIdx === 0;
-              const isLastRow = rowIdx === rows.length - 1;
-              const [v1, v2] = pair;
-              const baseIndex = rowIdx * 2;
-
-              return (
-                <Fragment key={`row-${rowIdx}-${customInputs.length}`}>
-                  {/* 1열: 체크박스(첫 줄만) */}
-                  <div className="min-h-9 flex items-center">
-                    {isFirstRow ? (
-                      <label className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={etcChecked}
-                          onCheckedChange={(c) => {
-                            const next = c === true;
-                            safeSetEtcChecked(next);
-                            if (!next) {
-                              setCustomInputs([]);
-                              echoGuardRef.current = true;
-                              safeSetOptions(presetSelected);
-                            } else {
-                              setCustomInputs((prev) =>
-                                prev.length === 0 ? [""] : prev
-                              );
-                            }
-                          }}
-                        />
-                        <span className="text-sm">직접입력</span>
-                      </label>
-                    ) : (
-                      <div className="h-9" />
-                    )}
-                  </div>
-
-                  {/* 2열: 인풋 #1 */}
-                  <OptionCell
-                    value={v1}
-                    index={baseIndex}
-                    placeholder="예: 식기세척기"
-                    onChangeLocal={handleCustomChangeLocal}
-                    onCommit={commitSync}
-                    onRemove={removeCustomField}
-                    onAddAfter={addCustomFieldAfter}
-                    cellWidthBase={CELL_W_BASE}
-                    cellWidthMd={CELL_W_MD}
-                    inputWidthBase={INPUT_W_BASE}
-                    inputWidthMd={INPUT_W_MD}
-                  />
-
-                  {/* 3열: 인풋 #2 */}
-                  <OptionCell
-                    value={v2}
-                    index={baseIndex + 1}
-                    placeholder="예: 건조기 스탠드"
-                    onChangeLocal={handleCustomChangeLocal}
-                    onCommit={commitSync}
-                    onRemove={removeCustomField}
-                    onAddAfter={addCustomFieldAfter}
-                    cellWidthBase={CELL_W_BASE}
-                    cellWidthMd={CELL_W_MD}
-                    inputWidthBase={INPUT_W_BASE}
-                    inputWidthMd={INPUT_W_MD}
-                  />
-
-                  {/* 4열: 마지막 줄 오른쪽 끝 + 버튼 */}
-                  <div className="flex items-center justify-start">
-                    {isLastRow && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          addCustomFieldAfter(
-                            baseIndex + (v2 !== undefined ? 1 : 0)
-                          )
-                        }
-                        className="text-sm px-1 text-gray-500 hover:text-blue-600"
-                        title="입력칸 추가"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </Fragment>
-              );
-            })
-          ) : (
+          {etcOn && rows.length > 0 ? (
             <>
-              <label className="inline-flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={etcChecked}
-                  onCheckedChange={(c) => {
-                    const next = c === true;
-                    safeSetEtcChecked(next);
-                    if (next) {
-                      setCustomInputs((prev) =>
-                        prev.length === 0 ? [""] : prev
-                      );
-                    }
-                  }}
-                />
-                <span className="text-sm">직접입력</span>
-              </label>
+              {rows.map((pair, rowIdx) => {
+                const isFirstRow = rowIdx === 0;
+                const isLastRow = rowIdx === rows.length - 1;
+                const [v1, v2] = pair;
+                const baseIndex = rowIdx * 2;
+
+                return (
+                  <Fragment key={`row-${rowIdx}-${customInputs.length}`}>
+                    {/* 1열: 첫 줄엔 체크박스/라벨, 이후 줄엔 자리만 유지 */}
+                    <div className="min-h-9 flex items-center">
+                      {isFirstRow ? (
+                        <label className="inline-flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={etcOn}
+                            onCheckedChange={toggleEtc}
+                          />
+                          <span
+                            className="text-sm select-none cursor-pointer"
+                            onClick={() => toggleEtc(!etcOn)}
+                          >
+                            직접입력
+                          </span>
+                        </label>
+                      ) : (
+                        <div className="h-9" />
+                      )}
+                    </div>
+
+                    {/* 2열, 3열: 인풋 */}
+                    <OptionCell
+                      value={v1}
+                      index={baseIndex}
+                      placeholder="예: 노트북"
+                      onChangeLocal={handleCustomChangeLocal}
+                      onCommit={commitSync}
+                      onRemove={removeCustomField}
+                      onAddAfter={addCustomFieldAfter}
+                      cellWidthBase={CELL_W_BASE}
+                      cellWidthMd={CELL_W_MD}
+                      inputWidthBase={INPUT_W_BASE}
+                      inputWidthMd={INPUT_W_MD}
+                    />
+                    <OptionCell
+                      value={v2}
+                      index={baseIndex + 1}
+                      placeholder="예: 데스크탑"
+                      onChangeLocal={handleCustomChangeLocal}
+                      onCommit={commitSync}
+                      onRemove={removeCustomField}
+                      onAddAfter={addCustomFieldAfter}
+                      cellWidthBase={CELL_W_BASE}
+                      cellWidthMd={CELL_W_MD}
+                      inputWidthBase={INPUT_W_BASE}
+                      inputWidthMd={INPUT_W_MD}
+                    />
+
+                    {/* 4열: 마지막 줄에만 + 버튼 */}
+                    {isLastRow ? (
+                      <div className="flex items-center justify-start">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            addCustomFieldAfter(
+                              baseIndex + (v2 !== undefined ? 1 : 0)
+                            )
+                          }
+                          className="text-sm px-1 text-gray-500 hover:text-blue-600"
+                          title="입력칸 추가"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                  </Fragment>
+                );
+              })}
+            </>
+          ) : (
+            // 꺼져 있거나, rows가 0일 때: 라벨은 항상 첫 칸에 보이고 인풋 칸은 비워둠
+            <>
+              <div className="min-h-9 flex items-center">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <Checkbox checked={etcOn} onCheckedChange={toggleEtc} />
+                  <span
+                    className="text-sm select-none cursor-pointer"
+                    onClick={() => toggleEtc(!etcOn)}
+                  >
+                    직접입력
+                  </span>
+                </label>
+              </div>
               <div className={`h-9 ${CELL_W_BASE} ${CELL_W_MD}`} />
               <div className={`h-9 ${CELL_W_BASE} ${CELL_W_MD}`} />
               <div className="h-9" />

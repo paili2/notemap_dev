@@ -5,18 +5,18 @@ import { Input } from "@/components/atoms/Input/Input";
 import { X } from "lucide-react";
 
 export type OptionCellProps = {
-  value?: string; // undefined면 placeholder 칸 유지
-  index: number; // 부모 배열 인덱스
+  value?: string;
+  index: number;
   placeholder: string;
-  onChangeLocal: (index: number, val: string) => void; // 로컬만 수정
-  onCommit?: () => void; // blur 등 커밋 시 호출(옵션 동기화)
+  onChangeLocal: (index: number, val: string) => void;
+  onCommit?: () => void;
   onRemove: (index: number) => void;
   onAddAfter?: (index: number) => void;
 
-  cellWidthBase?: string; // ex) "w-[200px]"
-  cellWidthMd?: string; // ex) "md:w-[220px]"
-  inputWidthBase?: string; // ex) "w-[160px]"
-  inputWidthMd?: string; // ex) "md:w-[180px]"
+  cellWidthBase?: string;
+  cellWidthMd?: string;
+  inputWidthBase?: string;
+  inputWidthMd?: string;
 };
 
 function OptionCellImpl({
@@ -33,7 +33,6 @@ function OptionCellImpl({
   inputWidthMd = "md:w-[180px]",
 }: OptionCellProps) {
   if (value === undefined) {
-    // 빈 자리: 높이만 맞춰 그리드 안정화
     return <div className={`h-9 ${cellWidthBase} ${cellWidthMd}`} />;
   }
 
@@ -64,7 +63,6 @@ function OptionCellImpl({
   );
 }
 
-/** prop이 동일하면 리렌더 최소화 */
 export const OptionCell = React.memo(
   OptionCellImpl,
   (prev, next) =>
