@@ -1,9 +1,9 @@
 "use client";
 
-import StructureLines from "../StructureLines";
+import StructureLines from "./StructureLines";
 import type { UnitLine } from "@/features/properties/types/property-domain";
 
-type Props = {
+type StructureLinesSectionProps = {
   lines: UnitLine[];
   onAddPreset: (preset: string) => void;
   onAddEmpty: () => void;
@@ -19,7 +19,7 @@ export default function StructureLinesSection({
   onUpdate,
   onRemove,
   presets,
-}: Props) {
+}: StructureLinesSectionProps) {
   return (
     <StructureLines
       lines={lines}

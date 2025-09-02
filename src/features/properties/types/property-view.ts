@@ -66,7 +66,7 @@ export type PropertyViewDetails = {
   imageCards?: ImageItem[][];
   fileItems?: ImageItem[];
 
-  // ====== ✅ 저장 전용(로컬스토리지 경량화용) ======
+  // ====== 저장 전용(로컬스토리지 경량화용) ======
   /** 카드별 이미지의 IndexedDB 레퍼런스 배열 */
   _imageCardRefs?: ImageRefLite[][];
   /** 파일 패널(세로열) 이미지의 IndexedDB 레퍼런스 배열 */

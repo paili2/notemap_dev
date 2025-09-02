@@ -8,20 +8,15 @@ type IndexPlacement = "top-right" | "top-left" | "bottom-right" | "bottom-left";
 
 type Props = {
   images: ImageItem[];
-  /** "video"면 16:9, "square"면 1:1, "auto"면 부모 높이 채움 */
   aspect?: "video" | "square" | "auto";
-  /** 이미지 fit 방식 */
   objectFit?: "cover" | "contain";
-  /** 하단 점(페이지네이션) 표시 */
   showDots?: boolean;
-  /** 이미지 클릭 콜백 */
   onImageClick?: (index: number) => void;
-  /** (선택) 추가 클래스 */
   className?: string;
-  /** 1 / N 인덱스 배지 표시 */
   showIndex?: boolean;
-  /** 인덱스 배지 위치 (기본: 우상단) */
   indexPlacement?: IndexPlacement;
+
+  onIndexChange?: (i: number) => void;
 };
 
 export default function MiniCarousel({
@@ -33,6 +28,7 @@ export default function MiniCarousel({
   className,
   showIndex = true,
   indexPlacement = "top-right",
+  onIndexChange,
 }: Props) {
   const [idx, setIdx] = React.useState(0);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
@@ -40,18 +36,24 @@ export default function MiniCarousel({
 
   React.useEffect(() => {
     if (!hasImages) return;
-    setIdx((cur) => Math.max(0, Math.min(cur, images.length - 1)));
-  }, [hasImages, images.length]);
+    setIdx((cur) => {
+      const clamped = Math.max(0, Math.min(cur, images.length - 1));
+      if (clamped !== cur) onIndexChange?.(clamped);
+      return clamped;
+    });
+  }, [hasImages, images.length, onIndexChange]);
 
   const go = (n: number) => {
     if (!hasImages) return;
     const len = images.length;
-    setIdx(((n % len) + len) % len);
+    const next = ((n % len) + len) % len;
+    setIdx(next);
+    onIndexChange?.(next);
   };
   const prev = () => go(idx - 1);
   const next = () => go(idx + 1);
 
-  // 키보드 내비
+  // 키보드 좌/우
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -77,14 +79,16 @@ export default function MiniCarousel({
     className || "",
   ].join(" ");
 
-  const indexPos =
-    indexPlacement === "top-right"
+  const pos = (p: IndexPlacement) =>
+    p === "top-right"
       ? "top-2 right-2"
-      : indexPlacement === "top-left"
+      : p === "top-left"
       ? "top-2 left-2"
-      : indexPlacement === "bottom-left"
+      : p === "bottom-left"
       ? "bottom-2 left-2"
       : "bottom-2 right-2";
+
+  const indexPos = pos(indexPlacement);
 
   return (
     <div ref={wrapRef} tabIndex={0} className={wrapClasses}>
@@ -93,6 +97,9 @@ export default function MiniCarousel({
         {hasImages &&
           images.map((img, i) => {
             const src = img.dataUrl ?? img.url;
+            const displayTitle =
+              img.caption?.trim?.() || img.name?.trim?.() || `image-${i + 1}`;
+
             return (
               <div
                 key={i}
@@ -103,6 +110,8 @@ export default function MiniCarousel({
                 ].join(" ")}
                 onClick={() => onImageClick?.(i)}
                 role="button"
+                aria-label={displayTitle}
+                title={displayTitle}
               >
                 {objectFit === "cover" ? (
                   <div
@@ -113,7 +122,7 @@ export default function MiniCarousel({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={src}
-                    alt={img.name || img.caption || `image-${i + 1}`}
+                    alt={displayTitle}
                     className="max-w-full max-h-full w-auto h-auto object-contain object-center"
                     loading="lazy"
                     decoding="async"
@@ -131,6 +140,7 @@ export default function MiniCarousel({
         )}
       </div>
 
+      {/* 좌/우 화살표 */}
       {hasImages && images.length > 1 && (
         <>
           <button
@@ -168,13 +178,16 @@ export default function MiniCarousel({
         </>
       )}
 
-      {/* Dots (in-photo) */}
+      {/* Dots */}
       {showDots && hasImages && images.length > 1 && (
         <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1.5">
           {images.map((_, i) => (
             <button
               key={i}
-              onClick={() => setIdx(i)}
+              onClick={() => {
+                setIdx(i);
+                onIndexChange?.(i);
+              }}
               aria-label={`go-${i}`}
               className={[
                 "h-1.5 rounded-full transition-all",

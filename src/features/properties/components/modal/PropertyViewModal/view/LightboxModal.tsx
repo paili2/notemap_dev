@@ -2,7 +2,7 @@
 
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ImageItem } from "@/features/properties/types/media";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -23,6 +23,7 @@ export default function LightboxModal({
   withThumbnails = false,
   title,
 }: Props) {
+  // 항상 호출되는 훅들 (조건부 return보다 위!)
   const [index, setIndex] = useState(initialIndex);
 
   useEffect(() => {
@@ -52,10 +53,70 @@ export default function LightboxModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose, prev, next]);
 
+  /** 드래그/스와이프 상태 (항상 위에서 선언) */
+  const startXRef = useRef<number | null>(null);
+  const startYRef = useRef<number | null>(null);
+  const lastXRef = useRef<number | null>(null);
+  const draggingRef = useRef(false);
+  const lockedDirRef = useRef<"x" | "y" | null>(null);
+  const threshold = 50; // px
+
+  const dragStart = (x: number, y: number) => {
+    startXRef.current = x;
+    startYRef.current = y;
+    lastXRef.current = x;
+    draggingRef.current = true;
+    lockedDirRef.current = null;
+  };
+
+  const dragMove = (x: number, y: number) => {
+    if (
+      !draggingRef.current ||
+      startXRef.current == null ||
+      startYRef.current == null
+    )
+      return;
+
+    const dx = x - startXRef.current;
+    const dy = y - startYRef.current;
+
+    // 방향 잠금: 처음 크게 움직인 방향으로 확정
+    if (!lockedDirRef.current) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        lockedDirRef.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      }
+    }
+
+    lastXRef.current = x;
+  };
+
+  const dragEnd = () => {
+    if (
+      !draggingRef.current ||
+      startXRef.current == null ||
+      lastXRef.current == null
+    ) {
+      draggingRef.current = false;
+      lockedDirRef.current = null;
+      return;
+    }
+    const dx = lastXRef.current - startXRef.current;
+
+    if (lockedDirRef.current === "x") {
+      if (dx > threshold) prev();
+      else if (dx < -threshold) next();
+    }
+
+    draggingRef.current = false;
+    lockedDirRef.current = null;
+    startXRef.current = null;
+    startYRef.current = null;
+    lastXRef.current = null;
+  };
+
   if (!open || !images?.length) return null;
 
   const fitClass = objectFit === "cover" ? "object-cover" : "object-contain";
-
   const safeIndex = Math.min(Math.max(index, 0), images.length - 1);
   const cur = images[safeIndex];
 
@@ -66,7 +127,6 @@ export default function LightboxModal({
     "";
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
-
   const thumbColWidth = 112; // px (w-28)
 
   return (
@@ -147,8 +207,26 @@ export default function LightboxModal({
             </div>
           )}
 
-          {/* 메인 이미지 영역: 고정 높이로 세로 중앙 정렬 */}
-          <div className="relative h-[78vh] flex items-center justify-center">
+          {/* 메인 이미지 영역: 세로 중앙 정렬 */}
+          {/* 모바일 세로 스크롤 유지 + 가로 제스처만 감지 위해 touch-action: pan-y */}
+          <div
+            className="relative h-[78vh] flex items-center justify-center select-none touch-pan-y"
+            onMouseDown={(e) => dragStart(e.clientX, e.clientY)}
+            onMouseMove={(e) => {
+              if (draggingRef.current) dragMove(e.clientX, e.clientY);
+            }}
+            onMouseUp={dragEnd}
+            onMouseLeave={dragEnd}
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              dragStart(t.clientX, t.clientY);
+            }}
+            onTouchMove={(e) => {
+              const t = e.touches[0];
+              dragMove(t.clientX, t.clientY);
+            }}
+            onTouchEnd={dragEnd}
+          >
             {images.length > 1 && (
               <>
                 <button
@@ -168,12 +246,12 @@ export default function LightboxModal({
               </>
             )}
 
-            {/* 메인 이미지: 컨테이너 높이에 맞춰 항상 세로 중앙 */}
+            {/* 메인 이미지 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={cur?.dataUrl ?? cur?.url}
               alt={albumTitle || `이미지 ${safeIndex + 1}`}
-              className={`block max-h-full max-w-[85vw] ${fitClass} select-none`}
+              className={`block max-h-full max-w-[85vw] ${fitClass}`}
               draggable={false}
             />
 
@@ -183,7 +261,7 @@ export default function LightboxModal({
             </div>
           </div>
 
-          {/* 제목: 이미지 영역 밖에 배치 (세로 중앙 정렬에 영향 X) */}
+          {/* 제목 */}
           {albumTitle && (
             <div
               className={

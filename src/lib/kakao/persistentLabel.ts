@@ -66,7 +66,6 @@ export function createPersistentLabel({
     "zoom_changed",
     applyVisibility
   );
-  // 위치가 바뀌었을 때 라벨도 옮기고 싶다면 center_changed 등 추가로 리스너 연결 가능
 
   return {
     overlay,

@@ -1,5 +1,3 @@
-// 구조별 입력 행 리스트
-
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
@@ -8,7 +6,7 @@ import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
 import { Trash2, Plus } from "lucide-react";
 import type { UnitLine } from "@/features/properties/types/property-domain";
 
-type Props = {
+type StructureLinesProps = {
   lines: UnitLine[];
   onAddPreset: (preset: string) => void;
   onAddEmpty: () => void;
@@ -26,7 +24,7 @@ export default function StructureLines({
   onRemove,
   presets,
   title = "구조별 입력",
-}: Props) {
+}: StructureLinesProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">

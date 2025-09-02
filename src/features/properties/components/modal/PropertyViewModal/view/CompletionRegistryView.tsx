@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDate } from "@/features/properties/lib/formatDate";
-import Field from "../../common/Field";
+import Field from "../../common/Field/Field";
 import type {
   Grade,
   Registry,
@@ -44,7 +44,6 @@ export default function CompletionRegistryView({
       <div className="grid grid-cols-4 items-center">
         <Field label="준공일" align="center">
           <div className="h-9 flex items-center text-sm">
-            {/* ✅ formatDate 활용 */}
             {completionDate ? formatDate(completionDate) : "-"}
           </div>
         </Field>

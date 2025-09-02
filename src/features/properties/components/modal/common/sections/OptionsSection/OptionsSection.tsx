@@ -1,38 +1,20 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
-import { Input } from "@/components/atoms/Input/Input";
-import { Plus, X } from "lucide-react";
-
-type Props = {
-  ALL_OPTIONS?: readonly string[]; // (미사용이면 제거해도 OK)
-  options?: string[];
-  setOptions?: (next: string[]) => void;
-  etcChecked: boolean;
-  setEtcChecked?: (v: boolean) => void;
-  optionEtc?: string;
-  setOptionEtc?: (v: string) => void;
-};
-
-const PRESET_OPTIONS = [
-  "에어컨",
-  "냉장고",
-  "세탁기",
-  "건조기",
-  "비데",
-  "공기순환기",
-] as const;
+import { Plus } from "lucide-react";
+import { OptionsSectionProps } from "./types";
+import OptionCell from "./OptionCell";
 
 export default function OptionsSection({
-  ALL_OPTIONS, // eslint-disable-line @typescript-eslint/no-unused-vars
+  PRESET_OPTIONS,
   options,
   setOptions,
   etcChecked,
   setEtcChecked,
   optionEtc,
   setOptionEtc,
-}: Props) {
+}: OptionsSectionProps) {
   /** 안전 기본값 & 노옵 setter */
   const safeOptions = Array.isArray(options) ? options : [];
   const safeOptionEtc = optionEtc ?? "";
@@ -46,7 +28,7 @@ export default function OptionsSection({
   /** 프리셋/커스텀 분리 */
   const presetSet = useMemo(
     () => new Set(PRESET_OPTIONS.map((v) => v.toLowerCase())),
-    []
+    [PRESET_OPTIONS]
   );
   const presetSelected = useMemo(
     () => safeOptions.filter((v) => presetSet.has(v.trim().toLowerCase())),
@@ -57,13 +39,24 @@ export default function OptionsSection({
     [safeOptions, presetSet]
   );
 
-  /** 커스텀 입력 목록 */
+  /** 커스텀 입력 목록(로컬) */
   const [customInputs, setCustomInputs] = useState<string[]>(
     customFromOptions.length > 0 ? customFromOptions : []
   );
-
-  /** 외부 변경 반영 + 체크 ON일 땐 최소 1칸만 보장 */
+  const customInputsRef = useRef(customInputs);
   useEffect(() => {
+    customInputsRef.current = customInputs;
+  }, [customInputs]);
+
+  /** echo 가드: 내가 setOptions 한 직후 1회 외부 반영 이펙트 스킵 */
+  const echoGuardRef = useRef(false);
+
+  /** 외부 변경 반영 + 체크 ON일 땐 최소 1칸 보장 */
+  useEffect(() => {
+    if (echoGuardRef.current) {
+      echoGuardRef.current = false; // 한 번만 스킵
+      return;
+    }
     setCustomInputs((prev) => {
       const empties = prev.filter((v) => !v.trim());
       const merged = [...customFromOptions, ...empties];
@@ -83,9 +76,9 @@ export default function OptionsSection({
       });
       safeSetOptionEtc("");
     }
-  }, [safeOptionEtc, etcChecked]);
+  }, [safeOptionEtc, etcChecked, safeSetOptionEtc]);
 
-  /** options 동기화 (프리셋 + 커스텀 유니크) */
+  /** options 동기화 (프리셋 + 커스텀 유니크) — 프리셋 동일 텍스트는 제외 */
   const syncOptions = (nextCustomInputs: string[]) => {
     const uniques: string[] = [];
     const seen = new Set<string>();
@@ -97,21 +90,29 @@ export default function OptionsSection({
       seen.add(key);
       uniques.push(t);
     }
-    safeSetOptions([...presetSelected, ...uniques]);
+    const customsNotPreset = uniques.filter(
+      (t) => !presetSet.has(t.trim().toLowerCase())
+    );
+
+    echoGuardRef.current = true; // ✅ 다음 외부 반영 1회 무시
+    safeSetOptions([...presetSelected, ...customsNotPreset]);
   };
 
+  /** 프리셋 토글 */
   const togglePreset = (op: string) => {
     const isOn = safeOptions.includes(op);
+    echoGuardRef.current = true;
     if (isOn) safeSetOptions(safeOptions.filter((x) => x !== op));
     else safeSetOptions([...safeOptions, op]);
   };
 
+  /** 칸 추가/삭제/편집 */
   const addCustomFieldAfter = (index?: number) => {
     safeSetEtcChecked(true);
     setCustomInputs((prev) => {
       const copy = [...prev];
       const insertAt = typeof index === "number" ? index + 1 : copy.length;
-      copy.splice(insertAt, 0, ""); // 한 칸씩만 추가
+      copy.splice(insertAt, 0, ""); // 한 칸 추가
       return copy;
     });
   };
@@ -120,22 +121,28 @@ export default function OptionsSection({
     setCustomInputs((prev) => {
       const copy = [...prev];
       copy.splice(idx, 1);
-      const next = etcChecked && copy.length === 0 ? [""] : copy; // 최소 1칸 유지
+      const next = etcChecked && copy.length === 0 ? [""] : copy;
+      // 삭제는 즉시 커밋(UX 선호에 따라 onBlur로 미룰 수도)
       syncOptions(next);
       return next;
     });
   };
 
-  const handleCustomChange = (idx: number, val: string) => {
+  /** 로컬만 업데이트(타이핑 중) */
+  const handleCustomChangeLocal = (idx: number, val: string) => {
     setCustomInputs((prev) => {
       const next = [...prev];
       next[idx] = val;
-      syncOptions(next);
       return next;
     });
   };
 
-  /** 2개씩 끊어 줄(row) 배열 만들기 → 메모 */
+  /** onBlur 등에서 커밋 */
+  const commitSync = () => {
+    syncOptions(customInputsRef.current);
+  };
+
+  /** 2개씩 끊어 줄(row) 배열 만들기 */
   const rows: Array<[string | undefined, string | undefined]> = useMemo(() => {
     const r: Array<[string | undefined, string | undefined]> = [];
     for (let i = 0; i < customInputs.length; i += 2) {
@@ -144,56 +151,17 @@ export default function OptionsSection({
     return r;
   }, [customInputs]);
 
-  /** 셀 폭(인풋+삭제 버튼)을 고정해서 +버튼 위치 흔들리지 않게 */
+  /** 폭 클래스 (그리드 안정화) */
   const CELL_W_BASE = "w-[200px]";
   const CELL_W_MD = "md:w-[220px]";
   const INPUT_W_BASE = "w-[160px]";
   const INPUT_W_MD = "md:w-[180px]";
 
-  /** 한 셀(인풋 + 삭제) */
-  const Cell = ({
-    value,
-    index,
-    placeholder,
-  }: {
-    value: string | undefined;
-    index: number;
-    placeholder: string;
-  }) => {
-    if (value === undefined) {
-      return <div className={`h-9 ${CELL_W_BASE} ${CELL_W_MD}`} />;
-    }
-    return (
-      <div className={`flex items-center gap-1 ${CELL_W_BASE} ${CELL_W_MD}`}>
-        <Input
-          value={value}
-          onChange={(e) => handleCustomChange(index, e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addCustomFieldAfter(index);
-            }
-          }}
-          placeholder={placeholder}
-          className={`h-9 ${INPUT_W_BASE} ${INPUT_W_MD} shrink-0`}
-        />
-        <button
-          type="button"
-          onClick={() => removeCustomField(index)}
-          className="text-sm px-1 text-gray-500 hover:text-red-600"
-          title="입력칸 삭제"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-3">
       <div className="text-sm font-medium">옵션</div>
 
-      {/* 프리셋 6개 */}
+      {/* 프리셋 */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-center">
         {PRESET_OPTIONS.map((op) => (
           <label key={op} className="inline-flex items-center gap-2 text-sm">
@@ -206,7 +174,7 @@ export default function OptionsSection({
         ))}
       </div>
 
-      {/* 직접입력: 2칸씩 한 줄, 마지막 줄 오른쪽 끝에 + 버튼 (고정 위치) */}
+      {/* 직접입력 */}
       <div className="space-y-2">
         <div className="grid grid-cols-[auto_200px_200px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-2 gap-y-2 items-center">
           {etcChecked ? (
@@ -217,7 +185,7 @@ export default function OptionsSection({
               const baseIndex = rowIdx * 2;
 
               return (
-                <Fragment key={rowIdx}>
+                <Fragment key={`row-${rowIdx}-${customInputs.length}`}>
                   {/* 1열: 체크박스(첫 줄만) */}
                   <div className="min-h-9 flex items-center">
                     {isFirstRow ? (
@@ -229,6 +197,7 @@ export default function OptionsSection({
                             safeSetEtcChecked(next);
                             if (!next) {
                               setCustomInputs([]);
+                              echoGuardRef.current = true;
                               safeSetOptions(presetSelected);
                             } else {
                               setCustomInputs((prev) =>
@@ -245,17 +214,33 @@ export default function OptionsSection({
                   </div>
 
                   {/* 2열: 인풋 #1 */}
-                  <Cell
+                  <OptionCell
                     value={v1}
                     index={baseIndex}
                     placeholder="예: 식기세척기"
+                    onChangeLocal={handleCustomChangeLocal}
+                    onCommit={commitSync}
+                    onRemove={removeCustomField}
+                    onAddAfter={addCustomFieldAfter}
+                    cellWidthBase={CELL_W_BASE}
+                    cellWidthMd={CELL_W_MD}
+                    inputWidthBase={INPUT_W_BASE}
+                    inputWidthMd={INPUT_W_MD}
                   />
 
                   {/* 3열: 인풋 #2 */}
-                  <Cell
+                  <OptionCell
                     value={v2}
                     index={baseIndex + 1}
                     placeholder="예: 건조기 스탠드"
+                    onChangeLocal={handleCustomChangeLocal}
+                    onCommit={commitSync}
+                    onRemove={removeCustomField}
+                    onAddAfter={addCustomFieldAfter}
+                    cellWidthBase={CELL_W_BASE}
+                    cellWidthMd={CELL_W_MD}
+                    inputWidthBase={INPUT_W_BASE}
+                    inputWidthMd={INPUT_W_MD}
                   />
 
                   {/* 4열: 마지막 줄 오른쪽 끝 + 버튼 */}

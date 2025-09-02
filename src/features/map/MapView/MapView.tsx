@@ -16,7 +16,7 @@ const MapView: React.FC<MapViewProps> = ({
   showNativeLayerControl = false,
   controlRightOffsetPx = 0,
   controlTopOffsetPx = 0,
-  /** ✅ 기본값 false: 지도 클릭으로 생성 금지 */
+  /** 기본값 false: 지도 클릭으로 생성 금지 */
   allowCreateOnMapClick = false,
   onMarkerClick,
   onMapClick,

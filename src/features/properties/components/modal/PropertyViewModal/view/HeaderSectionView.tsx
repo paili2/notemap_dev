@@ -3,7 +3,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import StarsRating from "../../common/StarsRating";
+import StarsRating from "../../common/sections/HeaderSection/components/StarsRating";
 
 export default function HeaderSectionView({
   title,
@@ -23,7 +23,6 @@ export default function HeaderSectionView({
           매물평점
         </span>
 
-        {/* ✅ 가운데 정렬 & 라인-높이 간섭 제거 */}
         <div className="shrink-0 w-[180px] flex items-center leading-none">
           <StarsRating
             value={listingStars}

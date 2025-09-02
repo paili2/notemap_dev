@@ -1,11 +1,12 @@
+// DisplayImagesSection.tsx
 "use client";
 
 import type { ImageItem } from "@/features/properties/types/media";
 import LightboxModal from "./LightboxModal";
 import MiniCarousel from "./MiniCarousel";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-type AnyImg = ImageItem | string | null | undefined;
+type AnyImg = ImageItem | { [k: string]: any } | string | null | undefined;
 
 type Props = {
   cards?: Array<Array<AnyImg>>;
@@ -15,29 +16,49 @@ type Props = {
 };
 
 const isOkUrl = (u: string) => /^https?:|^data:|^blob:/.test(u);
+const pickStr = (...xs: any[]) =>
+  xs.find((x) => typeof x === "string" && x.trim())?.trim() ?? "";
 
 function normOne(it: AnyImg): ImageItem | null {
   if (!it) return null;
-  if (typeof it === "string")
-    return isOkUrl(it) ? { url: it, name: "", caption: "" } : null;
-
+  if (typeof it === "string") {
+    const s = it.startsWith("url:") ? it.slice(4) : it;
+    return isOkUrl(s) ? { url: s, name: "", caption: "" } : null;
+  }
   const raw = it as any;
-  const u = typeof raw.url === "string" ? String(raw.url) : "";
-  const d = typeof raw.dataUrl === "string" ? String(raw.dataUrl) : "";
-  if (!isOkUrl(u) && !/^data:/.test(d)) return null;
-  const finalUrl = isOkUrl(u) ? u : d;
+  const url = pickStr(
+    raw?.url,
+    raw?.dataUrl,
+    raw?.idbKey?.startsWith?.("url:") ? raw.idbKey.slice(4) : ""
+  );
+  if (!isOkUrl(url)) return null;
 
   return {
-    url: finalUrl,
-    name: typeof raw.name === "string" ? raw.name : "",
-    caption: typeof raw.caption === "string" ? raw.caption : "",
-    dataUrl: d || undefined,
+    url,
+    name: pickStr(raw?.name),
+    caption: pickStr(raw?.caption, raw?.title), // title도 허용
+    ...(typeof raw?.dataUrl === "string" ? { dataUrl: raw.dataUrl } : {}),
   };
 }
-
 function normList(list?: Array<AnyImg>): ImageItem[] {
   if (!Array.isArray(list)) return [];
   return list.map(normOne).filter(Boolean) as ImageItem[];
+}
+
+function CaptionSlot({ text }: { text?: string }) {
+  const t = (text || "").trim();
+  return (
+    <div className="mt-2 h-5 flex items-center justify-center">
+      <p
+        className={`text-xs text-gray-600 text-center whitespace-pre-wrap break-words ${
+          t ? "" : "invisible"
+        }`}
+        title={t}
+      >
+        {t || "placeholder"}
+      </p>
+    </div>
+  );
 }
 
 export default function DisplayImagesSection({
@@ -46,21 +67,37 @@ export default function DisplayImagesSection({
   files,
   showNames = false,
 }: Props) {
+  // 가로형 그룹
   const cardGroups: ImageItem[][] = Array.isArray(cards)
     ? cards.map((g) => normList(g)).filter((g) => g.length > 0)
     : [];
-
   if (cardGroups.length === 0 && Array.isArray(images)) {
     const legacy = normList(images);
     if (legacy.length) cardGroups.push(legacy);
   }
 
+  // 세로(파일) 카드
   const fileCard = normList(files);
   const hasFileCard = fileCard.length > 0;
 
   const [open, setOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
   const [startIndex, setStartIndex] = useState(0);
+
+  const [cardIdxs, setCardIdxs] = useState<number[]>([]);
+  useEffect(() => {
+    setCardIdxs((prev) => {
+      const next = [...prev];
+      if (next.length < cardGroups.length) {
+        next.push(...Array(cardGroups.length - next.length).fill(0));
+      } else if (next.length > cardGroups.length) {
+        next.length = cardGroups.length;
+      }
+      return next;
+    });
+  }, [cardGroups.length]);
+
+  const [fileIdx, setFileIdx] = useState(0);
 
   const openLightbox = (group: ImageItem[], index = 0) => {
     setLightboxImages(group);
@@ -82,8 +119,11 @@ export default function DisplayImagesSection({
     <div className="flex flex-col gap-3">
       {/* 가로형 카드들 */}
       {cardGroups.map((group, gi) => {
-        const main = group[0];
-        const mainCaption = (main.caption || "").trim();
+        const curIdx = cardIdxs[gi] ?? 0;
+        const cur = group[curIdx];
+        const curCaption = cur?.caption || "";
+        const curName = cur?.name?.trim();
+
         return (
           <div
             key={`card-${gi}`}
@@ -95,26 +135,26 @@ export default function DisplayImagesSection({
                 aspect="video"
                 objectFit="cover"
                 showDots
-                showIndex // ✅ 1 / N 표시 켜기
-                indexPlacement="top-right" // ✅ 우상단 위치
+                showIndex
+                indexPlacement="top-right"
                 onImageClick={(i) => openLightbox(group, i)}
+                onIndexChange={(i) =>
+                  setCardIdxs((prev) => {
+                    const next = [...prev];
+                    next[gi] = i;
+                    return next;
+                  })
+                }
               />
-
-              {/* 🔻 기존 '7장' 배지는 제거 */}
-              {/* <div className="absolute top-2 right-2 ...">{group.length}장</div> */}
-
-              {showNames && main.name ? (
+              {/* 파일명 오버레이(옵션) */}
+              {showNames && curName ? (
                 <div className="absolute bottom-2 left-2 max-w-[75%] rounded bg-black/40 text-white text-[11px] px-2 py-0.5 truncate">
-                  {main.name}
+                  {curName}
                 </div>
               ) : null}
             </div>
 
-            {mainCaption && (
-              <p className="mt-2 text-xs text-gray-600 whitespace-pre-wrap break-words text-center">
-                {mainCaption}
-              </p>
-            )}
+            <CaptionSlot text={curCaption} />
           </div>
         );
       })}
@@ -125,18 +165,18 @@ export default function DisplayImagesSection({
           <div className="relative h-80 overflow-hidden rounded-md border bg-white">
             <MiniCarousel
               images={fileCard}
-              aspect="auto" // 부모 높이 꽉 채움
-              objectFit="cover" // 생성 화면과 동일하게 크롭
+              aspect="auto"
+              objectFit="cover"
               showDots
-              showIndex // ✅ 1 / N 표시
-              indexPlacement="top-right" // ✅ 우상단 위치
+              showIndex
+              indexPlacement="top-right"
               onImageClick={(i) => openLightbox(fileCard, i)}
+              onIndexChange={setFileIdx}
               className="absolute inset-0"
             />
-
-            {/* 🔻 기존 '7장' 배지는 제거 */}
-            {/* <div className="absolute top-2 right-2 ...">{fileCard.length}장</div> */}
           </div>
+
+          <CaptionSlot text={fileCard[fileIdx]?.caption} />
         </div>
       )}
 

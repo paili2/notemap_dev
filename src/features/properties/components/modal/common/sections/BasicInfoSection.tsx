@@ -1,10 +1,10 @@
 "use client";
 import { Phone } from "lucide-react";
-import Field from "../Field";
+import Field from "../Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { formatPhone } from "@/features/properties/lib/formatPhone";
 
-type Props = {
+type BasicInfoSectionProps = {
   address: string;
   setAddress: (v: string) => void;
   officePhone: string;
@@ -20,7 +20,7 @@ export default function BasicInfoSection({
   setOfficePhone,
   officePhone2,
   setOfficePhone2,
-}: Props) {
+}: BasicInfoSectionProps) {
   return (
     <div className="space-y-6">
       <Field label="주소">

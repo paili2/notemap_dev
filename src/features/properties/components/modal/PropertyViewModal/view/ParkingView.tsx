@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../../common/Field";
+import Field from "../../common/Field/Field";
 
 export default function ParkingView({
   parkingType,

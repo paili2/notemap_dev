@@ -3,13 +3,17 @@
 import { useState } from "react";
 import { Check, Loader2, ArrowLeft } from "lucide-react";
 
-type Props = {
+type FooterButtonsProps = {
   onClose: () => void;
   onSave: () => void | Promise<void>;
   canSave: boolean;
 };
 
-export default function FooterButtons({ onClose, onSave, canSave }: Props) {
+export default function FooterButtons({
+  onClose,
+  onSave,
+  canSave,
+}: FooterButtonsProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {

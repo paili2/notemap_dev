@@ -1087,7 +1087,7 @@ const MapHomePage: React.FC = () => {
                 ? ((payload as any).verticalImages as any[])
                 : (patch as any).fileItems ?? [];
 
-              // 2) ✅ 절대 정규화하지 말고 **원본을 그대로** 넘긴다
+              // 2) 절대 정규화하지 말고 **원본을 그대로** 넘긴다
               const { cardRefs, fileRefs } = await materializeToRefs(
                 propertyId,
                 refsCardsRaw,

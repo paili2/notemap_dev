@@ -1,38 +1,16 @@
 "use client";
 
-import Field from "../Field";
+import Field from "../../Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
-import { toPy, toM2 } from "@/features/properties/lib/area"; // <- area.ts 경로에 맞게 조정
-
-type AreaSet = {
-  /** 세트 제목 (예: "전용A타입") */
-  title: string;
-  exMinM2: string;
-  exMaxM2: string;
-  exMinPy: string;
-  exMaxPy: string;
-  realMinM2: string;
-  realMaxM2: string;
-  realMinPy: string;
-  realMaxPy: string;
-};
-
-type Props = {
-  // 기본(첫 번째) 세트
-  baseAreaSet: AreaSet;
-  setBaseAreaSet: (next: AreaSet) => void;
-
-  // 추가 세트
-  extraAreaSets: AreaSet[];
-  setExtraAreaSets: (next: AreaSet[]) => void;
-};
+import { toPy, toM2 } from "@/features/properties/lib/area";
+import { AreaSet, AreaSetsSectionProps } from "./types";
 
 export default function AreaSetsSection({
   baseAreaSet,
   setBaseAreaSet,
   extraAreaSets,
   setExtraAreaSets,
-}: Props) {
+}: AreaSetsSectionProps) {
   const addSet = () => {
     const idx = extraAreaSets.length + 2; // #2부터 시작
     setExtraAreaSets([
@@ -134,7 +112,6 @@ export default function AreaSetsSection({
           />
         </div>
 
-        {/* 전용: 양방향 변환 */}
         {renderRow(
           "전용",
           baseAreaSet.exMinM2,
@@ -167,7 +144,6 @@ export default function AreaSetsSection({
             })
         )}
 
-        {/* 실평: 양방향 변환 */}
         {renderRow(
           "실평",
           baseAreaSet.realMinM2,
@@ -201,13 +177,11 @@ export default function AreaSetsSection({
         )}
       </div>
 
-      {/* 추가 세트들 */}
       {extraAreaSets.map((s, idx) => (
         <div
           key={idx}
           className="rounded-xl border bg-muted/5 p-3 space-y-3 relative"
         >
-          {/* 삭제 버튼 */}
           <div className="absolute right-3 top-3">
             <button
               type="button"
@@ -219,7 +193,6 @@ export default function AreaSetsSection({
             </button>
           </div>
 
-          {/* 제목 입력칸 */}
           <div className="mb-1">
             <Input
               className="h-8 w-64"
@@ -229,7 +202,6 @@ export default function AreaSetsSection({
             />
           </div>
 
-          {/* 전용: 양방향 변환 */}
           {renderRow(
             "전용",
             s.exMinM2,
@@ -242,7 +214,6 @@ export default function AreaSetsSection({
             (v) => patchSet(idx, { exMaxPy: v, exMaxM2: toM2(v) })
           )}
 
-          {/* 실평: 양방향 변환 */}
           {renderRow(
             "실평",
             s.realMinM2,
@@ -257,7 +228,6 @@ export default function AreaSetsSection({
         </div>
       ))}
 
-      {/* 추가 버튼 */}
       <div>
         <button
           type="button"
@@ -271,5 +241,3 @@ export default function AreaSetsSection({
     </div>
   );
 }
-
-export type { AreaSet };

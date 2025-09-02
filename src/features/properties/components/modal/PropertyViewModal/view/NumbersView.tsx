@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../../common/Field";
+import Field from "../../common/Field/Field";
 type Maybe = string | number | null | undefined;
 const show = (v: Maybe) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;

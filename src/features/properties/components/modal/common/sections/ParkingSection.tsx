@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../Field";
+import Field from "../Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import {
   Select,
@@ -11,7 +11,7 @@ import {
 } from "@/components/atoms/Select/Select";
 import { useEffect, useState } from "react";
 
-type Props = {
+type ParkingSectionProps = {
   parkingType: string;
   setParkingType: (v: string) => void;
   parkingCount: string; // 총 주차대수
@@ -26,7 +26,7 @@ export default function ParkingSection({
   setParkingType,
   parkingCount,
   setParkingCount,
-}: Props) {
+}: ParkingSectionProps) {
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Props = {
+type StarsRatingProps = {
   value: number; // 0~5
   onChange?: (n: number) => void;
   readOnly?: boolean;
@@ -26,7 +26,7 @@ export default function StarsRating({
   size = "md",
   ariaLabel = "별점 선택",
   className,
-}: Props) {
+}: StarsRatingProps) {
   const [hover, setHover] = React.useState<number | null>(null);
   const effective = hover ?? value;
   const canInteract = !!onChange && !readOnly;

@@ -1,28 +1,16 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/utils";
 import { ImageItem } from "@/features/properties/types/media";
 import { useEffect, useId, useRef, useState } from "react";
-
-type Props = {
-  items: ImageItem[];
-  onChangeCaption?: (index: number, text: string) => void;
-  useLocalCaptionFallback?: boolean;
-  onOpenPicker?: () => void;
-  registerInputRef?: (el: HTMLInputElement | null) => void;
-  onChangeFiles?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  maxCount?: number;
-  layout?: "wide" | "tall";
-  wideAspectClass?: string;
-  tallHeightClass?: string;
-  objectFit?: "cover" | "contain";
-};
+import { ImageCarouselUploadProps } from "./types";
 
 export default function ImageCarouselUpload({
   items,
   onChangeCaption,
+  onRemoveImage,
   useLocalCaptionFallback = true,
   onOpenPicker,
   registerInputRef,
@@ -32,33 +20,22 @@ export default function ImageCarouselUpload({
   wideAspectClass = "aspect-video",
   tallHeightClass = "h-80",
   objectFit,
-}: Props) {
+}: ImageCarouselUploadProps) {
   const id = useId();
   const count = items?.length ?? 0;
 
   const [current, setCurrent] = useState(0);
-  const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
-    items.map((it) => it.caption ?? "")
-  );
 
+  const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
+    items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
+  );
   useEffect(() => {
-    setLocalCaptions((prev) => {
-      const next = [...prev];
-      if (items.length > prev.length) {
-        for (let i = prev.length; i < items.length; i++)
-          next[i] = items[i]?.caption ?? "";
-      } else if (items.length < prev.length) {
-        next.length = items.length;
-      } else {
-        for (let i = 0; i < items.length; i++) {
-          if (typeof items[i]?.caption === "string")
-            next[i] = items[i]!.caption!;
-        }
-      }
-      return next;
-    });
+    setLocalCaptions(
+      items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
+    );
   }, [items]);
 
+  // 현재 인덱스가 범위를 벗어나면 보정
   useEffect(() => {
     if (current > 0 && current >= count) setCurrent(count - 1);
   }, [count, current]);
@@ -113,11 +90,22 @@ export default function ImageCarouselUpload({
       });
   };
 
-  // input change 래퍼: 처리 후 value 초기화(같은 파일 재선택 허용)
+  // 파일 선택 처리 후 value 초기화(같은 파일 재선택 허용)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeFiles?.(e);
-    // 같은 파일을 이어서 선택할 수 있도록 초기화
     e.currentTarget.value = "";
+  };
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onRemoveImage) return;
+
+    setLocalCaptions((prev) => prev.filter((_, i) => i !== current));
+
+    setCurrent((c) => Math.max(0, Math.min(c, count - 2)));
+
+    // 부모(실제 items) 삭제 호출
+    onRemoveImage(current);
   };
 
   return (
@@ -163,6 +151,19 @@ export default function ImageCarouselUpload({
                 (e.currentTarget as HTMLImageElement).style.opacity = "0.2";
               }}
             />
+
+            {/* 우상단 삭제 버튼 */}
+            {count > 0 && onRemoveImage && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                aria-label="이미지 삭제"
+                className="absolute top-2 right-2 inline-flex items-center justify-center rounded-full hover:text-red-700 text-gray-500 p-1.5"
+                title="삭제"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
 
             {/* 좌/우 버튼 (이미지 1장 이하일 땐 숨김) */}
             {count > 1 && (

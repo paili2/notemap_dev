@@ -6,12 +6,13 @@ import type {
   Visibility,
   OrientationValue,
 } from "@/features/properties/types/property-domain";
-import type { AreaSet } from "../common/sections/AreaSetsSection";
+
 import type {
   CreatePayload,
   UpdatePayload,
 } from "@/features/properties/types/property-dto";
 import type { PropertyViewDetails } from "@/features/properties/types/property-view";
+import { AreaSet } from "../common/sections/AreaSetsSection/types";
 
 export type PropertyEditModalProps = {
   open: boolean;

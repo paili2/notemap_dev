@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import Field from "../Field";
+import Field from "../Field/Field";
 import { Button } from "@/components/atoms/Button/Button";
 import { Trash2, Plus } from "lucide-react";
 import {
@@ -18,7 +18,7 @@ import type {
 } from "@/features/properties/types/property-domain";
 import { ORIENTATIONS } from "../constants";
 
-type Props = {
+type AspectsSectionProps = {
   aspects: AspectRowLite[];
   addAspect: () => void;
   removeAspect: (no: number) => void;
@@ -30,7 +30,7 @@ export default function AspectsSection({
   addAspect,
   removeAspect,
   setAspectDir,
-}: Props) {
+}: AspectsSectionProps) {
   const list = ORIENTATIONS;
 
   // 두 개씩 끊어서 한 줄에 배치

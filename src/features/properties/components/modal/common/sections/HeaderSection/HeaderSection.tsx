@@ -2,66 +2,9 @@
 
 import { X as XIcon, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import StarsRating from "../StarsRating";
-
-type Props = {
-  // 제목
-  title: string;
-  setTitle: (v: string) => void;
-
-  // 별점(1~5)
-  listingStars: number;
-  setListingStars: (n: number) => void;
-
-  // 엘리베이터 O/X
-  elevator: "O" | "X";
-  setElevator: (v: "O" | "X") => void;
-
-  // 닫기
-  onClose?: () => void;
-
-  /** placeholder로 보여줄 힌트(선택) — 수정모달에서 기존 제목을 힌트로 쓰고 싶을 때 */
-  placeholderHint?: string;
-
-  /** 새로고침 동작 (선택) */
-  onRefreshStars?: () => void;
-};
-
-/** 엘리베이터: K&N <-> R 스타일의 세그먼트 모양 */
-function ElevatorSegment({
-  value,
-  onChange,
-}: {
-  value: "O" | "X";
-  onChange: (v: "O" | "X") => void;
-}) {
-  return (
-    <div className="inline-flex rounded-md border overflow-hidden">
-      <button
-        type="button"
-        onClick={() => onChange("O")}
-        className={cn(
-          "px-3 h-9 text-sm",
-          value === "O" ? "bg-blue-600 text-white" : "bg-white text-gray-700"
-        )}
-        title="엘리베이터 O"
-      >
-        O
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("X")}
-        className={cn(
-          "px-3 h-9 text-sm border-l",
-          value === "X" ? "bg-blue-600 text-white" : "bg-white text-gray-700"
-        )}
-        title="엘리베이터 X"
-      >
-        X
-      </button>
-    </div>
-  );
-}
+import StarsRating from "./components/StarsRating";
+import { HeaderSectionProps } from "./types";
+import ElevatorSegment from "./components/ElevatorSegment";
 
 export default function HeaderSection({
   title,
@@ -73,7 +16,7 @@ export default function HeaderSection({
   onClose,
   placeholderHint,
   onRefreshStars,
-}: Props) {
+}: HeaderSectionProps) {
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
 
   return (

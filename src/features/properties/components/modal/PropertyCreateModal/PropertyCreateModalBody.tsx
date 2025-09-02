@@ -3,22 +3,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { set as idbSet } from "idb-keyval";
 
-import HeaderSection from "../common/sections/HeaderSection";
+import HeaderSection from "../common/sections/HeaderSection/HeaderSection";
 import ImagesSection, {
   type ImageFile,
-} from "../common/sections/ImagesSection";
+} from "../common/sections/ImagesSection/ImagesSection";
 import BasicInfoSection from "../common/sections/BasicInfoSection";
-import NumbersSection from "../common/sections/NumbersSection";
+import NumbersSection from "../common/sections/NumbersSection/NumbersSection";
 import AspectsSection from "../common/sections/AspectsSection";
 import ParkingSection from "../common/sections/ParkingSection";
-import OptionsSection from "../common/sections/OptionsSection";
+import OptionsSection from "../common/sections/OptionsSection/OptionsSection";
 import MemoSection from "../common/sections/MemoSection";
 import FooterButtons from "../common/sections/FooterButtons";
-import StructureLinesSection from "../common/sections/StructureLinesSection";
-import CompletionRegistrySection from "../common/sections/CompletionRegistrySection";
+import StructureLinesSection from "../common/sections/StructureLinesSection/StructureLinesSection";
+import CompletionRegistrySection from "../common/sections/CompletionRegistrySection/CompletionRegistrySection";
 
-import AreaSetsSection from "../common/sections/AreaSetsSection";
-import type { AreaSet } from "../common/sections/AreaSetsSection";
+import AreaSetsSection from "../common/sections/AreaSetsSection/AreaSetsSection";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
 import { packRange, toM2 } from "@/features/properties/lib/area";
@@ -36,7 +35,8 @@ import {
 } from "@/features/properties/types/property-domain";
 import type { PropertyCreateModalProps } from "./types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-import { ALL_OPTIONS, STRUCTURE_PRESETS } from "../common/constants";
+import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../common/constants";
+import { AreaSet } from "../common/sections/AreaSetsSection/types";
 
 /* -------------------- 상수 -------------------- */
 const MAX_PER_CARD = 20;
@@ -81,13 +81,25 @@ export default function PropertyCreateModalBody({
   initialAddress,
 }: Omit<PropertyCreateModalProps, "open">) {
   /* ---------- 이미지(좌측 카드형) ---------- */
-  // 내부 상태는 imageFolders로 통일
   const [imageFolders, setImageFolders] = useState<UIImage[][]>([[]]); // 카드1, 카드2, ...
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
   };
   const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
+
+  const handleRemoveImage = (folderIdx: number, imageIdx: number) => {
+    setImageFolders((prev) => {
+      const next = prev.map((arr) => [...arr]);
+      const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   // 새 이미지 추가 → 즉시 IndexedDB 저장 + idbKey 부여
   const onPickFilesToFolder = async (
@@ -139,6 +151,20 @@ export default function PropertyCreateModalBody({
 
   /* ---------- 이미지(우측 세로) ---------- */
   const [fileItems, setFileItems] = useState<FileItem[]>([]);
+
+  const handleRemoveFileItem = (index: number) => {
+    setFileItems((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  };
+
   const onAddFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -149,7 +175,7 @@ export default function PropertyCreateModalBody({
       items.push({
         name: f.name,
         url: URL.createObjectURL(f),
-        idbKey: key, // ✅ 세로도 idbKey 보관
+        idbKey: key,
       });
     }
     setFileItems((prev) => [...prev, ...items].slice(0, MAX_FILES));
@@ -161,7 +187,6 @@ export default function PropertyCreateModalBody({
     );
   };
 
-  // objectURL 정리 (언마운트 시 메모리 누수 방지)
   useEffect(() => {
     return () => {
       imageFolders.flat().forEach((f) => {
@@ -171,8 +196,9 @@ export default function PropertyCreateModalBody({
         if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
       });
     };
+    // 의존성 비우기: 컴포넌트 언마운트 시 1회만 실행
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageFolders, fileItems]);
+  }, []);
 
   /* ---------- 기본 필드들 ---------- */
   const [title, setTitle] = useState("");
@@ -396,7 +422,6 @@ export default function PropertyCreateModalBody({
   /* ---------- 저장 ---------- */
   const save = async () => {
     if (!title.trim()) return;
-
     try {
       console.time("save-build");
 
@@ -549,9 +574,6 @@ export default function PropertyCreateModalBody({
       console.timeEnd("save-build");
       console.log("[PropertyCreate] payload", payload);
 
-      // ✔️ onSubmit에서 resolve가 안 되더라도 모달이 안 갇히게 방지
-      //    - 정상 완료 시: await 후 닫기
-      //    - onSubmit이 오래 걸리거나 실패: 로그 남기고 그래도 닫기(필요 시 알림)
       let ok = true;
       try {
         await Promise.resolve(onSubmit?.(payload));
@@ -560,11 +582,8 @@ export default function PropertyCreateModalBody({
         console.error("[PropertyCreate] onSubmit error:", e);
         alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
       } finally {
-        // onSubmit이 resolve되지 않는 케이스를 막기 위해 어쨌든 닫아줌
         onClose();
       }
-
-      // ok가 false면 필요한 경우 여기서 추가 처리 가능
     } catch (e) {
       console.error("[PropertyCreate] save() failed before submit:", e);
       alert("저장 준비 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
@@ -591,18 +610,19 @@ export default function PropertyCreateModalBody({
         />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-          {/* NOTE: ImagesSection이 아직 imagesByCard prop을 요구한다면 아래처럼 캐스팅 전달 */}
           <ImagesSection
-            imagesByCard={imageFolders as unknown as ImageFile[][]} // ← 내부는 imageFolders로 사용
+            imagesByCard={imageFolders as unknown as ImageFile[][]}
             onOpenPicker={openImagePicker}
             onChangeFiles={onPickFilesToFolder}
             registerInputRef={registerImageInput}
             onAddPhotoFolder={addPhotoFolder}
             maxPerCard={MAX_PER_CARD}
             onChangeCaption={onChangeImageCaption}
+            onRemoveImage={handleRemoveImage}
             fileItems={fileItems}
             onAddFiles={onAddFiles}
             onChangeFileItemCaption={onChangeFileItemCaption}
+            onRemoveFileItem={handleRemoveFileItem}
             maxFiles={MAX_FILES}
           />
 
@@ -617,21 +637,12 @@ export default function PropertyCreateModalBody({
             />
 
             <NumbersSection
-              numberItems={numberItems}
-              totalBuildingsType={totalBuildingsType}
-              setTotalBuildingsType={setTotalBuildingsType}
               totalBuildings={totalBuildings}
               setTotalBuildings={setTotalBuildings}
-              totalFloorsType={totalFloorsType}
-              setTotalFloorsType={setTotalFloorsType}
               totalFloors={totalFloors}
               setTotalFloors={setTotalFloors}
-              totalHouseholdsType={totalHouseholdsType}
-              setTotalHouseholdsType={setTotalHouseholdsType}
               totalHouseholds={totalHouseholds}
               setTotalHouseholds={setTotalHouseholds}
-              remainingHouseholdsType={remainingHouseholdsType}
-              setRemainingHouseholdsType={setRemainingHouseholdsType}
               remainingHouseholds={remainingHouseholds}
               setRemainingHouseholds={setRemainingHouseholds}
             />
@@ -681,7 +692,7 @@ export default function PropertyCreateModalBody({
             />
 
             <OptionsSection
-              ALL_OPTIONS={ALL_OPTIONS}
+              PRESET_OPTIONS={PRESET_OPTIONS}
               options={options}
               setOptions={setOptions}
               etcChecked={etcChecked}

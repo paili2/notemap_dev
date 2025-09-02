@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../../common/Field";
+import Field from "../../common/Field/Field";
 import OrientationBadges from "../OrientationBadges";
 import { toAspectView } from "@/features/properties/lib/orientation";
 import type { PropertyViewDetails } from "@/features/properties/types/property-view";

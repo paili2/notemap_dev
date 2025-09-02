@@ -3,22 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 
-import HeaderSection from "../common/sections/HeaderSection";
+import HeaderSection from "../common/sections/HeaderSection/HeaderSection";
 import ImagesSection, {
   type ImageFile,
-} from "../common/sections/ImagesSection";
+} from "../common/sections/ImagesSection/ImagesSection";
 import BasicInfoSection from "../common/sections/BasicInfoSection";
-import NumbersSection from "../common/sections/NumbersSection";
+import NumbersSection from "../common/sections/NumbersSection/NumbersSection";
 import AspectsSection from "../common/sections/AspectsSection";
 import ParkingSection from "../common/sections/ParkingSection";
-import OptionsSection from "../common/sections/OptionsSection";
+import OptionsSection from "../common/sections/OptionsSection/OptionsSection";
 import MemoSection from "../common/sections/MemoSection";
 import FooterButtons from "../common/sections/FooterButtons";
-import StructureLinesSection from "../common/sections/StructureLinesSection";
-import CompletionRegistrySection from "../common/sections/CompletionRegistrySection";
-import AreaSetsSection, {
-  type AreaSet,
-} from "../common/sections/AreaSetsSection";
+import StructureLinesSection from "../common/sections/StructureLinesSection/StructureLinesSection";
+import CompletionRegistrySection from "../common/sections/CompletionRegistrySection/CompletionRegistrySection";
+import AreaSetsSection from "../common/sections/AreaSetsSection/AreaSetsSection";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
 import {
@@ -44,7 +42,8 @@ import type {
   CreatePayload,
   UpdatePayload,
 } from "@/features/properties/types/property-dto";
-import { ALL_OPTIONS, STRUCTURE_PRESETS } from "../common/constants";
+import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../common/constants";
+import { AreaSet } from "../common/sections/AreaSetsSection/types";
 
 /* -------------------- 상수 -------------------- */
 const MAX_PER_CARD = 20;
@@ -81,12 +80,10 @@ const pickOrientation = (o: unknown): string =>
   (o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "";
 
 /* -------------------- 이미지 레퍼런스 타입 -------------------- */
-// 서버로 저장되는 형태(둘 중 하나)
 type StoredImageRef =
   | { idbKey: string; name?: string; caption?: string }
   | { url: string; name?: string; caption?: string };
 
-// 화면에서 쓰는 형태(미리보기용 + idbKey 동시 보관)
 type UIImage = {
   url: string; // 미리보기 objectURL 또는 외부 URL
   name: string;
@@ -267,6 +264,19 @@ export default function PropertyEditModalBody({
   };
   const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
 
+  const handleRemoveImage = (folderIdx: number, imageIdx: number) => {
+    setImageFolders((prev) => {
+      const next = prev.map((arr) => [...arr]);
+      const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  };
+
   const onChangeImageCaption = (
     folderIdx: number,
     imageIdx: number,
@@ -316,6 +326,19 @@ export default function PropertyEditModalBody({
 
   const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
 
+  const handleRemoveFileItem = (index: number) => {
+    setVerticalImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  };
+
   const onAddFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -340,6 +363,18 @@ export default function PropertyEditModalBody({
       prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
     );
   };
+
+  useEffect(() => {
+    return () => {
+      imageFolders.flat().forEach((f) => {
+        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      });
+      verticalImages.forEach((f) => {
+        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---------- 기본 필드들 ---------- */
   const [title, setTitle] = useState("");
@@ -452,7 +487,6 @@ export default function PropertyEditModalBody({
     if (!initialData) return;
 
     (async () => {
-      // 1) 폴더/카드 기반 먼저 (idbKey를 살려서 복원)
       const foldersRaw =
         (initialData as any).imageFolders ??
         (initialData as any).imagesByCard ??
@@ -464,7 +498,6 @@ export default function PropertyEditModalBody({
           await hydrateCards(foldersRaw as AnyImageRef[][], MAX_PER_CARD)
         );
       } else {
-        // 2) flat + 개수 (가능하면 피하고, 정말 없을 때만)
         const flat = Array.isArray((initialData as any).images)
           ? ((initialData as any).images as AnyImageRef[])
           : null;
@@ -482,7 +515,6 @@ export default function PropertyEditModalBody({
         }
       }
 
-      // 세로 카드도 동일
       const verticalRaw =
         (initialData as any).verticalImages ??
         (initialData as any).imagesVertical ??
@@ -498,7 +530,7 @@ export default function PropertyEditModalBody({
       }
     })();
 
-    // 기타 필드
+    // 기타 필드 세팅 ...
     setTitle(initialData.title ?? "");
     setAddress(initialData.address ?? "");
     setOfficeName(initialData.officeName ?? "");
@@ -722,8 +754,7 @@ export default function PropertyEditModalBody({
       setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
     );
 
-    // ---------- 이미지 포맷 ----------
-    // A) UI/레거시용 카드(무조건 url 포함)
+    // 이미지 포맷
     const imageCardsUI = imageFolders.map((card) =>
       card.map(({ url, name, caption }) => ({
         url,
@@ -731,8 +762,6 @@ export default function PropertyEditModalBody({
         ...(caption ? { caption } : {}),
       }))
     );
-
-    // B) 저장/복원용 카드(idbKey 우선, 없으면 url)
     const imageFoldersStored = imageFolders.map((card) =>
       card.map(({ idbKey, url, name, caption }) =>
         idbKey
@@ -740,14 +769,9 @@ export default function PropertyEditModalBody({
           : { url, name, ...(caption ? { caption } : {}) }
       )
     );
-
-    // C) 레거시 플랫
     const imagesFlatStrings: string[] = imageFolders.flat().map((f) => f.url);
-
-    // D) 카드별 개수
     const imageCardCounts = imageFolders.map((card) => card.length);
 
-    // E-1) 세로(저장용): idbKey 있으면 idbKey, 없으면 url
     const verticalImagesStored = verticalImages.map((f) =>
       f.idbKey
         ? {
@@ -761,14 +785,10 @@ export default function PropertyEditModalBody({
             ...(f.caption ? { caption: f.caption } : {}),
           }
     );
-
-    // 🔴 E-2) 세로(뷰 즉시 반영용): 반드시 url 포함해서 보내기
-    //      → MapHomePage.onSubmit에서 (payload.fileItems)로 바로 그립니다.
     const verticalImagesUI = verticalImages.map((f) => ({
       url: f.url,
       name: f.name,
       ...(f.caption ? { caption: f.caption } : {}),
-      // 선택: idbKey도 같이 보내두면 좋지만, 뷰는 url만 있어도 충분
       ...(f.idbKey ? { idbKey: f.idbKey } : {}),
     }));
 
@@ -812,17 +832,12 @@ export default function PropertyEditModalBody({
       registry: registryOne,
       unitLines,
 
-      // ---------- 이미지 관련 키들 ----------
-      imageFolders: imageFoldersStored, // refs 중심
-      imagesByCard: imageCardsUI, // 뷰/UI
-      imageCards: imageCardsUI, // 호환
+      imageFolders: imageFoldersStored,
+      imagesByCard: imageCardsUI,
+      imageCards: imageCardsUI,
       imageCardCounts,
-      verticalImages: verticalImagesStored, // refs 중심(저장용)
-
-      // ✅ 세로 뷰 즉시 반영용 (이 줄이 핵심!)
-      fileItems: verticalImagesUI,
-
-      // 레거시 플랫
+      verticalImages: verticalImagesStored,
+      fileItems: verticalImagesUI, // ✅ 뷰 즉시 반영용
       images: imagesFlatStrings,
 
       extraExclusiveAreas,
@@ -862,9 +877,11 @@ export default function PropertyEditModalBody({
             onAddPhotoFolder={addPhotoFolder}
             maxPerCard={MAX_PER_CARD}
             onChangeCaption={onChangeImageCaption}
+            onRemoveImage={handleRemoveImage}
             fileItems={verticalImages}
             onAddFiles={onAddFiles}
             onChangeFileItemCaption={onChangeFileItemCaption}
+            onRemoveFileItem={handleRemoveFileItem}
             maxFiles={MAX_FILES}
           />
 
@@ -879,25 +896,15 @@ export default function PropertyEditModalBody({
             />
 
             <NumbersSection
-              numberItems={Array.from({ length: 20 }, (_, i) => `${i + 1}`)}
-              totalBuildingsType={totalBuildingsType}
-              setTotalBuildingsType={setTotalBuildingsType}
               totalBuildings={totalBuildings}
               setTotalBuildings={setTotalBuildings}
-              totalFloorsType={totalFloorsType}
-              setTotalFloorsType={setTotalFloorsType}
               totalFloors={totalFloors}
               setTotalFloors={setTotalFloors}
-              totalHouseholdsType={totalHouseholdsType}
-              setTotalHouseholdsType={setTotalHouseholdsType}
               totalHouseholds={totalHouseholds}
               setTotalHouseholds={setTotalHouseholds}
-              remainingHouseholdsType={remainingHouseholdsType}
-              setRemainingHouseholdsType={setRemainingHouseholdsType}
               remainingHouseholds={remainingHouseholds}
               setRemainingHouseholds={setRemainingHouseholds}
             />
-
             <ParkingSection
               parkingType={parkingType}
               setParkingType={setParkingType}
@@ -943,10 +950,10 @@ export default function PropertyEditModalBody({
             />
 
             <OptionsSection
-              ALL_OPTIONS={ALL_OPTIONS}
+              PRESET_OPTIONS={PRESET_OPTIONS}
               options={options}
               setOptions={setOptions}
-              etcChecked={etcChecked}
+              etcChecked={setEtcChecked as any}
               setEtcChecked={setEtcChecked}
               optionEtc={optionEtc}
               setOptionEtc={setOptionEtc}

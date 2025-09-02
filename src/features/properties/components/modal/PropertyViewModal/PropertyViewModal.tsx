@@ -51,7 +51,6 @@ export default function PropertyViewModal({
 }) {
   const [memoTab, setMemoTab] = useState<MemoTab>("KN");
 
-  // ✅ 복원된(수화된) 이미지 상태 (카드/세로/레거시 평탄)
   const [cardsHydrated, setCardsHydrated] = useState<UIImg[][]>([[]]);
   const [filesHydrated, setFilesHydrated] = useState<UIImg[]>([]);
   const [legacyImagesHydrated, setLegacyImagesHydrated] = useState<
@@ -170,8 +169,6 @@ export default function PropertyViewModal({
     if (!open || !data) return;
 
     (async () => {
-      // ✅ 우선순위: imageFolders > imagesByCard > imageCards > (images + imageCardCounts) > images
-
       const foldersRaw =
         (data as any).imageFolders ??
         (data as any).imagesByCard ??

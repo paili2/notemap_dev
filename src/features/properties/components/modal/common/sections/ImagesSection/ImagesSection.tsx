@@ -2,7 +2,7 @@
 
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
-import ImageCarouselUpload from "../ImageCarouselUpload";
+import ImageCarouselUpload from "./components/ImageCarouselUpload";
 import { ImageItem } from "@/features/properties/types/media";
 import { useRef } from "react";
 
@@ -11,21 +11,26 @@ export type ImageFile = ImageItem;
 type FileItem = { name: string; url: string; caption?: string };
 
 type Props = {
-  // 폴더별 이미지(파일명 포함)
-  imagesByCard: ImageItem[][]; // ⬅️ ImageItem으로 통일
+  /** 폴더별 이미지(파일명 포함) */
+  imagesByCard: ImageItem[][];
   onOpenPicker: (idx: number) => void;
   onChangeFiles: (idx: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   registerInputRef: (idx: number, el: HTMLInputElement | null) => void;
   onAddPhotoFolder: () => void;
   maxPerCard: number;
 
-  // 캡션 변경
+  /** 캡션 변경 */
   onChangeCaption?: (cardIdx: number, imageIdx: number, text: string) => void;
 
-  // 세로 카드(파일들)
+  onRemoveImage?: (cardIdx: number, imageIdx: number) => void;
+
+  /** 세로 카드(파일들) */
   fileItems: FileItem[];
   onAddFiles: (files: FileList | null) => void;
   onChangeFileItemCaption?: (index: number, text: string) => void;
+
+  onRemoveFileItem?: (index: number) => void;
+
   maxFiles: number;
 };
 
@@ -37,9 +42,11 @@ export default function ImagesSection({
   onAddPhotoFolder,
   maxPerCard,
   onChangeCaption,
+  onRemoveImage,
   fileItems,
   onAddFiles,
   onChangeFileItemCaption,
+  onRemoveFileItem,
   maxFiles,
 }: Props) {
   const list = imagesByCard?.length ? imagesByCard : [[], []];
@@ -59,6 +66,8 @@ export default function ImagesSection({
           onChangeCaption={(imageIdx, text) =>
             onChangeCaption?.(idx, imageIdx, text)
           }
+          /** ⬇️ 우상단 X 버튼 → 부모로 삭제 이벤트 전달 */
+          onRemoveImage={(imageIdx) => onRemoveImage?.(idx, imageIdx)}
           onOpenPicker={() => onOpenPicker(idx)}
           registerInputRef={(el) => registerInputRef(idx, el)}
           onChangeFiles={(e) => onChangeFiles(idx, e)}
@@ -71,14 +80,15 @@ export default function ImagesSection({
         maxCount={maxFiles}
         layout="tall"
         tallHeightClass="h-80"
-        objectFit="cover" // ✅ 가로 카드와 동일하게 꽉 채워 보이도록
+        objectFit="cover"
         onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
+        /** ⬇️ 우상단 X 버튼 → 부모로 삭제 이벤트 전달 */
+        onRemoveImage={(i) => onRemoveFileItem?.(i)}
         onOpenPicker={() => fileInputRef.current?.click()}
         registerInputRef={(el) => (fileInputRef.current = el)}
         onChangeFiles={(e) => onAddFiles(e.target.files)}
       />
 
-      {/* 사진 폴더 추가 버튼 */}
       <Button
         type="button"
         variant="ghost"
