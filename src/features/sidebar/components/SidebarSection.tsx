@@ -44,7 +44,7 @@ export function SidebarSection({
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
-          <span className="font-semibold text-sm">{title}</span>
+          <span className="font-semibold text-base">{title}</span>
         </Button>
       </CardHeader>
 
@@ -62,7 +62,7 @@ export function SidebarSection({
             ))}
 
             {items.length === 0 && nestedItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-2">
+              <p className="text-sm text-muted-foreground text-center py-2">
                 목록이 비어있습니다
               </p>
             ) : (
