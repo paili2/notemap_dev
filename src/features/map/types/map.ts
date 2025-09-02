@@ -1,4 +1,4 @@
-import { PinKind } from "@/features/properties/common/sections/HeaderSection/components/PinTypeSelect";
+import { PinKind } from "@/features/properties/components/sections/HeaderSection/components/PinTypeSelect";
 
 export type LatLng = { lat: number; lng: number };
 

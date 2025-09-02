@@ -7,8 +7,8 @@ import MapView from "./components/MapView/MapView";
 import type { PropertyItem } from "../properties/types/propertyItem";
 import type { AdvFilters } from "@/features/properties/types/advFilters";
 
-import PropertyCreateModal from "../properties/PropertyCreateModal/PropertyCreateModal";
-import PropertyViewModal from "../properties/PropertyViewModal/PropertyViewModal";
+import PropertyCreateModal from "../properties/components/PropertyCreateModal/PropertyCreateModal";
+import PropertyViewModal from "../properties/components/PropertyViewModal/PropertyViewModal";
 import PinContextMenu from "./components/PinContextMenu/PinContextMenu";
 import { PropertyViewDetails } from "../properties/types/property-view";
 import { CreatePayload } from "../properties/types/property-dto";
@@ -17,7 +17,7 @@ import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
 import { Sidebar } from "@/features/sidebar";
 
-import { distanceMeters } from "@/features/properties/lib/geo/distance";
+import { distanceMeters } from "@/lib/geo/distance";
 import { ImageItem } from "../properties/types/media";
 
 import {
@@ -25,8 +25,8 @@ import {
   getImageUrlFromRef,
   putImageBlob,
   type ImageRef,
-} from "@/features/properties/lib/imageStore";
-import PropertyEditModal from "../properties/PropertyEditModal/PropertyEditModal";
+} from "@/lib/imageStore";
+import PropertyEditModal from "../properties/components/PropertyEditModal/PropertyEditModal";
 
 const STORAGE_KEY = "properties";
 
