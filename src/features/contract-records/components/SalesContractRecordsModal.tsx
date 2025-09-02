@@ -17,6 +17,7 @@ import type {
 } from "../types/contract-records";
 import { formatCurrency, calculateVAT } from "../lib/utils";
 import { StaffAllocationSection } from "./StaffAllocationSection";
+import { ContractImageSection } from "./ContractImageSection";
 
 // 기본 데이터
 const defaultData: SalesContractData = {
@@ -52,6 +53,7 @@ const defaultData: SalesContractData = {
       finalAllowance: 0,
     },
   ],
+  contractImages: [],
   totalCalculation: 0,
 };
 
@@ -128,6 +130,11 @@ export function SalesContractRecordsModal({
     handleDataChange({ ...data, staffAllocations });
   };
 
+  // 계약 이미지 변경 핸들러
+  const handleContractImagesChange = (contractImages: any) => {
+    handleDataChange({ ...data, contractImages });
+  };
+
   // 저장 핸들러
   const handleSave = () => {
     // 여기에 저장 로직 추가
@@ -137,14 +144,14 @@ export function SalesContractRecordsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="!max-w-none max-w-[80vw] w-[80vw] h-[85vh] max-h-[85vh] overflow-hidden p-3">
+      <DialogContent className="!max-w-none max-w-[80vw] w-[80vw] max-h-[90vh] overflow-y-auto p-3">
         <DialogHeader className="pb-1 flex-shrink-0">
           <DialogTitle className="text-lg font-bold">
             영업 계약기록 관리
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2 h-full overflow-hidden">
+        <div className="flex flex-col gap-2">
           {/* 인적 정보 */}
           <PersonalInfoSection
             customerInfo={data.customerInfo}
@@ -167,6 +174,9 @@ export function SalesContractRecordsModal({
             onStaffAllocationsChange={handleStaffAllocationsChange}
             totalCalculation={data.totalCalculation}
           />
+
+          {/* 계약 이미지 */}
+          <ContractImageSection onImagesChange={handleContractImagesChange} />
         </div>
 
         <Separator className="flex-shrink-0" />

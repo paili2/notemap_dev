@@ -23,12 +23,19 @@ export interface StaffAllocation {
   finalAllowance: number;
 }
 
+export interface ContractImage {
+  id: string;
+  file: File;
+  preview: string;
+}
+
 export interface SalesContractData {
   customerInfo: PersonInfo;
   salesManager: PersonInfo;
   salesPerson: PersonInfo;
   financialInfo: FinancialInfo;
   staffAllocations: StaffAllocation[];
+  contractImages: ContractImage[];
   totalCalculation: number;
 }
 

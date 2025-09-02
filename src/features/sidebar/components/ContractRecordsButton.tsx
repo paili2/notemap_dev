@@ -23,7 +23,7 @@ export function ContractRecordsButton({ onClick }: ContractRecordsButtonProps) {
             onClick={() => setIsModalOpen(true)}
           >
             <FileText className="h-4 w-4" />
-            <span className="text-sm font-medium">영업자 계약기록</span>
+            <span className="text-base font-medium">영업자 계약기록</span>
           </Button>
         </CardContent>
       </Card>

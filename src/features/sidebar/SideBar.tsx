@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { X, LogOut } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ToggleSidebarProps } from "./types/sidebar";
 import { useSidebarState } from "./hooks/useSidebarState";
@@ -25,7 +25,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   }
 
   return (
-    <div className="fixed top-[380px] right-4 transform -translate-y-1/2 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
+    <div className="fixed top-[440px] right-4 transform -translate-y-1/2 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
       <style jsx>{`
         .scrollbar-no-arrows::-webkit-scrollbar-button {
           display: none;
@@ -40,7 +40,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onDeleteItem={handleDeleteExploration}
         />
 
-        {/* 즐겨찾기 섹션을 위로 이동 */}
+        {/* 즐겨찾기 */}
         <SidebarSection
           title="즐겨찾기"
           items={[]}
@@ -53,6 +53,23 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
         />
 
         <ContractRecordsButton onClick={handleContractRecordsClick} />
+        {/* 계정 정보 및 로그아웃 버튼 */}
+        <div className="flex justify-between items-center p-2 border-t border-gray-200">
+          <span className="text-base font-medium text-gray-700">
+            사용자 계정
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // 로그아웃 로직 추가 ㅎ
+              console.log("로그아웃");
+            }}
+            className="p-0"
+          >
+            <LogOut size={16} />
+          </Button>
+        </div>
       </div>
     </div>
   );

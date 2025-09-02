@@ -275,62 +275,69 @@ export function StaffAllocationSection({
                 </div>
 
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor={`staff-percentage-${staff.id}`}
-                      className="text-xs text-gray-600"
-                    >
-                      비율체크
-                    </Label>
+                  <Label
+                    htmlFor={`staff-percentage-${staff.id}`}
+                    className="text-xs text-gray-600"
+                  >
+                    비율체크
+                  </Label>
+                  <div className="flex items-center gap-1">
+                    <div className="flex-1">
+                      {staff.isDirectInput ? (
+                        <div className="relative">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={staff.percentage || ""}
+                            onChange={(e) =>
+                              handleDirectPercentageChange(
+                                staff.id,
+                                e.target.value
+                              )
+                            }
+                            className="h-5 text-xs pr-4 border-blue-300 focus:border-blue-500"
+                            placeholder="0"
+                          />
+                          <span className="absolute right-1 top-1/2 transform -translate-y-1/2 text-xs text-blue-600">
+                            %
+                          </span>
+                        </div>
+                      ) : (
+                        <Select
+                          value={staff.percentage.toString()}
+                          onValueChange={(value) =>
+                            handleStaffPercentageChange(staff.id, Number(value))
+                          }
+                        >
+                          <SelectTrigger className="h-5 text-xs border-gray-300">
+                            <SelectValue placeholder="%" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAvailablePercentages(staff.id).map(
+                              (percentage) => (
+                                <SelectItem
+                                  key={percentage}
+                                  value={percentage.toString()}
+                                >
+                                  {percentage}%
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => toggleDirectInput(staff.id)}
-                      className="h-4 px-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      className="h-5 px-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
                     >
                       {staff.isDirectInput ? "선택" : "직접"}
                     </Button>
                   </div>
-                  {staff.isDirectInput ? (
-                    <div className="relative">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={staff.percentage || ""}
-                        onChange={(e) =>
-                          handleDirectPercentageChange(staff.id, e.target.value)
-                        }
-                        className="h-5 text-xs pr-4 border-blue-300 focus:border-blue-500"
-                        placeholder="0"
-                      />
-                      <span className="absolute right-1 top-1/2 transform -translate-y-1/2 text-xs text-blue-600">
-                        %
-                      </span>
-                    </div>
-                  ) : (
-                    <Select
-                      value={staff.percentage.toString()}
-                      onValueChange={(value) =>
-                        handleStaffPercentageChange(staff.id, Number(value))
-                      }
-                    >
-                      <SelectTrigger className="h-5 text-xs border-gray-300">
-                        <SelectValue placeholder="%" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getAvailablePercentages(staff.id).map((percentage) => (
-                          <SelectItem
-                            key={percentage}
-                            value={percentage.toString()}
-                          >
-                            {percentage}%
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
                 </div>
 
                 <div className="space-y-1">
