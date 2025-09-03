@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { toPy, toM2 } from "@/features/properties/lib/area";
 import { AreaSet, AreaSetsSectionProps } from "./types";

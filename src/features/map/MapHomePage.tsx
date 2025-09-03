@@ -10,7 +10,7 @@ import type { AdvFilters } from "@/features/properties/types/advFilters";
 import PropertyCreateModal from "../properties/components/PropertyCreateModal/PropertyCreateModal";
 import PropertyViewModal from "../properties/components/PropertyViewModal/PropertyViewModal";
 import PinContextMenu from "./components/PinContextMenu/PinContextMenu";
-import { PropertyViewDetails } from "../properties/types/property-view";
+import { PropertyViewDetails } from "../properties/components/PropertyViewModal/property-view";
 import { CreatePayload } from "../properties/types/property-dto";
 import { FilterKey } from "@/features/map/components/top/MapTopBar/types";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
@@ -487,19 +487,31 @@ const MapHomePage: React.FC = () => {
       dealStatus: (patch as any).dealStatus ?? (p as any).dealStatus,
       title: patch.title ?? p.title,
       address: patch.address ?? p.address,
+      // 뷰는 salePrice를 쓰지만 카드 상단 등은 priceText를 쓰는 경우가 있어 동기화
       priceText: (patch as any).salePrice ?? p.priceText,
-      // ✅ pinKind 최상위에 보관
+
+      // ✅ 최상위 pinKind 보관(마커 렌더용)
       ...("pinKind" in patch && patch.pinKind !== undefined
         ? { pinKind: (patch as any).pinKind }
         : { pinKind: (p as any).pinKind }),
+
       view: {
         ...(p as any).view,
-        // ✅ view에도 보관(호환용)
+
+        // ✅ 호환용 pinKind도 view에 보관
         ...("pinKind" in patch && patch.pinKind !== undefined
           ? { pinKind: (patch as any).pinKind }
           : { pinKind: (p as any).view?.pinKind }),
 
-        // 미디어 (카드/평탄)
+        // ✅ ★ 빠졌던 필드들 확실히 반영
+        listingStars:
+          (patch as any).listingStars ?? (p as any).view?.listingStars,
+        elevator: (patch as any).elevator ?? (p as any).view?.elevator,
+        orientations: Array.isArray((patch as any).orientations)
+          ? (patch as any).orientations
+          : (p as any).view?.orientations,
+
+        // 이미지(카드/평탄) 병합
         ...(() => {
           const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
           if (Array.isArray(cand)) {
@@ -527,7 +539,7 @@ const MapHomePage: React.FC = () => {
           ? (patch as any)._fileItemRefs
           : (p as any).view?._fileItemRefs,
 
-        // 이하 기존 필드들
+        // 기타 필드들
         publicMemo: (patch as any).publicMemo ?? (p as any).view?.publicMemo,
         secretMemo: (patch as any).secretMemo ?? (p as any).view?.secretMemo,
         officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
@@ -537,17 +549,21 @@ const MapHomePage: React.FC = () => {
         optionEtc: (patch as any).optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: (patch as any).unitLines ?? (p as any).view?.unitLines,
+
         parkingType: (patch as any).parkingType ?? (p as any).view?.parkingType,
         parkingCount:
           (patch as any).parkingCount ?? (p as any).view?.parkingCount,
+
         slopeGrade: (patch as any).slopeGrade ?? (p as any).view?.slopeGrade,
         structureGrade:
           (patch as any).structureGrade ?? (p as any).view?.structureGrade,
+
         aspect: (patch as any).aspect ?? (p as any).view?.aspect,
         aspectNo: (patch as any).aspectNo ?? (p as any).view?.aspectNo,
         aspect1: (patch as any).aspect1 ?? (p as any).view?.aspect1,
         aspect2: (patch as any).aspect2 ?? (p as any).view?.aspect2,
         aspect3: (patch as any).aspect3 ?? (p as any).view?.aspect3,
+
         totalBuildings:
           (patch as any).totalBuildings ?? (p as any).view?.totalBuildings,
         totalFloors: (patch as any).totalFloors ?? (p as any).view?.totalFloors,
@@ -556,11 +572,20 @@ const MapHomePage: React.FC = () => {
         remainingHouseholds:
           (patch as any).remainingHouseholds ??
           (p as any).view?.remainingHouseholds,
+
         completionDate:
           (patch as any).completionDate ?? (p as any).view?.completionDate,
         exclusiveArea:
           (patch as any).exclusiveArea ?? (p as any).view?.exclusiveArea,
         realArea: (patch as any).realArea ?? (p as any).view?.realArea,
+
+        // (있다면) 추가 평수 배열도 반영
+        extraExclusiveAreas:
+          (patch as any).extraExclusiveAreas ??
+          (p as any).view?.extraExclusiveAreas,
+        extraRealAreas:
+          (patch as any).extraRealAreas ?? (p as any).view?.extraRealAreas,
+
         dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
       },
     };

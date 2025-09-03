@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import Field from "../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import { Button } from "@/components/atoms/Button/Button";
 import { Trash2, Plus } from "lucide-react";
 import {
@@ -16,14 +16,8 @@ import type {
   AspectRowLite,
   OrientationValue,
 } from "@/features/properties/types/property-domain";
-import { ORIENTATIONS } from "../constants";
-
-type AspectsSectionProps = {
-  aspects: AspectRowLite[];
-  addAspect: () => void;
-  removeAspect: (no: number) => void;
-  setAspectDir: (no: number, dir: OrientationValue | "") => void;
-};
+import { ORIENTATIONS } from "../../constants";
+import { AspectsSectionProps } from "./types";
 
 export default function AspectsSection({
   aspects,
@@ -43,7 +37,7 @@ export default function AspectsSection({
     <div className="flex items-center gap-2">
       <span className="w-10 text-right">{row.no}호</span>
       <Select
-        value={row.dir}
+        value={row.dir || undefined} // "" 대신 undefined로 placeholder 동작
         onValueChange={(v) => setAspectDir(row.no, v as OrientationValue)}
       >
         <SelectTrigger className="w-[110px] h-9">
@@ -78,7 +72,6 @@ export default function AspectsSection({
       <div className="grid grid-cols-[1fr_1fr_auto] gap-x-3 gap-y-2">
         {rows.map((pair, rowIdx) => {
           const isLastRow = rowIdx === rows.length - 1;
-          // 안정적인 key: 행 번호 조합
           const pairKey =
             pair
               .map((p) => p?.no)

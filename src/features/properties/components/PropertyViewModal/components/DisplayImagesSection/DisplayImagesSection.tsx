@@ -1,19 +1,11 @@
-// DisplayImagesSection.tsx
 "use client";
 
 import type { ImageItem } from "@/features/properties/types/media";
-import LightboxModal from "../../../../../components/organisms/LightboxModal";
-import MiniCarousel from "../../../../../components/molecules/MiniCarousel";
+import LightboxModal from "@/components/organisms/LightboxModal";
+import MiniCarousel from "@/components/molecules/MiniCarousel";
 import { useEffect, useState } from "react";
-
-type AnyImg = ImageItem | { [k: string]: any } | string | null | undefined;
-
-type Props = {
-  cards?: Array<Array<AnyImg>>;
-  images?: Array<AnyImg>;
-  files?: Array<AnyImg>;
-  showNames?: boolean;
-};
+import CaptionSlot from "./components/CaptionSlot";
+import { AnyImg, DisplayImagesSectionProps } from "./types";
 
 const isOkUrl = (u: string) => /^https?:|^data:|^blob:/.test(u);
 const pickStr = (...xs: any[]) =>
@@ -45,28 +37,12 @@ function normList(list?: Array<AnyImg>): ImageItem[] {
   return list.map(normOne).filter(Boolean) as ImageItem[];
 }
 
-function CaptionSlot({ text }: { text?: string }) {
-  const t = (text || "").trim();
-  return (
-    <div className="mt-2 h-5 flex items-center justify-center">
-      <p
-        className={`text-xs text-gray-600 text-center whitespace-pre-wrap break-words ${
-          t ? "" : "invisible"
-        }`}
-        title={t}
-      >
-        {t || "placeholder"}
-      </p>
-    </div>
-  );
-}
-
 export default function DisplayImagesSection({
   cards,
   images,
   files,
   showNames = false,
-}: Props) {
+}: DisplayImagesSectionProps) {
   // 가로형 그룹
   const cardGroups: ImageItem[][] = Array.isArray(cards)
     ? cards.map((g) => normList(g)).filter((g) => g.length > 0)

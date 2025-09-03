@@ -1,17 +1,9 @@
 "use client";
 import { Phone } from "lucide-react";
-import Field from "../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { formatPhone } from "@/lib/formatPhone";
-
-type BasicInfoSectionProps = {
-  address: string;
-  setAddress: (v: string) => void;
-  officePhone: string;
-  setOfficePhone: (v: string) => void;
-  officePhone2: string;
-  setOfficePhone2: (v: string) => void;
-};
+import { BasicInfoSectionProps } from "./types";
 
 export default function BasicInfoSection({
   address,

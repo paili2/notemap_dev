@@ -1,9 +1,9 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
-import OrientationBadges from "../OrientationBadges";
+import Field from "@/components/atoms/Field/Field";
+import OrientationBadges from "./components/OrientationBadges";
 import { toAspectView } from "@/features/properties/lib/orientation";
-import type { PropertyViewDetails } from "@/features/properties/types/property-view";
+import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/property-view";
 
 export default function AspectsView({
   details,

@@ -3,29 +3,24 @@
 import { useEffect, useRef, useState } from "react";
 import { get as idbGet } from "idb-keyval";
 import { Trash2, Pencil } from "lucide-react";
-import type { PropertyViewDetails } from "@/features/properties/types/property-view";
+import type {
+  AnyImageRef,
+  MemoTab,
+  PropertyViewDetails,
+  UIImg,
+} from "@/features/properties/components/PropertyViewModal/property-view";
 
-import HeaderSectionView from "./components/HeaderSectionView";
-import DisplayImagesSection from "./components/DisplayImagesSection";
+import HeaderSectionView from "./components/HeaderSectionView/HeaderSectionView";
+import DisplayImagesSection from "./components/DisplayImagesSection/DisplayImagesSection";
 import BasicInfoView from "./components/BasicInfoView";
-import NumbersView from "./components/NumbersView";
+import NumbersView from "./components/NumbersView/NumbersView";
 import ParkingView from "./components/ParkingView";
-import CompletionRegistryView from "./components/CompletionRegistryView";
-import AspectsView from "./components/AspectsView";
-import AreaSetsView from "./components/AreaSetsView";
+import CompletionRegistryView from "./components/CompletionRegistryView/CompletionRegistryView";
+import AspectsView from "./components/AspectsView/AspectsView";
+import AreaSetsView from "./components/AreaSetsView/AreaSetsView";
 import StructureLinesList from "./components/StructureLinesList";
 import OptionsBadges from "./components/OptionsBadges";
 import MemoPanel from "./components/MemoPanel";
-
-/* ---------- 타입 ---------- */
-type AnyImageRef =
-  | string
-  | { url?: string; name?: string; caption?: string }
-  | { idbKey: string; name?: string; caption?: string };
-
-type UIImg = { url: string; name?: string; caption?: string };
-
-type MemoTab = "KN" | "R";
 
 const toYMD = (
   v: string | Date | null | undefined
@@ -50,7 +45,6 @@ export default function PropertyViewModal({
   onEdit?: () => void | Promise<void>;
 }) {
   const [memoTab, setMemoTab] = useState<MemoTab>("KN");
-
   const [cardsHydrated, setCardsHydrated] = useState<UIImg[][]>([[]]);
   const [filesHydrated, setFilesHydrated] = useState<UIImg[]>([]);
   const [legacyImagesHydrated, setLegacyImagesHydrated] = useState<
@@ -247,7 +241,6 @@ export default function PropertyViewModal({
         aria-hidden
       />
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
-        {/* 헤더 */}
         <HeaderSectionView
           title={data.title ?? ""}
           listingStars={data.listingStars ?? 0}
@@ -256,19 +249,15 @@ export default function PropertyViewModal({
           onClose={onClose}
         />
 
-        {/* 본문 */}
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-          {/* 좌: 이미지 카드 */}
           <div className="space-y-4">
             <DisplayImagesSection
-              // 🔑 이제는 수화된 상태를 그대로 사용
               cards={cardsHydrated}
               images={imagesProp}
               files={filesHydrated}
             />
           </div>
 
-          {/* 우: 상세 정보 */}
           <div className="space-y-6">
             <BasicInfoView
               address={data.address ?? ""}
@@ -314,7 +303,6 @@ export default function PropertyViewModal({
               optionEtc={data.optionEtc ?? ""}
             />
 
-            {/* 메모 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">메모</div>
@@ -353,7 +341,6 @@ export default function PropertyViewModal({
           </div>
         </div>
 
-        {/* 하단: 수정/삭제/닫기 */}
         <div className="px-5 py-3 border-t flex items-center justify-between">
           <div className="flex gap-2">
             {onEdit && (

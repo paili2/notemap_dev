@@ -2,7 +2,7 @@
 
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
-import StarsRating from "../../../../../components/molecules/StarsRating";
+import StarsRating from "@/components/molecules/StarsRating";
 import ElevatorSegment from "./components/ElevatorSegment";
 import PinTypeSelect, { PinKind } from "./components/PinTypeSelect";
 import type { HeaderSectionProps } from "./types";

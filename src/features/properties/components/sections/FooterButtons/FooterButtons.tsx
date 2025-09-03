@@ -2,12 +2,7 @@
 
 import { useState } from "react";
 import { Check, Loader2, ArrowLeft } from "lucide-react";
-
-type FooterButtonsProps = {
-  onClose: () => void;
-  onSave: () => void | Promise<void>;
-  canSave: boolean;
-};
+import { FooterButtonsProps } from "./types";
 
 export default function FooterButtons({
   onClose,

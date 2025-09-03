@@ -2,17 +2,9 @@
 
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import StarsRating from "../../../../../components/molecules/StarsRating";
+import StarsRating from "@/components/molecules/StarsRating";
 import { getPinUrl, type PinKind } from "@/features/map/pins";
-
-type Props = {
-  title: string;
-  listingStars: number;
-  elevator: "O" | "X";
-  /** 👇 현재 보여지는 핀 종류 추가 */
-  pinKind?: PinKind;
-  onClose?: () => void;
-};
+import { HeaderSectionViewProps } from "./types";
 
 export default function HeaderSectionView({
   title,
@@ -20,7 +12,7 @@ export default function HeaderSectionView({
   elevator,
   pinKind = "1room",
   onClose,
-}: Props) {
+}: HeaderSectionViewProps) {
   const pinSrc = getPinUrl(pinKind);
 
   return (

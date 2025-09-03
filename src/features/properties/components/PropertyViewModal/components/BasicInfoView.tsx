@@ -1,16 +1,18 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
+
+export interface BasicInfoViewProps {
+  address: string;
+  officePhone: string;
+  officePhone2?: string;
+}
 
 export default function BasicInfoView({
   address,
   officePhone,
   officePhone2,
-}: {
-  address: string;
-  officePhone: string;
-  officePhone2?: string;
-}) {
+}: BasicInfoViewProps) {
   return (
     <div className="space-y-6">
       <Field label="주소">

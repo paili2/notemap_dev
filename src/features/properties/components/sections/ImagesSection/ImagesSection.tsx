@@ -2,7 +2,7 @@
 
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
-import ImageCarouselUpload from "../../../../../components/organisms/ImageCarouselUpload/ImageCarouselUpload";
+import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/ImageCarouselUpload";
 import { ImageItem } from "@/features/properties/types/media";
 import { useRef } from "react";
 

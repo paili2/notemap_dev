@@ -11,7 +11,7 @@ import type {
   CreatePayload,
   UpdatePayload,
 } from "@/features/properties/types/property-dto";
-import type { PropertyViewDetails } from "@/features/properties/types/property-view";
+import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/property-view";
 import { AreaSet } from "../sections/AreaSetsSection/types";
 
 export type PropertyEditModalProps = {

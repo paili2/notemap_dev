@@ -1,7 +1,8 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
-type Maybe = string | number | null | undefined;
+import Field from "@/components/atoms/Field/Field";
+import { Maybe, NumbersViewProps } from "./types";
+
 const show = (v: Maybe) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;
 
@@ -10,12 +11,7 @@ export default function NumbersView({
   totalFloors,
   totalHouseholds,
   remainingHouseholds,
-}: {
-  totalBuildings?: Maybe;
-  totalFloors?: Maybe;
-  totalHouseholds?: Maybe;
-  remainingHouseholds?: Maybe;
-}) {
+}: NumbersViewProps) {
   return (
     <div className="grid grid-cols-4">
       <Field label="총 개동" align="center">

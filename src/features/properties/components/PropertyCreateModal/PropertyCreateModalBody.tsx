@@ -7,13 +7,13 @@ import HeaderSection from "../sections/HeaderSection/HeaderSection";
 import ImagesSection, {
   type ImageFile,
 } from "../sections/ImagesSection/ImagesSection";
-import BasicInfoSection from "../sections/BasicInfoSection";
+import BasicInfoSection from "../sections/BasicInfoSection/BasicInfoSection";
 import NumbersSection from "../sections/NumbersSection/NumbersSection";
-import AspectsSection from "../sections/AspectsSection";
-import ParkingSection from "../sections/ParkingSection";
+import AspectsSection from "../sections/AspectsSection/AspectsSection";
+import ParkingSection from "../sections/ParkingSection/ParkingSection";
 import OptionsSection from "../sections/OptionsSection/OptionsSection";
-import MemoSection from "../sections/MemoSection";
-import FooterButtons from "../sections/FooterButtons";
+import MemoSection from "../sections/MemoSection/MemoSection";
+import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import StructureLinesSection from "../sections/StructureLinesSection/StructureLinesSection";
 import CompletionRegistrySection from "../sections/CompletionRegistrySection/CompletionRegistrySection";
 

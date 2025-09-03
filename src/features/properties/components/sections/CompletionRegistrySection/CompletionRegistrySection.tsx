@@ -1,13 +1,13 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import type {
   Registry,
   Grade,
 } from "@/features/properties/types/property-domain";
 import { formatDate } from "@/lib/formatDate";
-import PillRadioGroup from "../../../../../components/atoms/PillRadioGroup";
+import PillRadioGroup from "@/components/atoms/PillRadioGroup";
 import { CompletionRegistrySectionProps } from "./types";
 
 const GRADES: ReadonlyArray<Grade> = ["상", "중", "하"];

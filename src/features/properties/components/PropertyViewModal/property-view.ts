@@ -3,10 +3,8 @@ import {
   Registry,
   UnitLine,
   OrientationRow,
-  Visibility,
-  DealStatus,
 } from "@/features/properties/types/property-domain";
-import { ImageItem } from "./media";
+import { ImageItem } from "../../types/media";
 
 /** 저장 전용 레퍼런스 타입(IndexedDB 키 참조) */
 export type ImageRefLite = {
@@ -17,10 +15,11 @@ export type ImageRefLite = {
 
 export type PropertyViewDetails = {
   id?: string;
+  listingGrade?: Grade;
   title?: string;
+  elevator?: "O" | "X";
   address?: string;
 
-  officeName?: string;
   officePhone?: string;
   officePhone2?: string;
 
@@ -37,12 +36,9 @@ export type PropertyViewDetails = {
   aspect3?: string;
   orientations?: OrientationRow[];
 
-  // 매물/주차
-  listingGrade?: Grade; // 매물평점
+  // 주차
   parkingType?: string | null;
   parkingCount?: string | number;
-
-  elevator?: "O" | "X";
 
   // 등급들
   slopeGrade?: Grade;
@@ -91,8 +87,14 @@ export type PropertyViewDetails = {
   updatedByName?: string;
   updatedAt?: string;
 
-  status?: Visibility;
-  dealStatus?: DealStatus;
-
   listingStars: number;
 };
+
+export type AnyImageRef =
+  | string
+  | { url?: string; name?: string; caption?: string }
+  | { idbKey: string; name?: string; caption?: string };
+
+export type UIImg = { url: string; name?: string; caption?: string };
+
+export type MemoTab = "KN" | "R";

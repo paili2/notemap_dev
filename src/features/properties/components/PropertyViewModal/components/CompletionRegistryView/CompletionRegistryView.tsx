@@ -1,22 +1,25 @@
 "use client";
 
 import { formatDate } from "@/lib/formatDate";
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import type {
   Grade,
   Registry,
 } from "@/features/properties/types/property-domain";
+import Pill from "./components/Pill";
 
 // ↑ 실제 경로에 맞게 수정 (formatDate 정의한 곳)
 
 const show = (v: any) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;
 
-const Pill = ({ text }: { text?: string }) => (
-  <span className="inline-flex h-8 items-center rounded-lg px-3 text-sm border bg-blue-50 text-blue-700">
-    {text || "-"}
-  </span>
-);
+export interface CompletionRegistryView {
+  completionDate?: string | null;
+  salePrice?: string | number | null;
+  registry?: Registry;
+  slopeGrade?: Grade;
+  structureGrade?: Grade;
+}
 
 export default function CompletionRegistryView({
   completionDate,
@@ -24,13 +27,7 @@ export default function CompletionRegistryView({
   registry,
   slopeGrade,
   structureGrade,
-}: {
-  completionDate?: string | null;
-  salePrice?: string | number | null;
-  registry?: Registry;
-  slopeGrade?: Grade;
-  structureGrade?: Grade;
-}) {
+}: CompletionRegistryView) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 items-center">

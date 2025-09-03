@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/atoms/Input/Input";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import {
   KeyboardEventHandler,
   useCallback,

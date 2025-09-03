@@ -1,5 +1,3 @@
-// 공용 도메인 타입 (수정/보기 모달 등에서 재사용)
-
 // --- Registry ---
 export const REGISTRY_LIST = ["주택", "APT", "OP", "도/생", "근/생"] as const;
 export type Registry = (typeof REGISTRY_LIST)[number];
@@ -36,6 +34,3 @@ export type UnitLine = {
   primary: string;
   secondary: string;
 };
-
-export type Visibility = "공개" | "보류" | "비공개";
-export type DealStatus = "분양중" | "예약중" | "계약중" | "계약완료";

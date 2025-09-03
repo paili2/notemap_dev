@@ -1,4 +1,3 @@
-// components/MapView/MapView.tsx
 "use client";
 
 import { useClustererWithLabels } from "./hooks/useClustererWithLabels";

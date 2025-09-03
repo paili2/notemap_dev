@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import GridTilesIcon from "./icons/GridTilesIcon";
+import GridTilesIcon from "@/components/atoms/Icons/GridTilesIcon";
 
 type Props = {
   pressed: boolean;

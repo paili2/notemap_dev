@@ -1,14 +1,16 @@
 "use client";
 
-import Field from "../../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
+
+interface ParkingViewProps {
+  parkingType?: string | null;
+  parkingCount?: string | number | null;
+}
 
 export default function ParkingView({
   parkingType,
   parkingCount,
-}: {
-  parkingType?: string | null;
-  parkingCount?: string | number | null;
-}) {
+}: ParkingViewProps) {
   return (
     <div className="grid grid-cols-4 items-center">
       <Field label="주차 유형">

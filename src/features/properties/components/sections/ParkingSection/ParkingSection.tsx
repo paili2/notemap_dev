@@ -1,6 +1,6 @@
 "use client";
 
-import Field from "../../../../components/atoms/Field/Field";
+import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import {
   Select,
@@ -10,16 +10,8 @@ import {
   SelectValue,
 } from "@/components/atoms/Select/Select";
 import { useEffect, useState } from "react";
-
-type ParkingSectionProps = {
-  parkingType: string;
-  setParkingType: (v: string) => void;
-  parkingCount: string; // 총 주차대수
-  setParkingCount: (v: string) => void;
-};
-
-const PRESETS = ["병렬", "직렬", "기계식", "EV"] as const;
-type Preset = (typeof PRESETS)[number];
+import { ParkingSectionProps, Preset } from "./types";
+import { PRESETS } from "./constants";
 
 export default function ParkingSection({
   parkingType,
@@ -30,32 +22,40 @@ export default function ParkingSection({
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 
-  // 내부 셀렉트/커스텀 입력 값 — 외부 parkingType 변화에도 동기화
   const [selectValue, setSelectValue] = useState<string>("");
   const [custom, setCustom] = useState<string>("");
 
-  // prop → 내부 상태 동기화 (초기/수정모달 프리필 모두 대응)
+  /** prop → 내부 상태 동기화 */
   useEffect(() => {
     if (!parkingType) {
       setSelectValue("");
+      // 사용자 입력은 초기화
       setCustom("");
       return;
     }
     if (isPreset(parkingType)) {
       setSelectValue(parkingType);
+      // 프리셋이면 커스텀 지움
       setCustom("");
-    } else {
-      setSelectValue("custom");
-      setCustom(parkingType);
+      return;
     }
+    if (parkingType === "custom") {
+      // 커스텀 모드만 켜고, 사용자가 입력해 둔 값은 보존
+      setSelectValue("custom");
+      return;
+    }
+    // 임의 문자열(예: "지상 병렬 1대")이면 커스텀 모드 + 값 채움
+    setSelectValue("custom");
+    setCustom(parkingType);
   }, [parkingType]);
 
-  // 내부 상태 → 상위 값 반영
+  /** 내부 상태 → 상위 값 반영 */
   useEffect(() => {
     if (selectValue === "custom") {
-      setParkingType(custom.trim());
+      const trimmed = custom.trim();
+      // 비어 있으면 'custom' 센티넬만 보냄(초기화 방지)
+      setParkingType(trimmed === "" ? "custom" : trimmed);
     } else {
-      // "", "병렬", "직렬", "기계식", "EV"
       setParkingType(selectValue);
     }
   }, [selectValue, custom, setParkingType]);
@@ -71,10 +71,12 @@ export default function ParkingSection({
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
           <Select
-            value={selectValue || undefined} // 빈 값일 땐 placeholder 표시
+            value={selectValue || undefined}
             onValueChange={(val) => {
               setSelectValue(val);
-              if (val === "custom") setCustom("");
+              if (val === "custom") {
+                setCustom("");
+              }
             }}
           >
             <SelectTrigger className="w-28 h-9">

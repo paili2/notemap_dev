@@ -7,13 +7,13 @@ import HeaderSection from "../sections/HeaderSection/HeaderSection";
 import ImagesSection, {
   type ImageFile,
 } from "../sections/ImagesSection/ImagesSection";
-import BasicInfoSection from "../sections/BasicInfoSection";
+import BasicInfoSection from "../sections/BasicInfoSection/BasicInfoSection";
 import NumbersSection from "../sections/NumbersSection/NumbersSection";
-import AspectsSection from "../sections/AspectsSection";
-import ParkingSection from "../sections/ParkingSection";
+import AspectsSection from "../sections/AspectsSection/AspectsSection";
+import ParkingSection from "../sections/ParkingSection/ParkingSection";
 import OptionsSection from "../sections/OptionsSection/OptionsSection";
-import MemoSection from "../sections/MemoSection";
-import FooterButtons from "../sections/FooterButtons";
+import MemoSection from "../sections/MemoSection/MemoSection";
+import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import StructureLinesSection from "../sections/StructureLinesSection/StructureLinesSection";
 import CompletionRegistrySection from "../sections/CompletionRegistrySection/CompletionRegistrySection";
 import AreaSetsSection from "../sections/AreaSetsSection/AreaSetsSection";
@@ -27,8 +27,6 @@ import {
 } from "@/features/properties/lib/area";
 
 import {
-  type DealStatus,
-  type Visibility,
   type Registry,
   type UnitLine,
   type Grade,
@@ -38,13 +36,10 @@ import {
 } from "@/features/properties/types/property-domain";
 
 import type { PropertyEditModalProps } from "./types";
-import type {
-  CreatePayload,
-  UpdatePayload,
-} from "@/features/properties/types/property-dto";
+
 import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../constants";
 import { AreaSet } from "../sections/AreaSetsSection/types";
-import { PinKind } from "../sections/HeaderSection/components/PinTypeSelect";
+import { PinKind } from "@/features/map/pins";
 
 /* -------------------- 상수 -------------------- */
 const MAX_PER_CARD = 20;
@@ -448,9 +443,6 @@ export default function PropertyEditModalBody({
   const [publicMemo, setPublicMemo] = useState("");
   const [secretMemo, setSecretMemo] = useState("");
 
-  const [visibility, setVisibility] = useState<Visibility>("공개");
-  const [dealStatus, setDealStatus] = useState<DealStatus>("분양중");
-
   const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
   const addLineFromPreset = (preset: string) => {
     const { rooms, baths } = parsePreset(preset);
@@ -536,7 +528,6 @@ export default function PropertyEditModalBody({
     // 기타 필드 세팅 ...
     setTitle(initialData.title ?? "");
     setAddress(initialData.address ?? "");
-    setOfficeName(initialData.officeName ?? "");
     setOfficePhone(initialData.officePhone ?? "");
     setOfficePhone2(initialData.officePhone2 ?? "");
     setMoveIn(initialData.moveIn ?? "");
@@ -598,9 +589,6 @@ export default function PropertyEditModalBody({
     setTotalFloors(asStr(initialData.totalFloors));
     setTotalHouseholds(asStr(initialData.totalHouseholds));
     setRemainingHouseholds(asStr(initialData.remainingHouseholds));
-
-    setVisibility(initialData.status ?? "공개");
-    setDealStatus(initialData.dealStatus ?? "분양중");
 
     setOptions(initialData.options ?? []);
     setOptionEtc(initialData.optionEtc ?? "");
@@ -806,8 +794,6 @@ export default function PropertyEditModalBody({
 
     const payload = {
       id: String((initialData as any)?.id ?? ""),
-      status: visibility,
-      dealStatus,
       listingStars,
       title,
       address,
