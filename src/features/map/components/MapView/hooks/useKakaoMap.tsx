@@ -5,10 +5,23 @@ type Args = {
   appKey: string;
   center: LatLng;
   level?: number;
+  /** true → 전국 영역으로 맞추고 그 이상 축소 불가 */
+  fitKoreaBounds?: boolean;
+  /** 일반 최대 축소 한계( fitKoreaBounds가 true면 무시되고 전국레벨로 고정 ) */
+  maxLevel?: number;
   showNativeLayerControl?: boolean;
   controlRightOffsetPx?: number;
   controlTopOffsetPx?: number;
   onMapReady?: (args: { kakao: any; map: any }) => void;
+};
+
+type SearchOptions = {
+  /** 기존 마커 지우고 하나만 유지할지 (기본: true) */
+  clearPrev?: boolean;
+  /** 검색 좌표로 지도 중심 이동할지 (기본: true) */
+  recenter?: boolean;
+  /** 검색 좌표로 적당히 확대할지 (기본: false) */
+  fitZoom?: boolean;
 };
 
 declare global {
@@ -17,11 +30,11 @@ declare global {
   }
 }
 
-function loadKakaoOnce(appKey: string) {
+function loadKakaoOnce(appKey: string): Promise<any> {
   if (typeof window === "undefined") return Promise.reject("SSR");
   const w = window as any;
 
-  // 이미 로드 되었으면 재사용
+  // 이미 로드된 SDK 재사용
   if (w.kakao?.maps) return Promise.resolve(w.kakao);
   if (window.__kakaoMapLoader) return window.__kakaoMapLoader;
 
@@ -39,10 +52,18 @@ function loadKakaoOnce(appKey: string) {
   return window.__kakaoMapLoader;
 }
 
+// 대한민국 전체(제주 포함, 북동부까지) 대략 경계
+const KOREA_BOUNDS = {
+  sw: { lat: 33.0, lng: 124.0 },
+  ne: { lat: 39.5, lng: 132.0 },
+};
+
 const useKakaoMap = ({
   appKey,
   center,
   level = 5,
+  fitKoreaBounds = false,
+  maxLevel = 11,
   showNativeLayerControl = true,
   controlRightOffsetPx = 10,
   controlTopOffsetPx = 10,
@@ -50,16 +71,18 @@ const useKakaoMap = ({
 }: Args) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // ref로 보관: 재렌더에도 인스턴스 유지 (재생성 X)
   const kakaoRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
+  const lastMarkerRef = useRef<any>(null); // ✅ 마지막 마커 보관
 
   const [ready, setReady] = useState(false);
+
+  // 우리가 관리하는 최대 축소 레벨( getMaxLevel 대체 )
+  const maxLevelRef = useRef<number>(maxLevel);
 
   // 1) 최초 1회: SDK 로드 + 지도 생성
   useEffect(() => {
     let cancelled = false;
-
     if (!containerRef.current) return;
 
     loadKakaoOnce(appKey)
@@ -73,11 +96,32 @@ const useKakaoMap = ({
           level,
         });
 
-        // 기본 컨트롤 (오른쪽 상단 위치/오프셋 적용)
+        // 일반 최대 축소 제한 우선 적용
+        maxLevelRef.current = maxLevel;
+        map.setMaxLevel(maxLevelRef.current);
+
+        // 전국 보기 옵션: bounds 맞추고 그 레벨을 최대 축소로 고정
+        if (fitKoreaBounds) {
+          const bounds = new kakao.maps.LatLngBounds(
+            new kakao.maps.LatLng(KOREA_BOUNDS.sw.lat, KOREA_BOUNDS.sw.lng),
+            new kakao.maps.LatLng(KOREA_BOUNDS.ne.lat, KOREA_BOUNDS.ne.lng)
+          );
+          map.setBounds(bounds);
+          const lv = map.getLevel();
+          maxLevelRef.current = lv; // 전국이 보이는 현재 레벨을 상한으로 저장
+          map.setMaxLevel(lv);
+        }
+
+        // 안전장치: 한 틱 넘어가면 되돌리기
+        kakao.maps.event.addListener(map, "zoom_changed", () => {
+          const lv = map.getLevel();
+          if (lv > maxLevelRef.current) map.setLevel(maxLevelRef.current);
+        });
+
+        // 기본 컨트롤 추가 + 오프셋
         if (showNativeLayerControl) {
           const mapTypeControl = new kakao.maps.MapTypeControl();
           map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
-          // 오프셋은 DOM 스타일로 조정
           const controls = containerRef.current.querySelectorAll(
             ".wrap_map .map_control, .map_type_control"
           );
@@ -95,56 +139,129 @@ const useKakaoMap = ({
         console.error("Kakao SDK load failed:", e);
       });
 
-    // cleanup: 지도 DOM만 정리 (스크립트는 그대로 두기)
+    // cleanup
     return () => {
       cancelled = true;
-      // 카카오 지도는 명시적 destroy가 없어도 DOM 제거 시 GC됨
+      // 마지막 마커 제거
+      if (lastMarkerRef.current) {
+        lastMarkerRef.current.setMap(null);
+        lastMarkerRef.current = null;
+      }
       mapRef.current = null;
     };
-    // 의도적으로 deps 비움: "한 번만" 초기화
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appKey]);
 
-  // 2) center 변경 시 부드럽게 이동 (재생성 금지)
+  // 2) center 변경 시 부드럽게 이동
   useEffect(() => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
     if (!ready || !kakao || !map) return;
 
-    // requestAnimationFrame으로 프레임 단위 스로틀 → 미세 깜빡임 방지
-    let raf = requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
       const next = new kakao.maps.LatLng(center.lat, center.lng);
       map.panTo(next);
     });
     return () => cancelAnimationFrame(raf);
   }, [center.lat, center.lng, ready]);
 
-  // 3) level 변경 시 메서드 호출 (재생성 금지)
+  // 3) level 변경 시에도 우리가 관리하는 상한 적용
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
-    map.setLevel(level);
+    map.setLevel(Math.min(level, maxLevelRef.current));
   }, [level, ready]);
 
-  // 4) 네이티브 컨트롤 표시 토글 (필요 시)
+  // 4) 네이티브 컨트롤 토글
   useEffect(() => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
     if (!ready || !kakao || !map) return;
 
-    // 간단 구현: 표시 on일 때만 컨트롤 추가 (한 번 추가되면 유지되므로,
-    // 자주 토글할 일 있으면 별도 DOM 스타일로 show/hide 권장)
     if (showNativeLayerControl) {
       const mapTypeControl = new kakao.maps.MapTypeControl();
       map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
     }
   }, [showNativeLayerControl, ready]);
 
+  // ====== ✅ 주소/키워드 검색 + 마커 찍기 헬퍼 ======
+  const placeMarkerAt = (coords: any, opts?: SearchOptions) => {
+    const kakao = kakaoRef.current;
+    const map = mapRef.current;
+    if (!kakao || !map) return;
+
+    const { clearPrev = true, recenter = true, fitZoom = false } = opts || {};
+
+    if (clearPrev && lastMarkerRef.current) {
+      lastMarkerRef.current.setMap(null);
+      lastMarkerRef.current = null;
+    }
+
+    if (recenter) map.setCenter(coords);
+
+    if (fitZoom) {
+      // 지도를 살짝 더 확대해 보기 좋게 (최소 5레벨 보장)
+      const targetLevel = Math.min(5, maxLevelRef.current);
+      map.setLevel(targetLevel);
+    }
+
+    const marker = new kakao.maps.Marker({ map, position: coords });
+    lastMarkerRef.current = marker;
+  };
+
+  /** 주소 → 실패 시 키워드로 검색하여 좌표에 마커 배치 */
+  const searchPlace = (query: string, opts?: SearchOptions) => {
+    if (!ready || !kakaoRef.current || !mapRef.current || !query) return;
+
+    const kakao = kakaoRef.current;
+    const map = mapRef.current;
+
+    const geocoder = new kakao.maps.services.Geocoder();
+    const places = new kakao.maps.services.Places();
+
+    // 1) 주소 검색
+    geocoder.addressSearch(query, (addrResult: any[], addrStatus: string) => {
+      if (
+        addrStatus === kakao.maps.services.Status.OK &&
+        addrResult.length > 0
+      ) {
+        const lat = parseFloat(addrResult[0].y);
+        const lng = parseFloat(addrResult[0].x);
+        const coords = new kakao.maps.LatLng(lat, lng);
+        placeMarkerAt(coords, opts);
+      } else {
+        // 2) 주소 실패 → 키워드 검색
+        places.keywordSearch(query, (kwResult: any[], kwStatus: string) => {
+          if (
+            kwStatus === kakao.maps.services.Status.OK &&
+            kwResult.length > 0
+          ) {
+            const lat = parseFloat(kwResult[0].y);
+            const lng = parseFloat(kwResult[0].x);
+            const coords = new kakao.maps.LatLng(lat, lng);
+            placeMarkerAt(coords, opts);
+          } else {
+            console.warn("검색 결과 없음:", query);
+          }
+        });
+      }
+    });
+  };
+
   return {
     containerRef,
-    kakao: kakaoRef.current, // 현재 인스턴스 (state가 아니라 flicker 없음)
+    kakao: kakaoRef.current,
     map: mapRef.current,
     ready,
+    /** 주소/키워드 자동 판별 검색 → 마커 찍기 */
+    searchPlace,
+    /** 마지막 마커 지우기 */
+    clearLastMarker: () => {
+      if (lastMarkerRef.current) {
+        lastMarkerRef.current.setMap(null);
+        lastMarkerRef.current = null;
+      }
+    },
   };
 };
 

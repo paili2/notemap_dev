@@ -6,7 +6,6 @@ import type { LatLng, MapMarker } from "@/features/map/types/map";
 import MapView from "./components/MapView/MapView";
 import type { PropertyItem } from "../properties/types/propertyItem";
 import type { AdvFilters } from "@/features/properties/types/advFilters";
-
 import PropertyCreateModal from "../properties/components/PropertyCreateModal/PropertyCreateModal";
 import PropertyViewModal from "../properties/components/PropertyViewModal/PropertyViewModal";
 import PinContextMenu from "./components/PinContextMenu/PinContextMenu";
@@ -16,8 +15,6 @@ import { FilterKey } from "@/features/map/components/top/MapTopBar/types";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
 import { Sidebar } from "@/features/sidebar";
-
-import { distanceMeters } from "@/lib/geo/distance";
 import { ImageItem } from "../properties/types/media";
 
 import {
@@ -27,6 +24,7 @@ import {
   type ImageRef,
 } from "@/lib/imageStore";
 import PropertyEditModal from "../properties/components/PropertyEditModal/PropertyEditModal";
+import useKakaoMap from "./components/MapView/hooks/useKakaoMap";
 
 const STORAGE_KEY = "properties";
 
@@ -283,8 +281,6 @@ async function hydrateItems(items: PropertyItem[]) {
 
 /** ========================= 컴포넌트 ========================= */
 const MapHomePage: React.FC = () => {
-  const [, setFavOpen] = useState(false);
-
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
   const [menuAddress, setMenuAddress] = useState<string | null>(null);
@@ -316,6 +312,66 @@ const MapHomePage: React.FC = () => {
   });
   const [filter, setFilter] = useState<FilterKey>("all");
   const [q, setQ] = useState("");
+
+  const lastSearchMarkerRef = useRef<any>(null);
+
+  const runSearch = useCallback(
+    (query: string) => {
+      if (!kakaoSDK || !mapInstance || !query.trim()) return;
+
+      const geocoder = new kakaoSDK.maps.services.Geocoder();
+      const places = new kakaoSDK.maps.services.Places();
+
+      const placeMarkerAt = (lat: number, lng: number) => {
+        const coords = new kakaoSDK.maps.LatLng(lat, lng);
+
+        if (lastSearchMarkerRef.current) {
+          lastSearchMarkerRef.current.setMap(null);
+          lastSearchMarkerRef.current = null;
+        }
+
+        mapInstance.setCenter(coords);
+        const marker = new kakaoSDK.maps.Marker({
+          map: mapInstance,
+          position: coords,
+        });
+        lastSearchMarkerRef.current = marker;
+        // 보기 좋게 살짝 확대 (필요 없으면 제거)
+        mapInstance.setLevel(Math.min(5, 11));
+      };
+
+      // 1) 주소 검색
+      geocoder.addressSearch(query, (addrResult: any[], addrStatus: string) => {
+        if (
+          addrStatus === kakaoSDK.maps.services.Status.OK &&
+          addrResult?.length
+        ) {
+          const r0 = addrResult[0];
+          const lat = parseFloat(
+            (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
+          );
+          const lng = parseFloat(
+            (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
+          );
+          placeMarkerAt(lat, lng);
+        } else {
+          // 2) 주소 실패 → 키워드 검색
+          places.keywordSearch(query, (kwResult: any[], kwStatus: string) => {
+            if (
+              kwStatus === kakaoSDK.maps.services.Status.OK &&
+              kwResult?.length
+            ) {
+              const r0 = kwResult[0];
+              placeMarkerAt(parseFloat(r0.y), parseFloat(r0.x));
+            } else {
+              alert("검색 결과가 없습니다.");
+            }
+          });
+        }
+      });
+    },
+    [kakaoSDK, mapInstance]
+  );
 
   // 1) 최초 로드: localStorage → items
   const [items, setItems] = useState<PropertyItem[]>(() => {
@@ -769,83 +825,9 @@ const MapHomePage: React.FC = () => {
         onChangeFilter={setFilter}
         value={q}
         onChangeSearch={setQ}
-        onSubmitSearch={async (v) => {
+        onSubmitSearch={(v) => {
           if (!v.trim()) return;
-          const kakao = (window as any).kakao;
-          if (!kakao) return;
-
-          if (!geocoderRef.current) {
-            geocoderRef.current = new kakao.maps.services.Geocoder();
-          }
-          const geocoder = geocoderRef.current as any;
-
-          const looksLikeJibeon =
-            /(?:산\s*)?\d+-?\d*/.test(v) || /동\s*\d+/.test(v);
-
-          geocoder.addressSearch(v, async (result: any[], status: string) => {
-            if (status !== kakao.maps.services.Status.OK || !result?.[0]) {
-              alert("주소를 찾을 수 없어요.");
-              return;
-            }
-
-            const r0 = result[0];
-            const pick =
-              looksLikeJibeon && r0.address
-                ? r0.address
-                : r0.road_address || r0.address;
-
-            let latlng = {
-              lat: parseFloat(pick.y ?? r0.y),
-              lng: parseFloat(pick.x ?? r0.x),
-            };
-
-            const normAddr: { road?: string; jibun?: string } = {};
-            await new Promise<void>((resolve) => {
-              geocoder.coord2Address(
-                latlng.lng,
-                latlng.lat,
-                (res: any, s: string) => {
-                  if (s === kakao.maps.services.Status.OK && res?.[0]) {
-                    normAddr.road =
-                      res[0].road_address?.address_name || undefined;
-                    normAddr.jibun = res[0].address?.address_name || undefined;
-                  }
-                  resolve();
-                }
-              );
-            });
-
-            let nearest: { item: PropertyItem; dist: number } | null = null;
-            for (const it of items) {
-              const d = distanceMeters(latlng, it.position);
-              if (!nearest || d < nearest.dist) nearest = { item: it, dist: d };
-            }
-
-            setSelectedId(null);
-            setMenuTargetId(null);
-            setFitAllOnce(false);
-
-            const SNAP_M = 50;
-            if (nearest && nearest.dist <= SNAP_M) {
-              latlng = nearest.item.position;
-              setDraftPin(null);
-              setSelectedId(nearest.item.id);
-              setMenuTargetId(nearest.item.id);
-              setMenuAnchor(nearest.item.position);
-              setMenuAddress(
-                nearest.item.address ?? normAddr.road ?? normAddr.jibun ?? v
-              );
-              setMenuOpen(true);
-            } else {
-              setDraftPin(latlng);
-              setMenuAnchor(latlng);
-              const display = looksLikeJibeon
-                ? normAddr.jibun ?? normAddr.road ?? v
-                : normAddr.road ?? normAddr.jibun ?? v;
-              setMenuAddress(display);
-              setMenuOpen(true);
-            }
-          });
+          runSearch(v);
         }}
       />
 

@@ -6,11 +6,9 @@ import useKakaoMap from "./hooks/useKakaoMap";
 import { useMapClick } from "./hooks/useMapClick";
 import type { MapViewProps } from "./types";
 import type { PinKind } from "@/features/map/pins";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
-// ✅ pinKind를 옵셔널로
 type Props = MapViewProps & {
-  /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */
   pinKind?: PinKind;
 };
 
@@ -28,12 +26,23 @@ const MapView: React.FC<Props> = ({
   onMarkerClick,
   onMapClick,
   onMapReady,
-  pinKind = "1room", // ✅ 기본값
+  pinKind = "1room",
 }) => {
-  const { containerRef, kakao, map } = useKakaoMap({
+  const {
+    containerRef,
+    kakao,
+    map,
+    // ✅ 검색 쓰려면 이 두 개를 받아주세요
+    searchPlace,
+    // clearLastMarker,
+  } = useKakaoMap({
     appKey,
     center,
     level,
+    // ✅ 전국 보기 + 그 이상 축소 금지
+    fitKoreaBounds: true,
+    // (옵션) fitKoreaBounds가 false일 때 동작할 일반 최대 축소 한계
+    maxLevel: 11,
     showNativeLayerControl,
     controlRightOffsetPx,
     controlTopOffsetPx,
@@ -54,7 +63,7 @@ const MapView: React.FC<Props> = ({
   useClustererWithLabels(kakao, map, markers, {
     hitboxSizePx: 56,
     onMarkerClick,
-    defaultPinKind: pinKind, // ✅ 각 마커에 kind가 없으면 이 기본 핀 사용
+    defaultPinKind: pinKind,
     fitToMarkers,
   });
 
