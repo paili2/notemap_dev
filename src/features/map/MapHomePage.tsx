@@ -15,6 +15,7 @@ import { FilterKey } from "@/features/map/components/top/MapTopBar/types";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
 import { Sidebar } from "@/features/sidebar";
+import FilterSearch from "./FilterSearch/components/FilterSearch";
 import { ImageItem } from "../properties/types/media";
 
 import {
@@ -277,6 +278,7 @@ const MapHomePage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [q, setQ] = useState("");
 
+<<<<<<< HEAD:src/features/map/MapHomePage.tsx
   const lastSearchMarkerRef = useRef<any>(null);
 
   // ── 검색 (주소→좌표, 실패 시 키워드) ──
@@ -397,6 +399,10 @@ const MapHomePage: React.FC = () => {
       if (inFlightRef.current) inFlightRef.current.abort();
     };
   }, []);
+=======
+  // FilterSearch 모달 상태
+  const [filterSearchOpen, setFilterSearchOpen] = useState(false);
+>>>>>>> khj:src/features/properties/pages/MapHomePage.tsx
 
   // 1) 최초 로드: localStorage → items
   const [items, setItems] = useState<PropertyItem[]>(() => {
@@ -829,6 +835,35 @@ const MapHomePage: React.FC = () => {
           </Card>
         )}
       </div>
+
+      {/* 좌측 하단 필터 검색 버튼 */}
+      <div className="absolute bottom-4 left-4 z-30">
+        <button
+          onClick={() => setFilterSearchOpen(true)}
+          className="bg-gray-900 shadow-2xl border-2 border-gray-800 hover:bg-gray-800 p-3 rounded-lg transition-all duration-200 hover:scale-105"
+          title="필터 검색"
+        >
+          <svg
+            className="w-5 h-5 text-white"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+            />
+          </svg>
+        </button>
+      </div>
+
+      {/* FilterSearch 모달 */}
+      <FilterSearch
+        isOpen={filterSearchOpen}
+        onClose={() => setFilterSearchOpen(false)}
+      />
 
       {/* 모달들 */}
       {viewOpen && selectedViewItem && (

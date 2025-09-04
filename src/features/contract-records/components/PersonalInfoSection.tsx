@@ -33,7 +33,7 @@ export function PersonalInfoSection({
         <CardTitle className="text-sm">인적 정보</CardTitle>
       </CardHeader>
       <CardContent className="p-3 pt-1">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
           {/* 고객 정보 */}
           <div className="space-y-2">
             <h3 className="font-semibold text-xs text-left">고객정보</h3>
