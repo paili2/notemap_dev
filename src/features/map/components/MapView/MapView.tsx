@@ -6,9 +6,10 @@ import useKakaoMap from "./hooks/useKakaoMap";
 import { useMapClick } from "./hooks/useMapClick";
 import type { MapViewProps } from "./types";
 import type { PinKind } from "@/features/map/pins";
-import { useEffect, useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 type Props = MapViewProps & {
+  /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */
   pinKind?: PinKind;
 };
 
@@ -26,27 +27,30 @@ const MapView: React.FC<Props> = ({
   onMarkerClick,
   onMapClick,
   onMapReady,
+  onViewportChange, // ✅ 상위로 전달받음
   pinKind = "1room",
 }) => {
-  const {
-    containerRef,
-    kakao,
-    map,
-    // ✅ 검색 쓰려면 이 두 개를 받아주세요
-    searchPlace,
-    // clearLastMarker,
-  } = useKakaoMap({
+  // ✅ idle 디바운스
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { containerRef, kakao, map } = useKakaoMap({
     appKey,
     center,
     level,
-    // ✅ 전국 보기 + 그 이상 축소 금지
+    // 전국 보기 + 그 이상 축소 금지
     fitKoreaBounds: true,
-    // (옵션) fitKoreaBounds가 false일 때 동작할 일반 최대 축소 한계
+    // fitKoreaBounds가 false일 때 일반 최대 축소
     maxLevel: 11,
     showNativeLayerControl,
     controlRightOffsetPx,
     controlTopOffsetPx,
     onMapReady,
+    // ✅ idle 때마다 현재 뷰포트 4점 + 줌레벨 콜백
+    onViewportChange: (q) => {
+      if (!onViewportChange) return;
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => onViewportChange(q), 500);
+    },
   });
 
   useDistrictOverlay(kakao, map, useDistrict);

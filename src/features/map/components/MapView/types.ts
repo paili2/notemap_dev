@@ -20,5 +20,14 @@ export type MapViewProps = {
   onMapClick?: (latlng: { lat: number; lng: number }) => void;
   onMapReady?: (ctx: { map: any; kakao: any }) => void;
 
+  /** 뷰포트 변경 시 4꼭짓점 + 줌레벨을 상위로 전달 */
+  onViewportChange?: (q: {
+    leftTop: LatLng;
+    leftBottom: LatLng;
+    rightTop: LatLng;
+    rightBottom: LatLng;
+    zoomLevel: number;
+  }) => void;
+
   pinKind?: PinKind;
 };

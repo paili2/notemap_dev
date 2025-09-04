@@ -24,7 +24,6 @@ import {
   type ImageRef,
 } from "@/lib/imageStore";
 import PropertyEditModal from "../properties/components/PropertyEditModal/PropertyEditModal";
-import useKakaoMap from "./components/MapView/hooks/useKakaoMap";
 
 const STORAGE_KEY = "properties";
 
@@ -38,15 +37,10 @@ const isImageRefLike = (x: any): x is ImageRef =>
 
 function normalizeOneImage(it: any): ImageItem | null {
   if (!it) return null;
-
-  // idbKey만 있는 참조 객체는 화면에 바로 못 그림 (hydrate가 필요)
   if (isImageRefLike(it)) return null;
-
   if (typeof it === "string")
     return okUrl(it) ? { url: it, name: "", caption: "" } : null;
-
   if (typeof it === "object") {
-    // url 또는 dataUrl 보유
     const url =
       typeof it.url === "string"
         ? it.url
@@ -68,12 +62,10 @@ function normalizeImages(imgs: unknown): ImageItem[] {
   if (!Array.isArray(imgs)) return [];
   return imgs.map(normalizeOneImage).filter(Boolean) as ImageItem[];
 }
-
 function normalizeImageCards(cards: unknown): ImageItem[][] {
   if (!Array.isArray(cards)) return [];
   return cards.map((g) => normalizeImages(g)).filter((g) => g.length > 0);
 }
-
 function flattenCards(cards: ImageItem[][]): ImageItem[] {
   const out: ImageItem[] = [];
   const seen = new Set<string>();
@@ -87,8 +79,6 @@ function flattenCards(cards: ImageItem[][]): ImageItem[] {
   }
   return out;
 }
-
-/** localStorage에 안전하게 저장 (data:/blob: 문자열은 제거해 용량 보호) */
 function safeStringify(obj: any) {
   return JSON.stringify(obj, (_k, v) => {
     if (typeof v === "string") {
@@ -97,7 +87,6 @@ function safeStringify(obj: any) {
     return v;
   });
 }
-
 function persistToLocalStorage(key: string, items: PropertyItem[]) {
   try {
     const json = safeStringify(items);
@@ -113,9 +102,7 @@ function persistToLocalStorage(key: string, items: PropertyItem[]) {
           count: items.length,
         })
       );
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 }
 
@@ -126,22 +113,17 @@ async function materializeToRefs(
   files: any[]
 ) {
   const cardRefs: ImageRef[][] = [];
-
   for (let gi = 0; gi < (cards?.length || 0); gi++) {
     const group = cards[gi] || [];
     const refs: ImageRef[] = [];
-
     for (let ii = 0; ii < group.length; ii++) {
       const it = group[ii] || {};
-
       if (isImageRefLike(it)) {
         refs.push({ idbKey: it.idbKey, name: it.name, caption: it.caption });
         continue;
       }
-
       const source: string | undefined = it.dataUrl || it.url;
       if (!source) continue;
-
       if (isHttpLike(source)) {
         refs.push({
           idbKey: `url:${source}`,
@@ -150,7 +132,6 @@ async function materializeToRefs(
         });
         continue;
       }
-
       if (isDataLike(source)) {
         const blob = dataUrlToBlob(source);
         const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
@@ -158,7 +139,6 @@ async function materializeToRefs(
         refs.push({ idbKey, name: it.name, caption: it.caption });
         continue;
       }
-
       if (isBlobLike(source)) {
         try {
           const res = await fetch(source);
@@ -169,25 +149,20 @@ async function materializeToRefs(
         } catch (e) {
           console.warn("blob: fetch 실패로 스킵", e);
         }
-        continue;
       }
     }
-
     if (refs.length) cardRefs.push(refs);
   }
 
   const fileRefs: ImageRef[] = [];
   for (let fi = 0; fi < (files?.length || 0); fi++) {
     const it = files[fi] || {};
-
     if (isImageRefLike(it)) {
       fileRefs.push({ idbKey: it.idbKey, name: it.name, caption: it.caption });
       continue;
     }
-
     const source: string | undefined = it.dataUrl || it.url;
     if (!source) continue;
-
     if (isHttpLike(source)) {
       fileRefs.push({
         idbKey: `url:${source}`,
@@ -196,7 +171,6 @@ async function materializeToRefs(
       });
       continue;
     }
-
     if (isDataLike(source)) {
       const blob = dataUrlToBlob(source);
       const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
@@ -204,7 +178,6 @@ async function materializeToRefs(
       fileRefs.push({ idbKey, name: it.name, caption: it.caption });
       continue;
     }
-
     if (isBlobLike(source)) {
       try {
         const res = await fetch(source);
@@ -215,27 +188,21 @@ async function materializeToRefs(
       } catch (e) {
         console.warn("blob(file): fetch 실패로 스킵", e);
       }
-      continue;
     }
   }
-
   return { cardRefs, fileRefs };
 }
 
-/** localStorage에서 불러온 items의 imageRefs를 실제 표시 가능한 url로 수화 */
 async function hydrateItems(items: PropertyItem[]) {
   const out: PropertyItem[] = [];
   for (const p of items) {
     const v: any = (p as any).view ?? {};
-
-    // 1) 우선 ref 기준 복원
     const cardRefs: ImageRef[][] = Array.isArray(v._imageCardRefs)
       ? v._imageCardRefs
       : [];
     const fileRefs: ImageRef[] = Array.isArray(v._fileItemRefs)
       ? v._fileItemRefs
       : [];
-
     const hydratedCards: any[][] = [];
     if (cardRefs.length) {
       for (const group of cardRefs) {
@@ -247,14 +214,12 @@ async function hydrateItems(items: PropertyItem[]) {
         if (arr.length) hydratedCards.push(arr);
       }
     } else {
-      // 2) (하위호환) 기존 url이 남아있다면 그대로 사용
       const cards = Array.isArray(v.imageCards) ? v.imageCards : [];
       for (const group of cards) {
         const arr = (group ?? []).filter((it: any) => it?.url);
         if (arr.length) hydratedCards.push(arr);
       }
     }
-
     const hydratedFiles: any[] = [];
     if (fileRefs.length) {
       for (const r of fileRefs) {
@@ -265,7 +230,6 @@ async function hydrateItems(items: PropertyItem[]) {
       const files = Array.isArray(v.fileItems) ? v.fileItems : [];
       for (const it of files) if (it?.url) hydratedFiles.push(it);
     }
-
     out.push({
       ...p,
       view: {
@@ -315,63 +279,124 @@ const MapHomePage: React.FC = () => {
 
   const lastSearchMarkerRef = useRef<any>(null);
 
+  // ── 검색 (주소→좌표, 실패 시 키워드) ──
   const runSearch = useCallback(
-    (query: string) => {
-      if (!kakaoSDK || !mapInstance || !query.trim()) return;
-
+    (keyword: string) => {
+      if (!kakaoSDK || !mapInstance || !keyword.trim()) return;
       const geocoder = new kakaoSDK.maps.services.Geocoder();
       const places = new kakaoSDK.maps.services.Places();
 
       const placeMarkerAt = (lat: number, lng: number) => {
         const coords = new kakaoSDK.maps.LatLng(lat, lng);
-
         if (lastSearchMarkerRef.current) {
           lastSearchMarkerRef.current.setMap(null);
           lastSearchMarkerRef.current = null;
         }
-
         mapInstance.setCenter(coords);
         const marker = new kakaoSDK.maps.Marker({
           map: mapInstance,
           position: coords,
         });
         lastSearchMarkerRef.current = marker;
-        // 보기 좋게 살짝 확대 (필요 없으면 제거)
         mapInstance.setLevel(Math.min(5, 11));
       };
 
-      // 1) 주소 검색
-      geocoder.addressSearch(query, (addrResult: any[], addrStatus: string) => {
-        if (
-          addrStatus === kakaoSDK.maps.services.Status.OK &&
-          addrResult?.length
-        ) {
-          const r0 = addrResult[0];
-          const lat = parseFloat(
-            (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
-          );
-          const lng = parseFloat(
-            (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
-          );
-          placeMarkerAt(lat, lng);
-        } else {
-          // 2) 주소 실패 → 키워드 검색
-          places.keywordSearch(query, (kwResult: any[], kwStatus: string) => {
-            if (
-              kwStatus === kakaoSDK.maps.services.Status.OK &&
-              kwResult?.length
-            ) {
-              const r0 = kwResult[0];
-              placeMarkerAt(parseFloat(r0.y), parseFloat(r0.x));
-            } else {
-              alert("검색 결과가 없습니다.");
-            }
-          });
+      geocoder.addressSearch(
+        keyword,
+        (addrResult: any[], addrStatus: string) => {
+          if (
+            addrStatus === kakaoSDK.maps.services.Status.OK &&
+            addrResult?.length
+          ) {
+            const r0 = addrResult[0];
+            const lat = parseFloat(
+              (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
+            );
+            const lng = parseFloat(
+              (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
+            );
+            placeMarkerAt(lat, lng);
+          } else {
+            places.keywordSearch(
+              keyword,
+              (kwResult: any[], kwStatus: string) => {
+                if (
+                  kwStatus === kakaoSDK.maps.services.Status.OK &&
+                  kwResult?.length
+                ) {
+                  const r0 = kwResult[0];
+                  placeMarkerAt(parseFloat(r0.y), parseFloat(r0.x));
+                } else {
+                  alert("검색 결과가 없습니다.");
+                }
+              }
+            );
+          }
         }
-      });
+      );
     },
     [kakaoSDK, mapInstance]
   );
+
+  // ── 뷰포트 변경 POST: 이전 요청 취소 + 중복 방지 ──
+  const inFlightRef = useRef<AbortController | null>(null);
+  const lastKeyRef = useRef<string | null>(null);
+  const round = (n: number, p = 5) => {
+    const f = Math.pow(10, p);
+    return Math.round(n * f) / f;
+  };
+
+  const sendViewportQuery = useCallback(
+    async (q: {
+      leftTop: LatLng;
+      leftBottom: LatLng;
+      rightTop: LatLng;
+      rightBottom: LatLng;
+      zoomLevel: number;
+    }) => {
+      const key = JSON.stringify({
+        lt: { lat: round(q.leftTop.lat), lng: round(q.leftTop.lng) },
+        lb: { lat: round(q.leftBottom.lat), lng: round(q.leftBottom.lng) },
+        rt: { lat: round(q.rightTop.lat), lng: round(q.rightTop.lng) },
+        rb: { lat: round(q.rightBottom.lat), lng: round(q.rightBottom.lng) },
+        z: q.zoomLevel,
+      });
+      if (lastKeyRef.current === key) return;
+      lastKeyRef.current = key;
+
+      if (inFlightRef.current) {
+        inFlightRef.current.abort();
+        inFlightRef.current = null;
+      }
+      const ac = new AbortController();
+      inFlightRef.current = ac;
+
+      try {
+        const res = await fetch("/api/pins", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(q),
+          signal: ac.signal,
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // const data = await res.json();
+        // TODO: 서버 응답으로 상태 갱신 (예: setItems(...) or setPins(...))
+      } catch (err: any) {
+        if (err?.name !== "AbortError") {
+          console.error("[/api/pins] viewport fetch failed:", err);
+        }
+      } finally {
+        if (inFlightRef.current === ac) inFlightRef.current = null;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (inFlightRef.current) inFlightRef.current.abort();
+    };
+  }, []);
 
   // 1) 최초 로드: localStorage → items
   const [items, setItems] = useState<PropertyItem[]>(() => {
@@ -386,7 +411,7 @@ const MapHomePage: React.FC = () => {
     }
   });
 
-  // 2) 수화: refs → url (최초 1회)
+  // 2) 수화
   useEffect(() => {
     (async () => {
       if (!items.length) return;
@@ -396,7 +421,7 @@ const MapHomePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 3) 저장: items가 변경될 때 localStorage에 (refs만 들어가므로 가벼움)
+  // 3) 저장
   useEffect(() => {
     persistToLocalStorage(STORAGE_KEY, items);
   }, [items]);
@@ -415,7 +440,7 @@ const MapHomePage: React.FC = () => {
     });
   }, [items, query, type, status]);
 
-  // ✅ 지도 마커에 kind 전달 (item.pinKind → 훅이 해당 핀으로 렌더)
+  // 지도 마커
   const mapMarkers: MapMarker[] = useMemo(() => {
     const base = filtered.map((p) => ({
       id: p.id,
@@ -425,14 +450,13 @@ const MapHomePage: React.FC = () => {
         (p as any).markerKind ??
         (p as any).kind ??
         (p as any).view?.pinKind ??
-        "1room") as any, // PinKind 호환
+        "1room") as any,
     }));
     if (draftPin) {
       base.unshift({
         id: "__draft__",
         title: "신규 등록 위치",
         position: { lat: draftPin.lat, lng: draftPin.lng },
-        // kind는 비워두면 훅 기본값 사용
       } as any);
     }
     return base;
@@ -447,11 +471,9 @@ const MapHomePage: React.FC = () => {
   const selectedViewItem = useMemo(() => {
     if (!selected) return null;
     const extra = ((selected as any).view ?? {}) as Record<string, unknown>;
-
     const definedExtra = Object.fromEntries(
       Object.entries(extra).filter(([, v]) => v !== undefined)
     );
-
     return {
       ...toViewDetails(selected),
       ...definedExtra,
@@ -516,16 +538,13 @@ const MapHomePage: React.FC = () => {
   const handleMapClick = useCallback(
     async (latlng: LatLng) => {
       if (Date.now() - markerClickShieldRef.current < 250) return;
-
       setSelectedId(null);
       setMenuTargetId(null);
       setDraftPin(latlng);
       setFitAllOnce(false);
-
       setMenuAnchor(latlng);
       setMenuAddress("선택 위치");
       setMenuOpen(true);
-
       const addr = await resolveAddress(latlng);
       setMenuAddress(addr || "선택 위치");
     },
@@ -543,31 +562,15 @@ const MapHomePage: React.FC = () => {
       dealStatus: (patch as any).dealStatus ?? (p as any).dealStatus,
       title: patch.title ?? p.title,
       address: patch.address ?? p.address,
-      // 뷰는 salePrice를 쓰지만 카드 상단 등은 priceText를 쓰는 경우가 있어 동기화
       priceText: (patch as any).salePrice ?? p.priceText,
-
-      // ✅ 최상위 pinKind 보관(마커 렌더용)
       ...("pinKind" in patch && patch.pinKind !== undefined
         ? { pinKind: (patch as any).pinKind }
         : { pinKind: (p as any).pinKind }),
-
       view: {
         ...(p as any).view,
-
-        // ✅ 호환용 pinKind도 view에 보관
         ...("pinKind" in patch && patch.pinKind !== undefined
           ? { pinKind: (patch as any).pinKind }
           : { pinKind: (p as any).view?.pinKind }),
-
-        // ✅ ★ 빠졌던 필드들 확실히 반영
-        listingStars:
-          (patch as any).listingStars ?? (p as any).view?.listingStars,
-        elevator: (patch as any).elevator ?? (p as any).view?.elevator,
-        orientations: Array.isArray((patch as any).orientations)
-          ? (patch as any).orientations
-          : (p as any).view?.orientations,
-
-        // 이미지(카드/평탄) 병합
         ...(() => {
           const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
           if (Array.isArray(cand)) {
@@ -582,20 +585,15 @@ const MapHomePage: React.FC = () => {
             imageCards: (p as any).view?.imageCards,
           };
         })(),
-
         fileItems: Array.isArray((patch as any).fileItems)
           ? normalizeImages((patch as any).fileItems)
           : (p as any).view?.fileItems,
-
         _imageCardRefs: Array.isArray((patch as any)._imageCardRefs)
           ? (patch as any)._imageCardRefs
           : (p as any).view?._imageCardRefs,
-
         _fileItemRefs: Array.isArray((patch as any)._fileItemRefs)
           ? (patch as any)._fileItemRefs
           : (p as any).view?._fileItemRefs,
-
-        // 기타 필드들
         publicMemo: (patch as any).publicMemo ?? (p as any).view?.publicMemo,
         secretMemo: (patch as any).secretMemo ?? (p as any).view?.secretMemo,
         officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
@@ -605,21 +603,17 @@ const MapHomePage: React.FC = () => {
         optionEtc: (patch as any).optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: (patch as any).unitLines ?? (p as any).view?.unitLines,
-
         parkingType: (patch as any).parkingType ?? (p as any).view?.parkingType,
         parkingCount:
           (patch as any).parkingCount ?? (p as any).view?.parkingCount,
-
         slopeGrade: (patch as any).slopeGrade ?? (p as any).view?.slopeGrade,
         structureGrade:
           (patch as any).structureGrade ?? (p as any).view?.structureGrade,
-
         aspect: (patch as any).aspect ?? (p as any).view?.aspect,
         aspectNo: (patch as any).aspectNo ?? (p as any).view?.aspectNo,
         aspect1: (patch as any).aspect1 ?? (p as any).view?.aspect1,
         aspect2: (patch as any).aspect2 ?? (p as any).view?.aspect2,
         aspect3: (patch as any).aspect3 ?? (p as any).view?.aspect3,
-
         totalBuildings:
           (patch as any).totalBuildings ?? (p as any).view?.totalBuildings,
         totalFloors: (patch as any).totalFloors ?? (p as any).view?.totalFloors,
@@ -628,55 +622,44 @@ const MapHomePage: React.FC = () => {
         remainingHouseholds:
           (patch as any).remainingHouseholds ??
           (p as any).view?.remainingHouseholds,
-
         completionDate:
           (patch as any).completionDate ?? (p as any).view?.completionDate,
         exclusiveArea:
           (patch as any).exclusiveArea ?? (p as any).view?.exclusiveArea,
         realArea: (patch as any).realArea ?? (p as any).view?.realArea,
-
-        // (있다면) 추가 평수 배열도 반영
         extraExclusiveAreas:
           (patch as any).extraExclusiveAreas ??
           (p as any).view?.extraExclusiveAreas,
         extraRealAreas:
           (patch as any).extraRealAreas ?? (p as any).view?.extraRealAreas,
-
         dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
       },
     };
   }
 
-  /** 보기 어댑터 */
   function toViewDetails(p: PropertyItem): PropertyViewDetails {
     const v = (p as any).view ?? {};
-
     const cards: ImageItem[][] = Array.isArray(v.imageCards)
       ? normalizeImageCards((v as any).imageCards)
       : Array.isArray((v as any).imagesByCard)
       ? normalizeImageCards((v as any).imagesByCard)
       : [];
-
     const imagesSafe: ImageItem[] =
       cards.length > 0
         ? flattenCards(cards)
         : Array.isArray(v.images)
         ? (v.images.map(normalizeOneImage).filter(Boolean) as ImageItem[])
         : [];
-
     const filesSafe: ImageItem[] = Array.isArray((v as any).fileItems)
       ? normalizeImages((v as any).fileItems)
       : [];
-
     const ori: { ho: number; value: string }[] = Array.isArray(v.orientations)
       ? (v.orientations as any[]).map((o) => ({
           ho: Number(o.ho),
           value: String(o.value),
         }))
       : [];
-
     const pick = (ho: number) => ori.find((o) => o.ho === ho)?.value;
-
     const a1 =
       pick(1) ??
       v.aspect1 ??
@@ -700,37 +683,29 @@ const MapHomePage: React.FC = () => {
       address: p.address ?? "",
       type: (p as any).type ?? "주택",
       salePrice: (p as any).priceText ?? "",
-
       images: imagesSafe,
       imageCards: cards,
       fileItems: filesSafe,
-
       options: [],
       optionEtc: "",
       registry: "주택",
       unitLines: [],
-
       listingStars: typeof v.listingStars === "number" ? v.listingStars : 0,
       elevator: (v.elevator as "O" | "X") ?? "O",
       parkingType: "답사지 확인",
       parkingCount: v.parkingCount ?? "",
       completionDate: undefined,
-
       aspect1: a1,
       aspect2: a2,
       aspect3: a3,
-
       totalBuildings: 2,
       totalFloors: 10,
       totalHouseholds: 50,
       remainingHouseholds: 10,
-
       slopeGrade: "상",
       structureGrade: "상",
-
       publicMemo: "",
       secretMemo: "",
-
       createdByName: "여준호",
       createdAt: "2025-08-16 09:05",
       inspectedByName: "홍길동",
@@ -740,14 +715,7 @@ const MapHomePage: React.FC = () => {
     } as any;
   }
 
-  /** 저장 */
-  function saveProperties(next: PropertyItem[]) {
-    if (typeof window === "undefined") return;
-    persistToLocalStorage(STORAGE_KEY, next);
-  }
-
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
-
   if (!KAKAO_MAP_KEY) {
     return (
       <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded">
@@ -780,7 +748,13 @@ const MapHomePage: React.FC = () => {
             setTimeout(() => {
               map.relayout?.();
               kakao.maps.event.trigger(map, "resize");
+              // 초기 1회도 백엔드로 보내고 싶으면 idle 트리거
+              kakao.maps.event.trigger(map, "idle");
             }, 0);
+          }}
+          // ✅ idle(디바운스)마다 4모서리+줌 POST, 이전요청 abort, 중복 스킵
+          onViewportChange={(q) => {
+            sendViewportQuery(q);
           }}
           allowCreateOnMapClick={false}
         />
@@ -870,9 +844,7 @@ const MapHomePage: React.FC = () => {
               )
             );
           }}
-          onEdit={() => {
-            setEditOpen(true);
-          }}
+          onEdit={() => setEditOpen(true)}
           onDelete={async () => {
             setItems((prev) => prev.filter((p) => p.id !== selectedId));
             setViewOpen(false);
@@ -916,7 +888,6 @@ const MapHomePage: React.FC = () => {
               pick(3) ??
               (payload.aspectNo === "3호" ? payload.aspect : undefined);
 
-            // ================= refs 우선 사용 =================
             const refsCardsRaw = Array.isArray((payload as any).imageFolders)
               ? ((payload as any).imageFolders as any[][])
               : undefined;
@@ -935,14 +906,12 @@ const MapHomePage: React.FC = () => {
             const cardsInput = refsCardsRaw ?? cardsUiRaw;
             const filesInput = refsFilesRaw ?? filesUiRaw;
 
-            // IndexedDB에 저장/참조화
             const { cardRefs, fileRefs } = await materializeToRefs(
               id,
               cardsInput,
               filesInput
             );
 
-            // 즉시 보이도록 hydrate
             const hydratedCards: any[][] = [];
             for (const g of cardRefs) {
               const arr: any[] = [];
@@ -969,7 +938,6 @@ const MapHomePage: React.FC = () => {
               type: "아파트",
               position: pos,
               favorite: false,
-              // ✅ 최상위에도 pinKind 저장 (마커 렌더에 사용)
               ...((payload as any).pinKind
                 ? ({ pinKind: (payload as any).pinKind } as any)
                 : ({} as any)),
@@ -1001,21 +969,14 @@ const MapHomePage: React.FC = () => {
                 unitLines: payload.unitLines,
                 publicMemo: payload.publicMemo,
                 secretMemo: payload.secretMemo,
-
-                // ✅ 호환용으로 view에도 pinKind 보관
                 ...((payload as any).pinKind
                   ? ({ pinKind: (payload as any).pinKind } as any)
                   : ({} as any)),
-
-                // 저장용 참조
                 _imageCardRefs: cardRefs,
                 _fileItemRefs: fileRefs,
-
-                // 화면 포맷
                 imageCards: hydratedCards,
                 images: hydratedCards.flat(),
                 fileItems: hydratedFiles,
-
                 dealStatus: payload.dealStatus,
                 aspect1,
                 aspect2,
@@ -1070,15 +1031,10 @@ const MapHomePage: React.FC = () => {
               unitLines: (payload as any).unitLines,
               publicMemo: (payload as any).publicMemo,
               secretMemo: (payload as any).secretMemo,
-
-              // 레거시 평탄도 그대로 두고 (뷰는 cards를 우선 사용)
-              images: (payload as any).images,
-
-              // ✅ 핀 종류 반영
+              images: (payload as any).images, // 레거시 보존
               pinKind: (payload as any).pinKind,
             };
 
-            // 카드 데이터 coming from modal
             const cardsFromPayload =
               (payload as any).imageCards ?? (payload as any).imagesByCard;
             if (Array.isArray(cardsFromPayload)) {
@@ -1086,12 +1042,10 @@ const MapHomePage: React.FC = () => {
             } else if (Array.isArray((payload as any).images)) {
               (patch as any).imageCards = [(payload as any).images];
             }
-
             if (Array.isArray((payload as any).fileItems)) {
               (patch as any).fileItems = (payload as any).fileItems;
             }
 
-            // ====== 영구 보관을 위해 refs로 재료화 + 즉시 hydrate ======
             try {
               const propertyId = String(
                 (payload as any).id ?? selectedId ?? ""
@@ -1146,7 +1100,6 @@ const MapHomePage: React.FC = () => {
                 p.id === selectedId ? applyPatchToItem(p, patch) : p
               )
             );
-
             setEditOpen(false);
           }}
         />
