@@ -45,7 +45,7 @@ export function FavorateListItem({
           )}
         </Button>
 
-        <span className="flex-1 text-sm font-medium text-gray-700 group-hover:text-gray-900 break-words leading-tight">
+        <span className="flex-1 text-xs font-medium text-gray-700 group-hover:text-gray-900 break-words leading-tight">
           {item.title}
         </span>
 

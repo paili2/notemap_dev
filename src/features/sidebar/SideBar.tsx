@@ -25,14 +25,14 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   }
 
   return (
-    <div className="fixed top-[440px] right-4 transform -translate-y-1/2 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
+    <div className="fixed top-[410px] right-4 transform -translate-y-1/2 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
       <style jsx>{`
         .scrollbar-no-arrows::-webkit-scrollbar-button {
           display: none;
         }
       `}</style>
 
-      <div className="flex flex-col gap-2 p-2 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-track-white scrollbar-thumb-black hover:scrollbar-thumb-gray-800 scrollbar-no-arrows">
+      <div className="flex flex-col gap-2 p-1 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-track-white scrollbar-thumb-black hover:scrollbar-thumb-gray-800 scrollbar-no-arrows">
         <SidebarSection
           title="답사"
           items={explorations}
@@ -62,7 +62,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => {
-              // 로그아웃 로직 추가 ㅎ
+              // 로그아웃 로직 추가
               console.log("로그아웃");
             }}
             className="p-0"
