@@ -1,12 +1,5 @@
 import { ImageItem } from "./media";
-import {
-  DealStatus,
-  Grade,
-  OrientationRow,
-  Registry,
-  UnitLine,
-  Visibility,
-} from "./property-domain";
+import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
 
 // --- Create DTO ---
 export type CreatePayload = {
@@ -66,10 +59,6 @@ export type CreatePayload = {
   realArea?: string; // 실평
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
-
-  // 상태
-  status: Visibility; // 게시상태
-  dealStatus: DealStatus; // 거래상태
 };
 
 // --- Update DTO ---
@@ -124,8 +113,4 @@ export type UpdatePayload = {
   realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
-
-  // 상태
-  status?: Visibility;
-  dealStatus?: DealStatus;
 };

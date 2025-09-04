@@ -24,8 +24,6 @@ import { packRange, toM2 } from "@/features/properties/lib/area";
 import { parsePreset } from "@/features/properties/lib/structure";
 
 import {
-  type DealStatus,
-  type Visibility,
   type Registry,
   type UnitLine,
   type Grade,
@@ -37,7 +35,7 @@ import type { PropertyCreateModalProps } from "./types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
 import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../constants";
 import { AreaSet } from "../sections/AreaSetsSection/types";
-import { PinKind } from "../sections/HeaderSection/components/PinTypeSelect";
+import { PinKind } from "@/features/map/pins";
 
 /* -------------------- 상수 -------------------- */
 const MAX_PER_CARD = 20;
@@ -288,10 +286,6 @@ export default function PropertyCreateModalBody({
   const [publicMemo, setPublicMemo] = useState("");
   const [secretMemo, setSecretMemo] = useState("");
 
-  // 상태
-  const [visibility, setVisibility] = useState<Visibility>("공개");
-  const [dealStatus, setDealStatus] = useState<DealStatus>("분양중");
-
   // 구조별 입력
   const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
   const addLineFromPreset = (preset: string) => {
@@ -523,8 +517,6 @@ export default function PropertyCreateModalBody({
         extraExclusiveAreas: string[];
         extraRealAreas: string[];
       } = {
-        status: visibility,
-        dealStatus,
         title,
         address,
         officeName,

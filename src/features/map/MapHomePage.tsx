@@ -558,8 +558,7 @@ const MapHomePage: React.FC = () => {
   ): PropertyItem {
     return {
       ...p,
-      status: (patch as any).status ?? (p as any).status,
-      dealStatus: (patch as any).dealStatus ?? (p as any).dealStatus,
+
       title: patch.title ?? p.title,
       address: patch.address ?? p.address,
       priceText: (patch as any).salePrice ?? p.priceText,
@@ -977,7 +976,6 @@ const MapHomePage: React.FC = () => {
                 imageCards: hydratedCards,
                 images: hydratedCards.flat(),
                 fileItems: hydratedFiles,
-                dealStatus: payload.dealStatus,
                 aspect1,
                 aspect2,
                 aspect3,

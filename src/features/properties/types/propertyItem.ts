@@ -1,10 +1,5 @@
 import type { LatLng } from "../../map/types/map";
-import type {
-  DealStatus,
-  Visibility,
-  Registry,
-  Grade,
-} from "./property-domain";
+import type { Registry, Grade } from "./property-domain";
 import { PropertyViewDetails } from "../components/PropertyViewModal/property-view";
 
 /**
@@ -17,10 +12,6 @@ export type PropertyItem = {
   // 기본
   title: string;
   address?: string;
-
-  // 상태
-  status?: Visibility;
-  dealStatus?: DealStatus;
 
   // 카테고리(예: "아파트", "주택" 등)
   type?: string;

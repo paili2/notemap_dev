@@ -1,9 +1,7 @@
 import type {
-  DealStatus,
   Grade,
   Registry,
   UnitLine,
-  Visibility,
   OrientationValue,
 } from "@/features/properties/types/property-domain";
 
@@ -72,9 +70,6 @@ export type PropertyEditItem = {
   optionEtc?: string;
   publicMemo?: string;
   secretMemo?: string;
-
-  status?: Visibility;
-  dealStatus?: DealStatus;
 
   unitLines?: UnitLine[];
   images?: string[];

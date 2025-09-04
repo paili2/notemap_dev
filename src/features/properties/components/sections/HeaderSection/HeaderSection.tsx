@@ -4,8 +4,10 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import StarsRating from "@/components/molecules/StarsRating";
 import ElevatorSegment from "./components/ElevatorSegment";
-import PinTypeSelect, { PinKind } from "./components/PinTypeSelect";
+
 import type { HeaderSectionProps } from "./types";
+import PinTypeSelect from "./components/PinTypeSelect";
+import { PinKind } from "@/features/map/pins";
 
 export type HeaderSectionExtraProps = {
   /** 선택된 핀 종류 (매물 타입) */
