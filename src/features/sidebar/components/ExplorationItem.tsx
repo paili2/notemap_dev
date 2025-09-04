@@ -43,7 +43,7 @@ export function ExplorationItem({
     >
       <GripVertical className="h-3 w-3 text-muted-foreground group-hover:text-gray-700" />
 
-      <span className="flex-1 text-sm text-gray-700 group-hover:text-gray-900 break-words leading-tight">
+      <span className="flex-1 text-xs text-gray-700 group-hover:text-gray-900 break-words leading-tight">
         {item.title}
       </span>
 
