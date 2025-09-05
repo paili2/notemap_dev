@@ -927,9 +927,9 @@ export default function PropertyEditModalBody({
               REGISTRY_LIST={REGISTRY_LIST}
               registry={registryOne}
               setRegistry={setRegistryOne}
-              slopeGrade={setSlopeGrade as any}
+              slopeGrade={slopeGrade}
               setSlopeGrade={setSlopeGrade}
-              structureGrade={setStructureGrade as any}
+              structureGrade={structureGrade}
               setStructureGrade={setStructureGrade}
             />
 
