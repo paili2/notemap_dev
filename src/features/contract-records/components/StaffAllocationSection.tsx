@@ -192,7 +192,7 @@ export function StaffAllocationSection({
         </div>
       </CardHeader>
       <CardContent className="p-3 pt-1 overflow-y-auto flex-1">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
           {staffAllocations.map((staff, index) => (
             <div
               key={staff.id}

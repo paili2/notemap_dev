@@ -144,7 +144,7 @@ export function SalesContractRecordsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="!max-w-none max-w-[80vw] w-[80vw] max-h-[90vh] overflow-y-auto p-3">
+      <DialogContent className="!max-w-none w-[80vw] max-w-[1000px] h-[95vh] max-h-[900px] overflow-y-auto p-2 sm:p-3 md:p-4">
         <DialogHeader className="pb-1 flex-shrink-0">
           <DialogTitle className="text-lg font-bold">
             영업 계약기록 관리
