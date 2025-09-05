@@ -292,9 +292,7 @@ const MapHomePage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [q, setQ] = useState("");
 
-<<<<<<< HEAD:src/features/map/MapHomePage.tsx
-  const lastSearchMarkerRef = useRef<any>(null);
-
+  // viewport POST 상태 관리
   const inFlightRef = useRef<AbortController | null>(null);
   const lastKeyRef = useRef<string | null>(null);
 
@@ -338,8 +336,6 @@ const MapHomePage: React.FC = () => {
           signal: ac.signal,
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        // const data = await res.json();
-        // TODO: 서버 응답 반영(setItems 등) 필요 시 여기에
       } catch (err: any) {
         if (err?.name !== "AbortError") {
           console.error("[/api/pins] viewport fetch failed:", err);
@@ -351,16 +347,15 @@ const MapHomePage: React.FC = () => {
     []
   );
 
-  // 컴포넌트 언마운트 시 진행 중 요청 취소
+  // 언마운트 시 진행 중 요청 취소
   useEffect(() => {
     return () => {
       if (inFlightRef.current) inFlightRef.current.abort();
     };
   }, []);
-=======
-  // FilterSearch 모달 상태
+
+  // FilterSearch 모달 상태 (khj 브랜치 추가)
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
->>>>>>> khj:src/features/properties/pages/MapHomePage.tsx
 
   // 1) 최초 로드: localStorage → items  (⟵ runSearch보다 위!)
   const [items, setItems] = useState<PropertyItem[]>(() => {
@@ -856,9 +851,7 @@ const MapHomePage: React.FC = () => {
               kakao.maps.event.trigger(map, "idle");
             }, 0);
           }}
-          onViewportChange={(q) => {
-            sendViewportQuery(q);
-          }}
+          onViewportChange={sendViewportQuery}
           allowCreateOnMapClick={false}
         />
 
