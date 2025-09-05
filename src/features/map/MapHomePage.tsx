@@ -262,7 +262,8 @@ async function hydrateItems(items: PropertyItem[]) {
 const MapHomePage: React.FC = () => {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
-  const [menuAddress, setMenuAddress] = useState<string | null>(null);
+  const [menuRoadAddr, setMenuRoadAddr] = useState<string | null>(null);
+  const [menuJibunAddr, setMenuJibunAddr] = useState<string | null>(null);
   const [fitAllOnce, setFitAllOnce] = useState(true);
   const geocoderRef = useRef<any>(null);
 
@@ -442,35 +443,44 @@ const MapHomePage: React.FC = () => {
 
   /** 지도 관련 */
   const [fixedCenter] = useState<LatLng>({ lat: 37.5665, lng: 126.978 });
+
   const resolveAddress = useCallback(async (latlng: LatLng) => {
     try {
       const kakao = (window as any).kakao;
-      if (!kakao) return null;
+      if (!kakao) return { road: null, jibun: null };
+
       if (!geocoderRef.current)
         geocoderRef.current = new kakao.maps.services.Geocoder();
       const geocoder = geocoderRef.current as any;
       const coord = new kakao.maps.LatLng(latlng.lat, latlng.lng);
-      const addr: string | null = await new Promise((resolve) => {
+
+      const result = await new Promise<{
+        road: string | null;
+        jibun: string | null;
+      }>((resolve) => {
         geocoder.coord2Address(
           coord.getLng(),
           coord.getLat(),
-          (res: any, status: any) => {
+          (res: any[], status: any) => {
             if (status === kakao.maps.services.Status.OK && res?.[0]) {
               const r0 = res[0];
-              const road = r0.road_address?.address_name;
-              const jibun = r0.address?.address_name;
-              resolve(road || jibun || null);
-            } else resolve(null);
+              resolve({
+                road: r0.road_address?.address_name ?? null,
+                jibun: r0.address?.address_name ?? null,
+              });
+            } else {
+              resolve({ road: null, jibun: null });
+            }
           }
         );
       });
-      return addr;
+
+      return result;
     } catch {
-      return null;
+      return { road: null, jibun: null };
     }
   }, []);
 
-  // 기존 핀으로 메뉴 열기 헬퍼 (⟵ runSearch보다 위!)
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
       setDraftPin(null);
@@ -479,10 +489,13 @@ const MapHomePage: React.FC = () => {
       setMenuAnchor(p.position);
       setFitAllOnce(false);
 
-      if (p.address) setMenuAddress(p.address);
-      else {
-        const addr = await resolveAddress(p.position);
-        setMenuAddress(addr ?? null);
+      if (p.address) {
+        setMenuRoadAddr(p.address);
+        setMenuJibunAddr(null);
+      } else {
+        const { road, jibun } = await resolveAddress(p.position);
+        setMenuRoadAddr(road ?? null);
+        setMenuJibunAddr(jibun ?? null);
       }
       setMenuOpen(true);
     },
@@ -519,6 +532,10 @@ const MapHomePage: React.FC = () => {
         const center = new kakaoSDK.maps.LatLng(lat, lng);
         mapInstance.setCenter(center);
         mapInstance.setLevel(Math.min(5, 11));
+        kakaoSDK.maps.event.trigger(mapInstance, "idle");
+        requestAnimationFrame(() =>
+          kakaoSDK.maps.event.trigger(mapInstance, "idle")
+        );
       };
 
       await new Promise<void>((resolve) => {
@@ -565,23 +582,24 @@ const MapHomePage: React.FC = () => {
   // 🔥 신규핀(draftPin) 생기면 자동으로 컨텍스트메뉴 열기
   useEffect(() => {
     if (!draftPin) return;
-
-    // 드래프트 모드 강제
     setSelectedId(null);
     setMenuTargetId(null);
-
-    // 앵커 지정 + 1회 핏 해제
     setMenuAnchor(draftPin);
     setFitAllOnce(false);
 
-    // 주소 역지오코딩 (실패 시 기본 문구)
     (async () => {
-      const addr = await resolveAddress(draftPin);
-      setMenuAddress(addr || "선택 위치");
+      const { road, jibun } = await resolveAddress(draftPin);
+      setMenuRoadAddr(road);
+      setMenuJibunAddr(jibun);
     })();
 
-    // 메뉴 열기
     setMenuOpen(true);
+    if (kakaoSDK && mapInstance) {
+      kakaoSDK.maps.event.trigger(mapInstance, "idle");
+      requestAnimationFrame(() =>
+        kakaoSDK.maps.event.trigger(mapInstance, "idle")
+      );
+    }
   }, [draftPin, resolveAddress]);
 
   const markerClickShieldRef = useRef(0);
@@ -596,15 +614,12 @@ const MapHomePage: React.FC = () => {
       setSelectedId(id);
       setDraftPin(null);
       setFitAllOnce(false);
-
       setMenuAnchor(item.position);
-      setMenuAddress(item.address ?? null);
       setMenuOpen(true);
 
-      if (!item.address) {
-        const addr = await resolveAddress(item.position);
-        setMenuAddress((prev) => prev ?? addr ?? null);
-      }
+      const { road, jibun } = await resolveAddress(item.position);
+      setMenuRoadAddr(road ?? null);
+      setMenuJibunAddr(jibun ?? null);
     },
     [items, resolveAddress]
   );
@@ -618,8 +633,9 @@ const MapHomePage: React.FC = () => {
       setFitAllOnce(false);
       setMenuAnchor(latlng);
 
-      const addr = await resolveAddress(latlng);
-      setMenuAddress(addr || "선택 위치");
+      const { road, jibun } = await resolveAddress(latlng);
+      setMenuRoadAddr(road ?? null);
+      setMenuJibunAddr(jibun ?? null);
 
       setMenuOpen(true);
     },
@@ -825,6 +841,10 @@ const MapHomePage: React.FC = () => {
     );
   }
 
+  const menuTitle = menuTargetId
+    ? items.find((p) => p.id === menuTargetId)?.title ?? null
+    : null;
+
   return (
     <div className="fixed inset-0">
       {/* 지도 */}
@@ -832,7 +852,7 @@ const MapHomePage: React.FC = () => {
         <MapView
           appKey={KAKAO_MAP_KEY}
           center={fixedCenter}
-          level={5}
+          level={4}
           markers={mapMarkers}
           fitToMarkers={fitAllOnce}
           useDistrict={useDistrict}
@@ -853,6 +873,7 @@ const MapHomePage: React.FC = () => {
           }}
           onViewportChange={sendViewportQuery}
           allowCreateOnMapClick={false}
+          hideLabelForId={menuOpen ? menuTargetId ?? "__draft__" : null}
         />
 
         {mapInstance && kakaoSDK && menuAnchor && menuOpen && (
@@ -863,14 +884,17 @@ const MapHomePage: React.FC = () => {
             kakao={kakaoSDK}
             map={mapInstance}
             position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)}
-            address={menuAddress ?? undefined}
+            roadAddress={menuRoadAddr ?? undefined}
+            jibunAddress={menuJibunAddr ?? undefined}
             propertyId={menuTargetId ?? "__draft__"}
+            propertyTitle={menuTitle}
             onClose={() => {
               setMenuOpen(false);
               if (!menuTargetId) {
                 setDraftPin(null);
                 setMenuAnchor(null);
-                setMenuAddress(null);
+                setMenuRoadAddr(null);
+                setMenuJibunAddr(null);
               }
             }}
             onView={(id) => {
@@ -880,11 +904,9 @@ const MapHomePage: React.FC = () => {
             }}
             onCreate={() => {
               setMenuOpen(false);
-              setPrefillAddress(menuAddress ?? undefined);
+              setPrefillAddress(menuRoadAddr ?? menuJibunAddr ?? undefined);
               setCreateOpen(true);
             }}
-            offsetX={12}
-            offsetY={-12}
             zIndex={10000}
           />
         )}

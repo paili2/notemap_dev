@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import * as React from "react";
 
 export function useEscapeToClose(onClose: () => void) {
-  useEffect(() => {
+  React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
