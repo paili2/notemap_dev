@@ -1,15 +1,17 @@
+"use client";
+
 import * as React from "react";
+import type { OverlayPoint, KakaoLatLngLike } from "./types";
 import type { LatLng } from "@/features/map/types/map";
-import type { OverlayPoint } from "./types";
 
 /**
- * Kakao Map 좌표(lat/lng)를 현재 지도 컨테이너의 픽셀 좌표로 변환하고
- * 지도 이벤트/윈도우 리사이즈에 반응해 값을 갱신합니다.
+ * Kakao Map 좌표(lat/lng 또는 kakao.LatLng)를 현재 지도 컨테이너의 픽셀 좌표로 변환.
+ * 지도 이벤트/윈도우 리사이즈에도 반응해 갱신.
  */
 export function useOverlayPosition(params: {
   kakao: any;
   map: any;
-  position: LatLng;
+  position: KakaoLatLngLike | LatLng; // kakao.LatLng | {lat,lng}
   offsetX?: number;
   offsetY?: number;
 }): OverlayPoint {
@@ -21,16 +23,30 @@ export function useOverlayPosition(params: {
       if (!kakao || !map) return;
       const proj = map.getProjection?.();
       if (!proj) return;
-      const latlng = new kakao.maps.LatLng(position.lat, position.lng);
-      const containerPt = proj.containerPointFromCoords(latlng);
+
+      const K = kakao.maps;
+      const isKakaoLatLng =
+        position &&
+        (position instanceof K.LatLng ||
+          typeof (position as any).getLat === "function");
+
+      const latlng = isKakaoLatLng
+        ? (position as any)
+        : new K.LatLng((position as LatLng).lat, (position as LatLng).lng);
+
+      // SDK 버전에 따라 containerPointFromCoords 또는 pointFromCoords
+      const containerPt = proj.containerPointFromCoords
+        ? proj.containerPointFromCoords(latlng)
+        : proj.pointFromCoords(latlng);
+
       setPt({
         left: Math.round(containerPt.x + offsetX),
         top: Math.round(containerPt.y + offsetY),
       });
     } catch {
-      /* noop */
+      setPt(null);
     }
-  }, [kakao, map, position.lat, position.lng, offsetX, offsetY]);
+  }, [kakao, map, position, offsetX, offsetY]);
 
   React.useEffect(() => {
     recalc();
@@ -58,6 +74,11 @@ export function useOverlayPosition(params: {
       window.removeEventListener("resize", handleResize);
     };
   }, [kakao, map, recalc]);
+
+  // position 변경 시 즉시 재계산
+  React.useEffect(() => {
+    recalc();
+  }, [recalc, position]);
 
   return pt;
 }

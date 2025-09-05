@@ -8,6 +8,7 @@ import ElevatorSegment from "./components/ElevatorSegment";
 import type { HeaderSectionProps } from "./types";
 import PinTypeSelect from "./components/PinTypeSelect";
 import { PinKind } from "@/features/map/pins";
+import { Button } from "@/components/atoms/Button/Button";
 
 export type HeaderSectionExtraProps = {
   /** 선택된 핀 종류 (매물 타입) */
@@ -55,14 +56,16 @@ export default function HeaderSection({
         <div className="shrink-0 w-[180px] flex items-center gap-2">
           <StarsRating value={listingStars} onChange={setListingStars} />
           {listingStars > 0 && (
-            <button
+            <Button
               type="button"
               onClick={onRefreshStars}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-gray-100"
+              variant="plain"
+              size="icon"
+              className="h-8 w-8 rounded-full"
               title="별점 초기화"
             >
               <RefreshCw className="h-4 w-4 text-gray-600" />
-            </button>
+            </Button>
           )}
         </div>
 

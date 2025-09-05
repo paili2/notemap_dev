@@ -35,6 +35,20 @@ const isHttpLike = (s: string) => /^https?:/i.test(s);
 const isImageRefLike = (x: any): x is ImageRef =>
   !!x && typeof x === "object" && typeof x.idbKey === "string";
 
+// 간단한 허버사인 거리(m)
+function distanceMeters(a: LatLng, b: LatLng) {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const sinDLat = Math.sin(dLat / 2);
+  const sinDLng = Math.sin(dLng / 2);
+  const h =
+    sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 function normalizeOneImage(it: any): ImageItem | null {
   if (!it) return null;
   if (isImageRefLike(it)) return null;
@@ -279,68 +293,9 @@ const MapHomePage: React.FC = () => {
 
   const lastSearchMarkerRef = useRef<any>(null);
 
-  // ── 검색 (주소→좌표, 실패 시 키워드) ──
-  const runSearch = useCallback(
-    (keyword: string) => {
-      if (!kakaoSDK || !mapInstance || !keyword.trim()) return;
-      const geocoder = new kakaoSDK.maps.services.Geocoder();
-      const places = new kakaoSDK.maps.services.Places();
-
-      const placeMarkerAt = (lat: number, lng: number) => {
-        const coords = new kakaoSDK.maps.LatLng(lat, lng);
-        if (lastSearchMarkerRef.current) {
-          lastSearchMarkerRef.current.setMap(null);
-          lastSearchMarkerRef.current = null;
-        }
-        mapInstance.setCenter(coords);
-        const marker = new kakaoSDK.maps.Marker({
-          map: mapInstance,
-          position: coords,
-        });
-        lastSearchMarkerRef.current = marker;
-        mapInstance.setLevel(Math.min(5, 11));
-      };
-
-      geocoder.addressSearch(
-        keyword,
-        (addrResult: any[], addrStatus: string) => {
-          if (
-            addrStatus === kakaoSDK.maps.services.Status.OK &&
-            addrResult?.length
-          ) {
-            const r0 = addrResult[0];
-            const lat = parseFloat(
-              (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
-            );
-            const lng = parseFloat(
-              (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
-            );
-            placeMarkerAt(lat, lng);
-          } else {
-            places.keywordSearch(
-              keyword,
-              (kwResult: any[], kwStatus: string) => {
-                if (
-                  kwStatus === kakaoSDK.maps.services.Status.OK &&
-                  kwResult?.length
-                ) {
-                  const r0 = kwResult[0];
-                  placeMarkerAt(parseFloat(r0.y), parseFloat(r0.x));
-                } else {
-                  alert("검색 결과가 없습니다.");
-                }
-              }
-            );
-          }
-        }
-      );
-    },
-    [kakaoSDK, mapInstance]
-  );
-
-  // ── 뷰포트 변경 POST: 이전 요청 취소 + 중복 방지 ──
   const inFlightRef = useRef<AbortController | null>(null);
   const lastKeyRef = useRef<string | null>(null);
+
   const round = (n: number, p = 5) => {
     const f = Math.pow(10, p);
     return Math.round(n * f) / f;
@@ -354,6 +309,7 @@ const MapHomePage: React.FC = () => {
       rightBottom: LatLng;
       zoomLevel: number;
     }) => {
+      // 중복 호출 방지 키
       const key = JSON.stringify({
         lt: { lat: round(q.leftTop.lat), lng: round(q.leftTop.lng) },
         lb: { lat: round(q.leftBottom.lat), lng: round(q.leftBottom.lng) },
@@ -364,6 +320,7 @@ const MapHomePage: React.FC = () => {
       if (lastKeyRef.current === key) return;
       lastKeyRef.current = key;
 
+      // 이전 요청 취소
       if (inFlightRef.current) {
         inFlightRef.current.abort();
         inFlightRef.current = null;
@@ -380,7 +337,7 @@ const MapHomePage: React.FC = () => {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         // const data = await res.json();
-        // TODO: 서버 응답으로 상태 갱신 (예: setItems(...) or setPins(...))
+        // TODO: 서버 응답 반영(setItems 등) 필요 시 여기에
       } catch (err: any) {
         if (err?.name !== "AbortError") {
           console.error("[/api/pins] viewport fetch failed:", err);
@@ -392,13 +349,14 @@ const MapHomePage: React.FC = () => {
     []
   );
 
+  // 컴포넌트 언마운트 시 진행 중 요청 취소
   useEffect(() => {
     return () => {
       if (inFlightRef.current) inFlightRef.current.abort();
     };
   }, []);
 
-  // 1) 최초 로드: localStorage → items
+  // 1) 최초 로드: localStorage → items  (⟵ runSearch보다 위!)
   const [items, setItems] = useState<PropertyItem[]>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -457,6 +415,7 @@ const MapHomePage: React.FC = () => {
         id: "__draft__",
         title: "신규 등록 위치",
         position: { lat: draftPin.lat, lng: draftPin.lng },
+        kind: (draftPin as any).pinKind ?? "question",
       } as any);
     }
     return base;
@@ -510,6 +469,120 @@ const MapHomePage: React.FC = () => {
     }
   }, []);
 
+  // 기존 핀으로 메뉴 열기 헬퍼 (⟵ runSearch보다 위!)
+  const openMenuForExistingPin = useCallback(
+    async (p: PropertyItem) => {
+      setDraftPin(null);
+      setSelectedId(p.id);
+      setMenuTargetId(p.id);
+      setMenuAnchor(p.position);
+      setFitAllOnce(false);
+
+      if (p.address) setMenuAddress(p.address);
+      else {
+        const addr = await resolveAddress(p.position);
+        setMenuAddress(addr ?? null);
+      }
+      setMenuOpen(true);
+    },
+    [resolveAddress]
+  );
+
+  // ── 검색 (주소→좌표, 실패 시 키워드) ──  (⟵ items, openMenuForExistingPin 이후!)
+  const runSearch = useCallback(
+    async (keyword: string) => {
+      if (!kakaoSDK || !mapInstance || !keyword.trim()) return;
+      const geocoder = new kakaoSDK.maps.services.Geocoder();
+      const places = new kakaoSDK.maps.services.Places();
+
+      const afterLocate = async (lat: number, lng: number) => {
+        const coords = { lat, lng };
+
+        // 근접 기존 핀 자동 매칭 (35m)
+        const THRESHOLD_M = 35;
+        let nearest: PropertyItem | null = null;
+        let best = Infinity;
+        for (const p of items) {
+          const d = distanceMeters(coords, p.position);
+          if (d < THRESHOLD_M && d < best) {
+            best = d;
+            nearest = p;
+          }
+        }
+        if (nearest) {
+          await openMenuForExistingPin(nearest);
+        } else {
+          setDraftPin(coords); // draftPin effect가 메뉴 자동 오픈
+        }
+
+        const center = new kakaoSDK.maps.LatLng(lat, lng);
+        mapInstance.setCenter(center);
+        mapInstance.setLevel(Math.min(5, 11));
+      };
+
+      await new Promise<void>((resolve) => {
+        geocoder.addressSearch(
+          keyword,
+          async (addrResult: any[], addrStatus: string) => {
+            if (
+              addrStatus === kakaoSDK.maps.services.Status.OK &&
+              addrResult?.length
+            ) {
+              const r0 = addrResult[0];
+              const lat = parseFloat(
+                (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
+              );
+              const lng = parseFloat(
+                (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
+              );
+              await afterLocate(lat, lng);
+              resolve();
+            } else {
+              places.keywordSearch(
+                keyword,
+                async (kwResult: any[], kwStatus: string) => {
+                  if (
+                    kwStatus === kakaoSDK.maps.services.Status.OK &&
+                    kwResult?.length
+                  ) {
+                    const r0 = kwResult[0];
+                    await afterLocate(parseFloat(r0.y), parseFloat(r0.x));
+                  } else {
+                    alert("검색 결과가 없습니다.");
+                  }
+                  resolve();
+                }
+              );
+            }
+          }
+        );
+      });
+    },
+    [kakaoSDK, mapInstance, items, openMenuForExistingPin]
+  );
+
+  // 🔥 신규핀(draftPin) 생기면 자동으로 컨텍스트메뉴 열기
+  useEffect(() => {
+    if (!draftPin) return;
+
+    // 드래프트 모드 강제
+    setSelectedId(null);
+    setMenuTargetId(null);
+
+    // 앵커 지정 + 1회 핏 해제
+    setMenuAnchor(draftPin);
+    setFitAllOnce(false);
+
+    // 주소 역지오코딩 (실패 시 기본 문구)
+    (async () => {
+      const addr = await resolveAddress(draftPin);
+      setMenuAddress(addr || "선택 위치");
+    })();
+
+    // 메뉴 열기
+    setMenuOpen(true);
+  }, [draftPin, resolveAddress]);
+
   const markerClickShieldRef = useRef(0);
   const handleMarkerClick = useCallback(
     async (id: string) => {
@@ -543,10 +616,11 @@ const MapHomePage: React.FC = () => {
       setDraftPin(latlng);
       setFitAllOnce(false);
       setMenuAnchor(latlng);
-      setMenuAddress("선택 위치");
-      setMenuOpen(true);
+
       const addr = await resolveAddress(latlng);
       setMenuAddress(addr || "선택 위치");
+
+      setMenuOpen(true);
     },
     [resolveAddress]
   );
@@ -558,18 +632,25 @@ const MapHomePage: React.FC = () => {
   ): PropertyItem {
     return {
       ...p,
-
+      // 상단 요약에 쓰이는 기본 필드
       title: patch.title ?? p.title,
       address: patch.address ?? p.address,
       priceText: (patch as any).salePrice ?? p.priceText,
+
+      // 핀 종류(호환 키 유지)
       ...("pinKind" in patch && patch.pinKind !== undefined
         ? { pinKind: (patch as any).pinKind }
         : { pinKind: (p as any).pinKind }),
+
       view: {
         ...(p as any).view,
+
+        // 핀 동기화
         ...("pinKind" in patch && patch.pinKind !== undefined
           ? { pinKind: (patch as any).pinKind }
           : { pinKind: (p as any).view?.pinKind }),
+
+        // 이미지/파일 반영
         ...(() => {
           const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
           if (Array.isArray(cand)) {
@@ -587,12 +668,16 @@ const MapHomePage: React.FC = () => {
         fileItems: Array.isArray((patch as any).fileItems)
           ? normalizeImages((patch as any).fileItems)
           : (p as any).view?.fileItems,
+
+        // IDB refs 유지
         _imageCardRefs: Array.isArray((patch as any)._imageCardRefs)
           ? (patch as any)._imageCardRefs
           : (p as any).view?._imageCardRefs,
         _fileItemRefs: Array.isArray((patch as any)._fileItemRefs)
           ? (patch as any)._fileItemRefs
           : (p as any).view?._fileItemRefs,
+
+        // 일반 필드들
         publicMemo: (patch as any).publicMemo ?? (p as any).view?.publicMemo,
         secretMemo: (patch as any).secretMemo ?? (p as any).view?.secretMemo,
         officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
@@ -602,17 +687,30 @@ const MapHomePage: React.FC = () => {
         optionEtc: (patch as any).optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: (patch as any).unitLines ?? (p as any).view?.unitLines,
+
+        listingStars:
+          typeof (patch as any).listingStars === "number"
+            ? (patch as any).listingStars
+            : (p as any).view?.listingStars,
+
+        elevator:
+          (patch as any).elevator !== undefined
+            ? (patch as any).elevator
+            : (p as any).view?.elevator,
+
         parkingType: (patch as any).parkingType ?? (p as any).view?.parkingType,
         parkingCount:
           (patch as any).parkingCount ?? (p as any).view?.parkingCount,
         slopeGrade: (patch as any).slopeGrade ?? (p as any).view?.slopeGrade,
         structureGrade:
           (patch as any).structureGrade ?? (p as any).view?.structureGrade,
+
         aspect: (patch as any).aspect ?? (p as any).view?.aspect,
         aspectNo: (patch as any).aspectNo ?? (p as any).view?.aspectNo,
         aspect1: (patch as any).aspect1 ?? (p as any).view?.aspect1,
         aspect2: (patch as any).aspect2 ?? (p as any).view?.aspect2,
         aspect3: (patch as any).aspect3 ?? (p as any).view?.aspect3,
+
         totalBuildings:
           (patch as any).totalBuildings ?? (p as any).view?.totalBuildings,
         totalFloors: (patch as any).totalFloors ?? (p as any).view?.totalFloors,
@@ -621,6 +719,7 @@ const MapHomePage: React.FC = () => {
         remainingHouseholds:
           (patch as any).remainingHouseholds ??
           (p as any).view?.remainingHouseholds,
+
         completionDate:
           (patch as any).completionDate ?? (p as any).view?.completionDate,
         exclusiveArea:
@@ -631,6 +730,7 @@ const MapHomePage: React.FC = () => {
           (p as any).view?.extraExclusiveAreas,
         extraRealAreas:
           (patch as any).extraRealAreas ?? (p as any).view?.extraRealAreas,
+
         dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
       },
     };
@@ -747,11 +847,9 @@ const MapHomePage: React.FC = () => {
             setTimeout(() => {
               map.relayout?.();
               kakao.maps.event.trigger(map, "resize");
-              // 초기 1회도 백엔드로 보내고 싶으면 idle 트리거
               kakao.maps.event.trigger(map, "idle");
             }, 0);
           }}
-          // ✅ idle(디바운스)마다 4모서리+줌 POST, 이전요청 abort, 중복 스킵
           onViewportChange={(q) => {
             sendViewportQuery(q);
           }}
@@ -765,9 +863,9 @@ const MapHomePage: React.FC = () => {
             }`}
             kakao={kakaoSDK}
             map={mapInstance}
-            position={menuAnchor}
+            position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)}
             address={menuAddress ?? undefined}
-            propertyId={menuTargetId ?? undefined}
+            propertyId={menuTargetId ?? "__draft__"}
             onClose={() => {
               setMenuOpen(false);
               if (!menuTargetId) {
@@ -984,7 +1082,7 @@ const MapHomePage: React.FC = () => {
 
             setItems((prev) => [next, ...prev]);
             setSelectedId(id);
-            setMenuTargetId(id);
+            setMenuTargetId("draft");
             setDraftPin(null);
             setPrefillAddress(undefined);
             setCreateOpen(false);
@@ -1029,7 +1127,7 @@ const MapHomePage: React.FC = () => {
               unitLines: (payload as any).unitLines,
               publicMemo: (payload as any).publicMemo,
               secretMemo: (payload as any).secretMemo,
-              images: (payload as any).images, // 레거시 보존
+              images: (payload as any).images,
               pinKind: (payload as any).pinKind,
             };
 

@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/atoms/Checkbox/Checkbox";
 import { Plus } from "lucide-react";
 import { OptionsSectionProps } from "./types";
 import OptionCell from "./OptionCell";
+import { Button } from "@/components/atoms/Button/Button";
 
 /** 필요시 레거시 문자열 분리용 */
 const SPLIT_RE = /[,\n;/]+/;
@@ -283,18 +284,20 @@ export default function OptionsSection({
                     {/* 4열: 마지막 줄에만 + 버튼 */}
                     {isLastRow ? (
                       <div className="flex items-center justify-start">
-                        <button
+                        <Button
                           type="button"
                           onClick={() =>
                             addCustomFieldAfter(
                               baseIndex + (v2 !== undefined ? 1 : 0)
                             )
                           }
-                          className="text-sm px-1 text-gray-500 hover:text-blue-600"
+                          variant="ghost"
+                          size="icon"
+                          className="text-gray-500 hover:text-blue-600 hover:bg-transparent"
                           title="입력칸 추가"
                         >
                           <Plus className="h-4 w-4" />
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <div />

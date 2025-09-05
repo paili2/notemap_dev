@@ -34,7 +34,7 @@ export default function PinContextMenuContainer({
     <div
       ref={ref}
       className={cn("absolute")}
-      style={{ left: pt.left, top: pt.top, zIndex }}
+      style={{ left: pt.left, top: pt.top, zIndex, pointerEvents: "auto" }}
       role="dialog"
       aria-modal
     >

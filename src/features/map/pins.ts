@@ -1,4 +1,3 @@
-// features/map/pins.ts
 export type PinKind =
   | "1room"
   | "1room-terrace"
@@ -14,7 +13,6 @@ export type PinKind =
   | "question" // 답사예정
   | "completed"; // 완료
 
-// ✅ 네가 지정한 색 (white는 #ffffff로 표준화)
 export const PIN_ACCENTS: Record<PinKind, string> = {
   "1room": "#ffffff",
   "1room-terrace": "#ffffff",

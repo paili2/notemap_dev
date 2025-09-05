@@ -1,8 +1,14 @@
 "use client";
 
-import { Eye, Plus, X } from "lucide-react";
-import ContextMenuItem from "./ContextMenuItem";
-import { ContextMenuPanelProps } from "./types";
+import * as React from "react";
+
+type Props = {
+  address?: string;
+  propertyId?: string; // "__draft__" or real id
+  onClose: () => void;
+  onView: (id: string) => void;
+  onCreate: () => void;
+};
 
 export default function ContextMenuPanel({
   address,
@@ -10,37 +16,48 @@ export default function ContextMenuPanel({
   onClose,
   onView,
   onCreate,
-}: ContextMenuPanelProps) {
-  return (
-    <div className="relative min-w-40 rounded-xl border bg-white shadow-lg">
-      {/* 닫기 버튼 */}
-      <button
-        type="button"
-        aria-label="닫기"
-        onClick={onClose}
-        className="absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-zinc-700 hover:text-black z-10"
-      >
-        <X className="h-3 w-3" />
-      </button>
+}: Props) {
+  const isDraft = !propertyId || propertyId === "__draft__";
 
-      {/* 주소 헤더 */}
+  return (
+    <div className="rounded-xl bg-white shadow-lg border border-gray-200 p-3 min-w-[220px] max-w-[280px]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-medium text-sm">
+          {isDraft ? "여기서 신규 등록" : "선택된 항목"}
+        </div>
+        <button
+          onClick={onClose}
+          className="text-xs px-2 py-1 rounded-md border bg-gray-50 hover:bg-gray-100"
+        >
+          닫기
+        </button>
+      </div>
+
       {address && (
-        <div className="flex items-center gap-1.5 border-b border-black/10 px-2.5 py-2 pr-8">
-          <div className="truncate text-[11px] text-zinc-600">{address}</div>
+        <div className="text-xs text-gray-500 mt-1 mb-2 leading-snug">
+          {address}
         </div>
       )}
 
-      {/* 액션 버튼 */}
-      <div className="py-1">
-        {propertyId && (
-          <ContextMenuItem
-            label="매물 보기"
-            icon={Eye}
-            onClick={() => onView(propertyId)}
-          />
-        )}
-        <ContextMenuItem label="매물 생성" icon={Plus} onClick={onCreate} />
-      </div>
+      {isDraft ? (
+        <div className="flex items-center gap-2">
+          <button
+            className="px-3 py-1.5 text-sm rounded-md border bg-blue-50 hover:bg-blue-100"
+            onClick={onCreate}
+          >
+            등록하기
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            className="px-3 py-1.5 text-sm rounded-md border bg-blue-50 hover:bg-blue-100"
+            onClick={() => propertyId && onView(String(propertyId))}
+          >
+            보기
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,20 +4,11 @@ import { Fragment } from "react";
 import Field from "@/components/atoms/Field/Field";
 import { Button } from "@/components/atoms/Button/Button";
 import { Trash2, Plus } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/Select/Select";
 
-import type {
-  AspectRowLite,
-  OrientationValue,
-} from "@/features/properties/types/property-domain";
+import type { AspectRowLite } from "@/features/properties/types/property-domain";
 import { ORIENTATIONS } from "../../constants";
 import { AspectsSectionProps } from "./types";
+import AspectCell from "./components/AspectCell";
 
 export default function AspectsSection({
   aspects,
@@ -33,40 +24,6 @@ export default function AspectsSection({
     rows.push(aspects.slice(i, i + 2));
   }
 
-  const Cell = ({ row }: { row: AspectRowLite }) => (
-    <div className="flex items-center gap-2">
-      <span className="w-10 text-right">{row.no}호</span>
-      <Select
-        value={row.dir || undefined} // "" 대신 undefined로 placeholder 동작
-        onValueChange={(v) => setAspectDir(row.no, v as OrientationValue)}
-      >
-        <SelectTrigger className="w-[110px] h-9">
-          <SelectValue placeholder="방향" />
-        </SelectTrigger>
-        <SelectContent position="popper" className="z-[1205]">
-          {list.map((o) => (
-            <SelectItem key={o} value={o}>
-              {o}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {aspects.length > 1 && (
-        <Button
-          size="icon"
-          variant="ghost"
-          type="button"
-          onClick={() => removeAspect(row.no)}
-          title="삭제"
-          className="h-8 w-8 p-0"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
-  );
-
   return (
     <Field label="향">
       <div className="grid grid-cols-[1fr_1fr_auto] gap-x-3 gap-y-2">
@@ -81,10 +38,30 @@ export default function AspectsSection({
           return (
             <Fragment key={pairKey}>
               <div>
-                {pair[0] ? <Cell row={pair[0]} /> : <div className="h-9" />}
+                {pair[0] ? (
+                  <AspectCell
+                    row={pair[0]}
+                    orientations={list}
+                    setAspectDir={setAspectDir}
+                    removeAspect={removeAspect}
+                    canRemove={aspects.length > 1}
+                  />
+                ) : (
+                  <div className="h-9" />
+                )}
               </div>
               <div>
-                {pair[1] ? <Cell row={pair[1]} /> : <div className="h-9" />}
+                {pair[1] ? (
+                  <AspectCell
+                    row={pair[1]}
+                    orientations={list}
+                    setAspectDir={setAspectDir}
+                    removeAspect={removeAspect}
+                    canRemove={aspects.length > 1}
+                  />
+                ) : (
+                  <div className="h-9" />
+                )}
               </div>
               <div className="flex items-center justify-end">
                 {isLastRow && (

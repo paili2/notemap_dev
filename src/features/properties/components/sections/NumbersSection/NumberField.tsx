@@ -9,6 +9,7 @@ import {
   useRef,
   WheelEventHandler,
 } from "react";
+import { Button } from "@/components/atoms/Button/Button";
 
 export interface NumberFieldProps {
   label: string;
@@ -113,24 +114,28 @@ export default function NumberField({
         />
 
         <div className="absolute right-1 top-0 bottom-0 flex flex-col justify-center">
-          <button
+          <Button
             type="button"
             onClick={inc}
-            className="h-3 flex items-center justify-center text-gray-400/70 hover:text-gray-700"
+            variant="plain"
+            size="tinyIcon"
+            className="flex items-center justify-center text-gray-400/70 hover:text-gray-700"
             aria-label="증가"
             tabIndex={-1}
           >
             <ChevronUp className="w-3 h-3" strokeWidth={1.5} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={dec}
-            className="h-3 flex items-center justify-center text-gray-400/70 hover:text-gray-700"
+            variant="plain"
+            size="tinyIcon"
+            className="flex items-center justify-center text-gray-400/70 hover:text-gray-700"
             aria-label="감소"
             tabIndex={-1}
           >
             <ChevronDown className="w-3 h-3" strokeWidth={1.5} />
-          </button>
+          </Button>
         </div>
       </div>
     </Field>

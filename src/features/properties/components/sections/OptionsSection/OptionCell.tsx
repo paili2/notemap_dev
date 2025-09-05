@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Input } from "@/components/atoms/Input/Input";
 import { X } from "lucide-react";
+import { Button } from "@/components/atoms/Button/Button";
 
 export type OptionCellProps = {
   value?: string;
@@ -51,14 +52,16 @@ function OptionCellImpl({
         placeholder={placeholder}
         className={`h-9 ${inputWidthBase} ${inputWidthMd} shrink-0`}
       />
-      <button
+      <Button
         type="button"
         onClick={() => onRemove(index)}
-        className="text-sm px-1 text-gray-500 hover:text-red-600"
+        variant="ghost"
+        size="icon"
+        className="text-gray-500 hover:text-red-600 hover:bg-transparent"
         title="입력칸 삭제"
       >
         <X className="h-4 w-4" />
-      </button>
+      </Button>
     </div>
   );
 }

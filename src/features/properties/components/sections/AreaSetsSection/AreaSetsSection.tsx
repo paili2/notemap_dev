@@ -4,6 +4,8 @@ import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { toPy, toM2 } from "@/features/properties/lib/area";
 import { AreaSet, AreaSetsSectionProps } from "./types";
+import RenderRow from "./components/RenderRow";
+import { Button } from "@/components/atoms/Button/Button";
 
 export default function AreaSetsSection({
   baseAreaSet,
@@ -112,69 +114,45 @@ export default function AreaSetsSection({
           />
         </div>
 
-        {renderRow(
-          "전용",
-          baseAreaSet.exMinM2,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              exMinM2: v,
-              exMinPy: toPy(v),
-            }),
-          baseAreaSet.exMaxM2,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              exMaxM2: v,
-              exMaxPy: toPy(v),
-            }),
-          baseAreaSet.exMinPy,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              exMinPy: v,
-              exMinM2: toM2(v),
-            }),
-          baseAreaSet.exMaxPy,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              exMaxPy: v,
-              exMaxM2: toM2(v),
-            })
-        )}
+        <RenderRow
+          label="전용"
+          m2Min={baseAreaSet.exMinM2}
+          onM2Min={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, exMinM2: v, exMinPy: toPy(v) })
+          }
+          m2Max={baseAreaSet.exMaxM2}
+          onM2Max={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, exMaxM2: v, exMaxPy: toPy(v) })
+          }
+          pyMin={baseAreaSet.exMinPy}
+          onPyMin={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, exMinPy: v, exMinM2: toM2(v) })
+          }
+          pyMax={baseAreaSet.exMaxPy}
+          onPyMax={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, exMaxPy: v, exMaxM2: toM2(v) })
+          }
+        />
 
-        {renderRow(
-          "실평",
-          baseAreaSet.realMinM2,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              realMinM2: v,
-              realMinPy: toPy(v),
-            }),
-          baseAreaSet.realMaxM2,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              realMaxM2: v,
-              realMaxPy: toPy(v),
-            }),
-          baseAreaSet.realMinPy,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              realMinPy: v,
-              realMinM2: toM2(v),
-            }),
-          baseAreaSet.realMaxPy,
-          (v) =>
-            setBaseAreaSet({
-              ...baseAreaSet,
-              realMaxPy: v,
-              realMaxM2: toM2(v),
-            })
-        )}
+        <RenderRow
+          label="실평"
+          m2Min={baseAreaSet.realMinM2}
+          onM2Min={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, realMinM2: v, realMinPy: toPy(v) })
+          }
+          m2Max={baseAreaSet.realMaxM2}
+          onM2Max={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, realMaxM2: v, realMaxPy: toPy(v) })
+          }
+          pyMin={baseAreaSet.realMinPy}
+          onPyMin={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, realMinPy: v, realMinM2: toM2(v) })
+          }
+          pyMax={baseAreaSet.realMaxPy}
+          onPyMax={(v) =>
+            setBaseAreaSet({ ...baseAreaSet, realMaxPy: v, realMaxM2: toM2(v) })
+          }
+        />
       </div>
 
       {extraAreaSets.map((s, idx) => (
@@ -202,41 +180,42 @@ export default function AreaSetsSection({
             />
           </div>
 
-          {renderRow(
-            "전용",
-            s.exMinM2,
-            (v) => patchSet(idx, { exMinM2: v, exMinPy: toPy(v) }),
-            s.exMaxM2,
-            (v) => patchSet(idx, { exMaxM2: v, exMaxPy: toPy(v) }),
-            s.exMinPy,
-            (v) => patchSet(idx, { exMinPy: v, exMinM2: toM2(v) }),
-            s.exMaxPy,
-            (v) => patchSet(idx, { exMaxPy: v, exMaxM2: toM2(v) })
-          )}
+          <RenderRow
+            label="전용"
+            m2Min={s.exMinM2}
+            onM2Min={(v) => patchSet(idx, { exMinM2: v, exMinPy: toPy(v) })}
+            m2Max={s.exMaxM2}
+            onM2Max={(v) => patchSet(idx, { exMaxM2: v, exMaxPy: toPy(v) })}
+            pyMin={s.exMinPy}
+            onPyMin={(v) => patchSet(idx, { exMinPy: v, exMinM2: toM2(v) })}
+            pyMax={s.exMaxPy}
+            onPyMax={(v) => patchSet(idx, { exMaxPy: v, exMaxM2: toM2(v) })}
+          />
 
-          {renderRow(
-            "실평",
-            s.realMinM2,
-            (v) => patchSet(idx, { realMinM2: v, realMinPy: toPy(v) }),
-            s.realMaxM2,
-            (v) => patchSet(idx, { realMaxM2: v, realMaxPy: toPy(v) }),
-            s.realMinPy,
-            (v) => patchSet(idx, { realMinPy: v, realMinM2: toM2(v) }),
-            s.realMaxPy,
-            (v) => patchSet(idx, { realMaxPy: v, realMaxM2: toM2(v) })
-          )}
+          <RenderRow
+            label="실평"
+            m2Min={s.realMinM2}
+            onM2Min={(v) => patchSet(idx, { realMinM2: v, realMinPy: toPy(v) })}
+            m2Max={s.realMaxM2}
+            onM2Max={(v) => patchSet(idx, { realMaxM2: v, realMaxPy: toPy(v) })}
+            pyMin={s.realMinPy}
+            onPyMin={(v) => patchSet(idx, { realMinPy: v, realMinM2: toM2(v) })}
+            pyMax={s.realMaxPy}
+            onPyMax={(v) => patchSet(idx, { realMaxPy: v, realMaxM2: toM2(v) })}
+          />
         </div>
       ))}
 
       <div>
-        <button
+        <Button
           type="button"
           onClick={addSet}
-          className="text-sm px-3 h-9 rounded-md border hover:bg-muted"
+          variant="outline"
+          className="h-9 px-3 hover:bg-muted"
           title="전용/실평 세트 추가"
         >
           + 개별 평수 입력
-        </button>
+        </Button>
       </div>
     </div>
   );
