@@ -481,6 +481,21 @@ const MapHomePage: React.FC = () => {
     }
   }, []);
 
+  // ✅ 지도 중앙을 말풍선 고려해서 '살짝 위'로 이동하는 헬퍼
+  const panToWithOffset = useCallback(
+    (latlng: LatLng, offsetY = 180, offsetX = 0) => {
+      if (!kakaoSDK || !mapInstance) return;
+      const pos = new kakaoSDK.maps.LatLng(latlng.lat, latlng.lng);
+      const proj = mapInstance.getProjection();
+      const pt = proj.pointFromCoords(pos);
+      const target = proj.coordsFromPoint(
+        new kakaoSDK.maps.Point(pt.x + offsetX, pt.y - offsetY)
+      );
+      mapInstance.panTo(target);
+    },
+    [kakaoSDK, mapInstance]
+  );
+
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
       setDraftPin(null);
@@ -488,6 +503,9 @@ const MapHomePage: React.FC = () => {
       setMenuTargetId(p.id);
       setMenuAnchor(p.position);
       setFitAllOnce(false);
+
+      // 클릭 시에도 지도 이동 (검색으로 열린 케이스 대응)
+      panToWithOffset(p.position, 180);
 
       if (p.address) {
         setMenuRoadAddr(p.address);
@@ -499,7 +517,7 @@ const MapHomePage: React.FC = () => {
       }
       setMenuOpen(true);
     },
-    [resolveAddress]
+    [resolveAddress, panToWithOffset]
   );
 
   // ── 검색 (주소→좌표, 실패 시 키워드) ──  (⟵ items, openMenuForExistingPin 이후!)
@@ -594,13 +612,16 @@ const MapHomePage: React.FC = () => {
     })();
 
     setMenuOpen(true);
+    // 신규핀도 화면에 보기 좋게 이동
+    panToWithOffset(draftPin, 180);
+
     if (kakaoSDK && mapInstance) {
       kakaoSDK.maps.event.trigger(mapInstance, "idle");
       requestAnimationFrame(() =>
         kakaoSDK.maps.event.trigger(mapInstance, "idle")
       );
     }
-  }, [draftPin, resolveAddress]);
+  }, [draftPin, resolveAddress, kakaoSDK, mapInstance, panToWithOffset]);
 
   const markerClickShieldRef = useRef(0);
   const handleMarkerClick = useCallback(
@@ -609,6 +630,9 @@ const MapHomePage: React.FC = () => {
       if (id === "__draft__") return;
       const item = items.find((p) => p.id === id);
       if (!item) return;
+
+      // ✅ 클릭한 핀으로 지도 이동 (말풍선 고려해 위로 약간 올림)
+      panToWithOffset(item.position, 180);
 
       setMenuTargetId(id);
       setSelectedId(id);
@@ -621,12 +645,16 @@ const MapHomePage: React.FC = () => {
       setMenuRoadAddr(road ?? null);
       setMenuJibunAddr(jibun ?? null);
     },
-    [items, resolveAddress]
+    [items, resolveAddress, panToWithOffset]
   );
 
   const handleMapClick = useCallback(
     async (latlng: LatLng) => {
       if (Date.now() - markerClickShieldRef.current < 250) return;
+
+      // ✅ 빈 지도 클릭으로 신규핀 생성 시에도 카메라 이동
+      panToWithOffset(latlng, 180);
+
       setSelectedId(null);
       setMenuTargetId(null);
       setDraftPin(latlng);
@@ -639,7 +667,7 @@ const MapHomePage: React.FC = () => {
 
       setMenuOpen(true);
     },
-    [resolveAddress]
+    [resolveAddress, panToWithOffset]
   );
 
   /** patch 반영 */
