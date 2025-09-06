@@ -161,31 +161,17 @@ export function FinancialInfoSection({
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">총지원금액</Label>
+            <Label className="text-xs text-muted-foreground">지원금액</Label>
             <div className="flex items-center gap-1">
               <Input
                 type="number"
-                value={financialInfo.totalSupportAmount}
+                value={
+                  financialInfo.totalSupportAmount === 0
+                    ? ""
+                    : financialInfo.totalSupportAmount
+                }
                 onChange={(e) =>
                   handleInputChange("totalSupportAmount", e.target.value)
-                }
-                className="h-7 text-xs w-24"
-                placeholder="0"
-              />
-              <span className="text-xs text-muted-foreground">원</span>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              리베이트 최종금
-            </Label>
-            <div className="flex items-center gap-1">
-              <Input
-                type="number"
-                value={financialInfo.finalRebateAmount}
-                onChange={(e) =>
-                  handleInputChange("finalRebateAmount", e.target.value)
                 }
                 className="h-7 text-xs w-24"
                 placeholder="0"

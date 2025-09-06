@@ -11,7 +11,6 @@ export interface FinancialInfo {
   totalRebate: number;
   taxStatus: "taxable" | "tax-free";
   totalSupportAmount: number;
-  finalRebateAmount: number;
 }
 
 export interface StaffAllocation {

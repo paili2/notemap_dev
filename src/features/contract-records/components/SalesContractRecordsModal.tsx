@@ -32,7 +32,6 @@ const defaultData: SalesContractData = {
     totalRebate: 0,
     taxStatus: "taxable",
     totalSupportAmount: 0,
-    finalRebateAmount: 0,
   },
   staffAllocations: [
     {
