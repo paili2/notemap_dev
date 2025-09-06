@@ -8,9 +8,9 @@ export const formatCurrency = (amount: number): string => {
 
 export const calculateVAT = (
   amount: number,
-  taxStatus: "taxable" | "tax-free"
+  vatStatus: "vat-included" | "vat-excluded"
 ) => {
-  if (taxStatus === "tax-free") return 0;
+  if (vatStatus === "vat-excluded") return 0;
   return Math.round(amount * 0.1);
 };
 
@@ -24,8 +24,8 @@ export const calculateTotalCalculation = (financialInfo: {
   totalSupportAmount: number;
 }) => {
   return (
-    financialInfo.totalBrokerageFee -
-    financialInfo.totalRebate +
+    financialInfo.totalBrokerageFee +
+    financialInfo.totalRebate -
     financialInfo.totalSupportAmount
   );
 };

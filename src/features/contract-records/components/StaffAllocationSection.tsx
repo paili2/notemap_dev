@@ -25,6 +25,7 @@ interface StaffAllocationSectionProps {
   staffAllocations: StaffAllocation[];
   onStaffAllocationsChange: (allocations: StaffAllocation[]) => void;
   totalCalculation: number;
+  totalRebate: number;
 }
 
 // 직원 목록 (예시)
@@ -40,6 +41,7 @@ export function StaffAllocationSection({
   staffAllocations,
   onStaffAllocationsChange,
   totalCalculation,
+  totalRebate,
 }: StaffAllocationSectionProps) {
   // 총 퍼센티지 계산
   const getTotalPercentage = () => {
@@ -149,22 +151,24 @@ export function StaffAllocationSection({
   const calculateStaffAllocations = () => {
     return staffAllocations.map((staff) => {
       const percentage = staff.percentage || 0;
-      const calculation = totalCalculation || 0;
-      const allowance = (calculation * percentage) / 100;
+      // 리베이트 수당은 입력된 리베이트 금액 그대로 표시
+      const rebateAllowance = totalRebate;
+      // 최종수당은 비율에 따라 계산
+      const finalAllowance = (totalRebate * percentage) / 100;
 
       return {
         ...staff,
-        rebateAllowance: isNaN(allowance) ? 0 : allowance,
-        finalAllowance: isNaN(allowance) ? 0 : allowance,
+        rebateAllowance: isNaN(rebateAllowance) ? 0 : rebateAllowance,
+        finalAllowance: isNaN(finalAllowance) ? 0 : finalAllowance,
       };
     });
   };
 
-  // totalCalculation이 변경될 때마다 자동 계산
+  // totalRebate가 변경될 때마다 자동 계산
   React.useEffect(() => {
     const updatedAllocations = calculateStaffAllocations();
     onStaffAllocationsChange(updatedAllocations);
-  }, [totalCalculation, staffAllocations.map((s) => s.percentage).join(",")]);
+  }, [totalRebate, staffAllocations.map((s) => s.percentage).join(",")]);
 
   return (
     <Card className="flex-1 min-h-0">

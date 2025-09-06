@@ -6,6 +6,7 @@ export interface PersonInfo {
 export interface FinancialInfo {
   brokerageFee: number;
   vat: number;
+  vatStatus: "vat-included" | "vat-excluded";
   totalBrokerageFee: number;
   totalRebate: number;
   taxStatus: "taxable" | "tax-free";
