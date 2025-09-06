@@ -35,6 +35,13 @@ export function FinancialInfoSection({
     onFinancialInfoChange({ ...financialInfo, [field]: numValue });
   };
 
+  const handleRebateInputChange = (value: string) => {
+    const numValue = parseFloat(value) || 0;
+    // 리베이트 입력값을 실제 금액으로 변환 (1 = 100만원, 0.5 = 50만원)
+    const actualAmount = numValue * 1000000;
+    onFinancialInfoChange({ ...financialInfo, totalRebate: actualAmount });
+  };
+
   const handleTaxStatusChange = (value: string) => {
     onFinancialInfoChange({
       ...financialInfo,
@@ -71,16 +78,27 @@ export function FinancialInfoSection({
 
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">부가세</Label>
-            <div className="flex items-center gap-1">
-              <Input
-                type="number"
-                value={financialInfo.vat}
-                onChange={(e) => handleInputChange("vat", e.target.value)}
-                className="h-7 text-xs w-24"
-                placeholder="0"
-              />
-              <span className="text-xs text-muted-foreground">원</span>
-            </div>
+            <Select
+              value={financialInfo.vatStatus || "vat-included"}
+              onValueChange={(value) =>
+                onFinancialInfoChange({
+                  ...financialInfo,
+                  vatStatus: value as "vat-included" | "vat-excluded",
+                })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="vat-included" className="text-xs">
+                  부가세
+                </SelectItem>
+                <SelectItem value="vat-excluded" className="text-xs">
+                  미부가세
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-1">
@@ -108,14 +126,17 @@ export function FinancialInfoSection({
             <div className="flex items-center gap-1">
               <Input
                 type="number"
-                value={financialInfo.totalRebate}
-                onChange={(e) =>
-                  handleInputChange("totalRebate", e.target.value)
+                step="0.1"
+                value={
+                  financialInfo.totalRebate === 0
+                    ? ""
+                    : financialInfo.totalRebate / 1000000
                 }
+                onChange={(e) => handleRebateInputChange(e.target.value)}
                 className="h-7 text-xs w-24"
                 placeholder="0"
               />
-              <span className="text-xs text-muted-foreground">원</span>
+              <span className="text-xs text-muted-foreground">R</span>
             </div>
           </div>
 
@@ -129,8 +150,12 @@ export function FinancialInfoSection({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="taxable">과세</SelectItem>
-                <SelectItem value="tax-free">비과세</SelectItem>
+                <SelectItem value="taxable" className="text-xs">
+                  과세
+                </SelectItem>
+                <SelectItem value="tax-free" className="text-xs">
+                  비과세
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -175,14 +200,26 @@ export function FinancialInfoSection({
           <div className="text-xs text-muted-foreground space-y-1">
             <div>계산 공식:</div>
             <div>
-              • (중개보수금 + 부가세) + 리베이트최종금 - 지원금액 ={" "}
-              {formatCurrency(
-                financialInfo.brokerageFee +
-                  financialInfo.vat +
-                  financialInfo.finalRebateAmount -
-                  financialInfo.totalSupportAmount
-              )}
+              • (중개보수금 + 부가세) + 리베이트 - 지원금액 ={" "}
+              {(() => {
+                const brokerageAndVat =
+                  financialInfo.brokerageFee + financialInfo.vat;
+                const totalBeforeTax =
+                  brokerageAndVat +
+                  financialInfo.totalRebate -
+                  financialInfo.totalSupportAmount;
+                const finalTotal =
+                  financialInfo.taxStatus === "taxable"
+                    ? totalBeforeTax * 0.967 // 과세시 3.3% 차감
+                    : totalBeforeTax; // 비과세시 그대로
+                return formatCurrency(finalTotal);
+              })()}
               원
+            </div>
+            <div className="text-xs text-gray-500">
+              {financialInfo.taxStatus === "taxable"
+                ? "• 과세 적용 (전체 금액 3.3% 차감)"
+                : "• 비과세 적용"}
             </div>
           </div>
 
@@ -190,11 +227,19 @@ export function FinancialInfoSection({
           <div className="p-2 bg-primary/10 rounded-lg">
             <div className="text-sm font-medium mb-1">총 합계</div>
             <div className="text-lg font-bold text-primary">
-              {formatCurrency(
-                financialInfo.totalBrokerageFee -
-                  financialInfo.totalRebate +
-                  financialInfo.totalSupportAmount
-              )}
+              {(() => {
+                const brokerageAndVat =
+                  financialInfo.brokerageFee + financialInfo.vat;
+                const totalBeforeTax =
+                  brokerageAndVat +
+                  financialInfo.totalRebate -
+                  financialInfo.totalSupportAmount;
+                const finalTotal =
+                  financialInfo.taxStatus === "taxable"
+                    ? totalBeforeTax * 0.967 // 과세시 3.3% 차감
+                    : totalBeforeTax; // 비과세시 그대로
+                return formatCurrency(finalTotal);
+              })()}
               원
             </div>
           </div>

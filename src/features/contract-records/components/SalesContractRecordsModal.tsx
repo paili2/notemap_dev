@@ -27,6 +27,7 @@ const defaultData: SalesContractData = {
   financialInfo: {
     brokerageFee: 0,
     vat: 0,
+    vatStatus: "vat-included",
     totalBrokerageFee: 0,
     totalRebate: 0,
     taxStatus: "taxable",
@@ -97,10 +98,10 @@ export function SalesContractRecordsModal({
 
   // 재무 정보 변경 핸들러
   const handleFinancialInfoChange = (financialInfo: any) => {
-    // 부가세 자동 계산
+    // 부가세 자동 계산 (부가세 선택시 10%, 미부가세 선택시 0%)
     const vat = calculateVAT(
       financialInfo.brokerageFee,
-      financialInfo.taxStatus
+      financialInfo.vatStatus
     );
 
     // 중개보수금합계 자동 계산
@@ -114,8 +115,8 @@ export function SalesContractRecordsModal({
 
     // 총 계산 자동 업데이트
     const totalCalculation =
-      totalBrokerageFee -
-      financialInfo.totalRebate +
+      totalBrokerageFee +
+      financialInfo.totalRebate -
       financialInfo.totalSupportAmount;
 
     handleDataChange({
@@ -173,6 +174,7 @@ export function SalesContractRecordsModal({
             staffAllocations={data.staffAllocations}
             onStaffAllocationsChange={handleStaffAllocationsChange}
             totalCalculation={data.totalCalculation}
+            totalRebate={data.financialInfo.totalRebate}
           />
 
           {/* 계약 이미지 */}
