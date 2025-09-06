@@ -236,7 +236,7 @@ export default function PropertyCreateModalBody({
 
   // 면적
   const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
-    title: "개별 평수입력",
+    title: "",
     exMinM2: "",
     exMaxM2: "",
     exMinPy: "",

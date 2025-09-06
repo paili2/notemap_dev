@@ -41,64 +41,6 @@ export default function AreaSetsSection({
     );
   };
 
-  const renderRow = (
-    label: React.ReactNode,
-    m2Min: string,
-    onM2Min: (v: string) => void,
-    m2Max: string,
-    onM2Max: (v: string) => void,
-    pyMin: string,
-    onPyMin: (v: string) => void,
-    pyMax: string,
-    onPyMax: (v: string) => void
-  ) => (
-    <div className="flex items-center gap-8">
-      <Field label={label}>
-        <div className="flex items-center gap-2">
-          {/* m² 최소 */}
-          <Input
-            className="h-9 w-24"
-            value={m2Min}
-            onChange={(e) => onM2Min(e.target.value)}
-            placeholder="최소"
-            inputMode="numeric"
-          />
-          <span className="text-muted-foreground">m² ~</span>
-          {/* m² 최대 */}
-          <Input
-            className="h-9 w-24"
-            value={m2Max}
-            onChange={(e) => onM2Max(e.target.value)}
-            placeholder="최대"
-            inputMode="numeric"
-          />
-          <span className="text-muted-foreground">m²</span>
-
-          <div className="w-3" />
-
-          {/* 평 최소 */}
-          <Input
-            className="h-9 w-24"
-            value={pyMin}
-            onChange={(e) => onPyMin(e.target.value)}
-            placeholder="최소"
-            inputMode="numeric"
-          />
-          <span className="text-muted-foreground">평 ~</span>
-          {/* 평 최대 */}
-          <Input
-            className="h-9 w-24"
-            value={pyMax}
-            onChange={(e) => onPyMax(e.target.value)}
-            placeholder="최대"
-            inputMode="numeric"
-          />
-          <span className="text-muted-foreground">평</span>
-        </div>
-      </Field>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       {/* 기본(첫 번째) 세트 */}
@@ -110,7 +52,7 @@ export default function AreaSetsSection({
             onChange={(e) =>
               setBaseAreaSet({ ...baseAreaSet, title: e.target.value })
             }
-            placeholder="개별 평수입력"
+            placeholder="예) 2룸, 3룸, 3룸 복층"
           />
         </div>
 
