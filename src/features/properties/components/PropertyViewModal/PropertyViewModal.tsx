@@ -233,6 +233,18 @@ export default function PropertyViewModal({
     (data as any).view?.pinKind ??
     "1room";
 
+  const baseAreaTitleView =
+    (data as any).baseAreaTitle ??
+    (data as any).areaTitle ??
+    (data as any).areaSetTitle ??
+    "";
+  const extraAreaTitlesView: string[] =
+    (Array.isArray((data as any).extraAreaTitles) &&
+      (data as any).extraAreaTitles) ||
+    (Array.isArray((data as any).areaSetTitles) &&
+      (data as any).areaSetTitles) ||
+    [];
+
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -264,19 +276,16 @@ export default function PropertyViewModal({
               officePhone={data.officePhone ?? ""}
               officePhone2={data.officePhone2 ?? ""}
             />
-
             <NumbersView
               totalBuildings={data.totalBuildings}
               totalFloors={data.totalFloors}
               totalHouseholds={data.totalHouseholds}
               remainingHouseholds={data.remainingHouseholds}
             />
-
             <ParkingView
               parkingType={data.parkingType ?? ""}
               parkingCount={data.parkingCount}
             />
-
             <CompletionRegistryView
               completionDate={toYMD(data.completionDate)}
               salePrice={data.salePrice}
@@ -284,7 +293,6 @@ export default function PropertyViewModal({
               slopeGrade={data.slopeGrade}
               structureGrade={data.structureGrade}
             />
-
             <AspectsView details={data} />
 
             <AreaSetsView
@@ -292,17 +300,16 @@ export default function PropertyViewModal({
               realArea={data.realArea}
               extraExclusiveAreas={data.extraExclusiveAreas}
               extraRealAreas={data.extraRealAreas}
+              baseAreaTitle={baseAreaTitleView}
+              extraAreaTitles={extraAreaTitlesView}
             />
-
             <StructureLinesList
               lines={Array.isArray(data.unitLines) ? data.unitLines : []}
             />
-
             <OptionsBadges
               options={data.options ?? []}
               optionEtc={data.optionEtc ?? ""}
             />
-
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">메모</div>

@@ -248,6 +248,12 @@ export default function PropertyCreateModalBody({
   });
   const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
 
+  useEffect(() => {
+    if (!baseAreaSet.title.trim() && title.trim()) {
+      setBaseAreaSet((prev) => ({ ...prev, title }));
+    }
+  }, [title]);
+
   // 엘리베이터/등기/등급
   const [elevator, setElevator] = useState<"O" | "X">("O");
   const [registryOne, setRegistryOne] = useState<Registry | undefined>();
@@ -445,6 +451,9 @@ export default function PropertyCreateModalBody({
         setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
       );
 
+      const baseAreaTitle = (baseAreaSet.title ?? "").trim();
+      const extraAreaTitles = extraAreaSets.map((s) => (s.title ?? "").trim());
+
       // ------------- 이미지 포맷 -------------
       const imageCardsUI = imageFolders.map((card) =>
         card.map(({ url, name, caption }) => ({
@@ -516,6 +525,11 @@ export default function PropertyCreateModalBody({
         }>;
         extraExclusiveAreas: string[];
         extraRealAreas: string[];
+        baseAreaTitle?: string;
+        extraAreaTitles?: string[];
+        areaSetTitle?: string;
+        areaSetTitles?: string[];
+        pinKind?: PinKind;
       } = {
         title,
         address,
@@ -564,6 +578,16 @@ export default function PropertyCreateModalBody({
 
         extraExclusiveAreas,
         extraRealAreas,
+
+        pinKind,
+
+        // ✅ AreaSet 제목들 포함
+        baseAreaTitle,
+        extraAreaTitles,
+
+        // (선택) 과거 호환 키도 같이 내려주기
+        areaSetTitle: baseAreaTitle,
+        areaSetTitles: extraAreaTitles,
       };
 
       console.timeEnd("save-build");

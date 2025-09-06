@@ -76,9 +76,6 @@ const pickOrientation = (o: unknown): string =>
   (o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "";
 
 /* -------------------- 이미지 레퍼런스 타입 -------------------- */
-type StoredImageRef =
-  | { idbKey: string; name?: string; caption?: string }
-  | { url: string; name?: string; caption?: string };
 
 type UIImage = {
   url: string; // 미리보기 objectURL 또는 외부 URL
@@ -402,7 +399,7 @@ export default function PropertyEditModalBody({
   const [salePrice, setSalePrice] = useState("");
 
   const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
-    title: "개별 평수입력",
+    title: "",
     exMinM2: "",
     exMaxM2: "",
     exMinPy: "",
@@ -543,8 +540,16 @@ export default function PropertyEditModalBody({
 
     const ex = unpackRange(initialData.exclusiveArea);
     const re = unpackRange(initialData.realArea);
+
+    // 생성 시 전달된 제목(여러 호환 키)을 우선 반영
+    const baseAreaTitle =
+      asStr((initialData as any).baseAreaTitle) ||
+      asStr((initialData as any).areaTitle) ||
+      asStr((initialData as any).areaSetTitle) ||
+      "";
+
     setBaseAreaSet({
-      title: "개별 평수입력",
+      title: baseAreaTitle,
       exMinM2: ex.min,
       exMaxM2: ex.max,
       exMinPy: toPy(ex.min),
@@ -555,19 +560,30 @@ export default function PropertyEditModalBody({
       realMaxPy: toPy(re.max),
     });
 
-    const exArr = Array.isArray(initialData.extraExclusiveAreas)
-      ? initialData.extraExclusiveAreas
+    const exArr = Array.isArray((initialData as any).extraExclusiveAreas)
+      ? (initialData as any).extraExclusiveAreas
       : [];
-    const reArr = Array.isArray(initialData.extraRealAreas)
-      ? initialData.extraRealAreas
+    const reArr = Array.isArray((initialData as any).extraRealAreas)
+      ? (initialData as any).extraRealAreas
       : [];
-    const len = Math.max(exArr.length, reArr.length);
+
+    // 제목 배열(여러 호환 키 지원)
+    const titlesArr: string[] =
+      (Array.isArray((initialData as any).extraAreaTitles) &&
+        (initialData as any).extraAreaTitles.map(asStr)) ||
+      (Array.isArray((initialData as any).areaSetTitles) &&
+        (initialData as any).areaSetTitles.map(asStr)) ||
+      [];
+
+    const len = Math.max(exArr.length, reArr.length, titlesArr.length);
+
     setExtraAreaSets(
       Array.from({ length: len }, (_, i) => {
         const exi = unpackRange(exArr[i] ?? "");
         const rei = unpackRange(reArr[i] ?? "");
+        const title = asStr(titlesArr[i]) || `세트 ${i + 1}`; // 없으면 기본값
         return {
-          title: "개별 평수입력",
+          title,
           exMinM2: exi.min,
           exMaxM2: exi.max,
           exMinPy: toPy(exi.min),
@@ -754,6 +770,9 @@ export default function PropertyEditModalBody({
       setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
     );
 
+    const baseAreaTitleOut = baseAreaSet.title?.trim() ?? "";
+    const extraAreaTitlesOut = extraAreaSets.map((s) => (s.title ?? "").trim());
+
     // 이미지 포맷
     const imageCardsUI = imageFolders.map((card) =>
       card.map(({ url, name, caption }) => ({
@@ -841,6 +860,12 @@ export default function PropertyEditModalBody({
 
       extraExclusiveAreas,
       extraRealAreas,
+
+      baseAreaTitle: baseAreaTitleOut,
+      areaTitle: baseAreaTitleOut, // 호환용 별칭
+      areaSetTitle: baseAreaTitleOut, // 호환용 별칭
+      extraAreaTitles: extraAreaTitlesOut,
+      areaSetTitles: extraAreaTitlesOut, // 호환용 별칭
 
       // ✅ 핀 종류(한 번만!)
       pinKind,

@@ -88,6 +88,9 @@ export type PropertyViewDetails = {
   updatedAt?: string;
 
   listingStars: number;
+
+  baseAreaTitle?: string;
+  extraAreaTitles?: string[];
 };
 
 export type AnyImageRef =

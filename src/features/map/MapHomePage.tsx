@@ -732,6 +732,9 @@ const MapHomePage: React.FC = () => {
         optionEtc: (patch as any).optionEtc ?? (p as any).view?.optionEtc,
         registry: (patch as any).registry ?? (p as any).view?.registry,
         unitLines: (patch as any).unitLines ?? (p as any).view?.unitLines,
+        orientations: Array.isArray((patch as any).orientations)
+          ? (patch as any).orientations
+          : (p as any).view?.orientations,
 
         listingStars:
           typeof (patch as any).listingStars === "number"
@@ -776,7 +779,14 @@ const MapHomePage: React.FC = () => {
         extraRealAreas:
           (patch as any).extraRealAreas ?? (p as any).view?.extraRealAreas,
 
-        dealStatus: (patch as any).dealStatus ?? (p as any).view?.dealStatus,
+        baseAreaTitle:
+          (patch as any).baseAreaTitle !== undefined
+            ? (patch as any).baseAreaTitle
+            : (p as any).view?.baseAreaTitle,
+        extraAreaTitles:
+          (patch as any).extraAreaTitles !== undefined
+            ? (patch as any).extraAreaTitles
+            : (p as any).view?.extraAreaTitles,
       },
     };
   }
@@ -1147,6 +1157,14 @@ const MapHomePage: React.FC = () => {
                 ...((payload as any).pinKind
                   ? ({ pinKind: (payload as any).pinKind } as any)
                   : ({} as any)),
+                baseAreaTitle:
+                  (payload as any).baseAreaTitle ??
+                  (payload as any).areaSetTitle ??
+                  "",
+                extraAreaTitles:
+                  (payload as any).extraAreaTitles ??
+                  (payload as any).areaSetTitles ??
+                  [],
                 _imageCardRefs: cardRefs,
                 _fileItemRefs: fileRefs,
                 imageCards: hydratedCards,
@@ -1160,6 +1178,7 @@ const MapHomePage: React.FC = () => {
 
             setItems((prev) => [next, ...prev]);
             setSelectedId(id);
+            setViewOpen(true);
             setMenuTargetId("draft");
             setDraftPin(null);
             setPrefillAddress(undefined);
@@ -1207,6 +1226,17 @@ const MapHomePage: React.FC = () => {
               secretMemo: (payload as any).secretMemo,
               images: (payload as any).images,
               pinKind: (payload as any).pinKind,
+
+              // ✅ 면적 세트 제목들 추가 (호환 키 포함)
+              baseAreaTitle:
+                (payload as any).baseAreaTitle ??
+                (payload as any).areaTitle ??
+                (payload as any).areaSetTitle ??
+                "",
+              extraAreaTitles:
+                (payload as any).extraAreaTitles ??
+                (payload as any).areaSetTitles ??
+                [],
             };
 
             const cardsFromPayload =
