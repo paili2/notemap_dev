@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { set as idbSet } from "idb-keyval";
 
 import HeaderSection from "../sections/HeaderSection/HeaderSection";
 import ImagesSection, {
@@ -40,14 +39,7 @@ import { AreaSet } from "../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/map/pins";
 import { filled, hasPair, setPack } from "../../lib/validators";
 import { ImageItem } from "../../types/media";
-
-/* -------------------- IndexedDB 저장 유틸 -------------------- */
-const makeImgKey = (scope: "card" | "vertical") =>
-  `prop:new:${scope}:${crypto.randomUUID()}`;
-
-async function putBlobToIDB(key: string, blob: Blob) {
-  await idbSet(key, blob);
-}
+import { makeNewImgKey, putBlobToIDB } from "../../lib/imageStore";
 
 /* ======================================================== */
 
@@ -89,7 +81,7 @@ export default function PropertyCreateModalBody({
 
     const newItems: ImageItem[] = [];
     for (const f of Array.from(files)) {
-      const key = makeImgKey("card");
+      const key = makeNewImgKey("card");
       await putBlobToIDB(key, f);
       newItems.push({
         idbKey: key,
@@ -148,7 +140,7 @@ export default function PropertyCreateModalBody({
 
     const items: ImageItem[] = [];
     for (const f of Array.from(files)) {
-      const key = makeImgKey("vertical");
+      const key = makeNewImgKey("vertical");
       await putBlobToIDB(key, f);
       items.push({
         name: f.name,

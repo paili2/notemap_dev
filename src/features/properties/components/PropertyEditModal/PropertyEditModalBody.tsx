@@ -42,6 +42,15 @@ import { AreaSet } from "../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/map/pins";
 import { AnyImageRef, ImageItem } from "../../types/media";
 import { filled, hasPair, setPack } from "../../lib/validators";
+import {
+  hydrateCards,
+  hydrateFlatToCards,
+  hydrateFlatUsingCounts,
+  hydrateVertical,
+  makeImgKey,
+  putBlobToIDB,
+  resolveImageRef,
+} from "../../lib/imageStore";
 
 // 타입 정규화
 const asStr = (v: unknown) => (v == null ? "" : String(v));
@@ -66,158 +75,6 @@ const unpackRange = (s: unknown): { min: string; max: string } => {
 // OrientationRow 호환 추출
 const pickOrientation = (o: unknown): string =>
   (o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "";
-
-/* -------------------- IndexedDB 복원 -------------------- */
-async function resolveImageRef(
-  u: AnyImageRef
-): Promise<{ url: string; name: string; caption?: string } | null> {
-  if (typeof u === "string") return { url: u, name: "" };
-
-  if (u && "idbKey" in (u as any) && typeof (u as any).idbKey === "string") {
-    try {
-      if ((u as any).idbKey.startsWith("url:")) {
-        return {
-          url: (u as any).idbKey.slice(4),
-          name: (u as any).name ?? "",
-          ...((u as any).caption ? { caption: (u as any).caption } : {}),
-        };
-      }
-      const blob = await idbGet((u as any).idbKey);
-      if (!blob) return null;
-      const objectUrl = URL.createObjectURL(blob);
-      return {
-        url: objectUrl,
-        name: (u as any).name ?? "",
-        ...((u as any).caption ? { caption: (u as any).caption } : {}),
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  if (
-    u &&
-    typeof u === "object" &&
-    "url" in u &&
-    typeof (u as any).url === "string"
-  ) {
-    return {
-      url: (u as any).url,
-      name: (u as any).name ?? "",
-      ...((u as any).caption ? { caption: (u as any).caption } : {}),
-    };
-  }
-
-  return null;
-}
-
-async function hydrateCards(
-  src: AnyImageRef[][],
-  maxPerCard: number
-): Promise<ImageItem[][]> {
-  const cards = await Promise.all(
-    src.map(async (card) => {
-      const resolved = await Promise.all(card.map(resolveImageRef));
-      const clean = resolved.filter(Boolean) as {
-        url: string;
-        name: string;
-        caption?: string;
-      }[];
-      return clean.slice(0, maxPerCard).map((f) => ({
-        url: f.url,
-        name: f.name,
-        ...(f.caption ? { caption: f.caption } : {}),
-      }));
-    })
-  );
-  return cards.length ? cards : [[]];
-}
-
-async function hydrateFlatUsingCounts(
-  src: AnyImageRef[],
-  counts: number[]
-): Promise<ImageItem[][]> {
-  const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-    Boolean
-  ) as {
-    url: string;
-    name: string;
-    caption?: string;
-  }[];
-  const out: ImageItem[][] = [];
-  let offset = 0;
-  for (const c of counts) {
-    const slice = resolved.slice(offset, offset + c);
-    out.push(
-      slice.map((f) => ({
-        url: f.url,
-        name: f.name,
-        ...(f.caption ? { caption: f.caption } : {}),
-      }))
-    );
-    offset += c;
-  }
-  if (offset < resolved.length) {
-    out.push(
-      resolved.slice(offset).map((f) => ({
-        url: f.url,
-        name: f.name,
-        ...(f.caption ? { caption: f.caption } : {}),
-      }))
-    );
-  }
-  return out.length ? out : [[]];
-}
-
-async function hydrateFlatToCards(
-  src: AnyImageRef[],
-  maxPerCard: number
-): Promise<ImageItem[][]> {
-  const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-    Boolean
-  ) as {
-    url: string;
-    name: string;
-    caption?: string;
-  }[];
-  const cards: ImageItem[][] = [];
-  for (let i = 0; i < resolved.length; i += maxPerCard) {
-    cards.push(
-      resolved.slice(i, i + maxPerCard).map((f) => ({
-        url: f.url,
-        name: f.name,
-        ...(f.caption ? { caption: f.caption } : {}),
-      }))
-    );
-  }
-  return cards.length ? cards : [[]];
-}
-
-async function hydrateVertical(
-  src: AnyImageRef[],
-  maxFiles: number
-): Promise<ImageItem[]> {
-  const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-    Boolean
-  ) as {
-    url: string;
-    name: string;
-    caption?: string;
-  }[];
-  return resolved.slice(0, maxFiles).map((f) => ({
-    url: f.url,
-    name: f.name ?? "",
-    ...(f.caption ? { caption: f.caption } : {}),
-  }));
-}
-
-/* -------------------- IDB 저장 유틸 -------------------- */
-const makeImgKey = (propertyId: string, scope: "card" | "vertical") =>
-  `prop:${propertyId}:${scope}:${crypto.randomUUID()}`;
-
-async function putBlobToIDB(key: string, blob: Blob) {
-  await idbSet(key, blob);
-}
 
 /* ======================================================== */
 
