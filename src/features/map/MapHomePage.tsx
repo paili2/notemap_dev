@@ -1196,6 +1196,8 @@ const MapHomePage: React.FC = () => {
               id: (payload as any).id,
               title: (payload as any).title,
               address: (payload as any).address,
+              officePhone: (payload as any).officePhone,
+              officePhone2: (payload as any).officePhone2,
               salePrice: (payload as any).salePrice,
               listingStars: (payload as any).listingStars,
               elevator: (payload as any).elevator,

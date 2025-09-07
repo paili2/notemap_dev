@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { get as idbGet } from "idb-keyval";
 import { Trash2, Pencil } from "lucide-react";
 import type {
-  AnyImageRef,
   MemoTab,
   PropertyViewDetails,
   UIImg,
@@ -21,6 +20,7 @@ import AreaSetsView from "./components/AreaSetsView/AreaSetsView";
 import StructureLinesList from "./components/StructureLinesList";
 import OptionsBadges from "./components/OptionsBadges";
 import MemoPanel from "./components/MemoPanel";
+import { AnyImageRef } from "../../types/media";
 
 const toYMD = (
   v: string | Date | null | undefined

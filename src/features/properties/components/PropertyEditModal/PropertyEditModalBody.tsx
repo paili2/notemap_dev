@@ -19,12 +19,7 @@ import CompletionRegistrySection from "../sections/CompletionRegistrySection/Com
 import AreaSetsSection from "../sections/AreaSetsSection/AreaSetsSection";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
-import {
-  packRange,
-  parsePreset,
-  toM2,
-  toPy,
-} from "@/features/properties/lib/area";
+import { parsePreset, toPy } from "@/features/properties/lib/area";
 
 import {
   type Registry,
@@ -37,19 +32,16 @@ import {
 
 import type { PropertyEditModalProps } from "./types";
 
-import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../constants";
+import {
+  MAX_FILES,
+  MAX_PER_CARD,
+  PRESET_OPTIONS,
+  STRUCTURE_PRESETS,
+} from "../constants";
 import { AreaSet } from "../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/map/pins";
-
-/* -------------------- 상수 -------------------- */
-const MAX_PER_CARD = 20;
-const MAX_FILES = 20;
-
-/* -------------------- 공용 유틸 -------------------- */
-const filled = (s: string) => s.trim().length > 0;
-const hasPair = (min: string, max: string) => filled(min) && filled(max);
-const setPack = (minM2: string, maxM2: string, minPy: string, maxPy: string) =>
-  packRange(minM2.trim() || toM2(minPy), maxM2.trim() || toM2(maxPy));
+import { AnyImageRef, ImageItem } from "../../types/media";
+import { filled, hasPair, setPack } from "../../lib/validators";
 
 // 타입 정규화
 const asStr = (v: unknown) => (v == null ? "" : String(v));
@@ -74,20 +66,6 @@ const unpackRange = (s: unknown): { min: string; max: string } => {
 // OrientationRow 호환 추출
 const pickOrientation = (o: unknown): string =>
   (o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "";
-
-/* -------------------- 이미지 레퍼런스 타입 -------------------- */
-
-type UIImage = {
-  url: string; // 미리보기 objectURL 또는 외부 URL
-  name: string;
-  caption?: string;
-  idbKey?: string;
-};
-
-type AnyImageRef =
-  | string
-  | { url?: string; name?: string; caption?: string }
-  | { idbKey: string; name?: string; caption?: string };
 
 /* -------------------- IndexedDB 복원 -------------------- */
 async function resolveImageRef(
@@ -136,7 +114,7 @@ async function resolveImageRef(
 async function hydrateCards(
   src: AnyImageRef[][],
   maxPerCard: number
-): Promise<UIImage[][]> {
+): Promise<ImageItem[][]> {
   const cards = await Promise.all(
     src.map(async (card) => {
       const resolved = await Promise.all(card.map(resolveImageRef));
@@ -158,7 +136,7 @@ async function hydrateCards(
 async function hydrateFlatUsingCounts(
   src: AnyImageRef[],
   counts: number[]
-): Promise<UIImage[][]> {
+): Promise<ImageItem[][]> {
   const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
     Boolean
   ) as {
@@ -166,7 +144,7 @@ async function hydrateFlatUsingCounts(
     name: string;
     caption?: string;
   }[];
-  const out: UIImage[][] = [];
+  const out: ImageItem[][] = [];
   let offset = 0;
   for (const c of counts) {
     const slice = resolved.slice(offset, offset + c);
@@ -194,7 +172,7 @@ async function hydrateFlatUsingCounts(
 async function hydrateFlatToCards(
   src: AnyImageRef[],
   maxPerCard: number
-): Promise<UIImage[][]> {
+): Promise<ImageItem[][]> {
   const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
     Boolean
   ) as {
@@ -202,7 +180,7 @@ async function hydrateFlatToCards(
     name: string;
     caption?: string;
   }[];
-  const cards: UIImage[][] = [];
+  const cards: ImageItem[][] = [];
   for (let i = 0; i < resolved.length; i += maxPerCard) {
     cards.push(
       resolved.slice(i, i + maxPerCard).map((f) => ({
@@ -218,7 +196,7 @@ async function hydrateFlatToCards(
 async function hydrateVertical(
   src: AnyImageRef[],
   maxFiles: number
-): Promise<UIImage[]> {
+): Promise<ImageItem[]> {
   const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
     Boolean
   ) as {
@@ -248,11 +226,11 @@ export default function PropertyEditModalBody({
   onSubmit,
   initialData,
 }: Omit<PropertyEditModalProps, "open">) {
-  const [pinKind, setPinKind] = useState<PinKind>("1room"); // ✅ 핀 상태
+  const [pinKind, setPinKind] = useState<PinKind>("1room");
 
   /* ---------- 이미지 ---------- */
-  const [imageFolders, setImageFolders] = useState<UIImage[][]>([[]]); // 카드1, 카드2, ...
-  const [verticalImages, setVerticalImages] = useState<UIImage[]>([]);
+  const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]); // 카드1, 카드2, ...
+  const [verticalImages, setVerticalImages] = useState<ImageItem[]>([]);
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
@@ -297,7 +275,7 @@ export default function PropertyEditModalBody({
     if (!files) return;
 
     const propertyId = String((initialData as any)?.id ?? "");
-    const newItems: UIImage[] = [];
+    const newItems: ImageItem[] = [];
 
     for (const f of Array.from(files)) {
       const key = makeImgKey(propertyId, "card");
@@ -338,7 +316,7 @@ export default function PropertyEditModalBody({
     if (!files || files.length === 0) return;
 
     const propertyId = String((initialData as any)?.id ?? "");
-    const items: UIImage[] = [];
+    const items: ImageItem[] = [];
 
     for (const f of Array.from(files)) {
       const key = makeImgKey(propertyId, "vertical");
@@ -424,13 +402,7 @@ export default function PropertyEditModalBody({
     "select"
   );
   const [totalFloors, setTotalFloors] = useState("");
-  const [totalHouseholdsType, setTotalHouseholdsType] = useState<
-    "select" | "custom"
-  >("select");
   const [totalHouseholds, setTotalHouseholds] = useState("");
-  const [remainingHouseholdsType, setRemainingHouseholdsType] = useState<
-    "select" | "custom"
-  >("select");
   const [remainingHouseholds, setRemainingHouseholds] = useState("");
 
   const [options, setOptions] = useState<string[]>([]);

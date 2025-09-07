@@ -93,11 +93,6 @@ export type PropertyViewDetails = {
   extraAreaTitles?: string[];
 };
 
-export type AnyImageRef =
-  | string
-  | { url?: string; name?: string; caption?: string }
-  | { idbKey: string; name?: string; caption?: string };
-
 export type UIImg = { url: string; name?: string; caption?: string };
 
 export type MemoTab = "KN" | "R";

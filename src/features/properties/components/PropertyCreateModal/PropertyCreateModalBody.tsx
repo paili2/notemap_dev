@@ -16,11 +16,8 @@ import MemoSection from "../sections/MemoSection/MemoSection";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import StructureLinesSection from "../sections/StructureLinesSection/StructureLinesSection";
 import CompletionRegistrySection from "../sections/CompletionRegistrySection/CompletionRegistrySection";
-
 import AreaSetsSection from "../sections/AreaSetsSection/AreaSetsSection";
-
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
-import { packRange, toM2 } from "@/features/properties/lib/area";
 import { parsePreset } from "@/features/properties/lib/structure";
 
 import {
@@ -33,36 +30,16 @@ import {
 } from "@/features/properties/types/property-domain";
 import type { PropertyCreateModalProps } from "./types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-import { PRESET_OPTIONS, STRUCTURE_PRESETS } from "../constants";
+import {
+  MAX_FILES,
+  MAX_PER_CARD,
+  PRESET_OPTIONS,
+  STRUCTURE_PRESETS,
+} from "../constants";
 import { AreaSet } from "../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/map/pins";
-
-/* -------------------- 상수 -------------------- */
-const MAX_PER_CARD = 20;
-const MAX_FILES = 20;
-
-/* -------------------- 공용 유틸 -------------------- */
-const filled = (s: string) => s.trim().length > 0;
-const hasPair = (min: string, max: string) => filled(min) && filled(max);
-const setPack = (minM2: string, maxM2: string, minPy: string, maxPy: string) =>
-  packRange(minM2.trim() || toM2(minPy), maxM2.trim() || toM2(maxPy));
-
-/* -------------------- 로컬 타입 -------------------- */
-// 화면에서 쓰는 미리보기(IndexedDB에 Blob을 저장하고, 미리보기는 objectURL 사용)
-type UIImage = {
-  url: string; // blob:... 미리보기 URL (또는 원격 URL)
-  name: string;
-  caption?: string;
-  idbKey?: string; // IndexedDB 키 (저장용)
-};
-
-// 우측 세로 리스트(미리보기 + 선택적으로 idbKey 포함)
-type FileItem = {
-  name: string;
-  url: string;
-  caption?: string;
-  idbKey?: string;
-};
+import { filled, hasPair, setPack } from "../../lib/validators";
+import { ImageItem } from "../../types/media";
 
 /* -------------------- IndexedDB 저장 유틸 -------------------- */
 const makeImgKey = (scope: "card" | "vertical") =>
@@ -82,7 +59,7 @@ export default function PropertyCreateModalBody({
   const [pinKind, setPinKind] = useState<PinKind>("1room");
 
   /* ---------- 이미지(좌측 카드형) ---------- */
-  const [imageFolders, setImageFolders] = useState<UIImage[][]>([[]]); // 카드1, 카드2, ...
+  const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]); // 카드1, 카드2, ...
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
@@ -110,7 +87,7 @@ export default function PropertyCreateModalBody({
     const files = e.target.files;
     if (!files) return;
 
-    const newItems: UIImage[] = [];
+    const newItems: ImageItem[] = [];
     for (const f of Array.from(files)) {
       const key = makeImgKey("card");
       await putBlobToIDB(key, f);
@@ -151,7 +128,7 @@ export default function PropertyCreateModalBody({
   };
 
   /* ---------- 이미지(우측 세로) ---------- */
-  const [fileItems, setFileItems] = useState<FileItem[]>([]);
+  const [fileItems, setFileItems] = useState<ImageItem[]>([]);
 
   const handleRemoveFileItem = (index: number) => {
     setFileItems((prev) => {
@@ -169,7 +146,7 @@ export default function PropertyCreateModalBody({
   const onAddFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    const items: FileItem[] = [];
+    const items: ImageItem[] = [];
     for (const f of Array.from(files)) {
       const key = makeImgKey("vertical");
       await putBlobToIDB(key, f);
@@ -261,27 +238,10 @@ export default function PropertyCreateModalBody({
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
   // 숫자
-  const [totalBuildingsType, setTotalBuildingsType] = useState<
-    "select" | "custom"
-  >("select");
   const [totalBuildings, setTotalBuildings] = useState("");
-  const [totalFloorsType, setTotalFloorsType] = useState<"select" | "custom">(
-    "select"
-  );
   const [totalFloors, setTotalFloors] = useState("");
-  const [totalHouseholdsType, setTotalHouseholdsType] = useState<
-    "select" | "custom"
-  >("select");
   const [totalHouseholds, setTotalHouseholds] = useState("");
-  const [remainingHouseholdsType, setRemainingHouseholdsType] = useState<
-    "select" | "custom"
-  >("select");
   const [remainingHouseholds, setRemainingHouseholds] = useState("");
-
-  const numberItems = useMemo(
-    () => Array.from({ length: 20 }, (_, i) => `${i + 1}`),
-    []
-  );
 
   // 옵션
   const [options, setOptions] = useState<string[]>([]);

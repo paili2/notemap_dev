@@ -27,10 +27,8 @@ export default function CompletionRegistrySection({
 }: CompletionRegistrySectionProps) {
   return (
     <div className="space-y-4">
-      {/* 1행: 경사도 + 구조 */}
       <div className="flex items-center gap-20">
         <Field label="경사도" align="center">
-          {/* ⛳️ 제네릭 표기 제거 → 타입 추론 */}
           <PillRadioGroup
             name="slopeGrade"
             options={GRADES}
@@ -67,7 +65,7 @@ export default function CompletionRegistrySection({
             options={REGISTRY_LIST}
             value={registry}
             onChange={setRegistry}
-            allowUnset // 같은 버튼 다시 누르면 해제
+            allowUnset
           />
         </Field>
       </div>

@@ -28,3 +28,6 @@ export const ORIENTATIONS = [
   "동서",
   "남북",
 ] as const;
+
+export const MAX_PER_CARD = 20;
+export const MAX_FILES = 20;

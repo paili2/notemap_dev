@@ -3,7 +3,7 @@
 import { Fragment } from "react";
 import Field from "@/components/atoms/Field/Field";
 import { Button } from "@/components/atoms/Button/Button";
-import { Trash2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import type { AspectRowLite } from "@/features/properties/types/property-domain";
 import { ORIENTATIONS } from "../../constants";
