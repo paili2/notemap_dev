@@ -14,11 +14,11 @@ export default function AreaSetsSection({
   setExtraAreaSets,
 }: AreaSetsSectionProps) {
   const addSet = () => {
-    const idx = extraAreaSets.length + 2; // #2부터 시작
+    const idx = extraAreaSets.length + 2;
     setExtraAreaSets([
       ...extraAreaSets,
       {
-        title: `개별 평수입력 #${idx}`,
+        title: "",
         exMinM2: "",
         exMaxM2: "",
         exMinPy: "",
@@ -116,9 +116,9 @@ export default function AreaSetsSection({
           <div className="mb-1">
             <Input
               className="h-8 w-64"
-              value={s.title ?? `개별 평수입력 #${idx + 2}`}
+              value={s.title ?? ""}
               onChange={(e) => patchSet(idx, { title: e.target.value })}
-              placeholder={`개별 평수입력 #${idx + 2}`}
+              placeholder={"예) 2룸, 3룸, 3룸 복층"}
             />
           </div>
 
