@@ -814,7 +814,7 @@ export default function PropertyEditModalBody({
               PRESET_OPTIONS={PRESET_OPTIONS}
               options={options}
               setOptions={setOptions}
-              etcChecked={setEtcChecked as any}
+              etcChecked={etcChecked}
               setEtcChecked={setEtcChecked}
               optionEtc={optionEtc}
               setOptionEtc={setOptionEtc}

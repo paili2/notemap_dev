@@ -46,11 +46,15 @@ export default function OptionsSection({
     [safeOptions, presetSet]
   );
 
-  /** 내부에서 확실히 제어할 체크 상태 */
-  const [etcOn, setEtcOn] = useState<boolean>(() => !!etcChecked);
-  useEffect(() => {
-    setEtcOn(!!etcChecked);
-  }, [etcChecked]);
+  // etcOn을 props + 현재 데이터로 계산
+  const computedEtcOn = useMemo(() => {
+    const hasLegacy = legacyEtc.length > 0; // optionEtc에 값이 있나
+    const hasCustom = customFromOptions.length > 0; // 프리셋이 아닌 값이 있나
+    return Boolean(etcChecked || hasLegacy || hasCustom);
+  }, [etcChecked, legacyEtc.length, customFromOptions.length]);
+
+  const [etcOn, setEtcOn] = useState<boolean>(computedEtcOn);
+  useEffect(() => setEtcOn(computedEtcOn), [computedEtcOn]);
 
   /** 커스텀 입력 로컬 상태 */
   const [customInputs, setCustomInputs] = useState<string[]>(
@@ -73,8 +77,9 @@ export default function OptionsSection({
     setCustomInputs(customFromOptions);
   }, [customFromOptions]);
 
-  /** 최초 레거시 optionEtc 흡수: 체크 ON일 때만 */
+  const absorbedRef = useRef(false);
   useEffect(() => {
+    if (absorbedRef.current) return;
     if (legacyEtc.length && etcOn) {
       setCustomInputs((prev) => {
         const seen = new Set<string>();
@@ -87,9 +92,9 @@ export default function OptionsSection({
         return merged;
       });
       safeSetOptionEtc("");
+      absorbedRef.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [etcOn, legacyEtc.length, safeSetOptionEtc]);
 
   /** 체크가 켜졌는데 입력이 0개면, 빈 인풋 1칸 자동 생성 */
   useEffect(() => {
