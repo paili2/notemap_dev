@@ -1,24 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { Trash2, Pencil } from "lucide-react";
 
-import HeaderSectionView from "./components/HeaderSectionView/HeaderSectionView";
-import DisplayImagesSection from "./components/DisplayImagesSection/DisplayImagesSection";
-import BasicInfoView from "./components/BasicInfoView";
-import NumbersView from "./components/NumbersView/NumbersView";
-import ParkingView from "./components/ParkingView";
-import CompletionRegistryView from "./components/CompletionRegistryView/CompletionRegistryView";
-import AspectsView from "./components/AspectsView/AspectsView";
-import AreaSetsView from "./components/AreaSetsView/AreaSetsView";
-import StructureLinesList from "./components/StructureLinesList";
-import OptionsBadges from "./components/OptionsBadges";
-import MemoPanel from "./components/MemoPanel";
+import type { PropertyViewDetails } from "./types";
+import { useViewForm } from "./hooks/useViewForm";
 
-import { toYMDFlexible } from "@/lib/dateUtils";
-import { useViewImagesHydration } from "./hooks/useViewImagesHydration";
-import { extractViewMeta } from "./utils/extractViewMeta";
-import { MemoTab, PropertyViewDetails } from "./types";
+import HeaderViewContainer from "./ui/HeaderViewContainer";
+import DisplayImagesContainer from "./ui/DisplayImagesContainer";
+import BasicInfoViewContainer from "./ui/BasicInfoViewContainer";
+import NumbersViewContainer from "./ui/NumbersViewContainer";
+import ParkingViewContainer from "./ui/ParkingViewContainer";
+import CompletionRegistryViewContainer from "./ui/CompletionRegistryViewContainer";
+import AspectsViewContainer from "./ui/AspectsViewContainer";
+import AreaSetsViewContainer from "./ui/AreaSetsViewContainer";
+import StructureLinesListContainer from "./ui/StructureLinesListContainer";
+import OptionsBadgesContainer from "./ui/OptionsBadgesContainer";
+import MemosContainer from "./ui/MemosContainer";
 
 export default function PropertyViewModal({
   open,
@@ -34,21 +31,10 @@ export default function PropertyViewModal({
   onDelete?: () => void | Promise<void>;
   onEdit?: () => void | Promise<void>;
 }) {
-  const [memoTab, setMemoTab] = useState<MemoTab>("KN");
-
-  // ✅ 이미지 관련 상태/로직 훅으로 분리
-  const { preferCards, cardsHydrated, filesHydrated, legacyImagesHydrated } =
-    useViewImagesHydration({ open, data });
-
   if (!open || !data) return null;
 
-  // preferCards=true면 images를 undefined로 넘겨 카드 렌더 강제
-  const imagesProp = preferCards ? undefined : legacyImagesHydrated;
-
-  // ✅ 메타 추출 유틸로 분리
-  const { pinKind, baseAreaTitleView, extraAreaTitlesView } = extractViewMeta(
-    data as any
-  );
+  // ✅ 뷰 전용 훅: 모든 상태/파생값을 f에 모음
+  const f = useViewForm({ open, data });
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -58,100 +44,72 @@ export default function PropertyViewModal({
         aria-hidden
       />
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
-        <HeaderSectionView
-          title={data.title ?? ""}
-          listingStars={data.listingStars ?? 0}
-          elevator={(data.elevator as "O" | "X") ?? "O"}
-          pinKind={pinKind}
+        <HeaderViewContainer
+          title={f.title}
+          listingStars={f.listingStars}
+          elevator={f.elevator}
+          pinKind={f.pinKind}
           onClose={onClose}
         />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
           <div className="space-y-4">
-            <DisplayImagesSection
-              cards={cardsHydrated}
-              images={imagesProp}
-              files={filesHydrated}
+            <DisplayImagesContainer
+              cards={f.cardsHydrated}
+              images={f.imagesProp}
+              files={f.filesHydrated}
             />
           </div>
 
           <div className="space-y-6">
-            <BasicInfoView
-              address={data.address ?? ""}
-              officePhone={data.officePhone ?? ""}
-              officePhone2={data.officePhone2 ?? ""}
-            />
-            <NumbersView
-              totalBuildings={data.totalBuildings}
-              totalFloors={data.totalFloors}
-              totalHouseholds={data.totalHouseholds}
-              remainingHouseholds={data.remainingHouseholds}
-            />
-            <ParkingView
-              parkingType={data.parkingType ?? ""}
-              parkingCount={data.parkingCount}
-            />
-            <CompletionRegistryView
-              completionDate={toYMDFlexible(data.completionDate, { utc: true })}
-              salePrice={data.salePrice}
-              registry={data.registry}
-              slopeGrade={data.slopeGrade}
-              structureGrade={data.structureGrade}
-            />
-            <AspectsView details={data} />
-
-            <AreaSetsView
-              exclusiveArea={data.exclusiveArea}
-              realArea={data.realArea}
-              extraExclusiveAreas={data.extraExclusiveAreas}
-              extraRealAreas={data.extraRealAreas}
-              baseAreaTitle={baseAreaTitleView}
-              extraAreaTitles={extraAreaTitlesView}
-            />
-            <StructureLinesList
-              lines={Array.isArray(data.unitLines) ? data.unitLines : []}
-            />
-            <OptionsBadges
-              options={data.options ?? []}
-              optionEtc={data.optionEtc ?? ""}
+            <BasicInfoViewContainer
+              address={f.address}
+              officePhone={f.officePhone}
+              officePhone2={f.officePhone2}
             />
 
-            {/* 메모 탭 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">메모</div>
-                <div className="inline-flex rounded-md border overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setMemoTab("KN")}
-                    className={`px-3 h-8 text-sm ${
-                      memoTab === "KN"
-                        ? "bg-amber-500 text-white"
-                        : "bg-white text-gray-700"
-                    }`}
-                  >
-                    K&N
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMemoTab("R")}
-                    className={`px-3 h-8 text-sm border-l ${
-                      memoTab === "R"
-                        ? "bg-rose-600 text-white"
-                        : "bg-white text-gray-700"
-                    }`}
-                  >
-                    R
-                  </button>
-                </div>
-              </div>
+            <NumbersViewContainer
+              totalBuildings={f.totalBuildings}
+              totalFloors={f.totalFloors}
+              totalHouseholds={f.totalHouseholds}
+              remainingHouseholds={f.remainingHouseholds}
+            />
 
-              {memoTab === "KN" ? (
-                <MemoPanel mode="KN" value={data.publicMemo ?? ""} />
-              ) : (
-                <MemoPanel mode="R" value={data.secretMemo ?? ""} />
-              )}
-            </div>
+            <ParkingViewContainer
+              parkingType={f.parkingType}
+              parkingCount={f.parkingCount}
+            />
+
+            <CompletionRegistryViewContainer
+              completionDate={f.completionDateText}
+              salePrice={f.salePrice}
+              registry={f.registry}
+              slopeGrade={f.slopeGrade}
+              structureGrade={f.structureGrade}
+            />
+
+            <AspectsViewContainer details={data} />
+
+            <AreaSetsViewContainer
+              exclusiveArea={f.exclusiveArea}
+              realArea={f.realArea}
+              extraExclusiveAreas={f.extraExclusiveAreas}
+              extraRealAreas={f.extraRealAreas}
+              baseAreaTitle={f.baseAreaTitleView}
+              extraAreaTitles={f.extraAreaTitlesView}
+            />
+
+            <StructureLinesListContainer lines={f.unitLines} />
+
+            <OptionsBadgesContainer
+              options={f.options}
+              optionEtc={f.optionEtc}
+            />
+
+            <MemosContainer
+              publicMemo={f.publicMemo}
+              secretMemo={f.secretMemo}
+            />
           </div>
         </div>
 

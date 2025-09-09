@@ -1,567 +1,111 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
-import HeaderSection from "../sections/HeaderSection/HeaderSection";
-import ImagesSection, {
-  type ImageFile,
-} from "../sections/ImagesSection/ImagesSection";
-import BasicInfoSection from "../sections/BasicInfoSection/BasicInfoSection";
-import NumbersSection from "../sections/NumbersSection/NumbersSection";
-import AspectsSection from "../sections/AspectsSection/AspectsSection";
-import ParkingSection from "../sections/ParkingSection/ParkingSection";
-import OptionsSection from "../sections/OptionsSection/OptionsSection";
-import MemoSection from "../sections/MemoSection/MemoSection";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
-import StructureLinesSection from "../sections/StructureLinesSection/StructureLinesSection";
-import CompletionRegistrySection from "../sections/CompletionRegistrySection/CompletionRegistrySection";
-import AreaSetsSection from "../sections/AreaSetsSection/AreaSetsSection";
-import { buildOrientationFields } from "@/features/properties/lib/orientation";
-import { parsePreset } from "@/features/properties/lib/structure";
-
-import {
-  type Registry,
-  type UnitLine,
-  type Grade,
-  type OrientationValue,
-  type AspectRowLite,
-  REGISTRY_LIST,
-} from "@/features/properties/types/property-domain";
 import type { PropertyCreateModalProps } from "./types";
-import type { CreatePayload } from "@/features/properties/types/property-dto";
 import {
   MAX_FILES,
   MAX_PER_CARD,
   PRESET_OPTIONS,
   STRUCTURE_PRESETS,
 } from "../constants";
-import { AreaSet } from "../sections/AreaSetsSection/types";
-import { PinKind } from "@/features/map/pins";
-import { filled, hasPair, setPack } from "../../lib/validators";
-import { ImageItem } from "../../types/media";
-import { makeNewImgKey, putBlobToIDB } from "../../lib/imageStore";
+import { usePropertyImages } from "./hooks/usePropertyImages";
+import { buildCreatePayload } from "./lib/buildCreatePayload";
+import { useCreateForm } from "./hooks/useCreateForm";
+import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 
-/* ======================================================== */
+// ⬇️ UI 컨테이너
+import HeaderContainer from "./ui/HeaderContainer";
+import ImagesContainer from "./ui/ImagesContainer";
+import BasicInfoContainer from "./ui/BasicInfoContainer";
+import NumbersContainer from "./ui/NumbersContainer";
+import ParkingContainer from "./ui/ParkingContainer";
+import CompletionRegistryContainer from "./ui/CompletionRegistryContainer";
+import AspectsContainer from "./ui/AspectsContainer";
+import AreaSetsContainer from "./ui/AreaSetsContainer";
+import StructureLinesContainer from "./ui/StructureLinesContainer";
+import OptionsContainer from "./ui/OptionsContainer";
+import MemosContainer from "./ui/MemosContainer";
 
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
   initialAddress,
 }: Omit<PropertyCreateModalProps, "open">) {
-  const [pinKind, setPinKind] = useState<PinKind>("1room");
+  // ✅ 모든 상태/액션이 f에 모여 있음 (Edit과 동일한 패턴)
+  const f = useCreateForm({ initialAddress });
 
-  /* ---------- 이미지(좌측 카드형) ---------- */
-  const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]); // 카드1, 카드2, ...
-  const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
-    imageInputRefs.current[idx] = el;
-  };
-  const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
+  // 이미지 훅은 별도로 유지
+  const {
+    imageFolders,
+    fileItems,
+    registerImageInput,
+    openImagePicker,
+    onPickFilesToFolder,
+    addPhotoFolder,
+    onChangeImageCaption,
+    handleRemoveImage,
+    onAddFiles,
+    onChangeFileItemCaption,
+    handleRemoveFileItem,
+  } = usePropertyImages();
 
-  const handleRemoveImage = (folderIdx: number, imageIdx: number) => {
-    setImageFolders((prev) => {
-      const next = prev.map((arr) => [...arr]);
-      const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
-      if (removed?.url?.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(removed.url);
-        } catch {}
-      }
-      return next;
-    });
-  };
-
-  // 새 이미지 추가 → 즉시 IndexedDB 저장 + idbKey 부여
-  const onPickFilesToFolder = async (
-    idx: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const newItems: ImageItem[] = [];
-    for (const f of Array.from(files)) {
-      const key = makeNewImgKey("card");
-      await putBlobToIDB(key, f);
-      newItems.push({
-        idbKey: key,
-        url: URL.createObjectURL(f), // 미리보기
-        name: f.name,
-      });
-    }
-
-    setImageFolders((prev) => {
-      const next = [...prev];
-      const current = next[idx] ?? [];
-      next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
-      return next;
-    });
-
-    // 같은 파일 다시 선택 가능하도록 초기화
-    e.target.value = "";
-  };
-
-  const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
-
-  const onChangeImageCaption = (
-    folderIdx: number,
-    imageIdx: number,
-    text: string
-  ) => {
-    setImageFolders((prev) =>
-      prev.map((arr, i) =>
-        i !== folderIdx
-          ? arr
-          : arr.map((img, j) =>
-              j === imageIdx ? { ...img, caption: text } : img
-            )
-      )
-    );
-  };
-
-  /* ---------- 이미지(우측 세로) ---------- */
-  const [fileItems, setFileItems] = useState<ImageItem[]>([]);
-
-  const handleRemoveFileItem = (index: number) => {
-    setFileItems((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(index, 1);
-      if (removed?.url?.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(removed.url);
-        } catch {}
-      }
-      return next;
-    });
-  };
-
-  const onAddFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const items: ImageItem[] = [];
-    for (const f of Array.from(files)) {
-      const key = makeNewImgKey("vertical");
-      await putBlobToIDB(key, f);
-      items.push({
-        name: f.name,
-        url: URL.createObjectURL(f),
-        idbKey: key,
-      });
-    }
-    setFileItems((prev) => [...prev, ...items].slice(0, MAX_FILES));
-  };
-
-  const onChangeFileItemCaption = (index: number, text: string) => {
-    setFileItems((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
-    );
-  };
-
-  useEffect(() => {
-    return () => {
-      imageFolders.flat().forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
-      });
-      fileItems.forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
-      });
-    };
-    // 의존성 비우기: 컴포넌트 언마운트 시 1회만 실행
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /* ---------- 기본 필드들 ---------- */
-  const [title, setTitle] = useState("");
-  const [address, setAddress] = useState("");
-  useEffect(() => {
-    setAddress(initialAddress ?? "");
-  }, [initialAddress]);
-
-  const [officePhone, setOfficePhone] = useState("");
-  const [officePhone2, setOfficePhone2] = useState("");
-  const [officeName, setOfficeName] = useState("");
-  const [moveIn, setMoveIn] = useState("");
-  const [floor, setFloor] = useState("");
-  const [roomNo, setRoomNo] = useState("");
-  const [structure, setStructure] = useState("3룸");
-
-  // 향
-  const [aspects, setAspects] = useState<AspectRowLite[]>([{ no: 1, dir: "" }]);
-  const addAspect = () =>
-    setAspects((prev) => [...prev, { no: prev.length + 1, dir: "" }]);
-  const removeAspect = (no: number) =>
-    setAspects((prev) =>
-      prev.filter((r) => r.no !== no).map((r, i) => ({ ...r, no: i + 1 }))
-    );
-  const setAspectDir = (no: number, dir: OrientationValue | "") =>
-    setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r)));
-
-  // 매물평점/주차/준공/매매가
-  const [listingStars, setListingStars] = useState(0);
-  const [parkingType, setParkingType] = useState("");
-  const [parkingCount, setParkingCount] = useState("");
-  const [completionDate, setCompletionDate] = useState("");
-  const [salePrice, setSalePrice] = useState("");
-
-  // 면적
-  const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
-    title: "",
-    exMinM2: "",
-    exMaxM2: "",
-    exMinPy: "",
-    exMaxPy: "",
-    realMinM2: "",
-    realMaxM2: "",
-    realMinPy: "",
-    realMaxPy: "",
-  });
-  const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
-
-  useEffect(() => {
-    if (!baseAreaSet.title.trim() && title.trim()) {
-      setBaseAreaSet((prev) => ({ ...prev, title }));
-    }
-  }, [title]);
-
-  // 엘리베이터/등기/등급
-  const [elevator, setElevator] = useState<"O" | "X">("O");
-  const [registryOne, setRegistryOne] = useState<Registry | undefined>();
-  const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
-  const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
-
-  // 숫자
-  const [totalBuildings, setTotalBuildings] = useState("");
-  const [totalFloors, setTotalFloors] = useState("");
-  const [totalHouseholds, setTotalHouseholds] = useState("");
-  const [remainingHouseholds, setRemainingHouseholds] = useState("");
-
-  // 옵션
-  const [options, setOptions] = useState<string[]>([]);
-  const [etcChecked, setEtcChecked] = useState(false);
-  const [optionEtc, setOptionEtc] = useState("");
-
-  // 메모
-  const [publicMemo, setPublicMemo] = useState("");
-  const [secretMemo, setSecretMemo] = useState("");
-
-  // 구조별 입력
-  const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
-  const addLineFromPreset = (preset: string) => {
-    const { rooms, baths } = parsePreset(preset);
-    setUnitLines((prev) => [
-      ...prev,
-      {
-        rooms,
-        baths,
-        duplex: false,
-        terrace: false,
-        primary: "",
-        secondary: "",
-      },
-    ]);
-  };
-  const addEmptyLine = () =>
-    setUnitLines((prev) => [
-      ...prev,
-      {
-        rooms: 0,
-        baths: 0,
-        duplex: false,
-        terrace: false,
-        primary: "",
-        secondary: "",
-      },
-    ]);
-  const updateLine = (idx: number, patch: Partial<UnitLine>) =>
-    setUnitLines((prev) =>
-      prev.map((l, i) => (i === idx ? { ...l, ...patch } : l))
-    );
-  const removeLine = (idx: number) =>
-    setUnitLines((prev) => prev.filter((_, i) => i !== idx));
-
-  /* ---------- 유효성 ---------- */
-  const baseHasExclusive = useMemo(
-    () =>
-      hasPair(baseAreaSet.exMinM2, baseAreaSet.exMaxM2) ||
-      hasPair(baseAreaSet.exMinPy, baseAreaSet.exMaxPy),
-    [
-      baseAreaSet.exMinM2,
-      baseAreaSet.exMaxM2,
-      baseAreaSet.exMinPy,
-      baseAreaSet.exMaxPy,
-    ]
-  );
-  const baseHasReal = useMemo(
-    () =>
-      hasPair(baseAreaSet.realMinM2, baseAreaSet.realMaxM2) ||
-      hasPair(baseAreaSet.realMinPy, baseAreaSet.realMaxPy),
-    [
-      baseAreaSet.realMinM2,
-      baseAreaSet.realMaxM2,
-      baseAreaSet.realMinPy,
-      baseAreaSet.realMaxPy,
-    ]
-  );
-  const extrasHaveExclusive = useMemo(
-    () =>
-      extraAreaSets.some(
-        (s) => hasPair(s.exMinM2, s.exMaxM2) || hasPair(s.exMinPy, s.exMaxPy)
-      ),
-    [extraAreaSets]
-  );
-  const extrasHaveReal = useMemo(
-    () =>
-      extraAreaSets.some(
-        (s) =>
-          hasPair(s.realMinM2, s.realMaxM2) || hasPair(s.realMinPy, s.realMaxPy)
-      ),
-    [extraAreaSets]
-  );
-
-  const hasExclusiveAny = baseHasExclusive || extrasHaveExclusive;
-  const hasRealAny = baseHasReal || extrasHaveReal;
-
-  const optionsValid = useMemo(
-    () => options.length > 0 || (etcChecked && optionEtc.trim().length > 0),
-    [options, etcChecked, optionEtc]
-  );
-  const aspectsValid = useMemo(
-    () => aspects.length > 0 && aspects[0].dir.trim().length > 0,
-    [aspects]
-  );
-
-  const isSaveEnabled = useMemo<boolean>(() => {
-    const numbersOk =
-      filled(totalBuildings) &&
-      filled(totalFloors) &&
-      filled(totalHouseholds) &&
-      filled(remainingHouseholds);
-
-    const basicOk =
-      filled(title) &&
-      filled(address) &&
-      filled(officePhone) &&
-      filled(parkingType) &&
-      filled(completionDate) &&
-      filled(salePrice) &&
-      hasExclusiveAny &&
-      hasRealAny;
-
-    return (
-      basicOk &&
-      numbersOk &&
-      optionsValid &&
-      unitLines.length > 0 &&
-      listingStars > 0 &&
-      aspectsValid
-    );
-  }, [
-    title,
-    address,
-    officePhone,
-    parkingType,
-    completionDate,
-    salePrice,
-    hasExclusiveAny,
-    hasRealAny,
-    totalBuildings,
-    totalFloors,
-    totalHouseholds,
-    remainingHouseholds,
-    optionsValid,
-    unitLines,
-    listingStars,
-    aspectsValid,
-  ]);
-
-  /* ---------- 저장 ---------- */
   const save = async () => {
-    if (!title.trim()) return;
+    if (!f.title.trim()) return;
     try {
-      console.time("save-build");
+      const payload = buildCreatePayload({
+        title: f.title,
+        address: f.address,
+        officeName: f.officeName,
+        officePhone: f.officePhone,
+        officePhone2: f.officePhone2,
+        moveIn: f.moveIn,
+        floor: f.floor,
+        roomNo: f.roomNo,
+        structure: f.structure,
 
-      const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
-        buildOrientationFields(aspects);
+        listingStars: f.listingStars,
+        parkingType: f.parkingType,
+        parkingCount: f.parkingCount,
+        completionDate: f.completionDate,
+        salePrice: f.salePrice,
 
-      const exclusiveArea = setPack(
-        baseAreaSet.exMinM2,
-        baseAreaSet.exMaxM2,
-        baseAreaSet.exMinPy,
-        baseAreaSet.exMaxPy
-      );
-      const realArea = setPack(
-        baseAreaSet.realMinM2,
-        baseAreaSet.realMaxM2,
-        baseAreaSet.realMinPy,
-        baseAreaSet.realMaxPy
-      );
+        baseAreaSet: f.baseAreaSet,
+        extraAreaSets: f.extraAreaSets,
 
-      const extraExclusiveAreas = extraAreaSets.map((s) =>
-        setPack(s.exMinM2, s.exMaxM2, s.exMinPy, s.exMaxPy)
-      );
-      const extraRealAreas = extraAreaSets.map((s) =>
-        setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
-      );
+        elevator: f.elevator,
+        registryOne: f.registryOne,
+        slopeGrade: f.slopeGrade,
+        structureGrade: f.structureGrade,
 
-      const baseAreaTitle = (baseAreaSet.title ?? "").trim();
-      const extraAreaTitles = extraAreaSets.map((s) => (s.title ?? "").trim());
+        totalBuildings: f.totalBuildings,
+        totalFloors: f.totalFloors,
+        totalHouseholds: f.totalHouseholds,
+        remainingHouseholds: f.remainingHouseholds,
 
-      // ------------- 이미지 포맷 -------------
-      const imageCardsUI = imageFolders.map((card) =>
-        card.map(({ url, name, caption }) => ({
-          url,
-          name,
-          ...(caption ? { caption } : {}),
-        }))
-      );
+        options: f.options,
+        etcChecked: f.etcChecked,
+        optionEtc: f.optionEtc,
+        publicMemo: f.publicMemo,
+        secretMemo: f.secretMemo,
 
-      const imageFoldersStored = imageFolders.map((card) =>
-        card.map(({ idbKey, url, name, caption }) =>
-          idbKey
-            ? { idbKey, name, ...(caption ? { caption } : {}) }
-            : { url, name, ...(caption ? { caption } : {}) }
-        )
-      );
+        aspects: f.aspects,
+        unitLines: f.unitLines,
 
-      const imagesFlatStrings: string[] = imageFolders.flat().map((f) => f.url);
-      const imageCardCounts = imageFolders.map((card) => card.length);
+        imageFolders,
+        fileItems,
 
-      const verticalImagesStored = fileItems.map((f) =>
-        f.idbKey
-          ? {
-              idbKey: f.idbKey,
-              name: f.name,
-              ...(f.caption ? { caption: f.caption } : {}),
-            }
-          : {
-              url: f.url,
-              name: f.name,
-              ...(f.caption ? { caption: f.caption } : {}),
-            }
-      );
-      const verticalImagesUI = fileItems.map((f) => ({
-        url: f.url,
-        name: f.name,
-        ...(f.caption ? { caption: f.caption } : {}),
-        ...(f.idbKey ? { idbKey: f.idbKey } : {}),
-      }));
+        pinKind: f.pinKind,
+      });
 
-      const payload: CreatePayload & {
-        imageFolders: Array<
-          Array<{
-            idbKey?: string;
-            url?: string;
-            name?: string;
-            caption?: string;
-          }>
-        >;
-        imagesByCard: Array<
-          Array<{ url: string; name: string; caption?: string }>
-        >;
-        imageCards: Array<
-          Array<{ url: string; name: string; caption?: string }>
-        >;
-        imageCardCounts: number[];
-        verticalImages: Array<{
-          idbKey?: string;
-          url?: string;
-          name?: string;
-          caption?: string;
-        }>;
-        images: string[];
-        fileItems?: Array<{
-          idbKey?: string;
-          url?: string;
-          name?: string;
-          caption?: string;
-        }>;
-        extraExclusiveAreas: string[];
-        extraRealAreas: string[];
-        baseAreaTitle?: string;
-        extraAreaTitles?: string[];
-        areaSetTitle?: string;
-        areaSetTitles?: string[];
-        pinKind?: PinKind;
-      } = {
-        title,
-        address,
-        officeName,
-        officePhone,
-        officePhone2,
-        moveIn,
-        floor,
-        roomNo,
-        structure,
-        aspect,
-        aspectNo,
-        ...(aspect1 ? { aspect1 } : {}),
-        ...(aspect2 ? { aspect2 } : {}),
-        ...(aspect3 ? { aspect3 } : {}),
-        orientations,
-        salePrice,
-        parkingType,
-        parkingCount,
-        completionDate,
-        exclusiveArea,
-        realArea,
-        listingStars,
-        elevator,
-        totalBuildings,
-        totalFloors,
-        totalHouseholds,
-        remainingHouseholds,
-        slopeGrade,
-        structureGrade,
-        options,
-        optionEtc: etcChecked ? optionEtc.trim() : "",
-        publicMemo,
-        secretMemo,
-        registry: registryOne,
-        unitLines,
-
-        imageFolders: imageFoldersStored,
-        imagesByCard: imageCardsUI,
-        imageCards: imageCardsUI,
-        imageCardCounts,
-        verticalImages: verticalImagesStored,
-
-        images: imagesFlatStrings,
-        fileItems: verticalImagesUI,
-
-        extraExclusiveAreas,
-        extraRealAreas,
-
-        pinKind,
-
-        // ✅ AreaSet 제목들 포함
-        baseAreaTitle,
-        extraAreaTitles,
-
-        // (선택) 과거 호환 키도 같이 내려주기
-        areaSetTitle: baseAreaTitle,
-        areaSetTitles: extraAreaTitles,
-      };
-
-      console.timeEnd("save-build");
-      console.log("[PropertyCreate] payload", payload);
-
-      let ok = true;
-      try {
-        await Promise.resolve(onSubmit?.(payload));
-      } catch (e) {
-        ok = false;
-        console.error("[PropertyCreate] onSubmit error:", e);
-        alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
-      } finally {
-        onClose();
-      }
+      await Promise.resolve(onSubmit?.(payload));
+      onClose();
     } catch (e) {
-      console.error("[PropertyCreate] save() failed before submit:", e);
-      alert("저장 준비 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
+      console.error("[PropertyCreate] onSubmit error:", e);
+      alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
+      onClose();
     }
   };
 
-  /* ---------- UI ---------- */
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -570,129 +114,47 @@ export default function PropertyCreateModalBody({
         aria-hidden
       />
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
-        <HeaderSection
-          title={title}
-          setTitle={setTitle}
-          listingStars={listingStars}
-          setListingStars={setListingStars}
-          elevator={elevator}
-          setElevator={setElevator}
-          onClose={onClose}
-          pinKind={pinKind}
-          setPinKind={setPinKind}
-        />
+        <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overscroll-y-contain">
-          <ImagesSection
-            imagesByCard={imageFolders as unknown as ImageFile[][]}
-            onOpenPicker={openImagePicker}
-            onChangeFiles={onPickFilesToFolder}
-            registerInputRef={registerImageInput}
-            onAddPhotoFolder={addPhotoFolder}
-            maxPerCard={MAX_PER_CARD}
-            onChangeCaption={onChangeImageCaption}
-            onRemoveImage={handleRemoveImage}
-            fileItems={fileItems}
-            onAddFiles={onAddFiles}
-            onChangeFileItemCaption={onChangeFileItemCaption}
-            onRemoveFileItem={handleRemoveFileItem}
-            maxFiles={MAX_FILES}
+          <ImagesContainer
+            images={{
+              imageFolders,
+              fileItems,
+              registerImageInput,
+              openImagePicker,
+              onPickFilesToFolder,
+              addPhotoFolder,
+              onChangeImageCaption,
+              handleRemoveImage,
+              onAddFiles,
+              onChangeFileItemCaption,
+              handleRemoveFileItem,
+              maxFiles: MAX_FILES,
+              maxPerCard: MAX_PER_CARD,
+            }}
           />
 
           <div className="space-y-6">
-            <BasicInfoSection
-              address={address}
-              setAddress={setAddress}
-              officePhone={officePhone}
-              setOfficePhone={setOfficePhone}
-              officePhone2={officePhone2}
-              setOfficePhone2={setOfficePhone2}
-            />
-
-            <NumbersSection
-              totalBuildings={totalBuildings}
-              setTotalBuildings={setTotalBuildings}
-              totalFloors={totalFloors}
-              setTotalFloors={setTotalFloors}
-              totalHouseholds={totalHouseholds}
-              setTotalHouseholds={setTotalHouseholds}
-              remainingHouseholds={remainingHouseholds}
-              setRemainingHouseholds={setRemainingHouseholds}
-            />
-
-            <ParkingSection
-              parkingType={parkingType}
-              setParkingType={setParkingType}
-              parkingCount={parkingCount}
-              setParkingCount={setParkingCount}
-            />
-
-            <CompletionRegistrySection
-              completionDate={completionDate}
-              setCompletionDate={setCompletionDate}
-              salePrice={salePrice}
-              setSalePrice={setSalePrice}
+            <BasicInfoContainer form={f} />
+            <NumbersContainer form={f} />
+            <ParkingContainer form={f} />
+            <CompletionRegistryContainer
+              form={f}
               REGISTRY_LIST={REGISTRY_LIST}
-              registry={registryOne}
-              setRegistry={setRegistryOne}
-              slopeGrade={slopeGrade}
-              setSlopeGrade={setSlopeGrade}
-              structureGrade={structureGrade}
-              setStructureGrade={setStructureGrade}
             />
-
-            <AspectsSection
-              aspects={aspects}
-              addAspect={addAspect}
-              removeAspect={removeAspect}
-              setAspectDir={setAspectDir}
-            />
-
-            <AreaSetsSection
-              baseAreaSet={baseAreaSet}
-              setBaseAreaSet={setBaseAreaSet}
-              extraAreaSets={extraAreaSets}
-              setExtraAreaSets={setExtraAreaSets}
-            />
-
-            <StructureLinesSection
-              lines={unitLines}
-              onAddPreset={addLineFromPreset}
-              onAddEmpty={addEmptyLine}
-              onUpdate={updateLine}
-              onRemove={removeLine}
-              presets={STRUCTURE_PRESETS}
-            />
-
-            <OptionsSection
-              PRESET_OPTIONS={PRESET_OPTIONS}
-              options={options}
-              setOptions={setOptions}
-              etcChecked={etcChecked}
-              setEtcChecked={setEtcChecked}
-              optionEtc={optionEtc}
-              setOptionEtc={setOptionEtc}
-            />
-
-            <div className="space-y-3">
-              <MemoSection
-                mode="KN"
-                value={publicMemo}
-                setValue={setPublicMemo}
-              />
-              <MemoSection
-                mode="R"
-                value={secretMemo}
-                setValue={setSecretMemo}
-              />
-            </div>
+            <AspectsContainer form={f} />
+            <AreaSetsContainer form={f} />
+            <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
+            <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
+            <MemosContainer form={f} />
           </div>
         </div>
 
         <FooterButtons
           onClose={onClose}
           onSave={save}
-          canSave={isSaveEnabled}
+          canSave={f.isSaveEnabled}
         />
       </div>
     </div>
