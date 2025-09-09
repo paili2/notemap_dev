@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, CardHeader, CardTitle } from "@/components/atoms/Card/Card";
 import type { LatLng, MapMarker } from "@/features/map/types/map";
 import MapView from "./components/MapView/MapView";
 import type { PropertyItem } from "../properties/types/propertyItem";
@@ -20,15 +19,22 @@ import PropertyEditModal from "../properties/components/PropertyEditModal/Proper
 import { PropertyViewDetails } from "../properties/components/PropertyViewModal/types";
 
 // ✅ 외부 유틸/훅
-import { hydrateRefsToMedia, materializeToRefs } from "./lib/idbMedia";
 import { applyPatchToItem, toViewDetails } from "@/features/map/lib/view";
 import { distanceMeters } from "./utils/distance";
-import { persistToLocalStorage } from "@/features/map/utils/storage";
+import { useViewportPost } from "@/features/map/hooks/useViewportPost";
+import { useLocalItems } from "./hooks/useLocalItems";
+import { getMapMarkers } from "./lib/markers";
+import { DEFAULT_CENTER, DEFAULT_LEVEL } from "./lib/constants";
 import {
   usePanToWithOffset,
   useResolveAddress,
 } from "@/features/map/hooks/useKakaoTools";
-import { useViewportPost } from "@/features/map/hooks/useViewportPost";
+
+import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
+import { buildCreatePatchWithMedia } from "../properties/components/PropertyCreateModal/lib/buildCreatePatch";
+import { useRunSearch } from "./hooks/useRunSearch";
+import MapCreateModalHost from "./components/MapCreateModalHost";
+import MapEditModalHost from "./components/MapEditModalHost";
 
 const STORAGE_KEY = "properties";
 
@@ -36,24 +42,31 @@ const STORAGE_KEY = "properties";
 const MapHomePage: React.FC = () => {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
+
+  // 컨텍스트 메뉴 주소
   const [menuRoadAddr, setMenuRoadAddr] = useState<string | null>(null);
   const [menuJibunAddr, setMenuJibunAddr] = useState<string | null>(null);
+
+  // 최초 fit once
   const [fitAllOnce, setFitAllOnce] = useState(true);
 
+  // 모달 상태
   const [createOpen, setCreateOpen] = useState(false);
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
+  // 드래프트 핀 & 메뉴
   const [draftPin, setDraftPin] = useState<LatLng | null>(null);
-
   const [menuAnchor, setMenuAnchor] = useState<LatLng | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuTargetId, setMenuTargetId] = useState<string | null>(null);
 
+  // 좌상단 토글
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
 
+  // 필터/검색
   const [query, setQuery] = useState("");
   const [type, setType] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
@@ -66,68 +79,14 @@ const MapHomePage: React.FC = () => {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [q, setQ] = useState("");
 
-  // ✅ 뷰포트 POST 훅
+  // 뷰포트 POST
   const { sendViewportQuery } = useViewportPost();
 
-  // FilterSearch 모달 상태 (khj 브랜치 추가)
+  // FilterSearch 모달
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
-  // 1) 최초 로드: localStorage → items  (⟵ runSearch보다 위!)
-  const [items, setItems] = useState<PropertyItem[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as PropertyItem[]) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // 2) 수화 (IndexedDB refs → blob/url)
-  useEffect(() => {
-    (async () => {
-      if (!items.length) return;
-
-      const hydrated = await Promise.all(
-        items.map(async (p) => {
-          const v: any = (p as any).view ?? {};
-          const cardRefs = Array.isArray(v._imageCardRefs)
-            ? v._imageCardRefs
-            : [];
-          const fileRefs = Array.isArray(v._fileItemRefs)
-            ? v._fileItemRefs
-            : [];
-
-          if (!cardRefs.length && !fileRefs.length) return p;
-
-          const { hydratedCards, hydratedFiles } = await hydrateRefsToMedia(
-            cardRefs,
-            fileRefs
-          );
-
-          return {
-            ...p,
-            view: {
-              ...v,
-              imageCards: hydratedCards,
-              images: hydratedCards.flat(),
-              fileItems: hydratedFiles,
-            },
-          } as PropertyItem;
-        })
-      );
-
-      setItems(hydrated);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // 3) 저장
-  useEffect(() => {
-    persistToLocalStorage(STORAGE_KEY, items);
-  }, [items]);
+  // 로컬 저장/복원 훅 (localStorage)
+  const { items, setItems } = useLocalItems({ storageKey: STORAGE_KEY });
 
   /** 파생: 필터링 */
   const filtered = useMemo(() => {
@@ -144,28 +103,12 @@ const MapHomePage: React.FC = () => {
   }, [items, query, type, status]);
 
   // 지도 마커
-  const mapMarkers: MapMarker[] = useMemo(() => {
-    const base = filtered.map((p) => ({
-      id: p.id,
-      title: p.title,
-      position: { lat: p.position.lat, lng: p.position.lng },
-      kind: ((p as any).pinKind ??
-        (p as any).markerKind ??
-        (p as any).kind ??
-        (p as any).view?.pinKind ??
-        "1room") as any,
-    }));
-    if (draftPin) {
-      base.unshift({
-        id: "__draft__",
-        title: "신규 등록 위치",
-        position: { lat: draftPin.lat, lng: draftPin.lng },
-        kind: (draftPin as any).pinKind ?? "question",
-      } as any);
-    }
-    return base;
-  }, [filtered, draftPin]);
+  const mapMarkers: MapMarker[] = useMemo(
+    () => getMapMarkers(filtered, draftPin),
+    [filtered, draftPin]
+  );
 
+  // 선택
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = useMemo(
     () => items.find((x) => x.id === selectedId) ?? null,
@@ -183,9 +126,6 @@ const MapHomePage: React.FC = () => {
       ...definedExtra,
     } as PropertyViewDetails;
   }, [selected]);
-
-  /** 지도 관련 */
-  const [fixedCenter] = useState<LatLng>({ lat: 37.5665, lng: 126.978 });
 
   // kakao 도구 훅
   const resolveAddress = useResolveAddress(kakaoSDK);
@@ -215,84 +155,17 @@ const MapHomePage: React.FC = () => {
     [resolveAddress, panToWithOffset]
   );
 
-  // ── 검색 (주소→좌표, 실패 시 키워드) ──  (⟵ items, openMenuForExistingPin 이후!)
-  const runSearch = useCallback(
-    async (keyword: string) => {
-      if (!kakaoSDK || !mapInstance || !keyword.trim()) return;
-      const geocoder = new kakaoSDK.maps.services.Geocoder();
-      const places = new kakaoSDK.maps.services.Places();
+  // ── 검색 (주소→좌표, 실패 시 키워드) ──
+  const runSearch = useRunSearch({
+    kakaoSDK,
+    mapInstance,
+    items,
+    onMatchedPin: openMenuForExistingPin,
+    onNoMatch: (coords) => setDraftPin(coords),
+    panToWithOffset, // 없으면 이 줄 빼도 됨
+  });
 
-      const afterLocate = async (lat: number, lng: number) => {
-        const coords = { lat, lng };
-
-        // 근접 기존 핀 자동 매칭 (35m)
-        const THRESHOLD_M = 35;
-        let nearest: PropertyItem | null = null;
-        let best = Infinity;
-        for (const p of items) {
-          const d = distanceMeters(coords, p.position);
-          if (d < THRESHOLD_M && d < best) {
-            best = d;
-            nearest = p;
-          }
-        }
-        if (nearest) {
-          await openMenuForExistingPin(nearest);
-        } else {
-          setDraftPin(coords); // draftPin effect가 메뉴 자동 오픈
-        }
-
-        const center = new kakaoSDK.maps.LatLng(lat, lng);
-        mapInstance.setCenter(center);
-        mapInstance.setLevel(Math.min(5, 11));
-        kakaoSDK.maps.event.trigger(mapInstance, "idle");
-        requestAnimationFrame(() =>
-          kakaoSDK.maps.event.trigger(mapInstance, "idle")
-        );
-      };
-
-      await new Promise<void>((resolve) => {
-        geocoder.addressSearch(
-          keyword,
-          async (addrResult: any[], addrStatus: string) => {
-            if (
-              addrStatus === kakaoSDK.maps.services.Status.OK &&
-              addrResult?.length
-            ) {
-              const r0 = addrResult[0];
-              const lat = parseFloat(
-                (r0.road_address?.y ?? r0.address?.y ?? r0.y) as string
-              );
-              const lng = parseFloat(
-                (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
-              );
-              await afterLocate(lat, lng);
-              resolve();
-            } else {
-              places.keywordSearch(
-                keyword,
-                async (kwResult: any[], kwStatus: string) => {
-                  if (
-                    kwStatus === kakaoSDK.maps.services.Status.OK &&
-                    kwResult?.length
-                  ) {
-                    const r0 = kwResult[0];
-                    await afterLocate(parseFloat(r0.y), parseFloat(r0.x));
-                  } else {
-                    alert("검색 결과가 없습니다.");
-                  }
-                  resolve();
-                }
-              );
-            }
-          }
-        );
-      });
-    },
-    [kakaoSDK, mapInstance, items, openMenuForExistingPin]
-  );
-
-  // 🔥 신규핀(draftPin) 생기면 자동으로 컨텍스트메뉴 열기
+  // 신규핀(draftPin) 생기면 자동으로 컨텍스트메뉴 열기 + 카메라 오프셋 이동
   useEffect(() => {
     if (!draftPin) return;
     setSelectedId(null);
@@ -307,7 +180,6 @@ const MapHomePage: React.FC = () => {
     })();
 
     setMenuOpen(true);
-    // 신규핀도 화면에 보기 좋게 이동
     panToWithOffset(draftPin, 180);
 
     if (kakaoSDK && mapInstance) {
@@ -318,6 +190,7 @@ const MapHomePage: React.FC = () => {
     }
   }, [draftPin, resolveAddress, kakaoSDK, mapInstance, panToWithOffset]);
 
+  // 마커 클릭 핸들러(쉴드)
   const markerClickShieldRef = useRef(0);
   const handleMarkerClick = useCallback(
     async (id: string) => {
@@ -326,7 +199,6 @@ const MapHomePage: React.FC = () => {
       const item = items.find((p) => p.id === id);
       if (!item) return;
 
-      // ✅ 클릭한 핀으로 지도 이동 (말풍선 고려해 위로 약간 올림)
       panToWithOffset(item.position, 180);
 
       setMenuTargetId(id);
@@ -341,28 +213,6 @@ const MapHomePage: React.FC = () => {
       setMenuJibunAddr(jibun ?? null);
     },
     [items, resolveAddress, panToWithOffset]
-  );
-
-  const handleMapClick = useCallback(
-    async (latlng: LatLng) => {
-      if (Date.now() - markerClickShieldRef.current < 250) return;
-
-      // ✅ 빈 지도 클릭으로 신규핀 생성 시에도 카메라 이동
-      panToWithOffset(latlng, 180);
-
-      setSelectedId(null);
-      setMenuTargetId(null);
-      setDraftPin(latlng);
-      setFitAllOnce(false);
-      setMenuAnchor(latlng);
-
-      const { road, jibun } = await resolveAddress(latlng);
-      setMenuRoadAddr(road ?? null);
-      setMenuJibunAddr(jibun ?? null);
-
-      setMenuOpen(true);
-    },
-    [resolveAddress, panToWithOffset]
   );
 
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -385,8 +235,8 @@ const MapHomePage: React.FC = () => {
       <div className="absolute inset-0">
         <MapView
           appKey={KAKAO_MAP_KEY}
-          center={fixedCenter}
-          level={4}
+          center={DEFAULT_CENTER}
+          level={DEFAULT_LEVEL}
           markers={mapMarkers}
           fitToMarkers={fitAllOnce}
           useDistrict={useDistrict}
@@ -394,7 +244,6 @@ const MapHomePage: React.FC = () => {
           controlRightOffsetPx={32}
           controlTopOffsetPx={10}
           onMarkerClick={handleMarkerClick}
-          onMapClick={handleMapClick}
           onMapReady={({ kakao, map }) => {
             setKakaoSDK(kakao);
             setMapInstance(map);
@@ -445,7 +294,6 @@ const MapHomePage: React.FC = () => {
           />
         )}
       </div>
-
       <MapTopBar
         active={filter}
         onChangeFilter={setFilter}
@@ -456,33 +304,17 @@ const MapHomePage: React.FC = () => {
           runSearch(v);
         }}
       />
-
       {/* 사이드바 버튼 */}
       <ToggleSidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}
         offsetTopPx={12}
       />
-
       {/* 사이드바 */}
       <Sidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}
       />
-
-      {/* 좌상단 선택 미니 카드 */}
-      <div className="absolute left-3 top-3 z-20">
-        {selected && (
-          <Card>
-            <CardHeader className="py-2 px-3">
-              <CardTitle className="text-sm">
-                선택됨: {selected.title}
-              </CardTitle>
-            </CardHeader>
-          </Card>
-        )}
-      </div>
-
       {/* 좌측 하단 필터 검색 버튼 */}
       <div className="absolute bottom-4 left-4 z-30">
         <button
@@ -505,14 +337,12 @@ const MapHomePage: React.FC = () => {
           </svg>
         </button>
       </div>
-
       {/* FilterSearch 모달 */}
       <FilterSearch
         isOpen={filterSearchOpen}
         onClose={() => setFilterSearchOpen(false)}
       />
-
-      {/* 모달들 */}
+      {/* 상세 보기 모달 */}
       {viewOpen && selectedViewItem && (
         <PropertyViewModal
           open={true}
@@ -533,257 +363,40 @@ const MapHomePage: React.FC = () => {
           }}
         />
       )}
-
+      {/* 신규 등록 모달 */}
       {createOpen && (
-        <PropertyCreateModal
+        <MapCreateModalHost
           open={createOpen}
-          key={prefillAddress ?? "blank"}
-          initialAddress={prefillAddress}
+          prefillAddress={prefillAddress}
+          draftPin={draftPin}
+          selectedPos={selected ? selected.position : null}
           onClose={() => {
             setCreateOpen(false);
             setDraftPin(null);
             setPrefillAddress(undefined);
             setMenuOpen(false);
           }}
-          onSubmit={async (payload: CreatePayload) => {
-            const id = `${Date.now()}`;
-            const pos = draftPin ??
-              (selected ? selected.position : undefined) ?? {
-                lat: 37.5665,
-                lng: 126.978,
-              };
-
-            const orientations = (payload.orientations ?? [])
-              .map((o) => ({ ho: Number(o.ho), value: o.value }))
-              .sort((a, b) => a.ho - b.ho);
-
-            const pick = (ho: number) =>
-              orientations.find((o) => o.ho === ho)?.value;
-            const aspect1 =
-              pick(1) ??
-              (payload.aspectNo === "1호" ? payload.aspect : undefined);
-            const aspect2 =
-              pick(2) ??
-              (payload.aspectNo === "2호" ? payload.aspect : undefined);
-            const aspect3 =
-              pick(3) ??
-              (payload.aspectNo === "3호" ? payload.aspect : undefined);
-
-            const refsCardsRaw = Array.isArray((payload as any).imageFolders)
-              ? ((payload as any).imageFolders as any[][])
-              : undefined;
-            const refsFilesRaw = Array.isArray((payload as any).verticalImages)
-              ? ((payload as any).verticalImages as any[])
-              : undefined;
-
-            const cardsUiRaw =
-              (payload as any).imageCards ??
-              (payload as any).imagesByCard ??
-              (Array.isArray((payload as any).images)
-                ? [(payload as any).images]
-                : []);
-            const filesUiRaw = (payload as any).fileItems;
-
-            const cardsInput = refsCardsRaw ?? cardsUiRaw;
-            const filesInput = refsFilesRaw ?? filesUiRaw;
-
-            // 저장 + 한 번에 수화
-            const { cardRefs, fileRefs } = await materializeToRefs(
-              id,
-              cardsInput,
-              filesInput
-            );
-            const { hydratedCards, hydratedFiles } = await hydrateRefsToMedia(
-              cardRefs,
-              fileRefs
-            );
-
-            const next: PropertyItem = {
-              id,
-              title: payload.title,
-              address: payload.address,
-              priceText: payload.salePrice ?? undefined,
-              status: (payload as any).status,
-              dealStatus: (payload as any).dealStatus,
-              type: "아파트",
-              position: pos,
-              favorite: false,
-              ...((payload as any).pinKind
-                ? ({ pinKind: (payload as any).pinKind } as any)
-                : ({} as any)),
-              view: {
-                officePhone: (payload as any).officePhone,
-                officePhone2: (payload as any).officePhone2,
-                listingStars: payload.listingStars ?? 0,
-                elevator: payload.elevator,
-                parkingType: payload.parkingType,
-                parkingCount: payload.parkingCount,
-                completionDate: payload.completionDate,
-                exclusiveArea: payload.exclusiveArea,
-                realArea: payload.realArea,
-                extraExclusiveAreas: (payload as any).extraExclusiveAreas ?? [],
-                extraRealAreas: (payload as any).extraRealAreas ?? [],
-                totalBuildings: (payload as any).totalBuildings,
-                totalFloors: (payload as any).totalFloors,
-                totalHouseholds: payload.totalHouseholds,
-                remainingHouseholds: (payload as any).remainingHouseholds,
-                orientations,
-                aspect: payload.aspect,
-                aspectNo: payload.aspectNo,
-                slopeGrade: payload.slopeGrade,
-                structureGrade: payload.structureGrade,
-                options: payload.options,
-                optionEtc: payload.optionEtc,
-                registry:
-                  typeof (payload as any).registry === "string"
-                    ? (payload as any).registry
-                    : "주택",
-                unitLines: payload.unitLines,
-                publicMemo: payload.publicMemo,
-                secretMemo: payload.secretMemo,
-                ...((payload as any).pinKind
-                  ? ({ pinKind: (payload as any).pinKind } as any)
-                  : ({} as any)),
-                baseAreaTitle:
-                  (payload as any).baseAreaTitle ??
-                  (payload as any).areaSetTitle ??
-                  "",
-                extraAreaTitles:
-                  (payload as any).extraAreaTitles ??
-                  (payload as any).areaSetTitles ??
-                  [],
-                _imageCardRefs: cardRefs,
-                _fileItemRefs: fileRefs,
-                imageCards: hydratedCards,
-                images: hydratedCards.flat(),
-                fileItems: hydratedFiles,
-                aspect1,
-                aspect2,
-                aspect3,
-              },
-            };
-
-            setItems((prev) => [next, ...prev]);
+          appendItem={(item) => setItems((prev) => [item, ...prev])}
+          selectAndOpenView={(id) => {
             setSelectedId(id);
             setViewOpen(true);
             setMenuTargetId("draft");
+          }}
+          resetAfterCreate={() => {
             setDraftPin(null);
             setPrefillAddress(undefined);
             setCreateOpen(false);
           }}
         />
       )}
-      {editOpen && selectedViewItem && (
-        <PropertyEditModal
+      {/* 수정 모달 */}
+      {editOpen && selectedViewItem && selectedId && (
+        <MapEditModalHost
           open={true}
-          initialData={selectedViewItem}
+          data={selectedViewItem}
+          selectedId={selectedId}
           onClose={() => setEditOpen(false)}
-          onSubmit={async (payload) => {
-            const patch: Partial<PropertyViewDetails> & { pinKind?: string } = {
-              id: (payload as any).id,
-              title: (payload as any).title,
-              address: (payload as any).address,
-              officePhone: (payload as any).officePhone,
-              officePhone2: (payload as any).officePhone2,
-              salePrice: (payload as any).salePrice,
-              listingStars: (payload as any).listingStars,
-              elevator: (payload as any).elevator,
-              parkingType: (payload as any).parkingType,
-              parkingCount: (payload as any).parkingCount,
-              completionDate: (payload as any).completionDate,
-              exclusiveArea: (payload as any).exclusiveArea,
-              realArea: (payload as any).realArea,
-              extraExclusiveAreas: (payload as any).extraExclusiveAreas,
-              extraRealAreas: (payload as any).extraRealAreas,
-              totalBuildings: (payload as any).totalBuildings,
-              totalFloors: (payload as any).totalFloors,
-              totalHouseholds: (payload as any).totalHouseholds,
-              remainingHouseholds: (payload as any).remainingHouseholds,
-              orientations: (payload as any).orientations,
-              aspect: (payload as any).aspect,
-              aspectNo: (payload as any).aspectNo,
-              aspect1: (payload as any).aspect1,
-              aspect2: (payload as any).aspect2,
-              aspect3: (payload as any).aspect3,
-              slopeGrade: (payload as any).slopeGrade,
-              structureGrade: (payload as any).structureGrade,
-              options: (payload as any).options,
-              optionEtc: (payload as any).optionEtc,
-              registry: (payload as any).registry,
-              unitLines: (payload as any).unitLines,
-              publicMemo: (payload as any).publicMemo,
-              secretMemo: (payload as any).secretMemo,
-              images: (payload as any).images,
-              pinKind: (payload as any).pinKind,
-
-              // ✅ 면적 세트 제목들 추가 (호환 키 포함)
-              baseAreaTitle:
-                (payload as any).baseAreaTitle ??
-                (payload as any).areaTitle ??
-                (payload as any).areaSetTitle ??
-                "",
-              extraAreaTitles:
-                (payload as any).extraAreaTitles ??
-                (payload as any).areaSetTitles ??
-                [],
-            };
-
-            const cardsFromPayload =
-              (payload as any).imageCards ?? (payload as any).imagesByCard;
-            if (Array.isArray(cardsFromPayload)) {
-              (patch as any).imageCards = cardsFromPayload;
-            } else if (Array.isArray((payload as any).images)) {
-              (patch as any).imageCards = [(payload as any).images];
-            }
-            if (Array.isArray((payload as any).fileItems)) {
-              (patch as any).fileItems = (payload as any).fileItems;
-            }
-
-            // 저장 + 한 번에 수화
-            try {
-              const propertyId = String(
-                (payload as any).id ?? selectedId ?? ""
-              );
-              const refsCardsRaw = Array.isArray((payload as any).imageFolders)
-                ? ((payload as any).imageFolders as any[][])
-                : (patch as any).imageCards ?? [];
-              const refsFilesRaw = Array.isArray(
-                (payload as any).verticalImages
-              )
-                ? ((payload as any).verticalImages as any[])
-                : (patch as any).fileItems ?? [];
-
-              const { cardRefs, fileRefs } = await materializeToRefs(
-                propertyId,
-                refsCardsRaw,
-                refsFilesRaw
-              );
-              const { hydratedCards, hydratedFiles } = await hydrateRefsToMedia(
-                cardRefs,
-                fileRefs
-              );
-
-              (patch as any)._imageCardRefs = cardRefs;
-              (patch as any)._fileItemRefs = fileRefs;
-
-              if (hydratedCards.length) {
-                (patch as any).imageCards = hydratedCards;
-                (patch as any).images = hydratedCards.flat();
-              }
-              if (hydratedFiles.length) {
-                (patch as any).fileItems = hydratedFiles;
-              }
-            } catch (e) {
-              console.warn("[edit] materialize/hydrate 실패:", e);
-            }
-
-            setItems((prev) =>
-              prev.map((p) =>
-                p.id === selectedId ? applyPatchToItem(p, patch) : p
-              )
-            );
-            setEditOpen(false);
-          }}
+          updateItems={setItems}
         />
       )}
     </div>

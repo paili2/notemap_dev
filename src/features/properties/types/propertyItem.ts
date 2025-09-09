@@ -15,6 +15,8 @@ export type PropertyItem = {
 
   // 카테고리(예: "아파트", "주택" 등)
   type?: string;
+  status?: string; // 예: "판매중", "계약완료" 등
+  dealStatus?: string;
 
   // 지도 위치 (마커 필수)
   position: LatLng;

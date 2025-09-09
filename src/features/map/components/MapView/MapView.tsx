@@ -31,7 +31,7 @@ const MapView: React.FC<Props> = ({
   onMapReady,
   onViewportChange,
   pinKind = "1room",
-  hideLabelForId = null, // ✅ 추가
+  hideLabelForId = null,
 }) => {
   // idle 디바운스
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
