@@ -9,7 +9,7 @@ import type { AdvFilters } from "@/features/properties/types/advFilters";
 import PropertyCreateModal from "../properties/components/PropertyCreateModal/PropertyCreateModal";
 import PropertyViewModal from "../properties/components/PropertyViewModal/PropertyViewModal";
 import PinContextMenu from "./components/PinContextMenu/PinContextMenu";
-import { PropertyViewDetails } from "../properties/components/PropertyViewModal/property-view";
+
 import { CreatePayload } from "../properties/types/property-dto";
 import { FilterKey } from "@/features/map/components/top/MapTopBar/types";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
@@ -25,6 +25,7 @@ import {
   type ImageRef,
 } from "@/lib/imageStore";
 import PropertyEditModal from "../properties/components/PropertyEditModal/PropertyEditModal";
+import { PropertyViewDetails } from "../properties/components/PropertyViewModal/types";
 
 const STORAGE_KEY = "properties";
 
@@ -1136,6 +1137,8 @@ const MapHomePage: React.FC = () => {
                 completionDate: payload.completionDate,
                 exclusiveArea: payload.exclusiveArea,
                 realArea: payload.realArea,
+                extraExclusiveAreas: (payload as any).extraExclusiveAreas ?? [],
+                extraRealAreas: (payload as any).extraRealAreas ?? [],
                 totalBuildings: (payload as any).totalBuildings,
                 totalFloors: (payload as any).totalFloors,
                 totalHouseholds: payload.totalHouseholds,

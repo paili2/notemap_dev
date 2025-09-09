@@ -1,13 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { get as idbGet } from "idb-keyval";
+import { useState } from "react";
 import { Trash2, Pencil } from "lucide-react";
-import type {
-  MemoTab,
-  PropertyViewDetails,
-  UIImg,
-} from "@/features/properties/components/PropertyViewModal/property-view";
 
 import HeaderSectionView from "./components/HeaderSectionView/HeaderSectionView";
 import DisplayImagesSection from "./components/DisplayImagesSection/DisplayImagesSection";
@@ -20,20 +14,16 @@ import AreaSetsView from "./components/AreaSetsView/AreaSetsView";
 import StructureLinesList from "./components/StructureLinesList";
 import OptionsBadges from "./components/OptionsBadges";
 import MemoPanel from "./components/MemoPanel";
-import { AnyImageRef } from "../../types/media";
 
-const toYMD = (
-  v: string | Date | null | undefined
-): string | null | undefined => {
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
-  return v ?? null;
-};
+import { toYMDFlexible } from "@/lib/dateUtils";
+import { useViewImagesHydration } from "./hooks/useViewImagesHydration";
+import { extractViewMeta } from "./utils/extractViewMeta";
+import { MemoTab, PropertyViewDetails } from "./types";
 
 export default function PropertyViewModal({
   open,
   onClose,
   data,
-  onSave,
   onDelete,
   onEdit,
 }: {
@@ -45,205 +35,20 @@ export default function PropertyViewModal({
   onEdit?: () => void | Promise<void>;
 }) {
   const [memoTab, setMemoTab] = useState<MemoTab>("KN");
-  const [cardsHydrated, setCardsHydrated] = useState<UIImg[][]>([[]]);
-  const [filesHydrated, setFilesHydrated] = useState<UIImg[]>([]);
-  const [legacyImagesHydrated, setLegacyImagesHydrated] = useState<
-    string[] | undefined
-  >(undefined);
 
-  // 카드 우선 여부(있으면 images prop은 undefined로 넘긴다)
-  const [preferCards, setPreferCards] = useState<boolean>(false);
-
-  // 생성된 objectURL 정리용
-  const createdObjectUrlsRef = useRef<string[]>([]);
-  useEffect(() => {
-    return () => {
-      createdObjectUrlsRef.current.forEach((u) => {
-        if (u?.startsWith("blob:")) URL.revokeObjectURL(u);
-      });
-      createdObjectUrlsRef.current = [];
-    };
-  }, []);
-
-  // ------- IDB 이미지 복원 유틸 -------
-  const resolveImageRef = async (u: AnyImageRef): Promise<UIImg | null> => {
-    if (typeof u === "string") return { url: u };
-
-    if (u && "idbKey" in (u as any) && typeof (u as any).idbKey === "string") {
-      try {
-        const key = (u as any).idbKey as string;
-        if (key.startsWith("url:")) {
-          const url = key.slice(4);
-          return {
-            url,
-            name: (u as any).name,
-            ...((u as any).caption ? { caption: (u as any).caption } : {}),
-          };
-        }
-        const blob = await idbGet(key);
-        if (!blob) return null;
-        const objectUrl = URL.createObjectURL(blob);
-        createdObjectUrlsRef.current.push(objectUrl);
-        return {
-          url: objectUrl,
-          name: (u as any).name,
-          ...((u as any).caption ? { caption: (u as any).caption } : {}),
-        };
-      } catch {
-        return null;
-      }
-    }
-
-    if (
-      u &&
-      typeof u === "object" &&
-      "url" in u &&
-      typeof (u as any).url === "string"
-    ) {
-      return {
-        url: (u as any).url,
-        name: (u as any).name,
-        ...((u as any).caption ? { caption: (u as any).caption } : {}),
-      };
-    }
-
-    return null;
-  };
-
-  const hydrateCards = async (src: AnyImageRef[][]): Promise<UIImg[][]> => {
-    const cards = await Promise.all(
-      src.map(async (card) => {
-        const resolved = await Promise.all(card.map(resolveImageRef));
-        return resolved.filter(Boolean) as UIImg[];
-      })
-    );
-    return cards.length ? cards : [[]];
-  };
-
-  const hydrateFlatUsingCounts = async (
-    src: AnyImageRef[],
-    counts: number[]
-  ): Promise<UIImg[][]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    const out: UIImg[][] = [];
-    let offset = 0;
-    for (const c of counts) {
-      out.push(resolved.slice(offset, offset + c));
-      offset += c;
-    }
-    if (offset < resolved.length) out.push(resolved.slice(offset));
-    return out.length ? out : [[]];
-  };
-
-  const hydrateFlatToCards = async (
-    src: AnyImageRef[],
-    chunk = 20
-  ): Promise<UIImg[][]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    const out: UIImg[][] = [];
-    for (let i = 0; i < resolved.length; i += chunk) {
-      out.push(resolved.slice(i, i + chunk));
-    }
-    return out.length ? out : [[]];
-  };
-
-  const hydrateVertical = async (src: AnyImageRef[]): Promise<UIImg[]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    return resolved;
-  };
-  // -------------------------------------
-
-  useEffect(() => {
-    if (!open || !data) return;
-
-    (async () => {
-      const foldersRaw =
-        (data as any).imageFolders ??
-        (data as any).imagesByCard ??
-        (data as any).imageCards ??
-        (data as any)._imageCardRefs ?? // 선택 사항(안전망)
-        null;
-
-      const flat = Array.isArray((data as any).images)
-        ? ((data as any).images as AnyImageRef[])
-        : null;
-      const counts: number[] | undefined = (data as any).imageCardCounts;
-
-      if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
-        setPreferCards(true);
-        setCardsHydrated(await hydrateCards(foldersRaw as AnyImageRef[][]));
-      } else if (
-        flat &&
-        flat.length > 0 &&
-        Array.isArray(counts) &&
-        counts.length > 0
-      ) {
-        setPreferCards(true);
-        setCardsHydrated(await hydrateFlatUsingCounts(flat, counts));
-      } else if (flat && flat.length > 0) {
-        setPreferCards(true);
-        setCardsHydrated(await hydrateFlatToCards(flat, 20));
-      } else {
-        setPreferCards(false);
-        setCardsHydrated([[]]);
-      }
-
-      // 세로 카드: verticalImages > imagesVertical > fileItems
-      const verticalRaw =
-        (data as any).verticalImages ??
-        (data as any).imagesVertical ??
-        (data as any).fileItems ??
-        (data as any)._fileItemRefs ??
-        null;
-
-      if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
-        setFilesHydrated(await hydrateVertical(verticalRaw as AnyImageRef[]));
-      } else {
-        setFilesHydrated([]);
-      }
-
-      // 카드 소스가 전혀 없는 “레거시-only”에서만 images를 따로 뽑아둔다
-      if (flat && flat.length > 0 && !Array.isArray(foldersRaw)) {
-        const resolved = (await Promise.all(flat.map(resolveImageRef))).filter(
-          Boolean
-        ) as UIImg[];
-        setLegacyImagesHydrated(resolved.map((r) => r.url));
-      } else {
-        setLegacyImagesHydrated(undefined);
-      }
-    })();
-  }, [open, data]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ✅ 이미지 관련 상태/로직 훅으로 분리
+  const { preferCards, cardsHydrated, filesHydrated, legacyImagesHydrated } =
+    useViewImagesHydration({ open, data });
 
   if (!open || !data) return null;
 
-  // preferCards가 true면 images를 undefined로 넘겨서 카드 렌더를 강제
+  // preferCards=true면 images를 undefined로 넘겨 카드 렌더 강제
   const imagesProp = preferCards ? undefined : legacyImagesHydrated;
 
-  // ✅ 뷰 헤더에 표시할 핀 종류를 안전하게 추출 (여러 호환 키 지원)
-  const pinKind =
-    (data as any).pinKind ??
-    (data as any).kind ??
-    (data as any).markerKind ??
-    (data as any).view?.pinKind ??
-    "1room";
-
-  const baseAreaTitleView =
-    (data as any).baseAreaTitle ??
-    (data as any).areaTitle ??
-    (data as any).areaSetTitle ??
-    "";
-  const extraAreaTitlesView: string[] =
-    (Array.isArray((data as any).extraAreaTitles) &&
-      (data as any).extraAreaTitles) ||
-    (Array.isArray((data as any).areaSetTitles) &&
-      (data as any).areaSetTitles) ||
-    [];
+  // ✅ 메타 추출 유틸로 분리
+  const { pinKind, baseAreaTitleView, extraAreaTitlesView } = extractViewMeta(
+    data as any
+  );
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -287,7 +92,7 @@ export default function PropertyViewModal({
               parkingCount={data.parkingCount}
             />
             <CompletionRegistryView
-              completionDate={toYMD(data.completionDate)}
+              completionDate={toYMDFlexible(data.completionDate, { utc: true })}
               salePrice={data.salePrice}
               registry={data.registry}
               slopeGrade={data.slopeGrade}
@@ -310,6 +115,8 @@ export default function PropertyViewModal({
               options={data.options ?? []}
               optionEtc={data.optionEtc ?? ""}
             />
+
+            {/* 메모 탭 */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div className="text-sm font-medium">메모</div>
@@ -348,6 +155,7 @@ export default function PropertyViewModal({
           </div>
         </div>
 
+        {/* 하단 액션 */}
         <div className="px-5 py-3 border-t flex items-center justify-between">
           <div className="flex gap-2">
             {onEdit && (
