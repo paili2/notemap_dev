@@ -1,6 +1,6 @@
 import type { LatLng } from "../../map/types/map";
+import { PropertyViewDetails } from "../components/PropertyViewModal/types";
 import type { Registry, Grade } from "./property-domain";
-import { PropertyViewDetails } from "../components/PropertyViewModal/property-view";
 
 /**
  * 목록/지도에서 쓰는 경량 아이템.

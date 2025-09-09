@@ -3,7 +3,7 @@
 import Field from "@/components/atoms/Field/Field";
 import OrientationBadges from "./components/OrientationBadges";
 import { toAspectView } from "@/features/properties/lib/orientation";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/property-view";
+import { PropertyViewDetails } from "../../types";
 
 export default function AspectsView({
   details,
