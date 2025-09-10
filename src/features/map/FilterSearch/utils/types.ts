@@ -1,7 +1,8 @@
 export interface FilterState {
   rooms: string[];
   deposit: string;
-  area: string;
+  areaMin: string;
+  areaMax: string;
   buildingType: string[];
   elevator: string;
   priceMin: string;

@@ -290,3 +290,21 @@ export const formatKoreanCurrency = (value: string): string => {
   result += "원";
   return result;
 };
+
+// 평수를 제곱미터로 변환하는 함수 (1평 = 3.3058㎡)
+export const convertPyeongToSquareMeter = (pyeong: string): string => {
+  const num = Number(pyeong.replace(/,/g, ""));
+  if (isNaN(num) || num === 0) return "0";
+
+  const squareMeter = num * 3.3058;
+  return squareMeter.toFixed(1);
+};
+
+// 매매가 입력값을 원 단위로 변환하는 함수 (200 → 200,000,000)
+export const convertPriceToWon = (input: string): string => {
+  const num = Number(input.replace(/,/g, ""));
+  if (isNaN(num) || num === 0) return "0";
+
+  // 만원 단위를 원 단위로 변환 (예: 200 → 200,000,000)
+  return (num * 1000000).toString();
+};

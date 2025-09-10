@@ -11,7 +11,7 @@ const Input = React.forwardRef<HTMLInputElement, Props>(
     return (
       <div
         className={cn(
-          "flex items-center h-9 w-full rounded-md border border-input bg-transparent shadow-sm transition-colors focus-within:ring-1 focus-within:ring-ring",
+          "flex items-center h-9 w-full rounded-md border border-input bg-transparent shadow-sm transition-colors",
           className
         )}
       >
@@ -23,7 +23,7 @@ const Input = React.forwardRef<HTMLInputElement, Props>(
         <input
           type={type}
           className={cn(
-            "flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm",
+            "flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm focus:outline-none focus:ring-0",
             leftIcon ? "pl-2" : "",
             rightIcon ? "pr-2" : "",
             type === "number" &&
