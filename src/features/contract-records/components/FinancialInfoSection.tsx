@@ -186,25 +186,29 @@ export function FinancialInfoSection({
           <div className="text-xs text-muted-foreground space-y-1">
             <div>계산 공식:</div>
             <div>
-              • (중개보수금 + 부가세) + 리베이트 - 지원금액 ={" "}
+              • (중개보수금 + 부가세) +{" "}
+              {financialInfo.taxStatus === "taxable"
+                ? "(리베이트 × 0.967)"
+                : "리베이트"}{" "}
+              - 지원금액 ={" "}
               {(() => {
                 const brokerageAndVat =
                   financialInfo.brokerageFee + financialInfo.vat;
-                const totalBeforeTax =
-                  brokerageAndVat +
-                  financialInfo.totalRebate -
-                  financialInfo.totalSupportAmount;
-                const finalTotal =
+                const rebateAmount =
                   financialInfo.taxStatus === "taxable"
-                    ? totalBeforeTax * 0.967 // 과세시 3.3% 차감
-                    : totalBeforeTax; // 비과세시 그대로
+                    ? financialInfo.totalRebate * 0.967 // 과세시 리베이트에만 3.3% 차감
+                    : financialInfo.totalRebate; // 비과세시 리베이트 그대로
+                const finalTotal =
+                  brokerageAndVat +
+                  rebateAmount -
+                  financialInfo.totalSupportAmount;
                 return formatCurrency(finalTotal);
               })()}
               원
             </div>
             <div className="text-xs text-gray-500">
               {financialInfo.taxStatus === "taxable"
-                ? "• 과세 적용 (전체 금액 3.3% 차감)"
+                ? "• 과세 적용 (리베이트에만 3.3% 차감)"
                 : "• 비과세 적용"}
             </div>
           </div>
@@ -216,14 +220,14 @@ export function FinancialInfoSection({
               {(() => {
                 const brokerageAndVat =
                   financialInfo.brokerageFee + financialInfo.vat;
-                const totalBeforeTax =
-                  brokerageAndVat +
-                  financialInfo.totalRebate -
-                  financialInfo.totalSupportAmount;
-                const finalTotal =
+                const rebateAmount =
                   financialInfo.taxStatus === "taxable"
-                    ? totalBeforeTax * 0.967 // 과세시 3.3% 차감
-                    : totalBeforeTax; // 비과세시 그대로
+                    ? financialInfo.totalRebate * 0.967 // 과세시 리베이트에만 3.3% 차감
+                    : financialInfo.totalRebate; // 비과세시 리베이트 그대로
+                const finalTotal =
+                  brokerageAndVat +
+                  rebateAmount -
+                  financialInfo.totalSupportAmount;
                 return formatCurrency(finalTotal);
               })()}
               원
