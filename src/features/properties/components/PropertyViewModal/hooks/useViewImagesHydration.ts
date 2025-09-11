@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { get as idbGet } from "idb-keyval";
-import type { AnyImageRef } from "@/features/properties/types/media";
+
 import { UIImg } from "../types";
+import type { AnyImageRef, ImageItem } from "@/features/properties/types/media";
+import {
+  hydrateCards as hydrateCardsDomain,
+  hydrateFlatToCards as hydrateFlatToCardsDomain,
+  hydrateFlatUsingCounts as hydrateFlatUsingCountsDomain,
+  hydrateVertical as hydrateVerticalDomain,
+} from "@/features/properties/lib/media/hydrate";
 
 type UseViewImagesHydrationArgs = {
   open: boolean;
@@ -32,95 +38,19 @@ export function useViewImagesHydration({
     };
   }, []);
 
-  const resolveImageRef = async (u: AnyImageRef): Promise<UIImg | null> => {
-    if (typeof u === "string") return { url: u };
+  // ImageItem[] -> UIImg[] 로 얇은 매핑
+  const toUI = (items: ImageItem[]): UIImg[] =>
+    items.map(({ url, name, caption }) => ({
+      url,
+      ...(name ? { name } : {}),
+      ...(caption ? { caption } : {}),
+    }));
 
-    if (u && typeof u === "object") {
-      // idbKey 케이스
-      if ("idbKey" in (u as any) && typeof (u as any).idbKey === "string") {
-        try {
-          const key = (u as any).idbKey as string;
-          if (key.startsWith("url:")) {
-            const url = key.slice(4);
-            return {
-              url,
-              name: (u as any).name,
-              ...((u as any).caption ? { caption: (u as any).caption } : {}),
-            };
-          }
-          const blob = await idbGet(key);
-          if (!blob) return null;
-          const objectUrl = URL.createObjectURL(blob);
-          createdObjectUrlsRef.current.push(objectUrl);
-          return {
-            url: objectUrl,
-            name: (u as any).name,
-            ...((u as any).caption ? { caption: (u as any).caption } : {}),
-          };
-        } catch {
-          return null;
-        }
-      }
-
-      // url 케이스
-      if ("url" in (u as any) && typeof (u as any).url === "string") {
-        return {
-          url: (u as any).url,
-          name: (u as any).name,
-          ...((u as any).caption ? { caption: (u as any).caption } : {}),
-        };
-      }
-    }
-
-    return null;
-  };
-
-  const hydrateCards = async (src: AnyImageRef[][]): Promise<UIImg[][]> => {
-    const cards = await Promise.all(
-      src.map(async (card) => {
-        const resolved = await Promise.all(card.map(resolveImageRef));
-        return resolved.filter(Boolean) as UIImg[];
-      })
-    );
-    return cards.length ? cards : [[]];
-  };
-
-  const hydrateFlatUsingCounts = async (
-    src: AnyImageRef[],
-    counts: number[]
-  ): Promise<UIImg[][]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    const out: UIImg[][] = [];
-    let offset = 0;
-    for (const c of counts) {
-      out.push(resolved.slice(offset, offset + c));
-      offset += c;
-    }
-    if (offset < resolved.length) out.push(resolved.slice(offset));
-    return out.length ? out : [[]];
-  };
-
-  const hydrateFlatToCards = async (
-    src: AnyImageRef[],
-    chunk = 20
-  ): Promise<UIImg[][]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    const out: UIImg[][] = [];
-    for (let i = 0; i < resolved.length; i += chunk) {
-      out.push(resolved.slice(i, i + chunk));
-    }
-    return out.length ? out : [[]];
-  };
-
-  const hydrateVertical = async (src: AnyImageRef[]): Promise<UIImg[]> => {
-    const resolved = (await Promise.all(src.map(resolveImageRef))).filter(
-      Boolean
-    ) as UIImg[];
-    return resolved;
+  // blob URL 정리 목록에 추가
+  const trackBlobUrls = (urls: string[]) => {
+    urls.forEach((u) => {
+      if (u?.startsWith("blob:")) createdObjectUrlsRef.current.push(u);
+    });
   };
 
   useEffect(() => {
@@ -141,7 +71,13 @@ export function useViewImagesHydration({
 
       if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
         setPreferCards(true);
-        setCardsHydrated(await hydrateCards(foldersRaw as AnyImageRef[][]));
+        const cards = await hydrateCardsDomain(
+          foldersRaw as AnyImageRef[][],
+          Number.MAX_SAFE_INTEGER // 뷰에서는 카드 내 최대치 제한 없음
+        );
+        const ui = cards.map(toUI);
+        trackBlobUrls(ui.flat().map((x) => x.url));
+        setCardsHydrated(ui);
       } else if (
         flat &&
         flat.length > 0 &&
@@ -149,16 +85,22 @@ export function useViewImagesHydration({
         counts.length > 0
       ) {
         setPreferCards(true);
-        setCardsHydrated(await hydrateFlatUsingCounts(flat, counts));
+        const cards = await hydrateFlatUsingCountsDomain(flat, counts);
+        const ui = cards.map(toUI);
+        trackBlobUrls(ui.flat().map((x) => x.url));
+        setCardsHydrated(ui);
       } else if (flat && flat.length > 0) {
         setPreferCards(true);
-        setCardsHydrated(await hydrateFlatToCards(flat, 20));
+        const cards = await hydrateFlatToCardsDomain(flat, 20);
+        const ui = cards.map(toUI);
+        trackBlobUrls(ui.flat().map((x) => x.url));
+        setCardsHydrated(ui);
       } else {
         setPreferCards(false);
         setCardsHydrated([[]]);
       }
 
-      // 세로 카드: verticalImages > imagesVertical > fileItems
+      // 세로 카드: verticalImages > imagesVertical > fileItems > _fileItemRefs
       const verticalRaw =
         (data as any).verticalImages ??
         (data as any).imagesVertical ??
@@ -167,17 +109,26 @@ export function useViewImagesHydration({
         null;
 
       if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
-        setFilesHydrated(await hydrateVertical(verticalRaw as AnyImageRef[]));
+        const files = await hydrateVerticalDomain(
+          verticalRaw as AnyImageRef[],
+          Number.MAX_SAFE_INTEGER
+        );
+        const ui = toUI(files);
+        trackBlobUrls(ui.map((x) => x.url));
+        setFilesHydrated(ui);
       } else {
         setFilesHydrated([]);
       }
 
       // 카드 소스가 전혀 없는 “레거시-only”에서만 images를 따로 뽑아둔다
       if (flat && flat.length > 0 && !Array.isArray(foldersRaw)) {
-        const resolved = (await Promise.all(flat.map(resolveImageRef))).filter(
-          Boolean
-        ) as UIImg[];
-        setLegacyImagesHydrated(resolved.map((r) => r.url));
+        const cards = await hydrateFlatToCardsDomain(
+          flat,
+          Number.MAX_SAFE_INTEGER
+        );
+        const ui = cards.flatMap(toUI);
+        trackBlobUrls(ui.map((x) => x.url));
+        setLegacyImagesHydrated(ui.map((r) => r.url));
       } else {
         setLegacyImagesHydrated(undefined);
       }

@@ -7,8 +7,9 @@ import ElevatorSegment from "./components/ElevatorSegment";
 
 import type { HeaderSectionProps } from "./types";
 import PinTypeSelect from "./components/PinTypeSelect";
-import { PinKind } from "@/features/map/pins";
+
 import { Button } from "@/components/atoms/Button/Button";
+import { PinKind } from "@/features/pins/types";
 
 export type HeaderSectionExtraProps = {
   /** 선택된 핀 종류 (매물 타입) */

@@ -9,8 +9,9 @@ import type {
   UnitLine,
 } from "@/features/properties/types/property-domain";
 import type { ImageItem } from "@/features/properties/types/media";
-import type { PinKind } from "@/features/map/pins";
+
 import { AreaSet } from "../../sections/AreaSetsSection/types";
+import { PinKind } from "@/features/pins/types";
 
 type BuildEditArgs = {
   id: string;

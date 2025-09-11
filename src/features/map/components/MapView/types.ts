@@ -1,5 +1,5 @@
-import type { LatLng } from "@/features/map/types/map";
-import { PinKind } from "../../pins";
+import { PinKind } from "@/features/pins/types";
+import { LatLng } from "@/lib/geo/types";
 
 export type MapViewProps = {
   appKey: string;

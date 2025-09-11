@@ -1,5 +1,5 @@
+import { LatLng } from "@/lib/geo/types";
 import { useCallback, useRef, useEffect } from "react";
-import { LatLng } from "../types/map";
 
 export function useViewportPost() {
   const inFlightRef = useRef<AbortController | null>(null);

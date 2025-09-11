@@ -1,7 +1,4 @@
-import {
-  hydrateRefsToMedia,
-  materializeToRefs,
-} from "@/features/map/lib/idbMedia";
+import { hydrateRefsToMedia, materializeToRefs } from "@/lib/media/refs";
 import { PropertyViewDetails } from "../../PropertyViewModal/types";
 
 export function buildEditPatch(payload: any, selectedId?: string) {

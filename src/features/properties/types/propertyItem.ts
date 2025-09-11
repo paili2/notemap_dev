@@ -1,4 +1,4 @@
-import type { LatLng } from "../../map/types/map";
+import { LatLng } from "@/lib/geo/types";
 import { PropertyViewDetails } from "../components/PropertyViewModal/types";
 import type { Registry, Grade } from "./property-domain";
 

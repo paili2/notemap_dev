@@ -6,7 +6,7 @@ import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
 import { useMapClick } from "./hooks/useMapClick";
 import type { MapViewProps } from "./types";
-import type { PinKind } from "@/features/map/pins";
+import { PinKind } from "@/features/pins/types";
 
 type Props = MapViewProps & {
   /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */

@@ -1,6 +1,5 @@
-import { PinKind } from "../pins";
-
-export type LatLng = { lat: number; lng: number };
+import { PinKind } from "@/features/pins/types";
+import { LatLng } from "@/lib/geo/types";
 
 export type MapMarker = {
   id: string;

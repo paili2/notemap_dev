@@ -1,17 +1,4 @@
-export type PinKind =
-  | "1room"
-  | "1room-terrace"
-  | "2room"
-  | "2room-terrace"
-  | "3room"
-  | "3room-terrace"
-  | "4room"
-  | "4room-terrace"
-  | "duplex" // 복층
-  | "townhouse" // 타운하우스
-  | "oldhouse" // 구옥
-  | "question" // 답사예정
-  | "completed"; // 완료
+import type { PinKind } from "@/features/pins/types";
 
 export const PIN_ACCENTS: Record<PinKind, string> = {
   "1room": "#ffffff",
@@ -29,7 +16,6 @@ export const PIN_ACCENTS: Record<PinKind, string> = {
   completed: "#448d46",
 };
 
-// 핀 이미지 경로
-export function getPinUrl(kind: PinKind) {
+export function getPinUrl(kind: PinKind): string {
   return `/pins/${kind}-pin.svg`;
 }

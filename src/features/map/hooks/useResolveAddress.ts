@@ -1,7 +1,7 @@
 "use client";
 
+import { LatLng } from "@/lib/geo/types";
 import { useCallback, useRef } from "react";
-import type { LatLng } from "@/features/map/types/map";
 
 export function useResolveAddress() {
   const geocoderRef = useRef<any>(null);

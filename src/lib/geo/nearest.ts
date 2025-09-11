@@ -1,4 +1,5 @@
-import { distanceMeters, LatLng } from "./distance";
+import { distanceMeters } from "./distance";
+import { LatLng } from "./types";
 
 export type MarkerLike = Readonly<{
   id: string;

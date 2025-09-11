@@ -1,4 +1,4 @@
-import { PinKind } from "@/features/map/pins";
+import { PinKind } from "@/features/pins/types";
 
 export interface HeaderSectionViewProps {
   title: string;

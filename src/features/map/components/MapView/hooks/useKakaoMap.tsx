@@ -1,4 +1,4 @@
-import { LatLng } from "@/features/map/types/map";
+import { LatLng } from "@/lib/geo/types";
 import { useEffect, useRef, useState } from "react";
 
 type Args = {

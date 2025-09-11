@@ -1,6 +1,5 @@
+import { LatLng } from "@/lib/geo/types";
 import { useEffect, useRef } from "react";
-
-type LatLng = { lat: number; lng: number };
 
 type Options = {
   /** 클릭 시 '신규등록위치' 임시 마커/라벨을 표시할지 여부 (기본: false) */

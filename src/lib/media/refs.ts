@@ -4,24 +4,23 @@ import {
   putImageBlob,
   type ImageRef,
 } from "@/lib/imageStore";
-import {
-  isBlobLike,
-  isDataLike,
-  isHttpLike,
-  isImageRefLike,
-} from "../utils/images";
+import { isBlobLike, isDataLike, isHttpLike, isImageRefLike } from "./utils";
 
-export type ImageRefGroup = ImageRef[];
-
+/** 카드/파일 소스들을 IDB ImageRef로 저장하는 코어.
+ *  baseKeyPrefix만 주입하면 어떤 도메인에도 재사용 가능.
+ */
 export async function materializeToRefs(
-  propertyId: string,
+  baseKeyPrefix: string, // 예: "prop:123" | "pin:abc"
   cards: any[][],
-  files: any[]
-) {
-  const cardRefs: ImageRefGroup[] = [];
+  files: any[],
+  now: () => number = Date.now
+): Promise<{ cardRefs: ImageRef[][]; fileRefs: ImageRef[] }> {
+  const cardRefs: ImageRef[][] = [];
+
   for (let gi = 0; gi < (cards?.length || 0); gi++) {
     const group = cards[gi] || [];
     const refs: ImageRef[] = [];
+
     for (let ii = 0; ii < group.length; ii++) {
       const it = group[ii] || {};
       if (isImageRefLike(it)) {
@@ -41,7 +40,7 @@ export async function materializeToRefs(
       }
       if (isDataLike(source)) {
         const blob = dataUrlToBlob(source);
-        const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
+        const idbKey = `${baseKeyPrefix}:card:${gi}:${ii}:${now()}`;
         await putImageBlob(idbKey, blob);
         refs.push({ idbKey, name: it.name, caption: it.caption });
         continue;
@@ -50,11 +49,11 @@ export async function materializeToRefs(
         try {
           const res = await fetch(source);
           const blob = await res.blob();
-          const idbKey = `prop:${propertyId}:card:${gi}:${ii}:${Date.now()}`;
+          const idbKey = `${baseKeyPrefix}:card:${gi}:${ii}:${now()}`;
           await putImageBlob(idbKey, blob);
           refs.push({ idbKey, name: it.name, caption: it.caption });
         } catch (e) {
-          console.warn("blob: fetch 실패로 스킵", e);
+          console.warn("blob(card): fetch 실패로 스킵", e);
         }
       }
     }
@@ -81,7 +80,7 @@ export async function materializeToRefs(
     }
     if (isDataLike(source)) {
       const blob = dataUrlToBlob(source);
-      const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
+      const idbKey = `${baseKeyPrefix}:file:${fi}:${now()}`;
       await putImageBlob(idbKey, blob);
       fileRefs.push({ idbKey, name: it.name, caption: it.caption });
       continue;
@@ -90,7 +89,7 @@ export async function materializeToRefs(
       try {
         const res = await fetch(source);
         const blob = await res.blob();
-        const idbKey = `prop:${propertyId}:file:${fi}:${Date.now()}`;
+        const idbKey = `${baseKeyPrefix}:file:${fi}:${now()}`;
         await putImageBlob(idbKey, blob);
         fileRefs.push({ idbKey, name: it.name, caption: it.caption });
       } catch (e) {
@@ -103,9 +102,9 @@ export async function materializeToRefs(
 }
 
 export async function hydrateRefsToMedia(
-  cardRefs: ImageRefGroup[],
+  cardRefs: ImageRef[][],
   fileRefs: ImageRef[]
-) {
+): Promise<{ hydratedCards: any[][]; hydratedFiles: any[] }> {
   const hydratedCards: any[][] = [];
   for (const g of cardRefs ?? []) {
     const arr: any[] = [];

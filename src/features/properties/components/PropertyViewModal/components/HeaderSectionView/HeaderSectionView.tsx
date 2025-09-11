@@ -3,8 +3,9 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import StarsRating from "@/components/molecules/StarsRating";
-import { getPinUrl, type PinKind } from "@/features/map/pins";
+
 import { HeaderSectionViewProps } from "./types";
+import { getPinUrl } from "@/features/pins/lib/assets";
 
 export default function HeaderSectionView({
   title,

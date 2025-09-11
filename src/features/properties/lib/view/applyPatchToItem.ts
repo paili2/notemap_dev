@@ -1,13 +1,12 @@
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
-import type { ImageItem } from "@/features/properties/types/media";
 import {
   normalizeImageCards,
   normalizeImages,
   flattenCards,
-  normalizeOneImage,
-} from "../utils/images";
+} from "@/features/properties/lib/media/normalize";
 
+/** PropertyViewDetails patch를 PropertyItem에 반영 */
 export function applyPatchToItem(
   p: PropertyItem,
   patch: Partial<PropertyViewDetails> & { pinKind?: string }
@@ -16,8 +15,10 @@ export function applyPatchToItem(
     ...p,
     title: patch.title ?? p.title,
     address: patch.address ?? p.address,
+    // ViewModel의 salePrice를 item.priceText로 반영
     priceText: (patch as any).salePrice ?? p.priceText,
 
+    // item 레벨의 pinKind 동기화(있을 때만)
     ...("pinKind" in patch && patch.pinKind !== undefined
       ? { pinKind: (patch as any).pinKind }
       : { pinKind: (p as any).pinKind }),
@@ -25,12 +26,14 @@ export function applyPatchToItem(
     view: {
       ...(p as any).view,
 
+      // view 레벨의 pinKind 동기화(있을 때만)
       ...("pinKind" in patch && patch.pinKind !== undefined
         ? { pinKind: (patch as any).pinKind }
         : { pinKind: (p as any).view?.pinKind }),
 
+      // ✅ imagesByCard 제거: imageCards만 수용
       ...(() => {
-        const cand = (patch as any).imageCards ?? (patch as any).imagesByCard;
+        const cand = (patch as any).imageCards;
         if (Array.isArray(cand)) {
           const cards = normalizeImageCards(cand);
           return { imageCards: cards, images: flattenCards(cards) };
@@ -43,10 +46,12 @@ export function applyPatchToItem(
           imageCards: (p as any).view?.imageCards,
         };
       })(),
+
       fileItems: Array.isArray((patch as any).fileItems)
         ? normalizeImages((patch as any).fileItems)
         : (p as any).view?.fileItems,
 
+      // refs들은 그대로 보존(패치 있으면 대체)
       _imageCardRefs: Array.isArray((patch as any)._imageCardRefs)
         ? (patch as any)._imageCardRefs
         : (p as any).view?._imageCardRefs,
@@ -54,6 +59,7 @@ export function applyPatchToItem(
         ? (patch as any)._fileItemRefs
         : (p as any).view?._fileItemRefs,
 
+      // 일반 필드들
       publicMemo: (patch as any).publicMemo ?? (p as any).view?.publicMemo,
       secretMemo: (patch as any).secretMemo ?? (p as any).view?.secretMemo,
       officePhone: (patch as any).officePhone ?? (p as any).view?.officePhone,
@@ -120,85 +126,4 @@ export function applyPatchToItem(
           : (p as any).view?.extraAreaTitles,
     },
   };
-}
-
-export function toViewDetails(p: PropertyItem): PropertyViewDetails {
-  const v = (p as any).view ?? {};
-  const cards: ImageItem[][] = Array.isArray(v.imageCards)
-    ? normalizeImageCards((v as any).imageCards)
-    : Array.isArray((v as any).imagesByCard)
-    ? normalizeImageCards((v as any).imagesByCard)
-    : [];
-  const imagesSafe: ImageItem[] =
-    cards.length > 0
-      ? flattenCards(cards)
-      : Array.isArray(v.images)
-      ? (v.images.map(normalizeOneImage).filter(Boolean) as ImageItem[])
-      : [];
-
-  const filesSafe: ImageItem[] = Array.isArray((v as any).fileItems)
-    ? normalizeImages((v as any).fileItems)
-    : [];
-
-  const ori: { ho: number; value: string }[] = Array.isArray(v.orientations)
-    ? (v.orientations as any[]).map((o) => ({
-        ho: Number(o.ho),
-        value: String(o.value),
-      }))
-    : [];
-  const pick = (ho: number) => ori.find((o) => o.ho === ho)?.value;
-
-  const a1 =
-    pick(1) ??
-    v.aspect1 ??
-    (v.aspectNo === "1호" ? v.aspect : undefined) ??
-    "남";
-  const a2 =
-    pick(2) ??
-    v.aspect2 ??
-    (v.aspectNo === "2호" ? v.aspect : undefined) ??
-    "북";
-  const a3 =
-    pick(3) ??
-    v.aspect3 ??
-    (v.aspectNo === "3호" ? v.aspect : undefined) ??
-    "남동";
-
-  return {
-    status: (p as any).status ?? "공개",
-    dealStatus: (p as any).dealStatus ?? "분양중",
-    title: p.title,
-    address: p.address ?? "",
-    type: (p as any).type ?? "주택",
-    salePrice: (p as any).priceText ?? "",
-    images: imagesSafe,
-    imageCards: cards,
-    fileItems: filesSafe,
-    options: [],
-    optionEtc: "",
-    registry: "주택",
-    unitLines: [],
-    listingStars: typeof v.listingStars === "number" ? v.listingStars : 0,
-    elevator: (v.elevator as "O" | "X") ?? "O",
-    parkingType: "답사지 확인",
-    parkingCount: v.parkingCount ?? "",
-    completionDate: undefined,
-    aspect1: a1,
-    aspect2: a2,
-    aspect3: a3,
-    totalBuildings: 2,
-    totalFloors: 10,
-    totalHouseholds: 50,
-    remainingHouseholds: 10,
-    slopeGrade: "상",
-    structureGrade: "상",
-    publicMemo: "",
-    secretMemo: "",
-    createdByName: "여준호",
-    createdAt: "2025-08-16 09:05",
-    inspectedByName: "홍길동",
-    inspectedAt: "2025.08.16 10:30",
-    updatedByName: "이수정",
-    updatedAt: "2025/08/16 11:40",
-  } as any;
 }

@@ -3,14 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import type { AnyImageRef, ImageItem } from "../../../types/media";
+import { makeImgKey } from "@/features/properties/lib/mediaKeys";
+import { putBlobToIDB } from "@/lib/imageStore";
 import {
   hydrateCards,
   hydrateFlatToCards,
   hydrateFlatUsingCounts,
   hydrateVertical,
-  makeImgKey,
-  putBlobToIDB,
-} from "../../../lib/imageStore";
+} from "@/features/properties/lib/media/hydrate";
 
 type UseEditImagesArgs = {
   /** 기존 데이터 id (이미지 키 prefix 용) */

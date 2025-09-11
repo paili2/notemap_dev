@@ -3,8 +3,9 @@
 import PropertyEditModal from "@/features/properties/components/PropertyEditModal/PropertyEditModal";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
-import { applyPatchToItem } from "@/features/map/lib/view";
+
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
+import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 
 type Props = {
   open: boolean;

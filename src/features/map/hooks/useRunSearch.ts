@@ -1,9 +1,11 @@
 "use client";
 import { useCallback } from "react";
-import type { LatLng } from "@/features/map/types/map";
+
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-import { distanceMeters } from "@/features/map/utils/distance";
+
 import { NEAR_THRESHOLD_M } from "@/features/map/lib/constants";
+import { LatLng } from "@/lib/geo/types";
+import { distanceMeters } from "@/lib/geo/distance";
 
 type Args = {
   kakaoSDK: any;

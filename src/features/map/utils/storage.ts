@@ -1,5 +1,5 @@
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-import { isBlobLike, isDataLike } from "./images";
+import { isBlobLike, isDataLike } from "@/lib/media/utils";
 
 /** 문자열에 data:/blob: 들어가면 제거하면서 stringify */
 export function safeStringify(obj: any) {

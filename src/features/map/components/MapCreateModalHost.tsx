@@ -2,10 +2,11 @@
 
 import PropertyCreateModal from "@/features/properties/components/PropertyCreateModal/PropertyCreateModal";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-import type { LatLng } from "@/features/map/types/map";
+import type {} from "@/features/map/types/map";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { DEFAULT_CENTER } from "@/features/map/lib/constants";
 import { buildCreatePatchWithMedia } from "@/features/properties/components/PropertyCreateModal/lib/buildCreatePatch";
+import { LatLng } from "@/lib/geo/types";
 
 type Props = {
   open: boolean;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { persistToLocalStorage } from "@/features/map/utils/storage";
-import { hydrateRefsToMedia } from "@/features/map/lib/idbMedia";
+import { hydrateRefsToMedia } from "@/lib/media/refs";
 
 type Opts = { storageKey: string };
 

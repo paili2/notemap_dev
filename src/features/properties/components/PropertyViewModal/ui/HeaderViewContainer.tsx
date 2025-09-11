@@ -1,7 +1,7 @@
 "use client";
 
+import { PinKind } from "@/features/pins/types";
 import HeaderSectionView from "../components/HeaderSectionView/HeaderSectionView";
-import type { PinKind } from "@/features/map/pins"; // ✅ 추가
 
 export default function HeaderViewContainer({
   title,

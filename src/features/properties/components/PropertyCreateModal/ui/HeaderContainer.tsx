@@ -1,6 +1,6 @@
 "use client";
+import { PinKind } from "@/features/pins/types";
 import HeaderSection from "../../sections/HeaderSection/HeaderSection";
-import { PinKind } from "@/features/map/pins";
 
 type HeaderForm = {
   title: string;

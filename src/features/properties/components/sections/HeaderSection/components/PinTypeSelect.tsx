@@ -22,7 +22,7 @@ import duplex from "@/../public/pins/duplex-pin.svg";
 import oldhouse from "@/../public/pins/oldhouse-pin.svg";
 import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
-import { PinKind } from "@/features/map/pins";
+import { PinKind } from "@/features/pins/types";
 
 export const PIN_OPTIONS = [
   { value: "1room", label: "1룸~1.5룸", icon: oneRoom },

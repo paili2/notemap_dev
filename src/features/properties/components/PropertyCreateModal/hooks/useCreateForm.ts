@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PinKind } from "@/features/map/pins";
+
 import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { parsePreset } from "@/features/properties/lib/structure";
 import {
@@ -12,6 +12,7 @@ import {
   type AspectRowLite,
 } from "@/features/properties/types/property-domain";
 import { useCreateValidation } from "../hooks/useCreateValidation";
+import { PinKind } from "@/features/pins/types";
 
 type UseCreateFormArgs = {
   initialAddress?: string;

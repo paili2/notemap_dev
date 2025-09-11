@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { MapMarker } from "@/features/map/types/map";
-import type { PinKind } from "@/features/map/pins";
-import { getPinUrl, PIN_ACCENTS } from "@/features/map/pins";
+import { PinKind } from "@/features/pins/types";
+import { getPinUrl, PIN_ACCENTS } from "@/features/pins/lib/assets";
 
 export type ClustererWithLabelsOptions = {
   labelMaxLevel?: number; // 라벨/핀 보이는 최대 레벨 (이하: 라벨모드)

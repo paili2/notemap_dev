@@ -1,7 +1,7 @@
 "use client";
 
+import { LatLng } from "@/lib/geo/types";
 import { useCallback, useEffect, useRef } from "react";
-import type { LatLng } from "@/features/map/types/map";
 
 export function useViewportQuery() {
   const inFlightRef = useRef<AbortController | null>(null);

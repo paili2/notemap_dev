@@ -6,16 +6,15 @@ import {
   normalizeImages,
   normalizeOneImage,
   flattenCards,
-} from "@/features/map/utils/images";
+} from "@/features/properties/lib/media/normalize";
 
+/** PropertyItem → ViewModel 변환 (UI 친화) */
 export function toViewDetails(p: PropertyItem): PropertyViewDetails {
   const v: any = (p as any).view ?? {};
 
-  // 이미지 파생
+  // ✅ imagesByCard 제거: imageCards만 수용
   const cards: ImageItem[][] = Array.isArray(v.imageCards)
     ? normalizeImageCards(v.imageCards)
-    : Array.isArray(v.imagesByCard)
-    ? normalizeImageCards(v.imagesByCard)
     : [];
 
   const imagesSafe: ImageItem[] =
@@ -54,17 +53,9 @@ export function toViewDetails(p: PropertyItem): PropertyViewDetails {
     (v.aspectNo === "3호" ? v.aspect : undefined) ??
     "남동";
 
-  // 🔴 핵심: 면적 세트 제목들 + 면적 값들 그대로 전달 (호환 키 포함)
-  const baseAreaTitle =
-    v.baseAreaTitle ??
-    v.areaSetTitle ??
-    v.areaTitle ?? // 과거 키
-    ""; // 비어 있으면 ViewModal이 기본 "개별 평수입력"로 처리
-
-  const extraAreaTitles =
-    v.extraAreaTitles ??
-    v.areaSetTitles ?? // 과거 키
-    [];
+  // 면적 세트 제목(과거 키 호환 제거하고 싶으면 v.areaSetTitle, v.areaTitle 분기 삭제)
+  const baseAreaTitle = v.baseAreaTitle ?? v.areaSetTitle ?? v.areaTitle ?? "";
+  const extraAreaTitles = v.extraAreaTitles ?? v.areaSetTitles ?? [];
 
   return {
     status: (p as any).status ?? "공개",
@@ -74,12 +65,10 @@ export function toViewDetails(p: PropertyItem): PropertyViewDetails {
     type: (p as any).type ?? "주택",
     salePrice: (p as any).priceText ?? "",
 
-    // 이미지
     images: imagesSafe,
     imageCards: cards,
     fileItems: filesSafe,
 
-    // 일반
     options: v.options ?? [],
     optionEtc: v.optionEtc ?? "",
     registry: v.registry ?? "주택",
@@ -90,7 +79,7 @@ export function toViewDetails(p: PropertyItem): PropertyViewDetails {
     parkingCount: v.parkingCount ?? "",
     completionDate: v.completionDate,
 
-    // 면적 (단일 + 추가 세트)
+    // 면적
     exclusiveArea: v.exclusiveArea,
     realArea: v.realArea,
     extraExclusiveAreas: Array.isArray(v.extraExclusiveAreas)
@@ -98,7 +87,6 @@ export function toViewDetails(p: PropertyItem): PropertyViewDetails {
       : [],
     extraRealAreas: Array.isArray(v.extraRealAreas) ? v.extraRealAreas : [],
 
-    // 🔴 모달이 타이틀을 사용하도록 전달
     baseAreaTitle,
     extraAreaTitles,
 

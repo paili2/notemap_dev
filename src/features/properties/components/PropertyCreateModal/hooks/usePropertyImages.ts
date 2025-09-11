@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import { ImageItem } from "../../../types/media";
-import { makeNewImgKey, putBlobToIDB } from "../../../lib/imageStore";
+import { putBlobToIDB } from "@/lib/imageStore";
+import { makeNewImgKey } from "@/features/properties/lib/mediaKeys";
 
 /** 이미지 카드(좌) & 세로열(우) 전부 관리 */
 export function usePropertyImages() {

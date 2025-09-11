@@ -1,4 +1,4 @@
-import type { LatLng } from "@/features/map/types/map";
+import { LatLng } from "@/lib/geo/types";
 
 // kakao.maps.LatLng 과 호환되는 최소 형태(구조적 타이핑)
 export type KakaoLatLngLike = { getLat(): number; getLng(): number };

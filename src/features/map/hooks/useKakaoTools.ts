@@ -1,5 +1,5 @@
+import { LatLng } from "@/lib/geo/types";
 import { useCallback } from "react";
-import { LatLng } from "../types/map";
 
 export function useResolveAddress(kakaoSDKRef?: any) {
   return useCallback(

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parsePreset, toPy } from "@/features/properties/lib/area";
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
 import { filled, hasPair, setPack } from "@/features/properties/lib/validators";
-import { PinKind } from "@/features/map/pins";
+
 import type { AreaSet } from "../../sections/AreaSetsSection/types";
 import type {
   AspectRowLite,
@@ -13,6 +13,7 @@ import type {
   Registry,
   UnitLine,
 } from "@/features/properties/types/property-domain";
+import { PinKind } from "@/features/pins/types";
 
 const asStr = (v: unknown) => (v == null ? "" : String(v));
 const asYMD = (v: unknown) => {
