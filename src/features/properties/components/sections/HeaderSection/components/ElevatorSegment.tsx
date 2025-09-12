@@ -9,7 +9,7 @@ const ElevatorSegment = ({
   onChange: (v: "O" | "X") => void;
 }) => {
   return (
-    <div className="inline-flex rounded-md border overflow-hidden">
+    <div className="inline-flex rounded-md overflow-hidden">
       <Button
         type="button"
         onClick={() => onChange("O")}
