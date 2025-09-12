@@ -79,9 +79,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           markers={markers}
           fitToMarkers={fitAllOnce}
           useDistrict={false}
-          showNativeLayerControl={false}
-          controlRightOffsetPx={32}
-          controlTopOffsetPx={10}
           onMarkerClick={onMarkerClick}
           onMapReady={onMapReady}
           onViewportChange={onViewportChange}

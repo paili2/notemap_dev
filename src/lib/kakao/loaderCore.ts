@@ -1,11 +1,6 @@
 // 스크립트 삽입/Promise 관리
 
-import {
-  loadingMap,
-  cachedKakao,
-  lastConfig,
-  DEFAULT_SCRIPT_ID,
-} from "./state";
+import { loadingMap, DEFAULT_SCRIPT_ID } from "./state";
 import { getNonceAttr, getExistingScript, buildSrc, sameQuery } from "./utils";
 import { DEFAULT_LIBS, LoadKakaoMapsOptions } from "./types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ImageItem } from "@/features/properties/types/media";
-import LightboxModal from "@/components/organisms/LightboxModal";
+import LightboxModal from "@/features/properties/components/PropertyViewModal/components/DisplayImagesSection/components/LightboxModal";
 import MiniCarousel from "@/components/molecules/MiniCarousel";
 import { useEffect, useState } from "react";
 import CaptionSlot from "./components/CaptionSlot";

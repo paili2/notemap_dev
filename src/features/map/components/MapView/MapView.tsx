@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useClustererWithLabels } from "./hooks/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
@@ -22,9 +22,6 @@ const MapView: React.FC<Props> = ({
   markers = [],
   fitToMarkers = false,
   useDistrict = false,
-  showNativeLayerControl = false,
-  controlRightOffsetPx = 0,
-  controlTopOffsetPx = 0,
   allowCreateOnMapClick = false,
   onMarkerClick,
   onMapClick,
@@ -36,20 +33,22 @@ const MapView: React.FC<Props> = ({
   // idle 디바운스
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const IDLE_DEBOUNCE_MS = 500;
+
   const { containerRef, kakao, map } = useKakaoMap({
     appKey,
     center,
     level,
     fitKoreaBounds: true,
     maxLevel: 11,
-    showNativeLayerControl,
-    controlRightOffsetPx,
-    controlTopOffsetPx,
     onMapReady,
     onViewportChange: (q) => {
       if (!onViewportChange) return;
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => onViewportChange(q), 500);
+      idleTimerRef.current = setTimeout(
+        () => onViewportChange(q),
+        IDLE_DEBOUNCE_MS
+      );
     },
   });
 
@@ -66,6 +65,15 @@ const MapView: React.FC<Props> = ({
     fitToMarkers,
     hideLabelForId,
   });
+
+  useEffect(() => {
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, []);
 
   return <div ref={containerRef} className="w-full h-full" />;
 };

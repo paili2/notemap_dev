@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Args = {
   kakao: typeof kakao | null;
@@ -9,6 +9,9 @@ type Args = {
   yAnchor?: number;
 };
 
+/**
+ * 지도 오버레이가 타겟(Marker/LatLng)에 맞춰 좌표를 따라가도록 하는 훅
+ */
 export function useOverlayPosition({
   kakao,
   map,
@@ -18,35 +21,33 @@ export function useOverlayPosition({
 }: Args) {
   const [position, setPosition] = useState<kakao.maps.LatLng | null>(null);
 
-  // target → LatLng 변환
-  const currentLatLng = useMemo(() => {
-    if (!kakao || !target) return null;
-    if (target instanceof kakao.maps.Marker) return target.getPosition();
-    return target;
-  }, [kakao, target]);
-
-  // 좌표 업데이트 함수
+  // 좌표 업데이트
   const recalc = useCallback(() => {
-    if (!kakao || !map || !currentLatLng) return;
-    setPosition(currentLatLng);
-  }, [kakao, map, currentLatLng]);
+    if (!kakao || !map || !target) return;
 
-  // 최초 1회 실행
+    if (target instanceof kakao.maps.Marker) {
+      setPosition(target.getPosition());
+    } else if (target instanceof kakao.maps.LatLng) {
+      setPosition(target);
+    } else {
+      setPosition(null);
+    }
+  }, [kakao, map, target]);
+
+  // 최초 1회
   useEffect(() => {
     recalc();
   }, [recalc]);
 
-  // 👇 여기 이 useEffect 블록이 들어갑니다!
+  // 지도 이동/확대/축소, 브라우저 리사이즈 시 좌표 재계산
   useEffect(() => {
     if (!kakao || !map) return;
-    const handler = () => recalc();
-
-    kakao.maps.event.addListener(map, "idle", handler);
-    window.addEventListener("resize", handler);
+    kakao.maps.event.addListener(map, "idle", recalc);
+    window.addEventListener("resize", recalc);
 
     return () => {
-      kakao.maps.event.removeListener(map, "idle", handler);
-      window.removeEventListener("resize", handler);
+      kakao.maps.event.removeListener(map, "idle", recalc);
+      window.removeEventListener("resize", recalc);
     };
   }, [kakao, map, recalc]);
 

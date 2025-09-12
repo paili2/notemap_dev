@@ -7,7 +7,8 @@ type Props = {
   pressed: boolean;
   onPress: () => void;
 };
-export default function SidebarToggleButton({ pressed, onPress }: Props) {
+
+export default function DistrictToggleButton({ pressed, onPress }: Props) {
   return (
     <Button
       type="button"
@@ -15,11 +16,11 @@ export default function SidebarToggleButton({ pressed, onPress }: Props) {
       variant={pressed ? "default" : "outline"}
       size="icon"
       className="h-10 w-10 rounded-xl shadow"
-      title="사이드바 토글"
+      title="지적편집도 토글"
       aria-pressed={pressed}
-      aria-label="사이드바 토글"
+      aria-label="지적편집도 토글"
     >
-      <GridTilesIcon />
+      <GridTilesIcon aria-hidden="true" />
     </Button>
   );
 }

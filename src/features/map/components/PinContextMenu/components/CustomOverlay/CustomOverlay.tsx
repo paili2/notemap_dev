@@ -1,17 +1,8 @@
 "use client";
+
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-
-type Props = {
-  kakao: typeof kakao;
-  map: kakao.maps.Map;
-  position: kakao.maps.LatLng;
-  xAnchor?: number;
-  yAnchor?: number;
-  zIndex?: number;
-  className?: string;
-  children: React.ReactNode;
-};
+import { CustomOverlayProps } from "./types";
 
 export default function CustomOverlay({
   kakao,
@@ -21,31 +12,39 @@ export default function CustomOverlay({
   yAnchor = 1.1,
   zIndex = 10000,
   className,
+  pointerEventsEnabled = true,
   children,
-}: Props) {
+}: CustomOverlayProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<kakao.maps.CustomOverlay | null>(null);
 
-  // 최초 1회 컨테이너 DOM 생성
+  // 컨테이너 DOM 생성 (최초 1회)
   if (!containerRef.current && typeof document !== "undefined") {
     const el = document.createElement("div");
     if (className) el.className = className;
-    // 지도 클릭으로 전파되지 않도록 기본적으로 포인터 허용
-    el.style.pointerEvents = "auto";
+    el.style.pointerEvents = pointerEventsEnabled ? "auto" : "none";
     containerRef.current = el;
   }
 
+  // className / pointer-events 동기화
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    if (className !== undefined) el.className = className || "";
+    el.style.pointerEvents = pointerEventsEnabled ? "auto" : "none";
+  }, [className, pointerEventsEnabled]);
+
   // 오버레이 생성 / 제거
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!kakao || !map || !containerRef.current) return;
 
     const ov = new kakao.maps.CustomOverlay({
-      position,
+      position, // 최초 위치
       content: containerRef.current,
       xAnchor,
       yAnchor,
       zIndex,
-      clickable: true, // ✅ 내부 클릭이 지도에 전파되지 않도록 처리
+      clickable: true, // 내부 클릭 허용
     });
 
     ov.setMap(map);
@@ -55,26 +54,29 @@ export default function CustomOverlay({
       ov.setMap(null);
       overlayRef.current = null;
     };
-  }, [map, position, xAnchor, yAnchor, zIndex]);
+    // ❗ position/zIndex를 deps에서 제외 → 업데이트는 아래 effect에서
+  }, [kakao, map, xAnchor, yAnchor, zIndex]);
 
   // 위치 / zIndex 업데이트
   useEffect(() => {
     if (!overlayRef.current) return;
     overlayRef.current.setPosition(position);
-    overlayRef.current.setZIndex(zIndex);
-  }, [position, zIndex]);
+  }, [position]);
 
-  // ✅ 오버레이 내부 이벤트가 지도까지 전파되지 않도록 방지
+  useEffect(() => {
+    if (!overlayRef.current) return;
+    overlayRef.current.setZIndex(zIndex);
+  }, [zIndex]);
+
+  // 내부 이벤트 버블링 방지 (지도 클릭/드래그로 전파되지 않게)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const stop = (e: Event) => {
-      e.stopPropagation();
-    };
+    const stop = (e: Event) => e.stopPropagation();
     const stopAndPrevent = (e: Event) => {
       e.stopPropagation();
-      // 드래그/줌 제스처가 지도에 먹지 않도록 예방
+      // 터치/휠 제스처가 지도에 먹지 않도록
       if (
         e.type === "touchstart" ||
         e.type === "pointerdown" ||
