@@ -2,13 +2,13 @@
 
 import PropertyCreateModal from "@/features/properties/components/PropertyCreateModal/PropertyCreateModal";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-import type {} from "@/features/map/types/map";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { DEFAULT_CENTER } from "@/features/map/lib/constants";
 import { buildCreatePatchWithMedia } from "@/features/properties/components/PropertyCreateModal/lib/buildCreatePatch";
 import { LatLng } from "@/lib/geo/types";
+import { useRef } from "react";
 
-type Props = {
+type MapCreateModalHostProps = {
   open: boolean;
   prefillAddress?: string;
   draftPin: LatLng | null;
@@ -30,7 +30,23 @@ export default function MapCreateModalHost({
   appendItem,
   selectAndOpenView,
   resetAfterCreate,
-}: Props) {
+}: MapCreateModalHostProps) {
+  // 중복 제출 가드
+  const submittingRef = useRef(false);
+
+  const resolveId = () => {
+    try {
+      // 브라우저/노드 최신 환경이면 이게 가장 안전
+      return crypto.randomUUID();
+    } catch {
+      return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+  };
+
+  const resolvePos = (): LatLng => {
+    return draftPin ?? selectedPos ?? DEFAULT_CENTER;
+  };
+
   return (
     <PropertyCreateModal
       open={open}
@@ -38,16 +54,24 @@ export default function MapCreateModalHost({
       initialAddress={prefillAddress}
       onClose={onClose}
       onSubmit={async (payload: CreatePayload) => {
-        const id = `${Date.now()}`;
-        const pos =
-          draftPin ??
-          selectedPos ??
-          ({ lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng } as LatLng);
+        if (submittingRef.current) return;
+        submittingRef.current = true;
 
-        const next = await buildCreatePatchWithMedia(payload, { id, pos });
-        appendItem(next);
-        selectAndOpenView(id);
-        resetAfterCreate();
+        try {
+          const id = resolveId();
+          const pos = resolvePos();
+
+          const next = await buildCreatePatchWithMedia(payload, { id, pos });
+          appendItem(next);
+          selectAndOpenView(id);
+          resetAfterCreate();
+          // 성공 후 닫고 싶다면 여기에 onClose() 추가 가능 (지금 흐름 유지면 생략)
+        } catch (e) {
+          console.error("Create failed:", e);
+          // TODO: toast/error UI가 있다면 연결
+        } finally {
+          submittingRef.current = false;
+        }
       }}
     />
   );

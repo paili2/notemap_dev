@@ -46,7 +46,7 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
 
-  // Search / filter (keep types compatible with existing components)
+  // Search / filter
   const [query, setQuery] = useState("");
   const [type, setType] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
@@ -111,7 +111,11 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
         setMenuRoadAddr(road ?? null);
         setMenuJibunAddr(jibun ?? null);
       }
-      setMenuOpen(true);
+
+      // 말풍선은 지도/클러스터 상태가 정착된 다음 프레임에 열기 (2프레임 지연)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMenuOpen(true));
+      });
     },
     [resolveAddress, panToWithOffset]
   );
@@ -140,7 +144,11 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
       setMenuJibunAddr(jibun);
     })();
 
-    setMenuOpen(true);
+    // 2프레임 지연
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setMenuOpen(true));
+    });
+
     panToWithOffset(draftPin, 180);
 
     if (kakaoSDK && mapInstance) {
@@ -160,15 +168,21 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
       const item = items.find((p) => p.id === id);
       if (!item) return;
 
-      panToWithOffset(item.position, 180);
-
-      setMenuTargetId(id);
+      // 1) 선택/앵커 먼저
       setSelectedId(id);
+      setMenuTargetId(id);
+
       setDraftPin(null);
       setFitAllOnce(false);
       setMenuAnchor(item.position);
-      setMenuOpen(true);
 
+      // 2) 말풍선은 2프레임 지연 후 열기
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMenuOpen(true));
+      });
+
+      // 3) 팬 & 주소 해석
+      panToWithOffset(item.position, 180);
       const { road, jibun } = await resolveAddress(item.position);
       setMenuRoadAddr(road ?? null);
       setMenuJibunAddr(jibun ?? null);

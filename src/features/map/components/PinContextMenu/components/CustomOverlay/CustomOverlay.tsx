@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { CustomOverlayProps } from "./types";
 
@@ -9,7 +9,7 @@ export default function CustomOverlay({
   map,
   position,
   xAnchor = 0.5,
-  yAnchor = 1.1,
+  yAnchor = 1, // 1 권장 (아래가 기준)
   zIndex = 10000,
   className,
   pointerEventsEnabled = true,
@@ -17,6 +17,7 @@ export default function CustomOverlay({
 }: CustomOverlayProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<kakao.maps.CustomOverlay | null>(null);
+  const rAFRef = useRef<number | null>(null);
 
   // 컨테이너 DOM 생성 (최초 1회)
   if (!containerRef.current && typeof document !== "undefined") {
@@ -34,8 +35,8 @@ export default function CustomOverlay({
     el.style.pointerEvents = pointerEventsEnabled ? "auto" : "none";
   }, [className, pointerEventsEnabled]);
 
-  // 오버레이 생성 / 제거
-  useEffect(() => {
+  // 오버레이 생성 / 제거 (레이아웃 시점에 생성)
+  useLayoutEffect(() => {
     if (!kakao || !map || !containerRef.current) return;
 
     const ov = new kakao.maps.CustomOverlay({
@@ -46,29 +47,34 @@ export default function CustomOverlay({
       zIndex,
       clickable: true, // 내부 클릭 허용
     });
-
-    ov.setMap(map);
     overlayRef.current = ov;
 
+    // ✅ 최초 렌더 프레임에서 바로 붙이지 말고,
+    //    다음 animation frame에 붙여서 마커/라벨 토글 이후에 나타나게 한다.
+    rAFRef.current = requestAnimationFrame(() => {
+      ov.setMap(map);
+    });
+
     return () => {
+      if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
       ov.setMap(null);
       overlayRef.current = null;
     };
-    // ❗ position/zIndex를 deps에서 제외 → 업데이트는 아래 effect에서
-  }, [kakao, map, xAnchor, yAnchor, zIndex]);
+    // position/zIndex 업데이트는 아래 별도 effect로 처리
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kakao, map, xAnchor, yAnchor]); // zIndex/position 제외
 
-  // 위치 / zIndex 업데이트
-  useEffect(() => {
-    if (!overlayRef.current) return;
-    overlayRef.current.setPosition(position);
+  // 위치 업데이트 (layout 시점)
+  useLayoutEffect(() => {
+    overlayRef.current?.setPosition(position);
   }, [position]);
 
-  useEffect(() => {
-    if (!overlayRef.current) return;
-    overlayRef.current.setZIndex(zIndex);
+  // zIndex 업데이트 (layout 시점)
+  useLayoutEffect(() => {
+    overlayRef.current?.setZIndex(zIndex);
   }, [zIndex]);
 
-  // 내부 이벤트 버블링 방지 (지도 클릭/드래그로 전파되지 않게)
+  // 이벤트 버블링 방지 (지도 제스처로 전파되지 않게)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -76,7 +82,6 @@ export default function CustomOverlay({
     const stop = (e: Event) => e.stopPropagation();
     const stopAndPrevent = (e: Event) => {
       e.stopPropagation();
-      // 터치/휠 제스처가 지도에 먹지 않도록
       if (
         e.type === "touchstart" ||
         e.type === "pointerdown" ||

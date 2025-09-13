@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
@@ -68,6 +68,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // UI 전용(프레젠테이션 상태): 필터 검색 모달
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
+  const [showMenu, setShowMenu] = useState(false);
+  useEffect(() => {
+    if (menuOpen && menuAnchor && kakaoSDK && mapInstance) {
+      const ids: number[] = [];
+      const id1 = requestAnimationFrame(() => {
+        const id2 = requestAnimationFrame(() => setShowMenu(true));
+        ids.push(id2);
+      });
+      ids.push(id1);
+      return () => {
+        ids.forEach((n) => cancelAnimationFrame(n));
+        setShowMenu(false);
+      };
+    } else {
+      setShowMenu(false);
+    }
+  }, [menuOpen, menuAnchor, kakaoSDK, mapInstance]);
+
   return (
     <div className="fixed inset-0">
       {/* 지도 */}
@@ -86,11 +104,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
           hideLabelForId={hideLabelForId}
         />
 
-        {mapInstance && kakaoSDK && menuAnchor && menuOpen && (
+        {mapInstance && kakaoSDK && menuAnchor && showMenu && (
           <PinContextMenu
-            key={`${menuAnchor.lat},${menuAnchor.lng}-${
-              menuTargetId ?? "draft"
-            }`}
+            key={
+              menuTargetId
+                ? `bubble-${menuTargetId}`
+                : `bubble-draft-${menuAnchor.lat},${menuAnchor.lng}`
+            }
             kakao={kakaoSDK}
             map={mapInstance}
             position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)}
@@ -116,11 +136,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       {/* 사이드바 토글 */}
-      <ToggleSidebar
-        isSidebarOn={useSidebar}
-        onToggleSidebar={() => setUseSidebar(!useSidebar)}
-        offsetTopPx={12}
-      />
+      <ToggleSidebar controlledOpen={useSidebar} onChangeOpen={setUseSidebar} />
       <Sidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}

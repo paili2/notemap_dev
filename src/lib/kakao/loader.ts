@@ -1,4 +1,4 @@
-import { DEFAULT_LIBS, type KakaoLib } from "./types"; // 네가 가진 types에 맞춰 import
+import { DEFAULT_LIBS, type KakaoLib } from "./types";
 
 type LoadKakaoMapsOptions = {
   id?: string;
@@ -11,8 +11,19 @@ type LoadKakaoMapsOptions = {
 declare global {
   interface Window {
     __kakaoMapLoader?: Promise<any>;
+    kakao: any;
   }
 }
+
+const isScriptLoaded = (el: HTMLScriptElement) => {
+  const s = el as any;
+  return (
+    s.readyState === "loaded" ||
+    s.readyState === "complete" ||
+    s.dataset?.loaded === "true" ||
+    s.__loaded === true
+  );
+};
 
 export function loadKakaoOnce(
   appKey: string,
@@ -29,56 +40,76 @@ export function loadKakaoOnce(
   } = opts;
 
   const w = window as any;
+  const ready = () => !!w.kakao?.maps && typeof w.kakao.maps.Map === "function";
 
-  // 이미 로드됨
-  if (w.kakao?.maps) return Promise.resolve(w.kakao);
-  if (window.__kakaoMapLoader) return window.__kakaoMapLoader;
+  if (ready()) return Promise.resolve(w.kakao);
+  if (w.__kakaoMapLoader) return w.__kakaoMapLoader;
 
   const existing = document.getElementById(id) as HTMLScriptElement | null;
-  if (existing) {
-    // 이미 스크립트가 있으면 onload 체인만 걸기
-    window.__kakaoMapLoader = new Promise((resolve, reject) => {
-      const done = () =>
-        w.kakao?.maps ? resolve(w.kakao) : reject("Kakao SDK missing maps");
-      if ((existing as any).__loaded) return done();
-      existing.addEventListener("load", () => {
-        (existing as any).__loaded = true;
-        if (autoload) done();
-        else w.kakao.maps.load(done);
-      });
-      existing.addEventListener("error", reject);
-    });
-    return window.__kakaoMapLoader;
-  }
-
   const libsKey = libs?.length ? `&libraries=${libs.join(",")}` : "";
-  const src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=${autoload}${libsKey}`;
+  const src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=${autoload}${libsKey}`;
 
-  window.__kakaoMapLoader = new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.id = id;
-    script.src = src;
-    script.async = true;
-    if (nonce) script.nonce = nonce;
+  w.__kakaoMapLoader = new Promise((resolve, reject) => {
+    let timeoutId: any;
+    let pollId: any;
 
-    const onLoad = () => {
-      (script as any).__loaded = true;
-      const finish = () => resolve(w.kakao);
-      if (autoload) finish();
-      else w.kakao.maps.load(finish);
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (pollId) clearInterval(pollId);
     };
-    const onError = (e: any) => reject(e);
+    const done = () => {
+      cleanup();
+      resolve(w.kakao);
+    };
+    const afterLoad = () => {
+      if (autoload || ready()) return done();
+      try {
+        w.kakao.maps.load(done);
+      } catch {
+        if (ready()) return done();
+        reject(new Error("Kakao SDK load hook failed"));
+      }
+    };
+    const onError = (e: any) => {
+      cleanup();
+      reject(e instanceof Error ? e : new Error(String(e)));
+    };
 
-    script.addEventListener("load", onLoad);
-    script.addEventListener("error", onError);
+    if (existing) {
+      existing.addEventListener("load", afterLoad);
+      existing.addEventListener("error", onError);
 
-    document.head.appendChild(script);
+      if (ready() || isScriptLoaded(existing)) {
+        afterLoad();
+      } else {
+        // load 이벤트가 이미 지나간 케이스 대비: 폴링 백업
+        pollId = setInterval(() => {
+          if (ready()) afterLoad();
+        }, 100);
+      }
+    } else {
+      const script = document.createElement("script");
+      script.id = id;
+      script.src = src;
+      script.async = true;
+      if (nonce) script.nonce = nonce;
 
-    // 타임아웃
+      script.addEventListener("load", () => {
+        (script as any).__loaded = true;
+        script.dataset.loaded = "true";
+        afterLoad();
+      });
+      script.addEventListener("error", onError);
+      document.head.appendChild(script);
+    }
+
     if (timeoutMs > 0) {
-      setTimeout(() => reject(new Error("Kakao SDK load timeout")), timeoutMs);
+      timeoutId = setTimeout(
+        () => onError(new Error("Kakao SDK load timeout")),
+        timeoutMs
+      );
     }
   });
 
-  return window.__kakaoMapLoader;
+  return w.__kakaoMapLoader;
 }

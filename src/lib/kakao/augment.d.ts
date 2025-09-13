@@ -1,4 +1,3 @@
-// src/lib/kakao/augment.d.ts
 export {};
 
 declare global {

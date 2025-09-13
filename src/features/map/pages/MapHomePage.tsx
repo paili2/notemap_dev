@@ -80,7 +80,7 @@ export default function MapHomePage() {
       onDeleteFromView={s.onDeleteFromView}
       createHostHandlers={s.createHostHandlers}
       editHostHandlers={s.editHostHandlers}
-      hideLabelForId={s.menuOpen ? s.menuTargetId ?? "__draft__" : null}
+      hideLabelForId={s.menuTargetId ?? (s.draftPin ? "__draft__" : null)}
     />
   );
 }
