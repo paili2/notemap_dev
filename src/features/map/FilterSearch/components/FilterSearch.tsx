@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
 
-import { FilterSearchProps, FilterState } from "../utils/types";
+import { FilterSearchProps, FilterState } from "../types/types";
 import { FILTER_OPTIONS, initialFilterState } from "../utils/filterOptions";
 import {
   formatNumberWithCommas,

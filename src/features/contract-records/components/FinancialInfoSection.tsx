@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/atoms/Select/Select";
 import type { FinancialInfo } from "../types/contract-records";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency } from "../utils/utils";
 
 interface FinancialInfoSectionProps {
   financialInfo: FinancialInfo;

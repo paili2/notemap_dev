@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/atoms/Button/Button";
 import { Plus, Minus } from "lucide-react";
 import type { StaffAllocation } from "../types/contract-records";
-import { formatCurrency } from "../lib/utils";
+import { formatCurrency } from "../utils/utils";
 import React from "react";
 
 interface StaffAllocationSectionProps {

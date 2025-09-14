@@ -7,5 +7,5 @@ export {
   calculateVAT,
   calculateTotalAmount,
   calculateTotalCalculation,
-} from "./lib/utils";
+} from "./utils/utils";
 export type * from "./types/contract-records";

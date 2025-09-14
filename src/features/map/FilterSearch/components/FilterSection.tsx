@@ -1,4 +1,4 @@
-import { FilterSectionProps } from "../utils/types";
+import { FilterSectionProps } from "../types/types";
 
 export const FilterSection = ({ title, children }: FilterSectionProps) => (
   <div>
