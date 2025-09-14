@@ -15,7 +15,7 @@ import type {
   SalesContractViewModalProps,
   SalesContractData,
 } from "../types/contract-records";
-import { formatCurrency, calculateVAT } from "../lib/utils";
+import { formatCurrency, calculateVAT } from "../utils/utils";
 import { StaffAllocationSection } from "./StaffAllocationSection";
 import { ContractImageSection } from "./ContractImageSection";
 

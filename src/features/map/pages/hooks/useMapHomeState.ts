@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AdvFilters } from "@/features/filters/types/advFilters";
+import type { AdvFilters } from "@/features/contract-records/types/advFilters";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
