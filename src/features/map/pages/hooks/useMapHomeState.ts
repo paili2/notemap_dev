@@ -96,8 +96,9 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
       setDraftPin(null);
-      setSelectedId(p.id);
-      setMenuTargetId(p.id);
+      const sid = String(p.id);
+      setSelectedId(sid);
+      setMenuTargetId(sid);
       setMenuAnchor(p.position);
       setFitAllOnce(false);
 
@@ -162,26 +163,22 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   // Marker click
   const markerClickShieldRef = useRef(0);
   const handleMarkerClick = useCallback(
-    async (id: string) => {
-      markerClickShieldRef.current = Date.now();
-      if (id === "__draft__") return;
-      const item = items.find((p) => p.id === id);
+    async (id: string | number) => {
+      const sid = String(id); // ✅ 문자열로 통일
+      const item = items.find((p) => p.id === sid);
       if (!item) return;
 
-      // 1) 선택/앵커 먼저
-      setSelectedId(id);
-      setMenuTargetId(id);
+      setSelectedId(sid);
+      setMenuTargetId(sid);
 
       setDraftPin(null);
       setFitAllOnce(false);
       setMenuAnchor(item.position);
 
-      // 2) 말풍선은 2프레임 지연 후 열기
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
 
-      // 3) 팬 & 주소 해석
       panToWithOffset(item.position, 180);
       const { road, jibun } = await resolveAddress(item.position);
       setMenuRoadAddr(road ?? null);
@@ -221,13 +218,12 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   // Menu helpers
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
-    if (!menuTargetId) {
-      setDraftPin(null);
-      setMenuAnchor(null);
-      setMenuRoadAddr(null);
-      setMenuJibunAddr(null);
-    }
-  }, [menuTargetId]);
+    setMenuTargetId(null);
+    setDraftPin(null);
+    setMenuAnchor(null);
+    setMenuRoadAddr(null);
+    setMenuJibunAddr(null);
+  }, []);
 
   const openViewFromMenu = useCallback((id: string) => {
     setSelectedId(id);
@@ -256,10 +252,11 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
         setMenuOpen(false);
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
-      selectAndOpenView: (id: string) => {
-        setSelectedId(id);
+      selectAndOpenView: (id: string | number) => {
+        const sid = String(id);
+        setSelectedId(sid);
         setViewOpen(true);
-        setMenuTargetId("draft");
+        setMenuTargetId(null);
       },
       resetAfterCreate: () => {
         setDraftPin(null);

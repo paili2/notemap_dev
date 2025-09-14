@@ -103,14 +103,14 @@ export default function StructureLinesSection({
               <Input
                 value={line.primary}
                 onChange={(e) => onUpdate(idx, { primary: e.target.value })}
-                placeholder="직접입력"
+                placeholder="최소매매가"
                 className="h-9"
                 inputMode="numeric"
               />
               <Input
                 value={line.secondary}
                 onChange={(e) => onUpdate(idx, { secondary: e.target.value })}
-                placeholder="직접입력"
+                placeholder="최대매매가"
                 className="h-9"
                 inputMode="numeric"
               />

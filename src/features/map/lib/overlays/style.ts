@@ -23,6 +23,8 @@ export function styleLabelEl(
     whiteSpace: "nowrap",
     pointerEvents: "none",
     userSelect: "none",
+    display: "inline-block",
+    visibility: "visible",
   } as CSSStyleDeclaration);
 }
 

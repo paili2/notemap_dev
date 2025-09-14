@@ -35,6 +35,12 @@ export default function MapHomePage() {
     } as PropertyViewDetails;
   }, [s.selected, s.toViewDetails]);
 
+  const isBubbleOpen = s.menuOpen || s.viewOpen || s.editOpen || s.createOpen;
+
+  const hideId = isBubbleOpen
+    ? s.menuTargetId ?? (s.draftPin ? "__draft__" : null)
+    : null;
+
   return (
     <MapHomeUI
       appKey={KAKAO_MAP_KEY}
@@ -80,7 +86,7 @@ export default function MapHomePage() {
       onDeleteFromView={s.onDeleteFromView}
       createHostHandlers={s.createHostHandlers}
       editHostHandlers={s.editHostHandlers}
-      hideLabelForId={s.menuTargetId ?? (s.draftPin ? "__draft__" : null)}
+      hideLabelForId={hideId}
     />
   );
 }
