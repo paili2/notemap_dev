@@ -52,7 +52,7 @@ export function useMapClick(
       } else {
         tempMarkerRef.current.setPosition(latlng);
       }
-      tempMarkerRef.current.setMap(map);
+      tempMarkerRef.current?.setMap(map);
 
       // ---- 임시 라벨 ----
       if (!tempLabelRef.current) {
@@ -75,7 +75,7 @@ export function useMapClick(
         const el = tempLabelRef.current.getContent() as HTMLDivElement;
         if (el && el.innerText !== labelText) el.innerText = labelText;
       }
-      tempLabelRef.current.setMap(map);
+      tempLabelRef.current?.setMap(map);
 
       // 후처리 콜백
       onAfterCreate?.({ lat, lng });
