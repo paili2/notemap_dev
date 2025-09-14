@@ -55,7 +55,7 @@ export function FinancialInfoSection({
         <CardTitle className="text-sm">금액 정보</CardTitle>
       </CardHeader>
       <CardContent className="p-3 pt-1">
-        <div className="flex items-end gap-4 flex-wrap">
+        <div className="flex items-end gap-4 flex-wrap overflow-x-auto">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">중개보수금</Label>
             <div className="flex items-center gap-1">
@@ -69,7 +69,7 @@ export function FinancialInfoSection({
                 onChange={(e) =>
                   handleInputChange("brokerageFee", e.target.value)
                 }
-                className="h-7 text-xs w-24"
+                className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">원</span>
@@ -87,7 +87,7 @@ export function FinancialInfoSection({
                 })
               }
             >
-              <SelectTrigger className="h-7 text-xs w-24">
+              <SelectTrigger className="h-7 text-xs min-w-24 w-auto">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -112,7 +112,7 @@ export function FinancialInfoSection({
                 onChange={(e) =>
                   handleInputChange("totalBrokerageFee", e.target.value)
                 }
-                className="h-7 text-xs w-24"
+                className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">원</span>
@@ -133,7 +133,7 @@ export function FinancialInfoSection({
                     : financialInfo.totalRebate / 1000000
                 }
                 onChange={(e) => handleRebateInputChange(e.target.value)}
-                className="h-7 text-xs w-24"
+                className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">R</span>
@@ -146,7 +146,7 @@ export function FinancialInfoSection({
               value={financialInfo.taxStatus}
               onValueChange={handleTaxStatusChange}
             >
-              <SelectTrigger className="h-7 text-xs w-20">
+              <SelectTrigger className="h-7 text-xs min-w-20 w-auto">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -173,7 +173,7 @@ export function FinancialInfoSection({
                 onChange={(e) =>
                   handleInputChange("totalSupportAmount", e.target.value)
                 }
-                className="h-7 text-xs w-24"
+                className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
               />
               <span className="text-xs text-muted-foreground">원</span>
