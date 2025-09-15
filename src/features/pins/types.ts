@@ -1,3 +1,5 @@
+import { PropertyItem } from "../properties/types/propertyItem";
+
 export type PinKind =
   | "1room"
   | "1room-terrace"
@@ -12,3 +14,10 @@ export type PinKind =
   | "oldhouse" // 구옥
   | "question" // 답사예정
   | "completed"; // 완료
+
+export type PinState = "draft" | "saved";
+
+export type PinItem = PropertyItem & {
+  kind: PinKind;
+  state?: PinState;
+};

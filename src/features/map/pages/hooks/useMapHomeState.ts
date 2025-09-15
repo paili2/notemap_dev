@@ -263,7 +263,12 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     setMenuAnchor(null);
     setMenuRoadAddr(null);
     setMenuJibunAddr(null);
-  }, []);
+
+    // 말주머니가 특정 핀 대상이 아닌(= 신규 좌표 기반) 경우, 남아있는 draftPin 제거
+    if (!menuTargetId && draftPin) {
+      setDraftPin(null); // 로컬스토리지에서도 자동 제거됨 (setDraftPin 구현 참고)
+    }
+  }, [menuTargetId, draftPin, setDraftPin]);
 
   const openViewFromMenu = useCallback((id: string) => {
     setSelectedId(id);
@@ -305,9 +310,12 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const onPlanFromMenu = useCallback(
     (pos: LatLng) => {
       addVisitPin(pos);
-      closeMenu(); // 말주머니 닫고 핀은 남김
+      if (draftPin && sameCoord(draftPin, pos)) {
+        setDraftPin(null);
+      }
+      closeMenu();
     },
-    [addVisitPin, closeMenu]
+    [addVisitPin, closeMenu, draftPin, setDraftPin]
   );
 
   // ✅ 마커 목록: 기존 + 방문예정(여러개) + 생성용 드래프트(있을 때만)
