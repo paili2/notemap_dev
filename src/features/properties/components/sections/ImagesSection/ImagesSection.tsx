@@ -1,17 +1,16 @@
 "use client";
 
-import { FolderPlus, Trash2 } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/ImageCarouselUpload";
-import { ImageItem } from "@/features/properties/types/media";
+import { ImageItem, ResolvedFileItem } from "@/features/properties/types/media";
 import { useRef } from "react";
 
-// 🔧 ImageFile을 ImageItem alias로 통일해서 타입 일관성 확보
+// 🔧 ImageFile은 ImageItem alias로 유지 (가로 카드용)
 export type ImageFile = ImageItem;
-type FileItem = { name: string; url: string; caption?: string };
 
 type Props = {
-  /** 폴더별 이미지(파일명 포함) */
+  /** 폴더별 이미지(파일명 포함) — 가로 카드 */
   imagesByCard: ImageItem[][];
   onOpenPicker: (idx: number) => void;
   onChangeFiles: (idx: number, e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -30,8 +29,9 @@ type Props = {
   /** 가로형(폴더 내부) 이미지 삭제 */
   onRemoveImage?: (cardIdx: number, imageIdx: number) => void;
 
-  /** 세로 카드(파일들) */
-  fileItems: FileItem[];
+  /** 세로 카드(파일들) — ✅ url이 확정된 타입만 받음 */
+  fileItems: ResolvedFileItem[];
+  /** 세로 카드 업로드 */
   onAddFiles: (files: FileList | null) => void;
   onChangeFileItemCaption?: (index: number, text: string) => void;
   onRemoveFileItem?: (index: number) => void;
@@ -99,7 +99,7 @@ export default function ImagesSection({
         </div>
       ))}
 
-      {/* 세로형(파일) 카드 */}
+      {/* 세로형(파일) 카드 — ✅ ResolvedFileItem[] */}
       <ImageCarouselUpload
         items={fileItems}
         maxCount={maxFiles}
