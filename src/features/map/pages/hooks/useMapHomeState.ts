@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AdvFilters } from "@/features/contract-records/types/advFilters";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import {
@@ -15,6 +14,8 @@ import { getMapMarkers } from "../../lib/markers";
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
+import { CreatePayload } from "@/features/properties/types/property-dto";
+import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 const VISIT_PINS_STORAGE_KEY = "maphome:visitPins";
@@ -256,6 +257,27 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     setSelectedId(null);
   }, [selectedId, setItems]);
 
+  const onSubmitEdit = useCallback(
+    async (payload: CreatePayload) => {
+      if (!selectedId) return;
+      // patch 생성(이미지/파일은 refs→hydrate까지 포함)
+      const patch = await buildEditPatchWithMedia(payload, String(selectedId));
+
+      // 불변 갱신으로 해당 아이템에 patch 병합
+      setItems((prev) =>
+        prev.map((p) =>
+          String(p.id) === String(selectedId)
+            ? applyPatchToItem(p as any, patch as any)
+            : p
+        )
+      );
+
+      // 모달 닫기(선택)
+      setEditOpen(false);
+    },
+    [selectedId, setItems, setEditOpen]
+  );
+
   // 메뉴 닫기 (답사예정 핀은 유지)
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
@@ -353,8 +375,9 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     () => ({
       onClose: () => setEditOpen(false),
       updateItems: setItems,
+      onSubmit: onSubmitEdit,
     }),
-    [setItems]
+    [setItems, onSubmitEdit]
   );
 
   const closeCreate = useCallback(() => {

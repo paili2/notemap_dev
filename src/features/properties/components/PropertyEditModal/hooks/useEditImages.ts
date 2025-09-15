@@ -17,6 +17,11 @@ type UseEditImagesArgs = {
   propertyId: string;
   /** 초기 데이터에서 이미지 관련 원본 필드들 */
   initial: {
+    // 🔹 레퍼런스 우선 (있다면 최우선 사용)
+    _imageCardRefs?: AnyImageRef[][];
+    _fileItemRefs?: AnyImageRef[];
+
+    // 🔹 최신/레거시 저장 필드들
     imageFolders?: AnyImageRef[][];
     imagesByCard?: AnyImageRef[][];
     imageCards?: AnyImageRef[][];
@@ -46,50 +51,69 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         return;
       }
 
-      // 카드형
-      const foldersRaw =
-        initial.imageFolders ??
-        initial.imagesByCard ??
-        initial.imageCards ??
-        null;
+      // ───────────── 카드형 (레퍼런스 → 최신/레거시 → 평면) ─────────────
+      const cardRefs = initial._imageCardRefs;
 
-      if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
-        const hydrated = await hydrateCards(
-          foldersRaw as AnyImageRef[][],
-          MAX_PER_CARD
-        );
+      if (Array.isArray(cardRefs) && cardRefs.length > 0) {
+        // ✅ 1) refs 최우선
+        const hydrated = await hydrateCards(cardRefs, MAX_PER_CARD);
         if (mounted) setImageFolders(hydrated);
       } else {
-        const flat = Array.isArray(initial.images)
-          ? (initial.images as AnyImageRef[])
-          : null;
-        const counts: number[] | undefined = initial.imageCardCounts;
+        // ✅ 2) 최신/레거시 2D
+        const foldersRaw =
+          initial.imageFolders ??
+          initial.imagesByCard ??
+          initial.imageCards ??
+          null;
 
-        if (flat && flat.length > 0) {
-          const hydrated =
-            Array.isArray(counts) && counts.length > 0
-              ? await hydrateFlatUsingCounts(flat, counts)
-              : await hydrateFlatToCards(flat, MAX_PER_CARD);
+        if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
+          const hydrated = await hydrateCards(
+            foldersRaw as AnyImageRef[][],
+            MAX_PER_CARD
+          );
           if (mounted) setImageFolders(hydrated);
         } else {
-          if (mounted) setImageFolders([[]]);
+          // ✅ 3) 레거시 1D + (선택) 카드 개수
+          const flat = Array.isArray(initial.images)
+            ? (initial.images as AnyImageRef[])
+            : null;
+          const counts: number[] | undefined = initial.imageCardCounts;
+
+          if (flat && flat.length > 0) {
+            const hydrated =
+              Array.isArray(counts) && counts.length > 0
+                ? await hydrateFlatUsingCounts(flat, counts)
+                : await hydrateFlatToCards(flat, MAX_PER_CARD);
+            if (mounted) setImageFolders(hydrated);
+          } else {
+            if (mounted) setImageFolders([[]]);
+          }
         }
       }
 
-      // 세로형
-      const verticalRaw =
-        initial.verticalImages ??
-        initial.imagesVertical ??
-        initial.fileItems ??
-        null;
-      if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
+      // ───────────── 세로형 (레퍼런스 → 최신/레거시) ─────────────
+      const fileRefs = initial._fileItemRefs;
+      if (Array.isArray(fileRefs) && fileRefs.length > 0) {
         const hydrated = await hydrateVertical(
-          verticalRaw as AnyImageRef[],
+          fileRefs as AnyImageRef[],
           MAX_FILES
         );
         if (mounted) setVerticalImages(hydrated);
       } else {
-        if (mounted) setVerticalImages([]);
+        const verticalRaw =
+          initial.verticalImages ??
+          initial.imagesVertical ??
+          initial.fileItems ??
+          null;
+        if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
+          const hydrated = await hydrateVertical(
+            verticalRaw as AnyImageRef[],
+            MAX_FILES
+          );
+          if (mounted) setVerticalImages(hydrated);
+        } else {
+          if (mounted) setVerticalImages([]);
+        }
       }
     })();
     return () => {
@@ -161,11 +185,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     e.target.value = "";
   };
 
-  // ✅ 카드형: 폴더(카드) 추가
+  // 카드형: 폴더 추가/삭제
   const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
-
-  // ✅ 카드형: 폴더(카드) 삭제
-  // 기본 동작: 최소 1개의 빈 폴더는 남김(UX 안전장치)
   const removePhotoFolder = (
     folderIdx: number,
     opts?: { keepAtLeastOne?: boolean }
@@ -173,7 +194,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
 
     setImageFolders((prev) => {
-      // 삭제 대상 폴더의 blob URL 먼저 정리
+      // 삭제 대상 폴더의 blob URL 정리
       const target = prev[folderIdx] ?? [];
       target.forEach((img) => {
         if (img?.url?.startsWith("blob:")) {
@@ -185,18 +206,14 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
       const next = prev.map((arr) => [...arr]);
       next.splice(folderIdx, 1);
-
-      // refs도 동일한 인덱스에서 제거
       imageInputRefs.current.splice(folderIdx, 1);
 
-      if (next.length === 0 && keepAtLeastOne) {
-        next.push([]);
-      }
+      if (next.length === 0 && keepAtLeastOne) next.push([]);
       return next;
     });
   };
 
-  // 세로형: 삭제
+  // 세로형: 삭제/추가/캡션
   const handleRemoveFileItem = (index: number) => {
     setVerticalImages((prev) => {
       const next = [...prev];
@@ -210,7 +227,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     });
   };
 
-  // 세로형: 추가
   const onAddFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
@@ -223,7 +239,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
   };
 
-  // 세로형: 캡션
   const onChangeFileItemCaption = (index: number, text: string) => {
     setVerticalImages((prev) =>
       prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
@@ -250,7 +265,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
-    /** ✅ 새로 추가됨 */
     removePhotoFolder,
     onChangeImageCaption,
     handleRemoveImage,

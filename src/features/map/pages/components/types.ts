@@ -2,6 +2,7 @@ import { PropertyItem } from "@/features/properties/types/propertyItem";
 import { MapMarker } from "../../types/map";
 import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { LatLng } from "@/lib/geo/types";
+import { CreatePayload } from "@/features/properties/types/property-dto";
 
 export type MapHomeUIProps = {
   // core
@@ -67,7 +68,8 @@ export type MapHomeUIProps = {
   };
   editHostHandlers: {
     onClose: () => void;
-    updateItems: (updater: any) => void;
+    updateItems: (updater: (prev: PropertyItem[]) => PropertyItem[]) => void;
+    onSubmit: (payload: CreatePayload) => Promise<void>;
   };
 
   // misc

@@ -1,139 +1,155 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { hydrateRefsToMedia } from "@/lib/media/refs";
 
-import { UIImg } from "../types";
-import type { AnyImageRef, ImageItem } from "@/features/properties/types/media";
-import {
-  hydrateCards as hydrateCardsDomain,
-  hydrateFlatToCards as hydrateFlatToCardsDomain,
-  hydrateFlatUsingCounts as hydrateFlatUsingCountsDomain,
-  hydrateVertical as hydrateVerticalDomain,
-} from "@/features/properties/lib/media/hydrate";
-
-type UseViewImagesHydrationArgs = {
-  open: boolean;
-  data: any; // PropertyViewDetails 형태이지만, 레거시 키 접근 위해 any
+type AnyImg = {
+  url?: string | null;
+  signedUrl?: string | null;
+  publicUrl?: string | null;
+  name?: string | null;
+  caption?: string | null;
 };
+type AnyCard = AnyImg[] | { items?: AnyImg[] } | null | undefined;
+type HydratedImg = { url: string; name: string; caption?: string };
+
+function pickUrl(it: AnyImg | null | undefined): string | null {
+  if (!it) return null;
+  return it.url ?? it.signedUrl ?? it.publicUrl ?? null;
+}
+
+function normImg(it: AnyImg | null | undefined): HydratedImg | null {
+  const u = pickUrl(it);
+  if (!u) return null;
+  return {
+    url: u,
+    name: (it?.name ?? "") || "",
+    ...(it?.caption ? { caption: it.caption! } : {}),
+  };
+}
+
+function normCard(card: AnyCard): HydratedImg[] {
+  if (!card) return [];
+  const arr = Array.isArray(card) ? card : card.items ?? [];
+  return (arr ?? []).map(normImg).filter(Boolean) as HydratedImg[];
+}
 
 export function useViewImagesHydration({
   open,
   data,
-}: UseViewImagesHydrationArgs) {
-  const [preferCards, setPreferCards] = useState(false);
-  const [cardsHydrated, setCardsHydrated] = useState<UIImg[][]>([[]]);
-  const [filesHydrated, setFilesHydrated] = useState<UIImg[]>([]);
-  const [legacyImagesHydrated, setLegacyImagesHydrated] = useState<
-    string[] | undefined
-  >(undefined);
+}: {
+  open: boolean;
+  data: any;
+}) {
+  // 1) 서버/레거시 스키마 정규화
+  const normalized = useMemo(() => {
+    const fromImageFolders: HydratedImg[][] = Array.isArray(data?.imageFolders)
+      ? (data.imageFolders as AnyCard[]).map(normCard)
+      : [];
 
-  // 생성된 objectURL 정리용
-  const createdObjectUrlsRef = useRef<string[]>([]);
-  useEffect(() => {
-    return () => {
-      createdObjectUrlsRef.current.forEach((u) => {
-        if (u?.startsWith("blob:")) URL.revokeObjectURL(u);
-      });
-      createdObjectUrlsRef.current = [];
+    const legacyCardsSrc = (data?.imagesByCard ?? data?.imageCards) as
+      | AnyImg[][]
+      | undefined;
+    const fromLegacyCards: HydratedImg[][] = Array.isArray(legacyCardsSrc)
+      ? legacyCardsSrc.map(
+          (card) => (card ?? []).map(normImg).filter(Boolean) as HydratedImg[]
+        )
+      : [];
+
+    const fromFlat: HydratedImg[][] =
+      Array.isArray(data?.images) && data.images.length
+        ? [
+            (data.images as string[])
+              .filter(Boolean)
+              .map((u) => ({ url: u, name: "" })),
+          ]
+        : [];
+
+    const filesSrc = (data?.verticalImages ?? data?.fileItems) as
+      | AnyImg[]
+      | undefined;
+    const filesHydrated: HydratedImg[] = Array.isArray(filesSrc)
+      ? ((filesSrc ?? []).map(normImg).filter(Boolean) as HydratedImg[])
+      : [];
+
+    const cardsBase =
+      (fromImageFolders.some((c) => c.length) && fromImageFolders) ||
+      (fromLegacyCards.some((c) => c.length) && fromLegacyCards) ||
+      fromFlat;
+
+    return {
+      cardsBase,
+      filesBase: filesHydrated,
     };
-  }, []);
+  }, [data]);
 
-  // ImageItem[] -> UIImg[] 로 얇은 매핑
-  const toUI = (items: ImageItem[]): UIImg[] =>
-    items.map(({ url, name, caption }) => ({
-      url,
-      ...(name ? { name } : {}),
-      ...(caption ? { caption } : {}),
-    }));
-
-  // blob URL 정리 목록에 추가
-  const trackBlobUrls = (urls: string[]) => {
-    urls.forEach((u) => {
-      if (u?.startsWith("blob:")) createdObjectUrlsRef.current.push(u);
-    });
-  };
+  // 2) refs 있으면 IndexedDB 등에서 재-하이드레이션 (저장 직후/새로고침 복원)
+  const [_cardsFromRefs, setCardsFromRefs] = useState<HydratedImg[][]>([]);
+  const [_filesFromRefs, setFilesFromRefs] = useState<HydratedImg[]>([]);
 
   useEffect(() => {
-    if (!open || !data) return;
+    let cancelled = false;
+
+    const cardRefs = data?.view?._imageCardRefs ?? data?._imageCardRefs ?? null;
+    const fileRefs = data?.view?._fileItemRefs ?? data?._fileItemRefs ?? null;
+
+    // refs가 없으면 초기화
+    if (!cardRefs && !fileRefs) {
+      setCardsFromRefs([]);
+      setFilesFromRefs([]);
+      return;
+    }
 
     (async () => {
-      const foldersRaw =
-        (data as any).imageFolders ??
-        (data as any).imagesByCard ??
-        (data as any).imageCards ??
-        (data as any)._imageCardRefs ??
-        null;
-
-      const flat = Array.isArray((data as any).images)
-        ? ((data as any).images as AnyImageRef[])
-        : null;
-      const counts: number[] | undefined = (data as any).imageCardCounts;
-
-      if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
-        setPreferCards(true);
-        const cards = await hydrateCardsDomain(
-          foldersRaw as AnyImageRef[][],
-          Number.MAX_SAFE_INTEGER // 뷰에서는 카드 내 최대치 제한 없음
+      try {
+        const { hydratedCards, hydratedFiles } = await hydrateRefsToMedia(
+          cardRefs || [],
+          fileRefs || []
         );
-        const ui = cards.map(toUI);
-        trackBlobUrls(ui.flat().map((x) => x.url));
-        setCardsHydrated(ui);
-      } else if (
-        flat &&
-        flat.length > 0 &&
-        Array.isArray(counts) &&
-        counts.length > 0
-      ) {
-        setPreferCards(true);
-        const cards = await hydrateFlatUsingCountsDomain(flat, counts);
-        const ui = cards.map(toUI);
-        trackBlobUrls(ui.flat().map((x) => x.url));
-        setCardsHydrated(ui);
-      } else if (flat && flat.length > 0) {
-        setPreferCards(true);
-        const cards = await hydrateFlatToCardsDomain(flat, 20);
-        const ui = cards.map(toUI);
-        trackBlobUrls(ui.flat().map((x) => x.url));
-        setCardsHydrated(ui);
-      } else {
-        setPreferCards(false);
-        setCardsHydrated([[]]);
-      }
-
-      // 세로 카드: verticalImages > imagesVertical > fileItems > _fileItemRefs
-      const verticalRaw =
-        (data as any).verticalImages ??
-        (data as any).imagesVertical ??
-        (data as any).fileItems ??
-        (data as any)._fileItemRefs ??
-        null;
-
-      if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
-        const files = await hydrateVerticalDomain(
-          verticalRaw as AnyImageRef[],
-          Number.MAX_SAFE_INTEGER
-        );
-        const ui = toUI(files);
-        trackBlobUrls(ui.map((x) => x.url));
-        setFilesHydrated(ui);
-      } else {
-        setFilesHydrated([]);
-      }
-
-      // 카드 소스가 전혀 없는 “레거시-only”에서만 images를 따로 뽑아둔다
-      if (flat && flat.length > 0 && !Array.isArray(foldersRaw)) {
-        const cards = await hydrateFlatToCardsDomain(
-          flat,
-          Number.MAX_SAFE_INTEGER
-        );
-        const ui = cards.flatMap(toUI);
-        trackBlobUrls(ui.map((x) => x.url));
-        setLegacyImagesHydrated(ui.map((r) => r.url));
-      } else {
-        setLegacyImagesHydrated(undefined);
+        if (!cancelled) {
+          setCardsFromRefs(hydratedCards || []);
+          setFilesFromRefs(hydratedFiles || []);
+        }
+      } catch (e) {
+        console.warn("[useViewImagesHydration] hydrate failed:", e);
+        if (!cancelled) {
+          setCardsFromRefs([]);
+          setFilesFromRefs([]);
+        }
       }
     })();
-  }, [open, data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true;
+    };
+    // 🔧 저장 직후 refs가 바뀌면 즉시 재-하이드레이션되도록 의존성에 refs를 포함
+  }, [
+    open,
+    data?.id,
+    data?._imageCardRefs,
+    data?.view?._imageCardRefs,
+    data?._fileItemRefs,
+    data?.view?._fileItemRefs,
+  ]);
+
+  // 3) 우선순위: refs 결과(있으면 우선) → normalized
+  const cardsHydrated = _cardsFromRefs.length
+    ? _cardsFromRefs
+    : normalized.cardsBase;
+
+  const filesHydrated = _filesFromRefs.length
+    ? _filesFromRefs
+    : normalized.filesBase;
+
+  const preferCards = cardsHydrated.length > 0;
+
+  // Flat 이미지는 레거시 폴백용
+  const legacyImagesHydrated: HydratedImg[] =
+    Array.isArray(data?.images) && data.images.length
+      ? (data.images as string[])
+          .filter(Boolean)
+          .map((u) => ({ url: u, name: "" }))
+      : cardsHydrated[0] ?? [];
 
   return {
     preferCards,

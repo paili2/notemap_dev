@@ -6,7 +6,12 @@ import {
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
 
-/** PropertyViewDetails patch를 PropertyItem에 반영 */
+/**
+ * View에서 넘어온 patch(Partial<PropertyViewDetails>)를 기존 PropertyItem에 병합.
+ * - 이미지 관련(카드/세로)은 normalize 해서 반영
+ * - 레거시 호환 필드(imagesByCard, imageCardCounts, imagesVertical)도 유지
+ * - pinKind는 item 레벨 + view 레벨 모두 동기화(있을 때만)
+ */
 export function applyPatchToItem(
   p: PropertyItem,
   patch: Partial<PropertyViewDetails> & { pinKind?: string }
@@ -31,25 +36,39 @@ export function applyPatchToItem(
         ? { pinKind: (patch as any).pinKind }
         : { pinKind: (p as any).view?.pinKind }),
 
-      // ✅ imagesByCard 제거: imageCards만 수용
+      // ✅ 이미지 카드/이미지 병합 (레거시 호환 포함)
       ...(() => {
         const cand = (patch as any).imageCards;
         if (Array.isArray(cand)) {
           const cards = normalizeImageCards(cand);
-          return { imageCards: cards, images: flattenCards(cards) };
+          return {
+            imageCards: cards,
+            images: flattenCards(cards),
+            // 레거시 호환 필드
+            imagesByCard: cards,
+            imageCardCounts: cards.map((c) => c.length),
+          };
         }
         if ("images" in patch && Array.isArray((patch as any).images)) {
+          // cards 미제공 + images만 왔을 때
           return { images: normalizeImages((patch as any).images) };
         }
+        // 아무 것도 없으면 기존 유지
         return {
           images: (p as any).view?.images,
           imageCards: (p as any).view?.imageCards,
+          imagesByCard: (p as any).view?.imagesByCard,
+          imageCardCounts: (p as any).view?.imageCardCounts,
         };
       })(),
 
+      // 세로형 파일(레거시: imagesVertical)
       fileItems: Array.isArray((patch as any).fileItems)
         ? normalizeImages((patch as any).fileItems)
         : (p as any).view?.fileItems,
+      imagesVertical: Array.isArray((patch as any).fileItems)
+        ? normalizeImages((patch as any).fileItems)
+        : (p as any).view?.imagesVertical,
 
       // refs들은 그대로 보존(패치 있으면 대체)
       _imageCardRefs: Array.isArray((patch as any)._imageCardRefs)

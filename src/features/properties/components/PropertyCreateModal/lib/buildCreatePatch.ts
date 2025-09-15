@@ -1,9 +1,9 @@
 "use client";
 
-import type { CreatePayload } from "@/features/properties/types/property-dto";
-import type { PropertyItem } from "@/features/properties/types/propertyItem";
-
+import { CreatePayload } from "@/features/properties/types/property-dto";
+import { PropertyItem } from "@/features/properties/types/propertyItem";
 import { LatLng } from "@/lib/geo/types";
+
 import { hydrateRefsToMedia, materializeToRefs } from "@/lib/media/refs";
 
 type BuildOpts = { id: string; pos: LatLng };

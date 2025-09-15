@@ -189,6 +189,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           selectedId={selectedId}
           onClose={editHostHandlers.onClose}
           updateItems={editHostHandlers.updateItems}
+          onSubmit={editHostHandlers.onSubmit}
         />
       )}
     </div>

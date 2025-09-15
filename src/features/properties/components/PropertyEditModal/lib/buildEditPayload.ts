@@ -1,17 +1,14 @@
 "use client";
 
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-
 import type {
-  AspectRowLite,
-  Grade,
   Registry,
+  Grade,
   UnitLine,
 } from "@/features/properties/types/property-domain";
 import type { ImageItem } from "@/features/properties/types/media";
-
-import { AreaSet } from "../../sections/AreaSetsSection/types";
-import { PinKind } from "@/features/pins/types";
+import type { AreaSet } from "../../sections/AreaSetsSection/types";
+import type { PinKind } from "@/features/pins/types";
 
 type BuildEditArgs = {
   id: string;
@@ -83,46 +80,65 @@ type BuildEditArgs = {
 };
 
 export function buildEditPayload(a: BuildEditArgs) {
-  // 이미지 포맷 (UI / 저장용)
+  // UI용 카드 이미지: url 있는 항목만
   const imageCardsUI = a.imageFolders.map((card) =>
-    card.map(({ url, name, caption }) => ({
-      url,
-      name,
+    card
+      .filter((it) => !!it.url)
+      .map(({ url, name, caption }) => ({
+        url: url as string,
+        name: name ?? "",
+        ...(caption ? { caption } : {}),
+      }))
+  );
+
+  // 저장용 카드 이미지: idbKey/url 모두 존중
+  const imageFoldersStored = a.imageFolders.map((card) =>
+    card.map(({ idbKey, url, name, caption }) => ({
+      ...(idbKey ? { idbKey } : {}),
+      ...(url ? { url } : {}),
+      ...(name ? { name } : {}),
       ...(caption ? { caption } : {}),
     }))
   );
-  const imageFoldersStored = a.imageFolders.map((card) =>
-    card.map(({ idbKey, url, name, caption }) =>
-      idbKey
-        ? { idbKey, name, ...(caption ? { caption } : {}) }
-        : { url, name, ...(caption ? { caption } : {}) }
-    )
-  );
-  const imagesFlatStrings: string[] = a.imageFolders.flat().map((f) => f.url);
-  const imageCardCounts = a.imageFolders.map((card) => card.length);
 
+  // 평면 문자열 배열 (레거시 UI용)
+  const imagesFlatStrings: string[] = a.imageFolders
+    .flat()
+    .map((f) => f.url)
+    .filter((u): u is string => typeof u === "string" && u.length > 0);
+
+  // 카드별 개수는 실제 UI 배열 기준으로
+  const imageCardCounts = imageCardsUI.map((card) => card.length);
+
+  // 저장용 세로형(첨부) 이미지
   const verticalImagesStored = a.verticalImages.map((f) =>
     f.idbKey
       ? {
           idbKey: f.idbKey,
-          name: f.name,
+          ...(f.name ? { name: f.name } : {}),
           ...(f.caption ? { caption: f.caption } : {}),
         }
       : {
-          url: f.url,
-          name: f.name,
+          ...(f.url ? { url: f.url } : {}),
+          ...(f.name ? { name: f.name } : {}),
           ...(f.caption ? { caption: f.caption } : {}),
         }
   );
-  const verticalImagesUI = a.verticalImages.map((f) => ({
-    url: f.url,
-    name: f.name,
-    ...(f.caption ? { caption: f.caption } : {}),
-    ...(f.idbKey ? { idbKey: f.idbKey } : {}),
-  }));
+
+  // UI용 세로형: url 있는 항목만
+  const verticalImagesUI = a.verticalImages
+    .filter((f) => !!f.url)
+    .map((f) => ({
+      url: f.url as string,
+      name: f.name ?? "",
+      ...(f.caption ? { caption: f.caption } : {}),
+      ...(f.idbKey ? { idbKey: f.idbKey } : {}),
+    }));
 
   const payload = {
     id: a.id,
+
+    // 기본
     listingStars: a.listingStars,
     title: a.title,
     address: a.address,
@@ -134,6 +150,7 @@ export function buildEditPayload(a: BuildEditArgs) {
     roomNo: a.roomNo,
     structure: a.structure,
 
+    // 향/방향
     aspect: a.aspect,
     aspectNo: a.aspectNo,
     ...(a.aspect1 ? { aspect1: a.aspect1 } : {}),
@@ -141,46 +158,52 @@ export function buildEditPayload(a: BuildEditArgs) {
     ...(a.aspect3 ? { aspect3: a.aspect3 } : {}),
     orientations: a.orientations,
 
+    // 가격/주차/준공
     salePrice: a.salePrice,
     parkingType: a.parkingType,
     parkingCount: a.parkingCount,
     completionDate: a.completionDate,
 
+    // 면적/엘리베이터/통계
     exclusiveArea: a.exclusiveArea,
     realArea: a.realArea,
-
     elevator: a.elevator,
     totalBuildings: a.totalBuildings,
     totalFloors: a.totalFloors,
     totalHouseholds: a.totalHouseholds,
     remainingHouseholds: a.remainingHouseholds,
+
+    // 등급/등기/옵션/메모
     slopeGrade: a.slopeGrade,
     structureGrade: a.structureGrade,
-
     options: a.options,
     optionEtc: a.etcChecked ? a.optionEtc.trim() : "",
     publicMemo: a.publicMemo,
     secretMemo: a.secretMemo,
     registry: a.registryOne,
+
+    // 유닛
     unitLines: a.unitLines,
 
     // 이미지 관련
-    imageFolders: imageFoldersStored,
-    imagesByCard: imageCardsUI, // (레거시 호환)
-    imageCards: imageCardsUI, // (레거시 호환)
+    imageFolders: imageFoldersStored, // 저장용(2D)
+    imagesByCard: imageCardsUI, // 레거시 UI 호환(2D)
+    imageCards: imageCardsUI, // 레거시 UI 호환(2D)
     imageCardCounts,
-    verticalImages: verticalImagesStored,
-    fileItems: verticalImagesUI,
-    images: imagesFlatStrings,
+    verticalImages: verticalImagesStored, // 저장용(1D)
+    fileItems: verticalImagesUI, // 레거시 UI(1D)
+    images: imagesFlatStrings, // 레거시 UI(1D)
 
+    // 추가 면적
     extraExclusiveAreas: a.extraExclusiveAreas,
     extraRealAreas: a.extraRealAreas,
 
+    // 면적 타이틀(호환 키 포함)
     baseAreaTitle: a.baseAreaTitleOut,
-    areaTitle: a.baseAreaTitleOut, // 호환
-    areaSetTitle: a.baseAreaTitleOut, // 호환
+    areaTitle: a.baseAreaTitleOut,
+    areaSetTitle: a.baseAreaTitleOut,
     extraAreaTitles: a.extraAreaTitlesOut,
-    areaSetTitles: a.extraAreaTitlesOut, // 호환
+    areaSetTitles: a.extraAreaTitlesOut,
 
     // 핀 종류(호환 키 포함)
     pinKind: a.pinKind,

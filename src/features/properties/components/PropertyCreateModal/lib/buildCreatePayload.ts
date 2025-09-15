@@ -10,7 +10,11 @@ import type {
   Registry,
   UnitLine,
 } from "@/features/properties/types/property-domain";
-import type { ImageItem } from "@/features/properties/types/media";
+
+import type {
+  ImageItem, // UI(입력/미리보기)용: url/idbKey 모두 선택적
+  StoredMediaItem, // 서버 전송/저장용 최소 스키마
+} from "@/features/properties/types/media";
 
 import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/pins/types";
@@ -55,8 +59,8 @@ type BuildArgs = {
   aspects: AspectRowLite[];
   unitLines: UnitLine[];
   // 이미지
-  imageFolders: ImageItem[][];
-  fileItems: ImageItem[];
+  imageFolders: ImageItem[][]; // 카드별 이미지(2차원)
+  fileItems: ImageItem[]; // 세로형/추가 파일 리스트(선택 사용)
   // 기타
   pinKind: PinKind;
 };
@@ -126,66 +130,71 @@ export function buildCreatePayload(args: BuildArgs) {
   const baseAreaTitle = (baseAreaSet.title ?? "").trim();
   const extraAreaTitles = extraAreaSets.map((s) => (s.title ?? "").trim());
 
-  // 3) 이미지 포맷 (UI용/스토리지용)
-  const imageCardsUI = imageFolders.map((card) =>
-    card.map(({ url, name, caption }) => ({
-      url,
-      name,
+  // 3) 이미지 포맷
+  // ▶ 레거시 UI용: url이 있는 것만 포함 (타입상 url: string이어야 함)
+  const imageCardsUI: { url: string; name: string; caption?: string }[][] =
+    imageFolders.map((card) =>
+      card
+        .filter((it) => !!it.url)
+        .map(({ url, name, caption }) => ({
+          url: url as string,
+          name: name ?? "",
+          ...(caption ? { caption } : {}),
+        }))
+    );
+
+  // ▶ 서버 전송용: url 또는 idbKey가 있어도 모두 포함(신규 누락 방지)
+  const imageFoldersStored: StoredMediaItem[][] = imageFolders.map((card) =>
+    card.map(({ idbKey, url, name, caption }) => ({
+      ...(idbKey ? { idbKey } : {}),
+      ...(url ? { url } : {}),
+      ...(name ? { name } : {}),
       ...(caption ? { caption } : {}),
     }))
   );
 
-  const imageFoldersStored = imageFolders.map((card) =>
-    card.map(({ idbKey, url, name, caption }) =>
-      idbKey
-        ? { idbKey, name, ...(caption ? { caption } : {}) }
-        : { url, name, ...(caption ? { caption } : {}) }
-    )
-  );
+  const imagesFlatStrings: string[] = imageFolders
+    .flat()
+    .map((f) => f.url)
+    .filter(Boolean) as string[];
 
-  const imagesFlatStrings: string[] = imageFolders.flat().map((f) => f.url);
   const imageCardCounts = imageFolders.map((card) => card.length);
 
-  const verticalImagesStored = fileItems.map((f) =>
-    f.idbKey
-      ? {
-          idbKey: f.idbKey,
-          name: f.name,
-          ...(f.caption ? { caption: f.caption } : {}),
-        }
-      : {
-          url: f.url,
-          name: f.name,
-          ...(f.caption ? { caption: f.caption } : {}),
-        }
-  );
-  const verticalImagesUI = fileItems.map((f) => ({
-    url: f.url,
-    name: f.name,
-    ...(f.caption ? { caption: f.caption } : {}),
+  const verticalImagesStored: StoredMediaItem[] = fileItems.map((f) => ({
     ...(f.idbKey ? { idbKey: f.idbKey } : {}),
+    ...(f.url ? { url: f.url } : {}),
+    ...(f.name ? { name: f.name } : {}),
+    ...(f.caption ? { caption: f.caption } : {}),
   }));
+
+  // ▶ 레거시 UI용 fileItems: url 있는 것만
+  const verticalImagesUI: {
+    url: string;
+    name: string;
+    caption?: string;
+    idbKey?: string;
+  }[] = fileItems
+    .filter((f) => !!f.url)
+    .map((f) => ({
+      url: f.url as string,
+      name: f.name ?? "",
+      ...(f.caption ? { caption: f.caption } : {}),
+      ...(f.idbKey ? { idbKey: f.idbKey } : {}),
+    }));
 
   // 4) 최종 payload
   const payload: CreatePayload & {
-    imageFolders: Array<
-      Array<{ idbKey?: string; url?: string; name?: string; caption?: string }>
-    >;
+    imageFolders: StoredMediaItem[][];
     imagesByCard: Array<Array<{ url: string; name: string; caption?: string }>>;
     imageCards: Array<Array<{ url: string; name: string; caption?: string }>>;
     imageCardCounts: number[];
-    verticalImages: Array<{
-      idbKey?: string;
-      url?: string;
-      name?: string;
-      caption?: string;
-    }>;
+    verticalImages: StoredMediaItem[];
     images: string[];
     fileItems?: Array<{
-      idbKey?: string;
-      url?: string;
-      name?: string;
+      url: string;
+      name: string;
       caption?: string;
+      idbKey?: string;
     }>;
     extraExclusiveAreas: string[];
     extraRealAreas: string[];
@@ -195,6 +204,7 @@ export function buildCreatePayload(args: BuildArgs) {
     areaSetTitles?: string[];
     pinKind?: PinKind;
   } = {
+    // 기본
     title,
     address,
     officeName,
@@ -204,16 +214,22 @@ export function buildCreatePayload(args: BuildArgs) {
     floor,
     roomNo,
     structure,
+
+    // 향/방향
     aspect,
     aspectNo,
     ...(aspect1 ? { aspect1 } : {}),
     ...(aspect2 ? { aspect2 } : {}),
     ...(aspect3 ? { aspect3 } : {}),
     orientations,
+
+    // 가격/주차/준공
     salePrice,
     parkingType,
     parkingCount,
     completionDate,
+
+    // 면적/평점/엘리베이터/통계
     exclusiveArea,
     realArea,
     listingStars,
@@ -222,6 +238,8 @@ export function buildCreatePayload(args: BuildArgs) {
     totalFloors,
     totalHouseholds,
     remainingHouseholds,
+
+    // 등급/등기/옵션/메모
     slopeGrade,
     structureGrade,
     options,
@@ -229,20 +247,24 @@ export function buildCreatePayload(args: BuildArgs) {
     publicMemo,
     secretMemo,
     registry: registryOne,
+
+    // 유닛
     unitLines,
 
-    imageFolders: imageFoldersStored,
-    imagesByCard: imageCardsUI, // ⚠️ (레거시 호환) 당장은 유지
-    imageCards: imageCardsUI, // ⚠️ (레거시 호환) 당장은 유지
+    // 이미지
+    imageFolders: imageFoldersStored, // ✅ 서버 전송용(전체 포함)
+    imagesByCard: imageCardsUI, // (레거시 UI)
+    imageCards: imageCardsUI, // (레거시 UI)
     imageCardCounts,
-    verticalImages: verticalImagesStored,
+    verticalImages: verticalImagesStored, // ✅ 서버 전송용(전체 포함)
+    images: imagesFlatStrings, // (레거시 UI)
+    fileItems: verticalImagesUI, // (레거시 UI)
 
-    images: imagesFlatStrings,
-    fileItems: verticalImagesUI,
-
+    // 추가 면적
     extraExclusiveAreas,
     extraRealAreas,
 
+    // 핀 속성
     pinKind,
 
     // AreaSet 제목들

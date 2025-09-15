@@ -1,3 +1,4 @@
+// src/features/map/components/MapEditModalHost.tsx
 "use client";
 
 import PropertyEditModal from "@/features/properties/components/PropertyEditModal/PropertyEditModal";
@@ -13,6 +14,8 @@ type Props = {
   selectedId: string;
   onClose: () => void;
   updateItems: (updater: (prev: PropertyItem[]) => PropertyItem[]) => void;
+  /** 부모(useMapHomeState)에서 직접 저장 로직을 처리하고 싶을 때 넘김 */
+  onSubmit?: (payload: any) => Promise<void>;
 };
 
 export default function MapEditModalHost({
@@ -21,34 +24,41 @@ export default function MapEditModalHost({
   selectedId,
   onClose,
   updateItems,
+  onSubmit,
 }: Props) {
   const submittingRef = useRef(false);
 
+  const handleSubmit = async (payload: any) => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      // 부모가 onSubmit을 전달했다면(= useMapHomeState에서 처리) 그걸 호출
+      if (onSubmit) {
+        await onSubmit(payload);
+        onClose();
+        return;
+      }
+
+      // 아니면 로컬에서 패치 + 병합(기존 Fallback 로직)
+      const patch = await buildEditPatchWithMedia(payload, selectedId);
+      updateItems((prev) =>
+        prev.map((p) => (p.id === selectedId ? applyPatchToItem(p, patch) : p))
+      );
+      onClose();
+    } catch (e) {
+      console.error("Edit failed:", e);
+    } finally {
+      submittingRef.current = false;
+    }
+  };
+
   return (
     <PropertyEditModal
-      key={selectedId} // 편집 대상 변경 시 폼 초기화
+      key={selectedId} // 편집 대상 바뀌면 폼 초기화
       open={open}
       initialData={data}
       onClose={onClose}
-      onSubmit={async (payload /* : EditPayload */) => {
-        if (submittingRef.current) return;
-        submittingRef.current = true;
-
-        try {
-          const patch = await buildEditPatchWithMedia(payload, selectedId);
-          updateItems((prev) =>
-            prev.map((p) =>
-              p.id === selectedId ? applyPatchToItem(p, patch) : p
-            )
-          );
-          onClose(); // 기존 UX 유지: 저장 후 닫기
-        } catch (e) {
-          console.error("Edit failed:", e);
-          // TODO: 토스트/알림 훅이 있다면 연결
-        } finally {
-          submittingRef.current = false;
-        }
-      }}
+      onSubmit={handleSubmit} // ✅ 여기!
     />
   );
 }

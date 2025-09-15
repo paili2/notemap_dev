@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+import { LatLng } from "@/lib/geo/types";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { MapHomeUI } from "./components/MapHomeUI";
-import { LatLng } from "@/lib/geo/types";
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -49,13 +49,16 @@ export default function MapHomePage() {
 
   return (
     <MapHomeUI
+      // 지도 관련
       appKey={KAKAO_MAP_KEY}
       kakaoSDK={s.kakaoSDK}
       mapInstance={s.mapInstance}
+      // 데이터
       items={s.items}
       filtered={s.filtered}
       markers={s.markers}
       fitAllOnce={s.fitAllOnce}
+      // 검색 & 필터
       q={s.q}
       filter={s.filter}
       onChangeQ={s.setQ}
@@ -64,12 +67,14 @@ export default function MapHomePage() {
       useDistrict={s.useDistrict}
       useSidebar={s.useSidebar}
       setUseSidebar={s.setUseSidebar}
+      // 메뉴/모달 상태
       menuOpen={s.menuOpen}
       menuAnchor={s.menuAnchor}
       menuTargetId={s.menuTargetId}
       menuRoadAddr={s.menuRoadAddr}
       menuJibunAddr={s.menuJibunAddr}
       menuTitle={menuTitle}
+      // 핸들러 함수들
       onCloseMenu={s.closeMenu}
       onViewFromMenu={s.openViewFromMenu}
       onCreateFromMenu={s.openCreateFromMenu}
@@ -83,8 +88,10 @@ export default function MapHomePage() {
       selectedViewItem={selectedViewItem}
       selectedId={s.selectedId}
       prefillAddress={s.prefillAddress}
+      // 드래프트 핀 관련
       draftPin={s.draftPin}
       setDraftPin={s.setDraftPin}
+      // 기타 (선택된 매물, 상세/수정/생성 모달 등)
       selectedPos={s.selected?.position ?? null}
       closeView={() => s.setViewOpen(false)}
       closeEdit={() => s.setEditOpen(false)}

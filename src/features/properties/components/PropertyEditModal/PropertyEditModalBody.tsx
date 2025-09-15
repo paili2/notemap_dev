@@ -28,17 +28,29 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open">) {
   const propertyId = String((initialData as any)?.id ?? "");
 
+  // ✅ 변경: 이미지 초기값을 view 우선으로 가져오고,
+  //        레퍼런스(_imageCardRefs, _fileItemRefs)도 함께 전달
   const initialImages = useMemo(() => {
     if (!initialData) return null;
+
+    const v = (initialData as any).view ?? (initialData as any);
+
     return {
-      imageFolders: (initialData as any).imageFolders,
-      imagesByCard: (initialData as any).imagesByCard,
-      imageCards: (initialData as any).imageCards,
-      images: (initialData as any).images,
-      imageCardCounts: (initialData as any).imageCardCounts,
-      verticalImages: (initialData as any).verticalImages,
-      imagesVertical: (initialData as any).imagesVertical,
-      fileItems: (initialData as any).fileItems,
+      // refs 우선 (있으면 useEditImages가 가장 먼저 사용하도록)
+      _imageCardRefs: v._imageCardRefs,
+      _fileItemRefs: v._fileItemRefs,
+
+      // 최신/레거시 저장 필드들
+      imageFolders: v.imageFolders,
+      imagesByCard: v.imagesByCard,
+      imageCards: v.imageCards,
+      images: v.images,
+      imageCardCounts: v.imageCardCounts,
+
+      // 세로열: verticalImages 우선, 없으면 imagesVertical/fileItems 폴백
+      verticalImages: v.verticalImages ?? v.imagesVertical ?? v.fileItems,
+      imagesVertical: v.imagesVertical,
+      fileItems: v.fileItems,
     };
   }, [initialData]);
 

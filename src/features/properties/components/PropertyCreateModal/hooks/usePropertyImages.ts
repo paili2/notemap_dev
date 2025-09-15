@@ -7,10 +7,26 @@ import { putBlobToIDB } from "@/lib/imageStore";
 import { makeNewImgKey } from "@/features/properties/lib/mediaKeys";
 
 /** 이미지 카드(좌) & 세로열(우) 전부 관리 */
-export function usePropertyImages() {
+type SeedOpts = {
+  /** 수정 모달 초기 카드 시드 */
+  seedFolders?: ImageItem[][];
+  /** 수정 모달 초기 세로열 시드 */
+  seedFiles?: ImageItem[];
+  /** 이 값이 바뀌면 시드를 다시 주입 (ex: `${open}-${data?.id}`) */
+  resetKey?: unknown;
+};
+
+export function usePropertyImages(opts?: SeedOpts) {
   // 카드형(좌): 카드1, 카드2, ...
   const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]);
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  /** 수정 모달용: 시드 주입 */
+  useEffect(() => {
+    if (opts?.seedFolders) setImageFolders(opts.seedFolders);
+    if (opts?.seedFiles) setFileItems(opts.seedFiles);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts?.resetKey]); // resetKey 바뀔 때만 재적용
 
   const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
     imageInputRefs.current[idx] = el;
@@ -59,9 +75,9 @@ export function usePropertyImages() {
   const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
   const removePhotoFolder = (
     folderIdx: number,
-    opts?: { keepAtLeastOne?: boolean }
+    optsInner?: { keepAtLeastOne?: boolean }
   ) => {
-    const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
+    const keepAtLeastOne = optsInner?.keepAtLeastOne ?? true;
 
     setImageFolders((prev) => {
       // 삭제 폴더 blob URL 정리
@@ -158,6 +174,7 @@ export function usePropertyImages() {
     addPhotoFolder,
     handleRemoveImage,
     removePhotoFolder,
+    // 세로형
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,

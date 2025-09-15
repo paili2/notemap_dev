@@ -51,12 +51,23 @@ const MapView: React.FC<Props> = ({
       );
     },
   });
-
   useDistrictOverlay(kakao, map, useDistrict);
 
-  useMapClick(kakao, map, allowCreateOnMapClick ? onMapClick : undefined, {
-    showNewMarker: false,
-  });
+  useEffect(() => {
+    if (!kakao || !map) return;
+    if (!allowCreateOnMapClick || !onMapClick) return;
+
+    const handler = (mouseEvent: any) => {
+      const latlng = mouseEvent.latLng;
+      onMapClick({
+        lat: latlng.getLat(),
+        lng: latlng.getLng(),
+      });
+    };
+
+    kakao.maps.event.addListener(map, "click", handler);
+    return () => kakao.maps.event.removeListener(map, "click", handler);
+  }, [kakao, map, allowCreateOnMapClick, onMapClick]);
 
   useClustererWithLabels(kakao, map, markers, {
     hitboxSizePx: 56,
