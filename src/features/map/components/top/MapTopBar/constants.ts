@@ -5,7 +5,6 @@ export const FILTER_LABELS: Record<FilterKey, string> = {
   all: "전체",
   new: "신축",
   old: "구옥",
-  fav: "즐겨찾기",
 };
 
 // 기존처럼 key/label 배열을 그대로 export (UI에서 map 돌리기 용이)

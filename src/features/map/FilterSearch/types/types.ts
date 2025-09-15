@@ -3,7 +3,7 @@ export interface FilterState {
   deposit: string;
   areaMin: string;
   areaMax: string;
-  buildingType: string[];
+  buildingType: string;
   elevator: string;
   priceMin: string;
   priceMax: string;

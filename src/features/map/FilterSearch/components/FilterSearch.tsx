@@ -22,7 +22,7 @@ export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
   const [filters, setFilters] = useState<FilterState>(initialFilterState);
 
   const toggleSelection = (category: keyof FilterState, value: string) => {
-    if (category === "rooms" || category === "buildingType") {
+    if (category === "rooms") {
       const currentArray = filters[category] as string[];
       const newArray = currentArray.includes(value)
         ? currentArray.filter((item) => item !== value)
@@ -128,7 +128,7 @@ export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
               <SelectableButton
                 key={building}
                 label={building}
-                isSelected={filters.buildingType.includes(building)}
+                isSelected={filters.buildingType === building}
                 onClick={() => toggleSelection("buildingType", building)}
               />
             ))}
