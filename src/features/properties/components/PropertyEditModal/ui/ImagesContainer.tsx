@@ -13,6 +13,8 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
+    /** ⬇️ 추가 */
+    removePhotoFolder,
     onChangeImageCaption,
     handleRemoveImage,
     onAddFiles,
@@ -27,6 +29,8 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
       onChangeFiles={onPickFilesToFolder}
       registerInputRef={registerImageInput}
       onAddPhotoFolder={addPhotoFolder}
+      /** ⬇️ 추가: 폴더 삭제 핸들러 내려주기 */
+      onRemovePhotoFolder={removePhotoFolder}
       maxPerCard={MAX_PER_CARD}
       onChangeCaption={onChangeImageCaption}
       onRemoveImage={handleRemoveImage}

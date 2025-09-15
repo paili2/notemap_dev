@@ -33,6 +33,10 @@ export default function ImagesContainer({
     ) => void | Promise<void>;
 
     addPhotoFolder: () => void;
+    removePhotoFolder: (
+      folderIdx: number,
+      opts?: { keepAtLeastOne?: boolean }
+    ) => void;
     onChangeImageCaption: (
       folderIndex: number,
       imageIndex: number,
@@ -74,6 +78,7 @@ export default function ImagesContainer({
       onChangeFiles={images.onPickFilesToFolder} // (idx, e)
       registerInputRef={images.registerImageInput} // (idx, el)
       onAddPhotoFolder={images.addPhotoFolder}
+      onRemovePhotoFolder={images.removePhotoFolder}
       maxPerCard={images.maxPerCard}
       onChangeCaption={images.onChangeImageCaption}
       onRemoveImage={images.handleRemoveImage}

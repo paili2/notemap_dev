@@ -104,7 +104,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   };
   const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
 
-  // 카드형: 삭제
+  // 카드형: 이미지 삭제
   const handleRemoveImage = (folderIdx: number, imageIdx: number) => {
     setImageFolders((prev) => {
       const next = prev.map((arr) => [...arr]);
@@ -135,7 +135,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     );
   };
 
-  // 카드형: 추가(IndexedDB 저장 & blob 미리보기)
+  // 카드형: 파일 추가(IndexedDB 저장 & blob 미리보기)
   const onPickFilesToFolder = async (
     idx: number,
     e: React.ChangeEvent<HTMLInputElement>
@@ -161,7 +161,40 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     e.target.value = "";
   };
 
+  // ✅ 카드형: 폴더(카드) 추가
   const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
+
+  // ✅ 카드형: 폴더(카드) 삭제
+  // 기본 동작: 최소 1개의 빈 폴더는 남김(UX 안전장치)
+  const removePhotoFolder = (
+    folderIdx: number,
+    opts?: { keepAtLeastOne?: boolean }
+  ) => {
+    const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
+
+    setImageFolders((prev) => {
+      // 삭제 대상 폴더의 blob URL 먼저 정리
+      const target = prev[folderIdx] ?? [];
+      target.forEach((img) => {
+        if (img?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(img.url);
+          } catch {}
+        }
+      });
+
+      const next = prev.map((arr) => [...arr]);
+      next.splice(folderIdx, 1);
+
+      // refs도 동일한 인덱스에서 제거
+      imageInputRefs.current.splice(folderIdx, 1);
+
+      if (next.length === 0 && keepAtLeastOne) {
+        next.push([]);
+      }
+      return next;
+    });
+  };
 
   // 세로형: 삭제
   const handleRemoveFileItem = (index: number) => {
@@ -217,6 +250,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
+    /** ✅ 새로 추가됨 */
+    removePhotoFolder,
     onChangeImageCaption,
     handleRemoveImage,
     onAddFiles,

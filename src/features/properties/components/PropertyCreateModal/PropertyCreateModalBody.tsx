@@ -42,6 +42,7 @@ export default function PropertyCreateModalBody({
     openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
+    removePhotoFolder,
     onChangeImageCaption,
     handleRemoveImage,
     onAddFiles,
@@ -116,7 +117,7 @@ export default function PropertyCreateModalBody({
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         <HeaderContainer form={f} onClose={onClose} />
 
-  <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer
             images={{
               imageFolders,
@@ -125,6 +126,7 @@ export default function PropertyCreateModalBody({
               openImagePicker,
               onPickFilesToFolder,
               addPhotoFolder,
+              removePhotoFolder,
               onChangeImageCaption,
               handleRemoveImage,
               onAddFiles,

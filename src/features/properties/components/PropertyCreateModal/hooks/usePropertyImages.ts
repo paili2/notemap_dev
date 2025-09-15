@@ -57,6 +57,32 @@ export function usePropertyImages() {
   };
 
   const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
+  const removePhotoFolder = (
+    folderIdx: number,
+    opts?: { keepAtLeastOne?: boolean }
+  ) => {
+    const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
+
+    setImageFolders((prev) => {
+      // 삭제 폴더 blob URL 정리
+      (prev[folderIdx] ?? []).forEach((img) => {
+        if (img?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(img.url);
+          } catch {}
+        }
+      });
+
+      const next = prev.map((arr) => [...arr]);
+      next.splice(folderIdx, 1);
+
+      // ⬇️ input ref 인덱스도 맞춰서 삭제
+      imageInputRefs.current.splice(folderIdx, 1);
+
+      if (next.length === 0 && keepAtLeastOne) next.push([]);
+      return next;
+    });
+  };
 
   const onChangeImageCaption = (
     folderIdx: number,
@@ -131,7 +157,7 @@ export function usePropertyImages() {
     onChangeImageCaption,
     addPhotoFolder,
     handleRemoveImage,
-    // 세로형
+    removePhotoFolder,
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
