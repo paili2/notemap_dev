@@ -25,7 +25,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   }
 
   return (
-    <div className="fixed top-[410px] right-4 transform -translate-y-1/2 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
+    <div className="fixed top-16 right-4 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
       <style jsx>{`
         .scrollbar-no-arrows::-webkit-scrollbar-button {
           display: none;

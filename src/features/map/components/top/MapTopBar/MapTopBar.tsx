@@ -1,14 +1,11 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import FilterGroup from "./components/FilterGroup";
 import SearchForm from "./components/SearchForm";
 import type { MapTopBarProps } from "./types";
 
 export default function MapTopBar({
   className,
-  active = "all",
-  onChangeFilter,
   value,
   defaultValue,
   onChangeSearch,
@@ -25,10 +22,8 @@ export default function MapTopBar({
         className
       )}
       role="region"
-      aria-label="지도 상단 필터와 검색"
+      aria-label="지도 상단 검색"
     >
-      <FilterGroup active={active} onChange={onChangeFilter} />
-
       <SearchForm
         value={value}
         defaultValue={defaultValue}
