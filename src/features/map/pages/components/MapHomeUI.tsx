@@ -42,6 +42,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onCloseMenu,
     onViewFromMenu,
     onCreateFromMenu,
+    onPlanFromMenu,
 
     onMarkerClick,
     onMapReady,
@@ -68,24 +69,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // UI 전용(프레젠테이션 상태): 필터 검색 모달
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
-  const [showMenu, setShowMenu] = useState(false);
-  useEffect(() => {
-    if (menuOpen && menuAnchor && kakaoSDK && mapInstance) {
-      const ids: number[] = [];
-      const id1 = requestAnimationFrame(() => {
-        const id2 = requestAnimationFrame(() => setShowMenu(true));
-        ids.push(id2);
-      });
-      ids.push(id1);
-      return () => {
-        ids.forEach((n) => cancelAnimationFrame(n));
-        setShowMenu(false);
-      };
-    } else {
-      setShowMenu(false);
-    }
-  }, [menuOpen, menuAnchor, kakaoSDK, mapInstance]);
-
   return (
     <div className="fixed inset-0">
       {/* 지도 */}
@@ -104,7 +87,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           hideLabelForId={hideLabelForId}
         />
 
-        {mapInstance && kakaoSDK && menuAnchor && showMenu && (
+        {mapInstance && kakaoSDK && menuOpen && menuAnchor && (
           <PinContextMenu
             key={
               menuTargetId
@@ -121,6 +104,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
             onClose={onCloseMenu}
             onView={onViewFromMenu}
             onCreate={onCreateFromMenu}
+            onPlan={onPlanFromMenu}
             zIndex={10000}
           />
         )}

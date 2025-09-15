@@ -16,6 +16,7 @@ export default function PinContextMenuContainer({
   onClose,
   onView,
   onCreate,
+  onPlan,
   zIndex = 10000,
 }: PinContextMenuProps) {
   if (!kakao || !map || !target) return null;
@@ -27,32 +28,33 @@ export default function PinContextMenuContainer({
   const isPlainLatLng = (v: any): v is { lat: number; lng: number } =>
     !!v && typeof v.lat === "number" && typeof v.lng === "number";
 
-  // ✅ 메모: position 계산
+  // ✅ 실제 kakao.maps.LatLng로 정규화
   const position = React.useMemo(() => {
     if (isMarker(target)) return target.getPosition();
     if (isKakaoLatLng(target)) return target;
-    if (isPlainLatLng(target)) {
+    if (isPlainLatLng(target))
       return new kakao.maps.LatLng(target.lat, target.lng);
-    }
     return new kakao.maps.LatLng(37.5665, 126.978);
-  }, [target]); // Marker/LatLng는 참조안정 가정, literal만 추적
+  }, [target]);
 
   const xAnchor = 0.5;
   const yAnchor = 1;
-  const offsetPx = 57; // 핀 머리 위로 띄우는 높이
+  const offsetPx = 57;
 
   const handleView = (id: string) => onView?.(id);
-
-  // ✅ 선택 1: onCreate에 인자 넘기지 않기 (타입이 () => void인 경우)
   const handleCreate = () => onCreate?.();
 
-  // // ✅ 선택 2: onCreate?: (id?: string) => void 라면
-  // const handleCreate = () => onCreate?.(propertyId ?? undefined);
+  // ✅ 여기: 현재 오버레이 좌표를 캡처해서 (lat,lng)로 onPlan에 전달
+  const handlePlan = React.useCallback(() => {
+    const lat = position.getLat();
+    const lng = position.getLng();
+    onPlan?.({ lat, lng });
+  }, [onPlan, position]);
 
   return (
     <CustomOverlay
-      kakao={kakao} // typeof window.kakao | null
-      map={map} // kakao.maps.Map | null
+      kakao={kakao}
+      map={map}
       position={position}
       xAnchor={xAnchor}
       yAnchor={yAnchor}
@@ -70,8 +72,8 @@ export default function PinContextMenuContainer({
               onClose={onClose}
               onView={handleView}
               onCreate={handleCreate}
+              onPlan={handlePlan}
             />
-            {/* 꼬리 */}
             <div
               aria-hidden="true"
               className="absolute left-1/2 top-full -mt-px -translate-x-1/2 w-0 h-0

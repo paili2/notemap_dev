@@ -37,7 +37,7 @@ export type MapHomeUIProps = {
   onCloseMenu: () => void;
   onViewFromMenu: (id: string) => void;
   onCreateFromMenu: () => void;
-
+  onPlanFromMenu: (pos: LatLng) => void;
   // map callbacks
   onMarkerClick: (id: string) => void;
   onMapReady: ({ kakao, map }: any) => void;
@@ -51,6 +51,7 @@ export type MapHomeUIProps = {
   selectedId: string | null;
   prefillAddress?: string;
   draftPin: LatLng | null;
+  setDraftPin: (pin: LatLng | null) => void;
   selectedPos: LatLng | null;
   closeView: () => void;
   closeEdit: () => void;

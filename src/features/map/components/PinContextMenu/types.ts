@@ -25,6 +25,7 @@ export type PinContextMenuProps = {
   onClose: () => void;
   onView: (id: string) => void;
   onCreate: () => void;
+  onPlan?: (pos: LatLng) => void; // 좌표 인자 받도록
 
   /** 오버레이 z-index (기본 10000) */
   zIndex?: number;

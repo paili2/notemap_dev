@@ -18,6 +18,7 @@ export type ClustererWithLabelsOptions = {
 };
 
 const ACCENT = "#3B82F6"; // 라벨 배경 고정(파랑)
+const DRAFT_ID = "__draft__"; // ✅ 드래프트 핀 고정 표시용
 
 // ── 로컬 스타일 헬퍼 (임포트 이슈 우회) ─────────────────────────────────────────
 const applyLabelStyles = (el: HTMLDivElement, gapPx = 12) => {
@@ -132,7 +133,7 @@ export function useClustererWithLabels(
   // 안전 경계
   const safeLabelMax = Math.min(labelMaxLevel, clusterMinLevel - 1);
 
-  /** 클러스터 모드에서 선택 마커를 지도에 직접 올리고 나머지는 클러스터러로 */
+  /** 클러스터 모드에서 선택 마커/드래프트 핀은 지도에 직접 올리고 나머지는 클러스터러로 */
   const mountClusterMode = (selId: string | null) => {
     const entries = Object.entries(markerObjsRef.current) as [string, any][];
     const mkList = entries.map(([, mk]) => mk);
@@ -148,12 +149,16 @@ export function useClustererWithLabels(
     // 클리어 후 재배치
     clustererRef.current?.clear?.();
 
-    const rest = selId
-      ? entries.filter(([id]) => id !== selId).map(([, mk]) => mk)
-      : mkList;
+    // ✅ 선택/드래프트는 클러스터에서 제외
+    const exclude = new Set<string>();
+    if (selId) exclude.add(selId);
+    exclude.add(DRAFT_ID);
+
+    const rest = entries.filter(([id]) => !exclude.has(id)).map(([, mk]) => mk);
 
     if (rest.length) clustererRef.current?.addMarkers?.(rest);
 
+    // ✅ 선택 마커는 지도에 직접
     if (selId) {
       const sel = markerObjsRef.current[selId];
       try {
@@ -161,9 +166,20 @@ export function useClustererWithLabels(
       } catch {}
       sel?.setMap?.(map);
       sel?.setZIndex?.(1000);
-    } else {
-      mkList.forEach((mk) => mk.setMap?.(null));
     }
+
+    // ✅ 드래프트 핀도 항상 지도에 직접
+    const draftMk = markerObjsRef.current[DRAFT_ID];
+    if (draftMk) {
+      try {
+        clustererRef.current?.removeMarker?.(draftMk);
+      } catch {}
+      draftMk.setMap(map);
+      draftMk.setZIndex(1100);
+    }
+
+    // 나머지 마커는 지도에서 제거(클러스터만 보이도록)
+    mkList.forEach((mk) => mk.setMap?.(null));
 
     clustererRef.current?.redraw?.();
   };
@@ -226,11 +242,13 @@ export function useClustererWithLabels(
       const key = String(m.id);
       const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
 
+      const isDraft = key === DRAFT_ID;
+
       // 마커
       const mkOptions: any = {
         position: pos,
-        title: m.title ?? key,
-        zIndex: key === "__draft__" ? Z.DRAFT_PIN : 0,
+        title: isDraft ? "답사예정" : m.title ?? key,
+        zIndex: key === DRAFT_ID ? Z.DRAFT_PIN : 0,
       };
 
       // 아이콘 이미지 (있으면)
@@ -265,7 +283,8 @@ export function useClustererWithLabels(
       // 라벨 (항상 파란 배경 + 흰 글씨)
       const labelEl = document.createElement("div");
       labelEl.className = "kakao-label";
-      labelEl.innerText = m.title ?? key;
+      const labelText = isDraft ? "답사예정" : m.title ?? key;
+      labelEl.innerText = labelText;
       applyLabelStyles(labelEl, labelGapPx);
       labelEl.style.color = "#FFFFFF"; // 안전하게 한 번 더
 
@@ -337,7 +356,7 @@ export function useClustererWithLabels(
       }
 
       if (level >= clusterMinLevel) {
-        // 클러스터 모드: 선택 마커만 지도에 직접
+        // 클러스터 모드: 선택/드래프트는 지도에 직접
         mountClusterMode(selectedKey);
         return;
       }
@@ -485,7 +504,7 @@ export function useClustererWithLabels(
       return;
     }
 
-    // 클러스터 모드: 선택 마커는 클러스터러에서 제거하고 지도에 직접 올림
+    // 클러스터 모드: 선택 마커는 클러스터러에서 제거하고 지도에 직접 올림 + 드래프트 고정
     if (level >= clusterMinLevel) {
       const clusterer = clustererRef.current;
       if (prevId && prevId !== selectedKey) {
@@ -503,6 +522,17 @@ export function useClustererWithLabels(
         sel?.setMap?.(map);
         sel?.setZIndex?.(1000);
       }
+
+      // ✅ 드래프트 핀은 항상 지도에 직접
+      const draftMk = markerObjsRef.current[DRAFT_ID];
+      if (draftMk) {
+        try {
+          clusterer?.removeMarker?.(draftMk);
+        } catch {}
+        draftMk.setMap(map);
+        draftMk.setZIndex(1100);
+      }
+
       clusterer?.redraw?.();
       prevSelectedIdRef.current = selectedKey;
       return;

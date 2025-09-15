@@ -14,6 +14,7 @@ type Props = {
   onClose: () => void;
   onView: (id: string) => void;
   onCreate: () => void;
+  onPlan?: () => void;
 };
 
 export default function ContextMenuPanel({
@@ -24,6 +25,7 @@ export default function ContextMenuPanel({
   onClose,
   onView,
   onCreate,
+  onPlan,
 }: Props) {
   const isDraft = !propertyId || propertyId === "__draft__";
   const headerTitle = isDraft
@@ -105,15 +107,7 @@ export default function ContextMenuPanel({
 
       {/* 액션 */}
       {isDraft ? (
-        <Button
-          type="button"
-          variant="default"
-          size="lg"
-          onClick={onCreate}
-          className="w-full"
-        >
-          이 위치로 신규 등록
-        </Button>
+        <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
       ) : (
         <div className="flex items-center gap-2">
           <Button
@@ -127,6 +121,45 @@ export default function ContextMenuPanel({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+// 신규핀 draft 상태에서만 사용되는 액션 버튼 묶음
+function DraftActions({
+  onCreate,
+  onClose,
+  onPlan,
+}: {
+  onCreate: () => void;
+  onClose: () => void;
+  onPlan?: () => void;
+}) {
+  // 답사예정 핀만 지도에 표시 (모달X)
+  const handleVisitPlan = () => {
+    onPlan?.();
+    onClose();
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="button"
+        variant="secondary"
+        size="lg"
+        className="w-full"
+        onClick={handleVisitPlan}
+      >
+        답사예정
+      </Button>
+      <Button
+        type="button"
+        variant="default"
+        size="lg"
+        onClick={onCreate}
+        className="w-full"
+      >
+        이 위치로 신규 등록
+      </Button>
     </div>
   );
 }

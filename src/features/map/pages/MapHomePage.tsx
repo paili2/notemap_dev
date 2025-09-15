@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { MapHomeUI } from "./components/MapHomeUI";
+import { LatLng } from "@/lib/geo/types";
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -36,10 +37,15 @@ export default function MapHomePage() {
   }, [s.selected, s.toViewDetails]);
 
   const isBubbleOpen = s.menuOpen || s.viewOpen || s.editOpen || s.createOpen;
-
   const hideId = isBubbleOpen
     ? s.menuTargetId ?? (s.draftPin ? "__draft__" : null)
     : null;
+
+  // 답사예정: 모달 열지 않고 드래프트 핀만 남김
+  const onPlanFromMenu = (pos: LatLng) => {
+    s.addVisitPin(pos);
+    s.closeMenu();
+  };
 
   return (
     <MapHomeUI
@@ -56,6 +62,8 @@ export default function MapHomePage() {
       onChangeFilter={s.setFilter}
       onSubmitSearch={s.runSearch}
       useDistrict={s.useDistrict}
+      useSidebar={s.useSidebar}
+      setUseSidebar={s.setUseSidebar}
       menuOpen={s.menuOpen}
       menuAnchor={s.menuAnchor}
       menuTargetId={s.menuTargetId}
@@ -65,10 +73,9 @@ export default function MapHomePage() {
       onCloseMenu={s.closeMenu}
       onViewFromMenu={s.openViewFromMenu}
       onCreateFromMenu={s.openCreateFromMenu}
+      onPlanFromMenu={onPlanFromMenu}
       onMarkerClick={s.handleMarkerClick}
       onMapReady={s.onMapReady}
-      useSidebar={s.useSidebar}
-      setUseSidebar={s.setUseSidebar}
       onViewportChange={s.sendViewportQuery}
       viewOpen={s.viewOpen}
       editOpen={s.editOpen}
@@ -77,6 +84,7 @@ export default function MapHomePage() {
       selectedId={s.selectedId}
       prefillAddress={s.prefillAddress}
       draftPin={s.draftPin}
+      setDraftPin={s.setDraftPin}
       selectedPos={s.selected?.position ?? null}
       closeView={() => s.setViewOpen(false)}
       closeEdit={() => s.setEditOpen(false)}
