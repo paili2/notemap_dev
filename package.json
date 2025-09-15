@@ -5,7 +5,7 @@
   "scripts": {
     "test": "jest",
     "dev": "next dev",
-    "build": "node -e \"console.log('KAKAO_KEY_LEN='+(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY||'').length)\" && next build",
+    "build": "node -e \"console.log('KAKAO_KEY_LEN='+(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY||'').length)\" && next build --no-lint",
     "start": "next start -H 0.0.0.0 -p $PORT",
     "lint": "next lint",
     "storybook": "storybook dev -p 6006",
