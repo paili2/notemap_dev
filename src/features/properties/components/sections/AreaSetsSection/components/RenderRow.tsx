@@ -2,9 +2,10 @@
 
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
+import { ReactNode } from "react";
 
 export type RenderRowProps = {
-  label: React.ReactNode;
+  label: ReactNode;
   m2Min: string;
   onM2Min: (v: string) => void;
   m2Max: string;

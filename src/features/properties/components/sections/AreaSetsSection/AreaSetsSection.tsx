@@ -3,8 +3,9 @@
 import { Input } from "@/components/atoms/Input/Input";
 import { toPy, toM2 } from "@/features/properties/lib/area";
 import { AreaSet, AreaSetsSectionProps } from "./types";
-import RenderRow from "./components/RenderRow";
+
 import { Button } from "@/components/atoms/Button/Button";
+import RenderRow from "./components/RenderRow";
 
 export default function AreaSetsSection({
   baseAreaSet,
