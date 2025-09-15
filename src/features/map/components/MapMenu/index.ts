@@ -2,7 +2,7 @@
 export { default as MapMenu } from "./MapMenu";
 
 // 타입
-export type { MapMenuKey, MapMenuProps } from "./types";
+export type { MapMenuKey, MapMenuProps } from "./types/types";
 
 // 컴포넌트들
 export { FilterSection } from "./components/FilterSection";

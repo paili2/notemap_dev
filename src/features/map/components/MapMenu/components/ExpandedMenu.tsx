@@ -1,6 +1,6 @@
 import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
-import type { MapMenuKey } from "../types";
+import type { MapMenuKey } from "../types/types";
 
 interface ExpandedMenuProps {
   active: MapMenuKey;
