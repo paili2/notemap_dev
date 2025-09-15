@@ -9,7 +9,7 @@ export const initialFilterState = {
   deposit: "",
   areaMin: "",
   areaMax: "",
-  buildingType: [],
+  buildingType: "",
   elevator: "",
   priceMin: "",
   priceMax: "",

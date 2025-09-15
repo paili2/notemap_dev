@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
+import MapMenu from "@/features/map/components/MapMenu/MapMenu";
 import { Sidebar } from "@/features/sidebar";
 
 import PropertyViewModal from "@/features/properties/components/PropertyViewModal/PropertyViewModal";
@@ -69,6 +70,26 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // UI 전용(프레젠테이션 상태): 필터 검색 모달
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
+  // 지적편집도 상태
+  const [isDistrictOn, setIsDistrictOn] = useState(false);
+
+  const [showMenu, setShowMenu] = useState(false);
+  useEffect(() => {
+    if (menuOpen && menuAnchor && kakaoSDK && mapInstance) {
+      const ids: number[] = [];
+      const id1 = requestAnimationFrame(() => {
+        const id2 = requestAnimationFrame(() => setShowMenu(true));
+        ids.push(id2);
+      });
+      ids.push(id1);
+      return () => {
+        ids.forEach((n) => cancelAnimationFrame(n));
+        setShowMenu(false);
+      };
+    } else {
+      setShowMenu(false);
+    }
+  }, [menuOpen, menuAnchor, kakaoSDK, mapInstance]);
   return (
     <div className="fixed inset-0">
       {/* 지도 */}
@@ -79,7 +100,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           level={DEFAULT_LEVEL}
           markers={markers}
           fitToMarkers={fitAllOnce}
-          useDistrict={false}
+          useDistrict={isDistrictOn}
           onMarkerClick={onMarkerClick}
           onMapReady={onMapReady}
           onViewportChange={onViewportChange}
@@ -87,7 +108,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           hideLabelForId={hideLabelForId}
         />
 
-        {mapInstance && kakaoSDK && menuOpen && menuAnchor && (
+        {mapInstance && kakaoSDK && menuAnchor && showMenu && (
           <PinContextMenu
             key={
               menuTargetId
@@ -112,12 +133,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       {/* 상단 바 */}
       <MapTopBar
-        active={filter as any}
-        onChangeFilter={onChangeFilter as any}
         value={q}
         onChangeSearch={onChangeQ}
         onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
       />
+
+      {/* 맵 메뉴 - 사이드바 왼쪽 고정 위치 */}
+      <div className="fixed top-3 right-16 z-[60]">
+        <MapMenu
+          active={filter as any}
+          onChange={onChangeFilter as any}
+          isDistrictOn={isDistrictOn}
+          onToggleDistrict={setIsDistrictOn}
+        />
+      </div>
 
       {/* 사이드바 토글 */}
       <ToggleSidebar controlledOpen={useSidebar} onChangeOpen={setUseSidebar} />
