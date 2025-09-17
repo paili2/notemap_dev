@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { LatLng } from "@/lib/geo/types";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { MapHomeUI } from "./components/MapHomeUI";
+
+const FAV_LS_KEY = "map:favs"; // ⭐ 즐겨찾기 로컬스토리지 키
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -18,6 +20,50 @@ export default function MapHomePage() {
   }
 
   const s = useMapHomeState({ appKey: KAKAO_MAP_KEY });
+
+  // ✅ 즐겨찾기 상태 (id → boolean)
+  const [favById, setFavById] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const raw = localStorage.getItem(FAV_LS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const normalized: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        normalized[k] = typeof v === "boolean" ? v : v === "true";
+      }
+      return normalized;
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(FAV_LS_KEY, JSON.stringify(favById));
+    } catch {}
+  }, [favById]);
+
+  // ✅ 변경될 때마다 저장
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(FAV_LS_KEY, JSON.stringify(favById));
+    } catch {
+      // noop
+    }
+  }, [favById]);
+
+  // ✅ 즐겨찾기 토글 핸들러
+  const onToggleFav = useCallback(
+    (next: boolean, ctx?: { id?: string; pos?: LatLng }) => {
+      const id = ctx?.id ?? s.menuTargetId;
+      if (!id) return;
+      setFavById((prev) => ({ ...prev, [id]: next }));
+      // TODO: 서버 동기화 필요 시 여기서 API 호출
+    },
+    [s.menuTargetId]
+  );
 
   const menuTitle = useMemo(() => {
     if (!s.menuTargetId) return null;
@@ -41,7 +87,7 @@ export default function MapHomePage() {
     ? s.menuTargetId ?? (s.draftPin ? "__draft__" : null)
     : null;
 
-  // 답사예정: 모달 열지 않고 드래프트 핀만 남김
+  // 답사예정: 모달 열지 않고 핀만 추가
   const onPlanFromMenu = (pos: LatLng) => {
     s.addVisitPin(pos);
     s.closeMenu();
@@ -82,6 +128,7 @@ export default function MapHomePage() {
       onMarkerClick={s.handleMarkerClick}
       onMapReady={s.onMapReady}
       onViewportChange={s.sendViewportQuery}
+      // 모달들
       viewOpen={s.viewOpen}
       editOpen={s.editOpen}
       createOpen={s.createOpen}
@@ -91,7 +138,7 @@ export default function MapHomePage() {
       // 드래프트 핀 관련
       draftPin={s.draftPin}
       setDraftPin={s.setDraftPin}
-      // 기타 (선택된 매물, 상세/수정/생성 모달 등)
+      // 기타
       selectedPos={s.selected?.position ?? null}
       closeView={() => s.setViewOpen(false)}
       closeEdit={() => s.setEditOpen(false)}
@@ -102,6 +149,12 @@ export default function MapHomePage() {
       createHostHandlers={s.createHostHandlers}
       editHostHandlers={s.editHostHandlers}
       hideLabelForId={hideId}
+      onOpenMenu={({ position, propertyId }) => {
+        s.openMenuAt(position, propertyId);
+      }}
+      // ⭐ 즐겨찾기 상태/토글 전달
+      favById={favById}
+      onToggleFav={onToggleFav}
     />
   );
 }

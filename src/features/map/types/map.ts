@@ -8,3 +8,7 @@ export type MapMarker = {
   isNew?: boolean;
   kind?: PinKind;
 };
+
+export type MapMarkerTagged = MapMarker & {
+  tag?: "property" | "visit" | "draft";
+};

@@ -25,14 +25,19 @@ const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
   !!a && !!b && Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
 
 export function useMapHomeState({ appKey }: { appKey: string }) {
-  // SDK / Map
+  // 지도 관련 상태
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
 
-  // Menu
+  // UI 모달 & 메뉴 상태
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+
   const [menuRoadAddr, setMenuRoadAddr] = useState<string | null>(null);
   const [menuJibunAddr, setMenuJibunAddr] = useState<string | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
+
   const [menuAnchor, setMenuAnchor] = useState<LatLng | null>(null);
   const [menuTargetId, setMenuTargetId] = useState<string | null>(null);
 
@@ -40,12 +45,10 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const [fitAllOnce, setFitAllOnce] = useState(true);
 
   // Modals
-  const [createOpen, setCreateOpen] = useState(false);
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
-  const [viewOpen, setViewOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
 
-  // ✅ 생성용 단일 draft (신규 등록 모달용)
+  /* ✅ 핀 관련 상태 (답사예정 & 임시핀) S*/
+  // 생성용 단일 draft (신규 등록 모달용)
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
   const setDraftPin = useCallback((pin: LatLng | null) => {
     _setDraftPin(pin);
@@ -56,13 +59,16 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   }, []);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
 
-  // ✅ “답사예정” 전용 배열 (여러 개 유지)
+  // “답사예정” 전용 배열 (여러 개 유지)
   const [visitPins, setVisitPins] = useState<LatLng[]>([]);
   const restoredVisitPinsRef = useRef<LatLng[] | null>(null);
+  /* 핀 관련 상태 (답사예정 & 임시핀) E*/
 
   // Toggles
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
+
+  const { items, setItems } = useLocalItems({ storageKey: "properties" });
 
   // Search / filter
   const [query, setQuery] = useState("");
@@ -74,7 +80,6 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const [q, setQ] = useState("");
 
   const { sendViewportQuery } = useViewportPost();
-  const { items, setItems } = useLocalItems({ storageKey: "properties" });
 
   // ▸ 초기 복원 (draftPin)
   useEffect(() => {
@@ -227,6 +232,42 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
       setMenuJibunAddr(jibun ?? null);
     },
     [items, resolveAddress, panToWithOffset, setDraftPin]
+  );
+
+  const openMenuAt = useCallback(
+    async (
+      position: LatLng,
+      propertyId: "__draft__" | string,
+      opts?: { roadAddress?: string | null; jibunAddress?: string | null }
+    ) => {
+      // 기존 선택/드래프트 정리
+      const isDraft = propertyId === "__draft__";
+      setSelectedId(isDraft ? null : String(propertyId));
+      setMenuTargetId(isDraft ? null : String(propertyId));
+      setDraftPin(isDraft ? position : null); // 드래프트일 때 지도에 임시핀 유지/표시(원치 않으면 이 줄 제거)
+      setFitAllOnce(false);
+
+      setMenuAnchor(position);
+
+      // 주소 세팅 (옵션 우선, 없으면 역지오코딩)
+      if (opts?.roadAddress || opts?.jibunAddress) {
+        setMenuRoadAddr(opts.roadAddress ?? null);
+        setMenuJibunAddr(opts.jibunAddress ?? null);
+      } else {
+        const { road, jibun } = await resolveAddress(position);
+        setMenuRoadAddr(road ?? null);
+        setMenuJibunAddr(jibun ?? null);
+      }
+
+      // 살짝 스크롤 오프셋 맞춰 이동
+      panToWithOffset(position, 180);
+
+      // 다음 프레임에 열기
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMenuOpen(true));
+      });
+    },
+    [resolveAddress, panToWithOffset, setDraftPin]
   );
 
   // Map ready
@@ -431,6 +472,8 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     closeMenu,
     openViewFromMenu,
     openCreateFromMenu,
+
+    openMenuAt,
 
     // draft & visit
     draftPin, // 생성용 단일

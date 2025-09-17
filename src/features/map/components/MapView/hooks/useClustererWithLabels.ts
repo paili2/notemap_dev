@@ -1,4 +1,3 @@
-// useClustererWithLabels.ts
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapMarker } from "@/features/map/types/map";
 import { PinKind } from "@/features/pins/types";

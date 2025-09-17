@@ -65,8 +65,9 @@ export default function StructureLinesSection({
         {lines.map((line, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-[88px_auto_auto_minmax(180px,1fr)_32px] items-center gap-2"
+            className="grid grid-cols-[88px_max-content_max-content_minmax(240px,1fr)_40px] items-center gap-x-2 gap-y-1"
           >
+            {/* 구조 */}
             <Input
               value={`${line.rooms || ""}/${line.baths || ""}`}
               onChange={(e) => {
@@ -80,9 +81,10 @@ export default function StructureLinesSection({
               placeholder="2/1"
               className="h-9 text-center"
               inputMode="numeric"
-              pattern="[0-9/]*" // ← 선택: 숫자/슬래시만
+              pattern="[0-9/]*"
             />
 
+            {/* 복층 */}
             <label className="inline-flex items-center gap-2 text-sm">
               <Checkbox
                 checked={line.duplex}
@@ -91,7 +93,8 @@ export default function StructureLinesSection({
               <span>복층</span>
             </label>
 
-            <label className="inline-flex items-center gap-2 text-sm">
+            {/* 테라스 */}
+            <label className="inline-flex items-center gap-2 text-sm pr-5">
               <Checkbox
                 checked={line.terrace}
                 onCheckedChange={(c) => onUpdate(idx, { terrace: !!c })}
@@ -99,23 +102,38 @@ export default function StructureLinesSection({
               <span>테라스</span>
             </label>
 
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                value={line.primary}
-                onChange={(e) => onUpdate(idx, { primary: e.target.value })}
-                placeholder="최소매매가"
-                className="h-9"
-                inputMode="numeric"
-              />
-              <Input
-                value={line.secondary}
-                onChange={(e) => onUpdate(idx, { secondary: e.target.value })}
-                placeholder="최대매매가"
-                className="h-9"
-                inputMode="numeric"
-              />
+            {/* 매매가 범위 */}
+            <div className="grid w-full grid-cols-[minmax(110px,1fr)_auto_minmax(110px,1fr)] items-center justify-items-center gap-2">
+              {/* 최소 */}
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <Input
+                  value={line.primary}
+                  onChange={(e) => onUpdate(idx, { primary: e.target.value })}
+                  placeholder="최소매매가"
+                  className="h-9 flex-1 min-w-0"
+                  inputMode="numeric"
+                />
+                <span className="text-sm text-gray-500 shrink-0">만원</span>
+              </div>
+
+              <span className="text-sm text-gray-500 justify-self-center px-2">
+                ~
+              </span>
+
+              {/* 최대 */}
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <Input
+                  value={line.secondary}
+                  onChange={(e) => onUpdate(idx, { secondary: e.target.value })}
+                  placeholder="최대매매가"
+                  className="h-9 flex-1 min-w-0"
+                  inputMode="numeric"
+                />
+                <span className="text-sm text-gray-500 shrink-0">만원</span>
+              </div>
             </div>
 
+            {/* 삭제 버튼 */}
             <Button
               variant="ghost"
               size="icon"

@@ -1,20 +1,32 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import * as React from "react";
-// import { Button } from "@/components/atoms/Button/Button"; // 프로젝트 일관 스타일을 원하면 사용
+import StarToggleButton from "@/features/pins/components/StarToggleButton";
+import { useEffect, useId, useRef } from "react";
 
 type Props = {
   roadAddress?: string | null;
   jibunAddress?: string | null;
-  /** "__draft__" or 실제 id */
+  /** "__draft__" 또는 실제 id(숫자/문자열) */
   propertyId?: string | null;
   /** 매물명 (선택) */
   propertyTitle?: string | null;
+
+  /** plan(답사예정/임시) 핀인지 부모에서 판단해 넘겨줄 수 있음 */
+  isPlanPin?: boolean;
+
+  /** 즐겨찾기 상태/토글 콜백 (있을 때만 별 버튼 노출) */
+  favActive?: boolean;
+  onToggleFav?: (next: boolean) => void;
+
+  /** 공통 콜백들 */
   onClose: () => void;
   onView: (id: string) => void;
   onCreate: () => void;
   onPlan?: () => void;
+
+  /** ✅ 지도 컨테이너 DOM (다른 핀 클릭시 즉시 전환용) */
+  mapContainer?: HTMLElement | null;
 };
 
 export default function ContextMenuPanel({
@@ -22,23 +34,28 @@ export default function ContextMenuPanel({
   jibunAddress,
   propertyId,
   propertyTitle,
+  isPlanPin,
+  favActive,
+  onToggleFav,
   onClose,
   onView,
   onCreate,
   onPlan,
 }: Props) {
   const isDraft = !propertyId || propertyId === "__draft__";
+  const isVisit = !!propertyId && propertyId.startsWith("__visit__");
+  const planLike = isPlanPin ?? isVisit;
+
   const headerTitle = isDraft
     ? "선택 위치"
     : propertyTitle?.trim() || "선택된 매물";
 
-  // 접근성: 헤더 id를 붙여 dialog에 연결
-  const headingId = React.useId();
-  const panelRef = React.useRef<HTMLDivElement | null>(null);
-  const closeBtnRef = React.useRef<HTMLButtonElement | null>(null);
+  const headingId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Esc로 닫기
-  React.useEffect(() => {
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -46,22 +63,19 @@ export default function ContextMenuPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // 바깥 클릭으로 닫기
-  React.useEffect(() => {
+  // ✅ 바깥 클릭으로 닫기 (지도 내부 클릭은 닫지 않음 → 다른 핀 한 번에 전환)
+  useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node | null;
       if (!panelRef.current || !target) return;
       if (!panelRef.current.contains(target)) onClose();
     };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("click", onDocClick); // ✅ click
+    return () => document.removeEventListener("click", onDocClick);
   }, [onClose]);
 
-  // 최초 포커스
-  React.useEffect(() => {
-    // 패널에 먼저 포커스 주고(읽기), 그 다음 닫기 버튼으로 이동
-    panelRef.current?.focus();
-    setTimeout(() => closeBtnRef.current?.focus(), 0);
+  useEffect(() => {
+    panelRef.current?.focus(); // 패널에만 포커스
   }, []);
 
   return (
@@ -74,19 +88,36 @@ export default function ContextMenuPanel({
       className="rounded-2xl bg-white shadow-xl border border-gray-200 p-3 min-w-[260px] max-w-[320px] outline-none"
     >
       {/* 헤더 */}
-      <div className="flex items-start justify-between gap-3">
-        <div id={headingId} className="font-semibold text-base truncate">
+      <div className="flex items-center justify-between gap-3 ">
+        <div
+          id={headingId}
+          className="font-semibold text-base truncate min-w-0"
+        >
           {headerTitle}
         </div>
-        <Button
-          type="button"
-          onClick={onClose}
-          aria-label="닫기"
-          variant="outline"
-          size="sm"
-        >
-          닫기
-        </Button>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {!isDraft &&
+            planLike &&
+            typeof favActive === "boolean" &&
+            onToggleFav && (
+              <StarToggleButton
+                active={favActive}
+                onChange={onToggleFav}
+                size="sm"
+              />
+            )}
+          <Button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            variant="outline"
+            size="sm"
+            ref={closeBtnRef}
+          >
+            닫기
+          </Button>
+        </div>
       </div>
 
       {/* 주소 */}
@@ -108,7 +139,7 @@ export default function ContextMenuPanel({
       {/* 액션 */}
       {isDraft ? (
         <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
-      ) : (
+      ) : isVisit ? null : (
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -125,7 +156,7 @@ export default function ContextMenuPanel({
   );
 }
 
-// 신규핀 draft 상태에서만 사용되는 액션 버튼 묶음
+/** 신규핀 draft 상태에서만 사용되는 액션 버튼 묶음 */
 function DraftActions({
   onCreate,
   onClose,
@@ -135,11 +166,11 @@ function DraftActions({
   onClose: () => void;
   onPlan?: () => void;
 }) {
-  // 답사예정 핀만 지도에 표시 (모달X)
   const handleVisitPlan = () => {
     onPlan?.();
     onClose();
   };
+
   return (
     <div className="flex flex-col gap-2">
       <Button
@@ -151,6 +182,7 @@ function DraftActions({
       >
         답사예정
       </Button>
+
       <Button
         type="button"
         variant="default"

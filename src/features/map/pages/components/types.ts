@@ -74,4 +74,15 @@ export type MapHomeUIProps = {
 
   // misc
   hideLabelForId: string | null;
+
+  onOpenMenu: (p: {
+    position: { lat: number; lng: number };
+    propertyId: "__draft__" | string;
+    propertyTitle?: string | null;
+    pin: { kind: string; isFav?: boolean };
+  }) => void;
+  onChangeHideLabelForId?: (id: string | null) => void;
+
+  onToggleFav?: (next: boolean, ctx?: { id?: string; pos?: LatLng }) => void;
+  favById?: Record<string, boolean>;
 };

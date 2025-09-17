@@ -1,4 +1,3 @@
-// src/features/map/components/MapEditModalHost.tsx
 "use client";
 
 import PropertyEditModal from "@/features/properties/components/PropertyEditModal/PropertyEditModal";

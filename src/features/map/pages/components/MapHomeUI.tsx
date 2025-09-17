@@ -16,6 +16,7 @@ import MapCreateModalHost from "../../components/MapCreateModalHost";
 import MapEditModalHost from "../../components/MapEditModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
+import { Slot } from "@radix-ui/react-slot";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -65,15 +66,21 @@ export function MapHomeUI(props: MapHomeUIProps) {
     editHostHandlers,
 
     hideLabelForId,
+    onOpenMenu,
+    onChangeHideLabelForId,
+
+    // ✅ 즐겨찾기
+    onToggleFav,
+    favById = {},
   } = props;
 
-  // UI 전용(프레젠테이션 상태): 필터 검색 모달
+  const isVisitId = (id: string) => String(id).startsWith("__visit__");
+
+  // UI 전용
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
-
-  // 지적편집도 상태
   const [isDistrictOn, setIsDistrictOn] = useState(false);
-
   const [showMenu, setShowMenu] = useState(false);
+
   useEffect(() => {
     if (menuOpen && menuAnchor && kakaoSDK && mapInstance) {
       const ids: number[] = [];
@@ -90,6 +97,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       setShowMenu(false);
     }
   }, [menuOpen, menuAnchor, kakaoSDK, mapInstance]);
+
   return (
     <div className="fixed inset-0">
       {/* 지도 */}
@@ -101,34 +109,107 @@ export function MapHomeUI(props: MapHomeUIProps) {
           markers={markers}
           fitToMarkers={fitAllOnce}
           useDistrict={isDistrictOn}
-          onMarkerClick={onMarkerClick}
+          onMarkerClick={(id) => {
+            const m = markers.find((x) => String(x.id) === String(id));
+            if (!m) return;
+
+            if (isVisitId(String(id))) {
+              const key = String(m.id);
+              onOpenMenu({
+                position: m.position,
+                propertyId: key,
+                propertyTitle: m.title ?? "답사예정",
+                // ✅ favById 우선, 없으면 원본값 → Boolean으로 정규화 (?? 불필요)
+                pin: {
+                  kind: "plan",
+                  isFav: Boolean(
+                    key in favById ? favById[key] : (m as any)?.isFav
+                  ),
+                },
+              });
+              onChangeHideLabelForId?.(key);
+              return;
+            }
+
+            onMarkerClick?.(String(id));
+          }}
           onMapReady={onMapReady}
           onViewportChange={onViewportChange}
           allowCreateOnMapClick={false}
           hideLabelForId={hideLabelForId}
+          onDraftPinClick={(pos) => {
+            onOpenMenu({
+              position: pos,
+              propertyId: "__draft__",
+              propertyTitle: "선택 위치",
+              pin: { kind: "plan", isFav: false },
+            });
+            onChangeHideLabelForId?.("__draft__");
+          }}
         />
 
-        {mapInstance && kakaoSDK && menuAnchor && showMenu && (
-          <PinContextMenu
-            key={
-              menuTargetId
-                ? `bubble-${menuTargetId}`
-                : `bubble-draft-${menuAnchor.lat},${menuAnchor.lng}`
-            }
-            kakao={kakaoSDK}
-            map={mapInstance}
-            position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)}
-            roadAddress={menuRoadAddr ?? undefined}
-            jibunAddress={menuJibunAddr ?? undefined}
-            propertyId={menuTargetId ?? "__draft__"}
-            propertyTitle={menuTitle ?? undefined}
-            onClose={onCloseMenu}
-            onView={onViewFromMenu}
-            onCreate={onCreateFromMenu}
-            onPlan={onPlanFromMenu}
-            zIndex={10000}
-          />
-        )}
+        {mapInstance &&
+          kakaoSDK &&
+          menuAnchor &&
+          showMenu &&
+          (() => {
+            const targetPin = menuTargetId
+              ? markers.find((m) => String(m.id) === String(menuTargetId))
+              : undefined;
+
+            const isVisit =
+              !!menuTargetId && String(menuTargetId).startsWith("__visit__");
+
+            // ✅ favById 우선 적용: 안전한 hasOwnProperty 체크
+            const hasFav =
+              !!menuTargetId &&
+              Object.prototype.hasOwnProperty.call(favById, menuTargetId);
+
+            const computedIsFav = Boolean(
+              hasFav ? favById[menuTargetId!] : (targetPin as any)?.isFav
+            );
+
+            const pin = menuTargetId
+              ? {
+                  kind: isVisit ? "plan" : (targetPin as any)?.kind ?? "1room",
+                  isFav: computedIsFav,
+                }
+              : {
+                  kind: "plan",
+                  isFav: false,
+                };
+
+            return (
+              <PinContextMenu
+                key={
+                  menuTargetId
+                    ? `bubble-${menuTargetId}` // ⬅️ computedIsFav 섞지 않기
+                    : `bubble-draft-${menuAnchor.lat},${menuAnchor.lng}`
+                }
+                kakao={kakaoSDK}
+                map={mapInstance}
+                position={
+                  new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)
+                }
+                roadAddress={menuRoadAddr ?? undefined}
+                jibunAddress={menuJibunAddr ?? undefined}
+                propertyId={menuTargetId ?? "__draft__"}
+                propertyTitle={menuTitle ?? undefined}
+                pin={pin}
+                onClose={onCloseMenu}
+                onView={onViewFromMenu}
+                onCreate={onCreateFromMenu}
+                onPlan={onPlanFromMenu}
+                onToggleFav={(next) =>
+                  onToggleFav?.(next, {
+                    id: menuTargetId ?? undefined,
+                    pos: menuAnchor ?? undefined,
+                  })
+                }
+                zIndex={10000}
+              />
+            );
+          })()}
       </div>
 
       {/* 상단 바 */}
@@ -138,7 +219,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
       />
 
-      {/* 맵 메뉴 - 사이드바 왼쪽 고정 위치 */}
+      {/* 맵 메뉴 */}
       <div className="fixed top-3 right-16 z-[60]">
         <MapMenu
           active={filter as any}
@@ -148,7 +229,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         />
       </div>
 
-      {/* 사이드바 토글 */}
+      {/* 사이드바 */}
       <ToggleSidebar controlledOpen={useSidebar} onChangeOpen={setUseSidebar} />
       <Sidebar
         isSidebarOn={useSidebar}
@@ -209,7 +290,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           resetAfterCreate={createHostHandlers.resetAfterCreate}
         />
       )}
-
       {/* 수정 모달 */}
       {editOpen && selectedViewItem && selectedId && (
         <MapEditModalHost

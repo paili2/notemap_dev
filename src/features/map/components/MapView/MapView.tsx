@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useClustererWithLabels } from "./hooks/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
@@ -13,6 +13,7 @@ type Props = MapViewProps & {
   pinKind?: PinKind;
   /** 라벨 숨길 대상 핀 id (말풍선 열린 핀) */
   hideLabelForId?: string | null;
+  onDraftPinClick?: (pos: { lat: number; lng: number }) => void;
 };
 
 const MapView: React.FC<Props> = ({
@@ -24,6 +25,7 @@ const MapView: React.FC<Props> = ({
   useDistrict = false,
   allowCreateOnMapClick = false,
   onMarkerClick,
+  onDraftPinClick,
   onMapClick,
   onMapReady,
   onViewportChange,
@@ -69,9 +71,27 @@ const MapView: React.FC<Props> = ({
     return () => kakao.maps.event.removeListener(map, "click", handler);
   }, [kakao, map, allowCreateOnMapClick, onMapClick]);
 
+  const handleMarkerClick = useCallback(
+    (id: string) => {
+      if (id === "__draft__") {
+        const draft = markers.find((m) => String(m.id) === "__draft__");
+        if (draft && onDraftPinClick) {
+          onDraftPinClick(draft.position);
+        } else if (map && onDraftPinClick && kakao) {
+          // 폴백: 드래프트가 배열에 없으면 지도 중심으로라도 메뉴 오픈
+          const c = map.getCenter();
+          onDraftPinClick({ lat: c.getLat(), lng: c.getLng() });
+        }
+        return;
+      }
+      onMarkerClick?.(id);
+    },
+    [markers, onDraftPinClick, onMarkerClick, map, kakao]
+  );
+
   useClustererWithLabels(kakao, map, markers, {
     hitboxSizePx: 56,
-    onMarkerClick,
+    onMarkerClick: handleMarkerClick,
     defaultPinKind: pinKind,
     fitToMarkers,
     hideLabelForId,

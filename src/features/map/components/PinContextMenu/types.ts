@@ -20,6 +20,8 @@ export type PinContextMenuProps = {
   propertyId?: "__draft__" | string | null;
   /** 매물명(선택) — 있으면 헤더에 표시 */
   propertyTitle?: string | null;
+  pin: { kind: string; isFav?: boolean };
+  onToggleFav?: (next: boolean) => void;
 
   /** 닫기 / 상세 보기 / 신규 등록 동작 */
   onClose: () => void;
