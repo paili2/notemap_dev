@@ -180,7 +180,7 @@ export default function PropertyViewModal({
                     if (!confirm("정말 삭제할까요?")) return;
                     await onDelete();
                   }}
-                  className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50"
+                  className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex "
                   aria-label="삭제"
                   title="삭제"
                 >

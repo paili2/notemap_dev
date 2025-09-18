@@ -30,7 +30,7 @@ export default function CompletionRegistryView({
 }: CompletionRegistryView) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 items-center">
+      <div className="grid grid-cols-2 items-center">
         <Field label="경사도" align="center">
           <Pill text={slopeGrade} />
         </Field>
@@ -38,7 +38,7 @@ export default function CompletionRegistryView({
           <Pill text={structureGrade} />
         </Field>
       </div>
-      <div className="grid grid-cols-4 items-center">
+      <div className="grid grid-cols-2 items-center">
         <Field label="준공일" align="center">
           <div className="h-9 flex items-center text-sm">
             {completionDate ? formatDate(completionDate) : "-"}
