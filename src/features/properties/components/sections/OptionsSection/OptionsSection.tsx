@@ -202,10 +202,10 @@ export default function OptionsSection({
     return r;
   }, [customInputs]);
 
-  /** 레이아웃 클래스 */
-  const CELL_W_BASE = "w-[200px]";
+  /** 레이아웃 클래스 (모바일 폭 축소) */
+  const CELL_W_BASE = "w-[112px]";
   const CELL_W_MD = "md:w-[220px]";
-  const INPUT_W_BASE = "w-[160px]";
+  const INPUT_W_BASE = "w-[104px]";
   const INPUT_W_MD = "md:w-[180px]";
 
   return (
@@ -213,7 +213,7 @@ export default function OptionsSection({
       <div className="text-sm font-medium">옵션</div>
 
       {/* 프리셋 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 items-center">
+      <div className="grid grid-cols-3 gap-2 items-center">
         {PRESET_OPTIONS.map((op) => (
           <label key={op} className="inline-flex items-center gap-2 text-sm">
             <Checkbox
@@ -225,9 +225,9 @@ export default function OptionsSection({
         ))}
       </div>
 
-      {/* 직접입력: 라벨을 각 줄의 첫 번째 셀로 배치(첫 줄만 체크박스/라벨, 이후 줄은 빈 자리) */}
+      {/* 직접입력 */}
       <div className="space-y-2">
-        <div className="grid grid-cols-[auto_200px_200px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-2 gap-y-2 items-center">
+        <div className="grid grid-cols-[auto_120px_120px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-7 gap-y-2 items-center">
           {etcOn && rows.length > 0 ? (
             <>
               {rows.map((pair, rowIdx) => {
@@ -312,7 +312,7 @@ export default function OptionsSection({
               })}
             </>
           ) : (
-            // 꺼져 있거나, rows가 0일 때: 라벨은 항상 첫 칸에 보이고 인풋 칸은 비워둠
+            // 꺼져 있거나, rows가 0일 때
             <>
               <div className="min-h-9 flex items-center">
                 <label className="inline-flex items-center gap-2 text-sm">

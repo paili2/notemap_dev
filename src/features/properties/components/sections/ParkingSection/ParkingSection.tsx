@@ -67,7 +67,7 @@ export default function ParkingSection({
   };
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="grid grid-cols-2 items-center md:grid-cols-3 ">
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
           <Select

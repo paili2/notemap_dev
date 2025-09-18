@@ -13,7 +13,7 @@ import MapView from "../../components/MapView/MapView";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "../../lib/constants";
 import { FilterSearch } from "../../FilterSearch";
 import MapCreateModalHost from "../../components/MapCreateModalHost";
-import MapEditModalHost from "../../components/MapEditModalHost";
+// ⛔ 삭제: import MapEditModalHost from "../../components/MapEditModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
 import { Slot } from "@radix-ui/react-slot";
@@ -51,19 +51,23 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onViewportChange,
 
     viewOpen,
-    editOpen,
+    // ⛔ 외부 수정 모달 관련 값은 더 이상 쓰지 않지만 타입 유지 위해 언더스코어로 받기
+    editOpen: _editOpen,
+    selectedId: _selectedId,
+
     createOpen,
     selectedViewItem,
-    selectedId,
     prefillAddress,
     draftPin,
     selectedPos,
     closeView,
     onSaveViewPatch,
-    onEditFromView,
+    // ⛔ ViewModal 내부에서 자체적으로 edit 전환하므로 불필요
+    onEditFromView: _onEditFromView,
     onDeleteFromView,
     createHostHandlers,
-    editHostHandlers,
+    // ⛔ 외부 수정 모달 핸들러 불필요
+    editHostHandlers: _editHostHandlers,
 
     hideLabelForId,
     onOpenMenu,
@@ -119,7 +123,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 position: m.position,
                 propertyId: key,
                 propertyTitle: m.title ?? "답사예정",
-                // ✅ favById 우선, 없으면 원본값 → Boolean으로 정규화 (?? 불필요)
                 pin: {
                   kind: "plan",
                   isFav: Boolean(
@@ -160,7 +163,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
             const isVisit =
               !!menuTargetId && String(menuTargetId).startsWith("__visit__");
 
-            // ✅ favById 우선 적용: 안전한 hasOwnProperty 체크
             const hasFav =
               !!menuTargetId &&
               Object.prototype.hasOwnProperty.call(favById, menuTargetId);
@@ -174,16 +176,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
                   kind: isVisit ? "plan" : (targetPin as any)?.kind ?? "1room",
                   isFav: computedIsFav,
                 }
-              : {
-                  kind: "plan",
-                  isFav: false,
-                };
+              : { kind: "plan", isFav: false };
 
             return (
               <PinContextMenu
                 key={
                   menuTargetId
-                    ? `bubble-${menuTargetId}` // ⬅️ computedIsFav 섞지 않기
+                    ? `bubble-${menuTargetId}`
                     : `bubble-draft-${menuAnchor.lat},${menuAnchor.lng}`
                 }
                 kakao={kakaoSDK}
@@ -272,8 +271,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
           onClose={closeView}
           data={selectedViewItem}
           onSave={onSaveViewPatch}
-          onEdit={onEditFromView}
           onDelete={onDeleteFromView}
+          // ⛔ 외부 수정모달 트리거 제거
+          // onEdit={onEditFromView}
         />
       )}
 
@@ -290,7 +290,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
           resetAfterCreate={createHostHandlers.resetAfterCreate}
         />
       )}
-      {/* 수정 모달 */}
+
+      {/* ⛔ 외부 수정 모달 제거
       {editOpen && selectedViewItem && selectedId && (
         <MapEditModalHost
           open={true}
@@ -300,7 +301,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           updateItems={editHostHandlers.updateItems}
           onSubmit={editHostHandlers.onSubmit}
         />
-      )}
+      )} */}
     </div>
   );
 }

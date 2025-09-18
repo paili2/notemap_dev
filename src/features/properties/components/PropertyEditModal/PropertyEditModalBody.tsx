@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 
 import type { PropertyEditModalProps } from "./types";
@@ -8,7 +9,6 @@ import { useEditImages } from "./hooks/useEditImages";
 import { useEditForm } from "./hooks/useEditForm";
 import { buildEditPayload } from "./lib/buildEditPayload";
 
-import { useMemo } from "react";
 import HeaderContainer from "./ui/HeaderContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
 import NumbersContainer from "./ui/NumbersContainer";
@@ -25,36 +25,30 @@ export default function PropertyEditModalBody({
   onClose,
   onSubmit,
   initialData,
-}: Omit<PropertyEditModalProps, "open">) {
+  embedded = false, // ✅ ViewModal 안에서 내용만 교체할 때 true
+}: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const propertyId = String((initialData as any)?.id ?? "");
 
-  // ✅ 변경: 이미지 초기값을 view 우선으로 가져오고,
-  //        레퍼런스(_imageCardRefs, _fileItemRefs)도 함께 전달
+  // 이미지 초기값: view 우선 + 레퍼런스 전달
   const initialImages = useMemo(() => {
     if (!initialData) return null;
-
     const v = (initialData as any).view ?? (initialData as any);
-
     return {
-      // refs 우선 (있으면 useEditImages가 가장 먼저 사용하도록)
-      _imageCardRefs: v._imageCardRefs,
-      _fileItemRefs: v._fileItemRefs,
-
-      // 최신/레거시 저장 필드들
-      imageFolders: v.imageFolders,
-      imagesByCard: v.imagesByCard,
-      imageCards: v.imageCards,
-      images: v.images,
-      imageCardCounts: v.imageCardCounts,
-
+      _imageCardRefs: v?._imageCardRefs,
+      _fileItemRefs: v?._fileItemRefs,
+      imageFolders: v?.imageFolders,
+      imagesByCard: v?.imagesByCard,
+      imageCards: v?.imageCards,
+      images: v?.images,
+      imageCardCounts: v?.imageCardCounts,
       // 세로열: verticalImages 우선, 없으면 imagesVertical/fileItems 폴백
-      verticalImages: v.verticalImages ?? v.imagesVertical ?? v.fileItems,
-      imagesVertical: v.imagesVertical,
-      fileItems: v.fileItems,
+      verticalImages: v?.verticalImages ?? v?.imagesVertical ?? v?.fileItems,
+      imagesVertical: v?.imagesVertical,
+      fileItems: v?.fileItems,
     };
   }, [initialData]);
 
-  // 이미지 훅 (초기 하이드레이션 포함)
+  // 이미지 훅
   const {
     imageFolders,
     verticalImages,
@@ -68,14 +62,10 @@ export default function PropertyEditModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
-  } = useEditImages({
-    propertyId,
-    initial: initialImages,
-  });
+  } = useEditImages({ propertyId, initial: initialImages });
 
-  // 폼 상태 훅 (초기값 주입 + 유효성)
+  // 폼 훅
   const f = useEditForm({ initialData });
-
   const isSaveEnabled = f.isSaveEnabled;
 
   const save = async () => {
@@ -153,6 +143,54 @@ export default function PropertyEditModalBody({
     onClose();
   };
 
+  // ✅ embedded 모드: 오버레이/포지셔닝 없이 “바디만” 렌더 (ViewModal 내부에서 스왑용)
+  if (embedded) {
+    return (
+      <div className="flex flex-col h-full">
+        <HeaderContainer form={f} onClose={onClose} />
+
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+          <ImagesContainer
+            images={{
+              imageFolders,
+              verticalImages,
+              registerImageInput,
+              openImagePicker,
+              onPickFilesToFolder,
+              addPhotoFolder,
+              removePhotoFolder,
+              onChangeImageCaption,
+              handleRemoveImage,
+              onAddFiles,
+              onChangeFileItemCaption,
+              handleRemoveFileItem,
+            }}
+          />
+
+          <div className="space-y-4 md:space-y-6">
+            <BasicInfoContainer form={f} />
+            <NumbersContainer form={f} />
+            <ParkingContainer form={f} />
+            <CompletionRegistryContainer form={f} />
+            <AspectsContainer form={f} />
+            <AreaSetsContainer form={f} />
+            <StructureLinesContainer form={f} />
+            <OptionsContainer form={f} />
+            <MemosContainer form={f} />
+            <div className="h-16 md:hidden" />
+          </div>
+        </div>
+
+        <FooterButtons
+          onClose={onClose}
+          onSave={save}
+          canSave={isSaveEnabled}
+        />
+      </div>
+    );
+  }
+
+  // 기본(standalone) 모달 렌더: 기존과 동일
   return (
     <div className="fixed inset-0 z-[100]">
       <div

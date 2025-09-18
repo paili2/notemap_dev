@@ -26,7 +26,7 @@ const PillRadioGroup = <T extends string>({
             key={opt}
             htmlFor={id}
             className={[
-              "inline-flex h-8 min-w-10 items-center justify-center rounded-lg px-3 text-sm",
+              "inline-flex h-8 min-w-10 items-center justify-center rounded-lg px-1 md:px-3 text-sm whitespace-nowrap",
               "border transition-colors select-none cursor-pointer",
               checked
                 ? "bg-blue-500 text-white border-blue-500"

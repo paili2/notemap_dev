@@ -65,7 +65,12 @@ export default function StructureLinesSection({
         {lines.map((line, idx) => (
           <div
             key={idx}
-            className="grid grid-cols-[88px_max-content_max-content_minmax(240px,1fr)_40px] items-center gap-x-2 gap-y-1"
+            className={`
+            grid items-center
+            gap-x-1 gap-y-1 md:gap-x-2
+            grid-cols-[64px_max-content_max-content_minmax(170px,1fr)_32px]
+            md:grid-cols-[72px_max-content_max-content_minmax(240px,1fr)_40px]
+          `}
           >
             {/* 구조 */}
             <Input
@@ -79,13 +84,13 @@ export default function StructureLinesSection({
                 });
               }}
               placeholder="2/1"
-              className="h-9 text-center"
+              className="h-8 md:h-9 text-center"
               inputMode="numeric"
               pattern="[0-9/]*"
             />
 
             {/* 복층 */}
-            <label className="inline-flex items-center gap-2 text-sm">
+            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pl-2">
               <Checkbox
                 checked={line.duplex}
                 onCheckedChange={(c) => onUpdate(idx, { duplex: !!c })}
@@ -94,7 +99,7 @@ export default function StructureLinesSection({
             </label>
 
             {/* 테라스 */}
-            <label className="inline-flex items-center gap-2 text-sm pr-5">
+            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pr-2 md:pr-5">
               <Checkbox
                 checked={line.terrace}
                 onCheckedChange={(c) => onUpdate(idx, { terrace: !!c })}
@@ -103,33 +108,46 @@ export default function StructureLinesSection({
             </label>
 
             {/* 매매가 범위 */}
-            <div className="grid w-full grid-cols-[minmax(110px,1fr)_auto_minmax(110px,1fr)] items-center justify-items-center gap-2">
+            <div
+              className={`
+                grid w-full items-center justify-items-center
+                grid-cols-[minmax(92px,1fr)_auto_minmax(92px,1fr)]
+                md:grid-cols-[minmax(110px,1fr)_auto_minmax(110px,1fr)]
+                gap-1 md:gap-2
+              `}
+            >
               {/* 최소 */}
-              <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-1 md:gap-2">
                 <Input
                   value={line.primary}
                   onChange={(e) => onUpdate(idx, { primary: e.target.value })}
                   placeholder="최소매매가"
-                  className="h-9 flex-1 min-w-0"
+                  className="h-8 md:h-9 flex-1 min-w-0"
                   inputMode="numeric"
+                  inputClassName="placeholder:text-[11px] md:placeholder:text-xs"
                 />
-                <span className="text-sm text-gray-500 shrink-0">만원</span>
+                <span className="text-[11px] md:text-xs text-gray-500 shrink-0 leading-none">
+                  만원
+                </span>
               </div>
 
-              <span className="text-sm text-gray-500 justify-self-center px-2">
+              <span className="text-xs text-gray-500 justify-self-center px-1 md:px-2">
                 ~
               </span>
 
               {/* 최대 */}
-              <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="flex w-full min-w-0 items-center gap-1 md:gap-2">
                 <Input
                   value={line.secondary}
                   onChange={(e) => onUpdate(idx, { secondary: e.target.value })}
                   placeholder="최대매매가"
-                  className="h-9 flex-1 min-w-0"
+                  className="h-8 md:h-9 flex-1 min-w-0"
                   inputMode="numeric"
+                  inputClassName="placeholder:text-[11px] md:placeholder:text-xs"
                 />
-                <span className="text-sm text-gray-500 shrink-0">만원</span>
+                <span className="text-[11px] md:text-xs text-gray-500 shrink-0 leading-none">
+                  만원
+                </span>
               </div>
             </div>
 
@@ -140,6 +158,7 @@ export default function StructureLinesSection({
               type="button"
               onClick={() => onRemove(idx)}
               title="행 삭제"
+              className="shrink-0"
             >
               <Trash2 className="h-4 w-4" />
             </Button>

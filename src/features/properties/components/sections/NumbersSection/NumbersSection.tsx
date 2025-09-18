@@ -24,7 +24,7 @@ export default function NumbersSection({
   setRemainingHouseholds,
 }: NumbersSectionProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4">
       <NumberField
         label="총 개동"
         value={totalBuildings}

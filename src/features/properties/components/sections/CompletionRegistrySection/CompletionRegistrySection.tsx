@@ -27,7 +27,7 @@ export default function CompletionRegistrySection({
 }: CompletionRegistrySectionProps) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-20">
+      <div className="grid grid-cols-2 items-center gap-20 md:flex">
         <Field label="경사도" align="center">
           <PillRadioGroup
             name="slopeGrade"
@@ -54,7 +54,7 @@ export default function CompletionRegistrySection({
             value={completionDate}
             onChange={(e) => setCompletionDate(formatDate(e.target.value))}
             placeholder="예: 2024-04-14"
-            className="h-9 w-44"
+            className="w-28 h-9 md:w-44"
             inputMode="numeric"
           />
         </Field>

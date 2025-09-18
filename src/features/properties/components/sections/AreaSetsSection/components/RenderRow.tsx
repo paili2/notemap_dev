@@ -30,9 +30,9 @@ export default function RenderRow({
   return (
     <div className="flex items-center gap-8">
       <Field label={label}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 md:gap-2">
           <Input
-            className="h-9 w-24"
+            className="h-9 w-16 md:w-24"
             value={m2Min}
             onChange={(e) => onM2Min(e.target.value)}
             placeholder="최소"
@@ -40,7 +40,7 @@ export default function RenderRow({
           />
           <span className="text-muted-foreground">m² ~</span>
           <Input
-            className="h-9 w-24"
+            className="h-9 w-16 md:w-24"
             value={m2Max}
             onChange={(e) => onM2Max(e.target.value)}
             placeholder="최대"
@@ -51,7 +51,7 @@ export default function RenderRow({
           <div className="w-3" />
 
           <Input
-            className="h-9 w-24"
+            className="h-9 w-16 md:w-24"
             value={pyMin}
             onChange={(e) => onPyMin(e.target.value)}
             placeholder="최소"
@@ -59,7 +59,7 @@ export default function RenderRow({
           />
           <span className="text-muted-foreground">평 ~</span>
           <Input
-            className="h-9 w-24"
+            className="h-9 w-16 md:w-24"
             value={pyMax}
             onChange={(e) => onPyMax(e.target.value)}
             placeholder="최대"

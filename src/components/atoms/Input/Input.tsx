@@ -4,10 +4,15 @@ import { cn } from "@/lib/utils";
 type Props = React.ComponentProps<"input"> & {
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** 안쪽 <input>에만 붙는 클래스 */
+  inputClassName?: string;
 };
 
 const Input = React.forwardRef<HTMLInputElement, Props>(
-  ({ className, type, leftIcon, rightIcon, ...props }, ref) => {
+  (
+    { className, inputClassName, type = "text", leftIcon, rightIcon, ...props },
+    ref
+  ) => {
     return (
       <div
         className={cn(
@@ -21,15 +26,17 @@ const Input = React.forwardRef<HTMLInputElement, Props>(
           </span>
         )}
         <input
+          ref={ref}
           type={type}
           className={cn(
-            "flex-1 bg-transparent px-3 py-1 text-base outline-none placeholder:text-muted-foreground md:text-sm focus:outline-none focus:ring-0",
-            leftIcon ? "pl-2" : "",
-            rightIcon ? "pr-2" : "",
+            "flex-1 bg-transparent px-2 md:px-3 h-full text-sm leading-9 outline-none",
+            "placeholder:text-muted-foreground",
+            leftIcon && "pl-2",
+            rightIcon && "pr-2",
             type === "number" &&
-              "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+            inputClassName
           )}
-          ref={ref}
           {...props}
         />
         {rightIcon && (
@@ -43,5 +50,4 @@ const Input = React.forwardRef<HTMLInputElement, Props>(
 );
 
 Input.displayName = "Input";
-
 export { Input };

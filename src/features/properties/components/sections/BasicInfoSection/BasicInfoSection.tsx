@@ -25,12 +25,12 @@ export default function BasicInfoSection({
       </Field>
 
       <Field label="분양사무실">
-        <div className="flex gap-2">
+        <div className="w-full grid grid-cols-2 gap-5 md:gap-0">
           <Input
             value={officePhone}
             onChange={(e) => setOfficePhone(formatPhone(e.target.value))}
             placeholder="대표번호"
-            className="h-9"
+            className="md:w-2/3 h-9"
             inputMode="tel"
             leftIcon={<Phone className="w-4 h-4" />}
           />
@@ -38,7 +38,7 @@ export default function BasicInfoSection({
             value={officePhone2}
             onChange={(e) => setOfficePhone2(formatPhone(e.target.value))}
             placeholder="추가번호(선택)"
-            className="h-9"
+            className="md:w-2/3 h-9"
             inputMode="tel"
             leftIcon={<Phone className="w-4 h-4" />}
           />
