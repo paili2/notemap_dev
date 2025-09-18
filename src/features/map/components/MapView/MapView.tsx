@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useClustererWithLabels } from "./hooks/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
+import { useMapClick } from "./hooks/useMapClick";
 import type { MapViewProps } from "./types";
 import { PinKind } from "@/features/pins/types";
 
 type Props = MapViewProps & {
+  /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */
   pinKind?: PinKind;
+  /** 라벨 숨길 대상 핀 id (말풍선 열린 핀) */
   hideLabelForId?: string | null;
   onDraftPinClick?: (pos: { lat: number; lng: number }) => void;
 };
@@ -29,11 +32,10 @@ const MapView: React.FC<Props> = ({
   pinKind = "1room",
   hideLabelForId = null,
 }) => {
+  // idle 디바운스
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const IDLE_DEBOUNCE_MS = 500;
 
-  const draggingRef = useRef(false);
-  const [dragging, setDragging] = useState(false);
+  const IDLE_DEBOUNCE_MS = 500;
 
   const { containerRef, kakao, map } = useKakaoMap({
     appKey,
@@ -44,7 +46,6 @@ const MapView: React.FC<Props> = ({
     onMapReady,
     onViewportChange: (q) => {
       if (!onViewportChange) return;
-      if (draggingRef.current) return;
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(
         () => onViewportChange(q),
@@ -52,42 +53,20 @@ const MapView: React.FC<Props> = ({
       );
     },
   });
-
   useDistrictOverlay(kakao, map, useDistrict);
-
-  useEffect(() => {
-    if (!map) return;
-    try {
-      map.setDraggable(true);
-      map.setZoomable(true);
-    } catch {}
-  }, [map]);
-
-  useEffect(() => {
-    if (!kakao || !map) return;
-    const onStart = () => {
-      draggingRef.current = true;
-      setDragging(true);
-    };
-    const onEnd = () => {
-      draggingRef.current = false;
-      setTimeout(() => setDragging(false), 0);
-    };
-    kakao.maps.event.addListener(map, "dragstart", onStart);
-    kakao.maps.event.addListener(map, "dragend", onEnd);
-    return () => {
-      kakao.maps.event.removeListener(map, "dragstart", onStart);
-      kakao.maps.event.removeListener(map, "dragend", onEnd);
-    };
-  }, [kakao, map]);
 
   useEffect(() => {
     if (!kakao || !map) return;
     if (!allowCreateOnMapClick || !onMapClick) return;
+
     const handler = (mouseEvent: any) => {
       const latlng = mouseEvent.latLng;
-      onMapClick({ lat: latlng.getLat(), lng: latlng.getLng() });
+      onMapClick({
+        lat: latlng.getLat(),
+        lng: latlng.getLng(),
+      });
     };
+
     kakao.maps.event.addListener(map, "click", handler);
     return () => kakao.maps.event.removeListener(map, "click", handler);
   }, [kakao, map, allowCreateOnMapClick, onMapClick]);
@@ -96,8 +75,10 @@ const MapView: React.FC<Props> = ({
     (id: string) => {
       if (id === "__draft__") {
         const draft = markers.find((m) => String(m.id) === "__draft__");
-        if (draft && onDraftPinClick) onDraftPinClick(draft.position);
-        else if (map && onDraftPinClick && kakao) {
+        if (draft && onDraftPinClick) {
+          onDraftPinClick(draft.position);
+        } else if (map && onDraftPinClick && kakao) {
+          // 폴백: 드래프트가 배열에 없으면 지도 중심으로라도 메뉴 오픈
           const c = map.getCenter();
           onDraftPinClick({ lat: c.getLat(), lng: c.getLng() });
         }
@@ -112,7 +93,7 @@ const MapView: React.FC<Props> = ({
     hitboxSizePx: 56,
     onMarkerClick: handleMarkerClick,
     defaultPinKind: pinKind,
-    fitToMarkers: fitToMarkers && !dragging,
+    fitToMarkers,
     hideLabelForId,
   });
 
@@ -125,13 +106,7 @@ const MapView: React.FC<Props> = ({
     };
   }, []);
 
-  return (
-    <div
-      ref={containerRef}
-      className="w-full h-full"
-      style={{ touchAction: "auto", overscrollBehavior: "none" }}
-    />
-  );
+  return <div ref={containerRef} className="w-full h-full" />;
 };
 
 export default MapView;

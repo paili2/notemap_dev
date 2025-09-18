@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import StarsRating from "@/components/molecules/StarsRating";
-import { Star } from "lucide-react";
 
 import { HeaderSectionViewProps } from "./types";
 import { getPinUrl } from "@/features/pins/lib/assets";
@@ -16,15 +15,11 @@ export default function HeaderSectionView({
   onClose,
 }: HeaderSectionViewProps) {
   const pinSrc = getPinUrl(pinKind);
-  const pct = Math.max(0, Math.min(100, (Number(listingStars || 0) / 5) * 100));
-  const hasRating =
-    typeof listingStars === "number" && !Number.isNaN(listingStars);
 
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
-      {/* ===== 데스크탑 레이아웃 ===== */}
-      <div className="hidden md:flex items-center gap-3 px-4 py-5 overflow-x-auto">
-        {/* 핀 아이콘 */}
+      <div className="flex items-center gap-3 px-4 py-5 overflow-x-auto">
+        {/* ✅ 현재 핀 아이콘 (매물평점 왼쪽) */}
         <div className="shrink-0 w-9 h-9 grid place-items-center">
           <Image
             src={pinSrc}
@@ -74,57 +69,6 @@ export default function HeaderSectionView({
         >
           {elevator}
         </span>
-      </div>
-
-      {/* ===== 모바일 레이아웃 ===== */}
-      <div className="md:hidden px-4 py-3 space-y-2">
-        {/* 첫 줄: 핀 + 매물평점 + 별 + 점수 + 엘리베이터 */}
-        <div className="flex items-center justify-between gap-2 text-[13px] leading-none">
-          <div className="flex items-center gap-1">
-            <div className="shrink-0 w-6 h-6 grid place-items-center">
-              <Image
-                src={pinSrc}
-                alt={`${pinKind} 핀`}
-                width={20}
-                height={26}
-                priority
-              />
-            </div>
-            <h1
-              className="text-sm font-semibold leading-5 line-clamp-2 break-words"
-              title={title}
-            >
-              {title || "-"}
-            </h1>{" "}
-            {hasRating && (
-              <div className="flex items-center gap-1">
-                <span className="relative inline-flex">
-                  <Star className="w-4 h-4 opacity-40" aria-hidden />
-                  <span
-                    className="absolute left-0 top-0 overflow-hidden"
-                    style={{ width: `${pct}%`, height: 16 }}
-                  >
-                    <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                  </span>
-                </span>
-                <span className="tabular-nums">{listingStars.toFixed(1)}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <div className="flex items-center gap-1">
-              <span className="font-medium ml-2 text-sm">엘리베이터</span>
-              <span
-                className={cn(
-                  "font-medium text-lg",
-                  elevator === "O" ? "text-blue-600" : "text-rose-600"
-                )}
-              >
-                {elevator}
-              </span>
-            </div>
-          </div>
-        </div>
       </div>
     </header>
   );

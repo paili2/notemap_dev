@@ -16,6 +16,7 @@ import MapCreateModalHost from "../../components/MapCreateModalHost";
 import MapEditModalHost from "../../components/MapEditModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
+import { Slot } from "@radix-ui/react-slot";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -68,12 +69,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onOpenMenu,
     onChangeHideLabelForId,
 
+    // ✅ 즐겨찾기
     onToggleFav,
     favById = {},
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
 
+  // UI 전용
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
   const [isDistrictOn, setIsDistrictOn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -97,9 +100,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   return (
     <div className="fixed inset-0">
-      {/* 지도 레이어 */}
-      <div className="absolute inset-0 pointer-events-auto">
-        {/* ✅ 지도는 항상 auto */}
+      {/* 지도 */}
+      <div className="absolute inset-0">
         <MapView
           appKey={appKey}
           center={DEFAULT_CENTER}
@@ -117,6 +119,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 position: m.position,
                 propertyId: key,
                 propertyTitle: m.title ?? "답사예정",
+                // ✅ favById 우선, 없으면 원본값 → Boolean으로 정규화 (?? 불필요)
                 pin: {
                   kind: "plan",
                   isFav: Boolean(
@@ -157,6 +160,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
             const isVisit =
               !!menuTargetId && String(menuTargetId).startsWith("__visit__");
 
+            // ✅ favById 우선 적용: 안전한 hasOwnProperty 체크
             const hasFav =
               !!menuTargetId &&
               Object.prototype.hasOwnProperty.call(favById, menuTargetId);
@@ -179,7 +183,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
               <PinContextMenu
                 key={
                   menuTargetId
-                    ? `bubble-${menuTargetId}`
+                    ? `bubble-${menuTargetId}` // ⬅️ computedIsFav 섞지 않기
                     : `bubble-draft-${menuAnchor.lat},${menuAnchor.lng}`
                 }
                 kakao={kakaoSDK}
@@ -208,52 +212,35 @@ export function MapHomeUI(props: MapHomeUIProps) {
           })()}
       </div>
 
-      {/* ===== 오버레이 UI들: 기본은 pointer-events-none, 내부만 auto ===== */}
-
       {/* 상단 바 */}
-      <div className="pointer-events-none">
-        {/* ✅ 래퍼는 none */}
-        <div className="pointer-events-auto">
-          {/* ✅ 내부만 클릭 가능 */}
-          <MapTopBar
-            value={q}
-            onChangeSearch={onChangeQ}
-            onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
-          />
-        </div>
-      </div>
+      <MapTopBar
+        value={q}
+        onChangeSearch={onChangeQ}
+        onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
+      />
 
       {/* 맵 메뉴 */}
-      <div className="fixed top-3 right-16 z-[60] pointer-events-none">
-        <div className="pointer-events-auto">
-          <MapMenu
-            active={filter as any}
-            onChange={onChangeFilter as any}
-            isDistrictOn={isDistrictOn}
-            onToggleDistrict={setIsDistrictOn}
-          />
-        </div>
+      <div className="fixed top-3 right-16 z-[60]">
+        <MapMenu
+          active={filter as any}
+          onChange={onChangeFilter as any}
+          isDistrictOn={isDistrictOn}
+          onToggleDistrict={setIsDistrictOn}
+        />
       </div>
 
-      {/* 사이드바 토글 & 사이드바 */}
-      <div className="pointer-events-none">
-        <div className="pointer-events-auto">
-          <ToggleSidebar
-            controlledOpen={useSidebar}
-            onChangeOpen={setUseSidebar}
-          />
-          <Sidebar
-            isSidebarOn={useSidebar}
-            onToggleSidebar={() => setUseSidebar(!useSidebar)}
-          />
-        </div>
-      </div>
+      {/* 사이드바 */}
+      <ToggleSidebar controlledOpen={useSidebar} onChangeOpen={setUseSidebar} />
+      <Sidebar
+        isSidebarOn={useSidebar}
+        onToggleSidebar={() => setUseSidebar(!useSidebar)}
+      />
 
       {/* 좌측 하단 필터 검색 버튼 */}
-      <div className="absolute bottom-4 left-4 z-30 pointer-events-none">
+      <div className="absolute bottom-4 left-4 z-30">
         <button
           onClick={() => setFilterSearchOpen(true)}
-          className="pointer-events-auto bg-gray-900 shadow-2xl border-2 border-gray-800 hover:bg-gray-800 p-3 rounded-lg transition-all duration-200 hover:scale-105"
+          className="bg-gray-900 shadow-2xl border-2 border-gray-800 hover:bg-gray-800 p-3 rounded-lg transition-all duration-200 hover:scale-105"
           title="필터 검색"
         >
           <svg
@@ -273,63 +260,46 @@ export function MapHomeUI(props: MapHomeUIProps) {
       </div>
 
       {/* FilterSearch 모달 */}
-      <div className="pointer-events-none">
-        <div className="pointer-events-auto">
-          <FilterSearch
-            isOpen={filterSearchOpen}
-            onClose={() => setFilterSearchOpen(false)}
-          />
-        </div>
-      </div>
+      <FilterSearch
+        isOpen={filterSearchOpen}
+        onClose={() => setFilterSearchOpen(false)}
+      />
 
       {/* 상세 보기 모달 */}
       {viewOpen && selectedViewItem && (
-        <div className="pointer-events-none">
-          <div className="pointer-events-auto">
-            <PropertyViewModal
-              open={true}
-              onClose={closeView}
-              data={selectedViewItem}
-              onSave={onSaveViewPatch}
-              onEdit={onEditFromView}
-              onDelete={onDeleteFromView}
-            />
-          </div>
-        </div>
+        <PropertyViewModal
+          open={true}
+          onClose={closeView}
+          data={selectedViewItem}
+          onSave={onSaveViewPatch}
+          onEdit={onEditFromView}
+          onDelete={onDeleteFromView}
+        />
       )}
 
       {/* 신규 등록 모달 */}
       {createOpen && (
-        <div className="pointer-events-none">
-          <div className="pointer-events-auto">
-            <MapCreateModalHost
-              open={createOpen}
-              prefillAddress={prefillAddress}
-              draftPin={draftPin}
-              selectedPos={selectedPos}
-              onClose={createHostHandlers.onClose}
-              appendItem={createHostHandlers.appendItem}
-              selectAndOpenView={createHostHandlers.selectAndOpenView}
-              resetAfterCreate={createHostHandlers.resetAfterCreate}
-            />
-          </div>
-        </div>
+        <MapCreateModalHost
+          open={createOpen}
+          prefillAddress={prefillAddress}
+          draftPin={draftPin}
+          selectedPos={selectedPos}
+          onClose={createHostHandlers.onClose}
+          appendItem={createHostHandlers.appendItem}
+          selectAndOpenView={createHostHandlers.selectAndOpenView}
+          resetAfterCreate={createHostHandlers.resetAfterCreate}
+        />
       )}
-
       {/* 수정 모달 */}
       {editOpen && selectedViewItem && selectedId && (
-        <div className="pointer-events-none">
-          <div className="pointer-events-auto">
-            <MapEditModalHost
-              open={true}
-              data={selectedViewItem}
-              selectedId={selectedId}
-              onClose={editHostHandlers.onClose}
-              updateItems={editHostHandlers.updateItems}
-              onSubmit={editHostHandlers.onSubmit}
-            />
-          </div>
-        </div>
+        <MapEditModalHost
+          open={true}
+          data={selectedViewItem}
+          selectedId={selectedId}
+          onClose={editHostHandlers.onClose}
+          updateItems={editHostHandlers.updateItems}
+          onSubmit={editHostHandlers.onSubmit}
+        />
       )}
     </div>
   );

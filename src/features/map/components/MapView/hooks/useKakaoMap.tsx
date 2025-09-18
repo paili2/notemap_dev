@@ -1,8 +1,7 @@
-"use client";
-
 import { LatLng } from "@/lib/geo/types";
 import { useEffect, useRef, useState } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
+import { DEFAULT_LEVEL } from "@/features/map/lib/constants";
 import { KOREA_BOUNDS } from "@/features/map/lib/constants";
 
 type Args = {
@@ -41,17 +40,15 @@ const useKakaoMap = ({
   const mapRef = useRef<any>(null);
   const [ready, setReady] = useState(false);
 
+  // 우리가 관리하는 최대 축소 레벨
   const maxLevelRef = useRef<number>(maxLevel);
+
+  // 검색 마커 1개 유지
   const lastSearchMarkerRef = useRef<any>(null);
 
-  // 이벤트 리스너 보관
+  // 리스너 참조 (cleanup에서 제거)
   const zoomListenerRef = useRef<((...a: any[]) => void) | null>(null);
   const idleListenerRef = useRef<((...a: any[]) => void) | null>(null);
-  const dragStartRef = useRef<((...a: any[]) => void) | null>(null);
-  const dragEndRef = useRef<((...a: any[]) => void) | null>(null);
-
-  // 드래그 중 여부 (idle에서 뷰포트 콜백 차단용)
-  const draggingRef = useRef(false);
 
   // ===== 지도 생성 =====
   useEffect(() => {
@@ -69,13 +66,7 @@ const useKakaoMap = ({
           level,
         });
 
-        // 항상 드래그/줌 가능
-        try {
-          map.setDraggable(true);
-          map.setZoomable(true);
-        } catch {}
-
-        // 최대 축소 레벨
+        // 일반 최대 축소 제한
         maxLevelRef.current = maxLevel;
         map.setMaxLevel(maxLevelRef.current);
 
@@ -91,7 +82,7 @@ const useKakaoMap = ({
           map.setMaxLevel(lv);
         }
 
-        // 최대 확대 제한
+        // 최대 확대 제한 강제
         const onZoomChanged = () => {
           const lv = map.getLevel();
           if (lv > maxLevelRef.current) map.setLevel(maxLevelRef.current);
@@ -99,20 +90,12 @@ const useKakaoMap = ({
         kakao.maps.event.addListener(map, "zoom_changed", onZoomChanged);
         zoomListenerRef.current = onZoomChanged;
 
-        // 드래그 시작/끝
-        const onDragStart = () => (draggingRef.current = true);
-        const onDragEnd = () => (draggingRef.current = false);
-        kakao.maps.event.addListener(map, "dragstart", onDragStart);
-        kakao.maps.event.addListener(map, "dragend", onDragEnd);
-        dragStartRef.current = onDragStart;
-        dragEndRef.current = onDragEnd;
-
-        // idle에서 뷰포트 콜백 (드래그 중이면 차단)
+        // idle 시 뷰포트 변경 콜백
         const onIdle = () => {
-          if (!onViewportChange || draggingRef.current) return;
+          if (!onViewportChange) return;
           const bounds = map.getBounds();
-          const sw = bounds.getSouthWest();
-          const ne = bounds.getNorthEast();
+          const sw = bounds.getSouthWest(); // 좌하단
+          const ne = bounds.getNorthEast(); // 우상단
           onViewportChange({
             leftTop: { lat: ne.getLat(), lng: sw.getLng() },
             leftBottom: { lat: sw.getLat(), lng: sw.getLng() },
@@ -124,15 +107,6 @@ const useKakaoMap = ({
         kakao.maps.event.addListener(map, "idle", onIdle);
         idleListenerRef.current = onIdle;
 
-        // 컨테이너 크기 변동 대응
-        try {
-          if (window.ResizeObserver) {
-            const ro = new ResizeObserver(() => map.relayout());
-            ro.observe(containerRef.current!);
-            (map as any).__ro = ro;
-          }
-        } catch {}
-
         mapRef.current = map;
         setReady(true);
         onMapReady?.({ kakao, map });
@@ -141,7 +115,7 @@ const useKakaoMap = ({
         console.error("Kakao SDK load failed:", e);
       });
 
-    // 정리
+    // cleanup
     return () => {
       cancelled = true;
       const kakao = kakaoRef.current;
@@ -160,23 +134,6 @@ const useKakaoMap = ({
           kakao.maps.event.removeListener(map, "idle", idleListenerRef.current);
           idleListenerRef.current = null;
         }
-        if (dragStartRef.current) {
-          kakao.maps.event.removeListener(
-            map,
-            "dragstart",
-            dragStartRef.current
-          );
-          dragStartRef.current = null;
-        }
-        if (dragEndRef.current) {
-          kakao.maps.event.removeListener(map, "dragend", dragEndRef.current);
-          dragEndRef.current = null;
-        }
-        // ResizeObserver 해제
-        try {
-          (map as any).__ro?.disconnect?.();
-          (map as any).__ro = null;
-        } catch {}
       }
 
       if (lastSearchMarkerRef.current) {
@@ -185,6 +142,7 @@ const useKakaoMap = ({
       }
 
       mapRef.current = null;
+      // kakaoRef는 SDK 전역이므로 유지
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appKey]);
@@ -194,13 +152,14 @@ const useKakaoMap = ({
     const kakao = kakaoRef.current;
     const map = mapRef.current;
     if (!ready || !kakao || !map) return;
+
     const raf = requestAnimationFrame(() => {
       map.panTo(new kakao.maps.LatLng(center.lat, center.lng));
     });
     return () => cancelAnimationFrame(raf);
   }, [center.lat, center.lng, ready]);
 
-  // level 변경 반영 (상한 적용)
+  // level 변경 시 상한 적용
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
@@ -230,6 +189,7 @@ const useKakaoMap = ({
     lastSearchMarkerRef.current = marker;
   };
 
+  /** 주소 → 실패 시 키워드로 검색하여 좌표에 마커 배치 */
   const searchPlace = (query: string, opts?: SearchOptions) => {
     if (!ready || !kakaoRef.current || !mapRef.current || !query) return;
 
@@ -269,7 +229,7 @@ const useKakaoMap = ({
     }
   };
 
-  // 선택 API
+  // 선택: 외부 제어 API 몇 개 노출
   const panTo = (p: LatLng) => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;

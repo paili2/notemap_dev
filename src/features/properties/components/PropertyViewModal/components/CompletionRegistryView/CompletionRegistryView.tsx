@@ -8,6 +8,8 @@ import type {
 } from "@/features/properties/types/property-domain";
 import Pill from "./components/Pill";
 
+// ↑ 실제 경로에 맞게 수정 (formatDate 정의한 곳)
+
 const show = (v: any) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;
 
@@ -28,8 +30,7 @@ export default function CompletionRegistryView({
 }: CompletionRegistryView) {
   return (
     <div className="space-y-4">
-      {/* 첫 줄: 경사도, 구조 */}
-      <div className="grid grid-cols-2 gap-4 items-center">
+      <div className="grid grid-cols-4 items-center">
         <Field label="경사도" align="center">
           <Pill text={slopeGrade} />
         </Field>
@@ -37,9 +38,7 @@ export default function CompletionRegistryView({
           <Pill text={structureGrade} />
         </Field>
       </div>
-
-      {/* 둘째 줄: 준공일, 등기 */}
-      <div className="grid grid-cols-2 gap-4 items-center">
+      <div className="grid grid-cols-4 items-center">
         <Field label="준공일" align="center">
           <div className="h-9 flex items-center text-sm">
             {completionDate ? formatDate(completionDate) : "-"}
@@ -49,18 +48,12 @@ export default function CompletionRegistryView({
           <Pill text={registry} />
         </Field>
       </div>
-
-      {/* 셋째 줄: 최저실입 */}
-      <div className="grid grid-cols-2 gap-4 items-center">
-        <Field label="최저실입" align="center">
-          <div className="flex items-center gap-3">
-            <div className="h-9 flex items-center text-sm">
-              {show(salePrice)}
-            </div>
-            <span className="text-sm text-gray-500">만원</span>
-          </div>
-        </Field>
-      </div>
+      <Field label="최저실입" align="center">
+        <div className="flex items-center gap-3">
+          <div className="h-9 flex items-center text-sm">{show(salePrice)}</div>
+          <span className="text-sm text-gray-500">만원</span>
+        </div>
+      </Field>
     </div>
   );
 }
