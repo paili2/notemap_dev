@@ -2,24 +2,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { MapMarker } from "@/features/map/types/map";
 import { PinKind } from "@/features/pins/types";
 import { getPinUrl } from "@/features/pins/lib/assets";
-// import { styleHitboxEl, styleLabelEl } from "@/features/map/lib/overlays/style"; // ← 임시 비활성화(런타임 이슈 회피)
 import { HITBOX, LABEL, PIN_MARKER, Z } from "@/features/map/lib/constants";
 
 export type ClustererWithLabelsOptions = {
-  labelMaxLevel?: number; // 라벨/핀 보이는 최대 레벨 (이하: 라벨모드)
-  clusterMinLevel?: number; // 클러스터 시작 레벨 (이상: 클러스터모드)
+  labelMaxLevel?: number;
+  clusterMinLevel?: number;
   onMarkerClick?: (id: string) => void;
   fitToMarkers?: boolean;
-  labelGapPx?: number; // 라벨을 핀 머리 위로 띄우는 여백(px)
-  hitboxSizePx?: number; // 핀 클릭 판정 원(투명) 지름(px)
-  defaultPinKind?: PinKind; // 마커에 kind 없을 때 기본 핀
-  hideLabelForId?: string | null; // 말풍선 열린 핀 id (선택됨)
+  labelGapPx?: number;
+  hitboxSizePx?: number;
+  defaultPinKind?: PinKind;
+  hideLabelForId?: string | null;
 };
 
-const ACCENT = "#3B82F6"; // 라벨 배경 고정(파랑)
-const DRAFT_ID = "__draft__"; // ✅ 드래프트 핀 고정 표시용
+const ACCENT = "#3B82F6";
+const DRAFT_ID = "__draft__";
 
-// ── 로컬 스타일 헬퍼 (임포트 이슈 우회) ─────────────────────────────────────────
 const applyLabelStyles = (el: HTMLDivElement, gapPx = 12) => {
   Object.assign(el.style, {
     transform: `translateY(calc(-150% - ${gapPx}px))`,
@@ -45,12 +43,11 @@ const applyHitboxStyles = (el: HTMLDivElement, sizePx = 48) => {
     height: size,
     borderRadius: "9999px",
     background: "rgba(0,0,0,0)",
-    pointerEvents: "auto",
+    // pointerEvents 는 런타임에 장치 타입별로 설정
     cursor: "pointer",
     touchAction: "manipulation",
   } as CSSStyleDeclaration);
 };
-// ────────────────────────────────────────────────────────────────────────────────
 
 export function useClustererWithLabels(
   kakao: any,
@@ -67,10 +64,36 @@ export function useClustererWithLabels(
     hideLabelForId = null,
   }: ClustererWithLabelsOptions = {}
 ) {
-  // 의도적 재생성 tick (필요시 setRerenderTick(+1)로 강제 재빌드 가능)
-  const [rerenderTick] = useState(0);
+  // ✅ 터치 디바이스 감지 (실시간 반응)
+  const [isCoarsePointer, setIsCoarsePointer] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
+    const noHover = window.matchMedia?.("(hover: none)")?.matches ?? false;
+    const touch =
+      "ontouchstart" in window || (navigator as any).maxTouchPoints > 0;
+    return coarse || noHover || touch;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mqCoarse = window.matchMedia("(pointer: coarse)");
+    const mqNoHover = window.matchMedia("(hover: none)");
+    const update = () => {
+      const coarse = mqCoarse.matches;
+      const noHover = mqNoHover.matches;
+      const touch =
+        "ontouchstart" in window || (navigator as any).maxTouchPoints > 0;
+      setIsCoarsePointer(coarse || noHover || touch);
+    };
+    update();
+    mqCoarse.addEventListener?.("change", update);
+    mqNoHover.addEventListener?.("change", update);
+    return () => {
+      mqCoarse.removeEventListener?.("change", update);
+      mqNoHover.removeEventListener?.("change", update);
+    };
+  }, []);
 
-  // 마커 구성 키(순서 영향 제거)
+  const [rerenderTick] = useState(0);
   const markersKey = useMemo(() => {
     return [...markers]
       .map(
@@ -82,13 +105,10 @@ export function useClustererWithLabels(
       .sort()
       .join("|");
   }, [markers]);
-
   const realMarkersKey = useMemo(
     () => `${markersKey}_${rerenderTick}`,
     [markersKey, rerenderTick]
   );
-
-  // ✅ 부모에서 내려오는 선택 id를 문자열로 표준화
   const selectedKey = useMemo(
     () => (hideLabelForId == null ? null : String(hideLabelForId)),
     [hideLabelForId]
@@ -102,13 +122,11 @@ export function useClustererWithLabels(
   const hitboxOvRef = useRef<Record<string, any>>({});
   const clustererRef = useRef<any>(null);
 
-  // onMarkerClick을 ref로 고정
   const onMarkerClickRef = useRef<typeof onMarkerClick>();
   useEffect(() => {
     onMarkerClickRef.current = onMarkerClick;
   }, [onMarkerClick]);
 
-  // 핀 아이콘 프리로드
   const preloadedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!kakao || !map) return;
@@ -126,18 +144,13 @@ export function useClustererWithLabels(
     });
   }, [kakao, map, realMarkersKey, defaultPinKind]);
 
-  // 이전 선택 id 기억
   const prevSelectedIdRef = useRef<string | null>(null);
-
-  // 안전 경계
   const safeLabelMax = Math.min(labelMaxLevel, clusterMinLevel - 1);
 
-  /** 클러스터 모드에서 선택 마커/드래프트 핀은 지도에 직접 올리고 나머지는 클러스터러로 */
   const mountClusterMode = (selId: string | null) => {
     const entries = Object.entries(markerObjsRef.current) as [string, any][];
     const mkList = entries.map(([, mk]) => mk);
 
-    // 라벨/히트박스 숨김
     (Object.values(labelOvRef.current) as any[]).forEach((ov) =>
       ov.setMap(null)
     );
@@ -145,19 +158,15 @@ export function useClustererWithLabels(
       ov.setMap(null)
     );
 
-    // 클리어 후 재배치
     clustererRef.current?.clear?.();
 
-    // ✅ 선택/드래프트는 클러스터에서 제외
     const exclude = new Set<string>();
     if (selId) exclude.add(selId);
     exclude.add(DRAFT_ID);
 
     const rest = entries.filter(([id]) => !exclude.has(id)).map(([, mk]) => mk);
-
     if (rest.length) clustererRef.current?.addMarkers?.(rest);
 
-    // ✅ 선택 마커는 지도에 직접
     if (selId) {
       const sel = markerObjsRef.current[selId];
       try {
@@ -166,8 +175,6 @@ export function useClustererWithLabels(
       sel?.setMap?.(map);
       sel?.setZIndex?.(1000);
     }
-
-    // ✅ 드래프트 핀도 항상 지도에 직접
     const draftMk = markerObjsRef.current[DRAFT_ID];
     if (draftMk) {
       try {
@@ -176,17 +183,13 @@ export function useClustererWithLabels(
       draftMk.setMap(map);
       draftMk.setZIndex(1100);
     }
-
-    // 나머지 마커는 지도에서 제거(클러스터만 보이도록)
     mkList.forEach((mk) => mk.setMap?.(null));
-
     clustererRef.current?.redraw?.();
   };
 
-  // 1) 클러스터러 초기화 및 clusterclick 리스너
+  // 1) 클러스터러 초기화
   useEffect(() => {
     if (!kakao || !map) return;
-
     if (!clustererRef.current) {
       clustererRef.current = new kakao.maps.MarkerClusterer({
         map,
@@ -206,7 +209,6 @@ export function useClustererWithLabels(
         map.setLevel(nextLevel, { anchor: center });
       } catch {}
     };
-
     kakao.maps.event.addListener(clustererRef.current, "clusterclick", handler);
     return () => {
       kakao?.maps?.event?.removeListener?.(
@@ -217,12 +219,11 @@ export function useClustererWithLabels(
     };
   }, [kakao, map, clusterMinLevel]);
 
-  // 2) 마커/라벨/히트박스 생성 및 정리 (무거운 이펙트)
-  // ⚠ selectedKey, onMarkerClick, fitToMarkers 는 deps에서 제외 (라이트 이펙트에서 처리)
+  // 2) 마커/라벨/히트박스 생성
   useEffect(() => {
     if (!kakao || !map) return;
 
-    // 이전 리소스 정리
+    // 정리
     Object.entries(markerClickHandlersRef.current).forEach(([id, handler]) => {
       const mk = markerObjsRef.current[id];
       if (mk && handler) kakao.maps.event.removeListener(mk, "click", handler);
@@ -236,21 +237,17 @@ export function useClustererWithLabels(
     Object.values(markerObjsRef.current).forEach((mk: any) => mk.setMap(null));
     markerObjsRef.current = {};
 
-    // 생성
     markers.forEach((m) => {
       const key = String(m.id);
       const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
-
       const isDraft = key === DRAFT_ID;
 
-      // 마커
       const mkOptions: any = {
         position: pos,
         title: isDraft ? "답사예정" : m.title ?? key,
         zIndex: key === DRAFT_ID ? Z.DRAFT_PIN : 0,
       };
 
-      // 아이콘 이미지 (있으면)
       const kind: PinKind = ((m as any).kind ?? defaultPinKind) as PinKind;
       const iconUrl = getPinUrl(kind);
       if (iconUrl && typeof iconUrl === "string") {
@@ -266,36 +263,24 @@ export function useClustererWithLabels(
           mkOptions.image = new kakao.maps.MarkerImage(iconUrl, markerSize, {
             offset: markerOffset,
           });
-        } catch {
-          /* 폴백: 기본 마커 */
-        }
+        } catch {}
       }
 
       const mk = new kakao.maps.Marker(mkOptions);
       markerObjsRef.current[key] = mk;
 
-      // 클릭 리스너: ref 사용
       const handler = () => onMarkerClickRef.current?.(key);
       kakao.maps.event.addListener(mk, "click", handler);
       markerClickHandlersRef.current[key] = handler;
 
-      // 라벨 (항상 파란 배경 + 흰 글씨)
+      // 라벨
       const labelEl = document.createElement("div");
       labelEl.className = "kakao-label";
-      const labelText = isDraft ? "답사예정" : m.title ?? key;
-      labelEl.innerText = labelText;
+      labelEl.innerText = isDraft ? "답사예정" : m.title ?? key;
       applyLabelStyles(labelEl, labelGapPx);
-      labelEl.style.color = "#FFFFFF"; // 안전하게 한 번 더
-
-      // 가시성 확정(혹시 숨김 클래스/스타일이 남아 있어도 복구)
+      labelEl.style.color = "#FFFFFF";
       labelEl.style.visibility = "visible";
       labelEl.style.display = "";
-      labelEl.classList?.remove(
-        "is-hidden",
-        "hidden",
-        "opacity-0",
-        "pointer-events-none"
-      );
 
       const labelOv = new kakao.maps.CustomOverlay({
         position: pos,
@@ -306,15 +291,12 @@ export function useClustererWithLabels(
       });
       labelOvRef.current[key] = labelOv;
 
-      // 히트박스
+      // ✅ 히트박스 (터치 디바이스에서는 비활성화)
       const hitEl = document.createElement("div");
       hitEl.className = "kakao-hitbox";
       applyHitboxStyles(hitEl, hitboxSizePx);
-      hitEl.addEventListener("click", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        onMarkerClickRef.current?.(key);
-      });
+      // ✅ 드래그 간섭 방지: 항상 패스스루
+      hitEl.style.pointerEvents = "none";
 
       const hitOv = new kakao.maps.CustomOverlay({
         position: pos,
@@ -322,15 +304,14 @@ export function useClustererWithLabels(
         xAnchor: 0.5,
         yAnchor: 0.5,
         zIndex: HITBOX.Z_INDEX,
-        clickable: true,
+        clickable: false,
       });
       hitboxOvRef.current[key] = hitOv;
     });
 
-    // 초기 모드 적용
+    // 초기 모드
     const applyMode = () => {
       const level = map.getLevel();
-
       const entries = Object.entries(markerObjsRef.current) as [string, any][];
       const mkList = entries.map(([, mk]) => mk);
       const labelEntries = Object.entries(labelOvRef.current) as [
@@ -340,38 +321,36 @@ export function useClustererWithLabels(
       const hitEntries = Object.entries(hitboxOvRef.current) as [string, any][];
 
       if (level <= safeLabelMax) {
-        // 라벨 모드
         clustererRef.current?.clear?.();
         mkList.forEach((mk) => mk.setMap(map));
-        const cleared = selectedKey == null; // null/undefined 모두 해제
+        const cleared = selectedKey == null;
         labelEntries.forEach(([id, ov]) =>
           ov.setMap(!cleared && id === selectedKey ? null : map)
         );
-        hitEntries.forEach(([id, ov]) =>
-          ov.setMap(!cleared && id === selectedKey ? null : map)
-        );
+        // ✅ 터치면 히트박스 숨김
+        hitEntries.forEach(([, ov]) => ov.setMap(null));
         if (!cleared) markerObjsRef.current[selectedKey!]?.setZIndex?.(1000);
         return;
       }
 
       if (level >= clusterMinLevel) {
-        // 클러스터 모드: 선택/드래프트는 지도에 직접
         mountClusterMode(selectedKey);
         return;
       }
 
-      // 중간 모드: 마커 + 히트박스 (라벨 숨김)
+      // 중간 모드
       (Object.values(labelOvRef.current) as any[]).forEach((ov) =>
         ov.setMap(null)
       );
       clustererRef.current?.clear?.();
       mkList.forEach((mk) => mk.setMap(map));
-      hitEntries.forEach(([, ov]) => ov.setMap(map));
+      (Object.entries(hitboxOvRef.current) as [string, any][]).forEach(
+        ([, ov]) => ov.setMap(null)
+      );
     };
 
     applyMode();
 
-    // 정리
     return () => {
       Object.entries(markerClickHandlersRef.current).forEach(
         ([id, handler]) => {
@@ -381,14 +360,12 @@ export function useClustererWithLabels(
         }
       );
       markerClickHandlersRef.current = {};
-
       clustererRef.current?.clear?.();
       Object.values(labelOvRef.current).forEach((ov: any) => ov.setMap(null));
       Object.values(hitboxOvRef.current).forEach((ov: any) => ov.setMap(null));
       Object.values(markerObjsRef.current).forEach((mk: any) =>
         mk.setMap(null)
       );
-
       labelOvRef.current = {};
       hitboxOvRef.current = {};
       markerObjsRef.current = {};
@@ -396,21 +373,19 @@ export function useClustererWithLabels(
   }, [
     kakao,
     map,
-    realMarkersKey, // ✅ 강제 재생성 키 사용
+    realMarkersKey,
     safeLabelMax,
     clusterMinLevel,
     labelGapPx,
     hitboxSizePx,
     defaultPinKind,
-    // selectedKey, onMarkerClick, fitToMarkers 제외 (라이트/가벼운 이펙트에서 처리)
+    isCoarsePointer, // ← 포인터 환경 바뀌면 히트박스 정책 재적용
   ]);
 
-  // 2.5) fitToMarkers: bounds만 맞춤 (가벼운 이펙트)
+  // 2.5) fitToMarkers
   useEffect(() => {
     if (!kakao || !map) return;
-    if (!fitToMarkers) return;
-    if (!markers.length) return;
-
+    if (!fitToMarkers || !markers.length) return;
     const bounds = new kakao.maps.LatLngBounds();
     markers.forEach((m) =>
       bounds.extend(new kakao.maps.LatLng(m.position.lat, m.position.lng))
@@ -418,7 +393,7 @@ export function useClustererWithLabels(
     map.setBounds(bounds);
   }, [kakao, map, fitToMarkers, realMarkersKey]);
 
-  // 3) 줌 변화에 따른 표시 모드 적용(가벼운 이펙트)
+  // 3) 줌 변화에 따른 표시 모드 (히트박스는 터치면 숨김)
   useEffect(() => {
     if (!kakao || !map) return;
 
@@ -438,24 +413,20 @@ export function useClustererWithLabels(
         labelEntries.forEach(([id, ov]) =>
           ov.setMap(!cleared && id === selectedKey ? null : map)
         );
-        hitEntries.forEach(([id, ov]) =>
-          ov.setMap(!cleared && id === selectedKey ? null : map)
-        );
+        hitEntries.forEach(([, ov]) => ov.setMap(null));
         if (!cleared) markerObjsRef.current[selectedKey!]?.setZIndex?.(1000);
         return;
       }
 
       if (level >= clusterMinLevel) {
-        // 클러스터 모드
         mountClusterMode(selectedKey);
         return;
       }
 
-      // 중간 모드
       labelEntries.forEach(([, ov]) => ov.setMap(null));
       clustererRef.current?.clear?.();
       mkList.forEach((mk) => mk.setMap(map));
-      hitEntries.forEach(([, ov]) => ov.setMap(map));
+      hitEntries.forEach(([, ov]) => ov.setMap(null));
     };
 
     kakao.maps.event.addListener(map, "zoom_changed", applyMode);
@@ -463,36 +434,33 @@ export function useClustererWithLabels(
     return () => {
       kakao?.maps?.event?.removeListener?.(map, "zoom_changed", applyMode);
     };
-  }, [kakao, map, safeLabelMax, clusterMinLevel, selectedKey]);
+  }, [kakao, map, safeLabelMax, clusterMinLevel, selectedKey, isCoarsePointer]);
 
-  // 4) 선택된 핀 변경 시 라벨/히트박스 토글 + 클러스터러↔지도 이동 (라이트 이펙트)
+  // 4) 선택 변경 시 (히트박스는 터치면 숨김)
   useEffect(() => {
     if (!kakao || !map) return;
 
     const level = map.getLevel();
     const prevId = prevSelectedIdRef.current;
 
-    // 라벨 모드: 라벨/히트박스만 토글 + zIndex
     if (level <= safeLabelMax) {
       const labelEntries = Object.entries(labelOvRef.current) as [
         string,
         any
       ][];
-      labelEntries.forEach(([id, ov]) => {
-        ov.setMap(selectedKey && id === selectedKey ? null : map);
-      });
-      const hitEntries = Object.entries(hitboxOvRef.current) as [string, any][];
-      hitEntries.forEach(([id, ov]) => {
-        ov.setMap(selectedKey && id === selectedKey ? null : map);
-      });
+      labelEntries.forEach(([id, ov]) =>
+        ov.setMap(selectedKey && id === selectedKey ? null : map)
+      );
 
-      // 이전 선택 복구
+      const hitEntries = Object.entries(hitboxOvRef.current) as [string, any][];
+      hitEntries.forEach(([, ov]) => ov.setMap(null));
+
+      // 이전 선택 라벨만 복구 (히트박스 복구는 제거)
       if (prevId && prevId !== selectedKey) {
         labelOvRef.current[prevId]?.setMap(map);
-        hitboxOvRef.current[prevId]?.setMap(map);
       }
 
-      // 선택된 마커 맨앞으로
+      // 선택된 마커는 앞으로
       if (selectedKey) {
         const mk = markerObjsRef.current[selectedKey];
         mk?.setMap?.(map);
@@ -503,7 +471,6 @@ export function useClustererWithLabels(
       return;
     }
 
-    // 클러스터 모드: 선택 마커는 클러스터러에서 제거하고 지도에 직접 올림 + 드래프트 고정
     if (level >= clusterMinLevel) {
       const clusterer = clustererRef.current;
       if (prevId && prevId !== selectedKey) {
@@ -522,7 +489,6 @@ export function useClustererWithLabels(
         sel?.setZIndex?.(1000);
       }
 
-      // ✅ 드래프트 핀은 항상 지도에 직접
       const draftMk = markerObjsRef.current[DRAFT_ID];
       if (draftMk) {
         try {
@@ -537,22 +503,28 @@ export function useClustererWithLabels(
       return;
     }
 
-    // 중간 모드: 별도 처리 없음
     prevSelectedIdRef.current = selectedKey;
-  }, [kakao, map, selectedKey, safeLabelMax, clusterMinLevel]);
+  }, [kakao, map, selectedKey, safeLabelMax, clusterMinLevel, isCoarsePointer]);
 
-  // 5) 말주머니 닫힘(selectedKey 해제) 시 라벨/히트박스 전부 다시 보이게 (라벨 모드에서만 의미)
+  // 5) 말풍선 닫힐 때 라벨/히트박스 복구 (라벨 모드에서만)
   useEffect(() => {
     if (!kakao || !map) return;
-    if (selectedKey != null) return; // 아직 선택이 유지 중이면 패스
+    if (selectedKey != null) return;
     const level = map.getLevel();
     if (level > safeLabelMax) return;
-
     const labels = Object.values(labelOvRef.current) as any[];
-    const hits = Object.values(hitboxOvRef.current) as any[];
     labels.forEach((ov) => ov.setMap(map));
-    hits.forEach((ov) => ov.setMap(map));
-  }, [selectedKey, kakao, map, safeLabelMax]);
+  }, [selectedKey, kakao, map, safeLabelMax, isCoarsePointer]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPointerDown = (e: PointerEvent) => {
+      const next = e.pointerType === "touch" || e.pointerType === "pen";
+      setIsCoarsePointer((prev) => (prev !== next ? next : prev));
+    };
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, []);
 }
 
 export default useClustererWithLabels;

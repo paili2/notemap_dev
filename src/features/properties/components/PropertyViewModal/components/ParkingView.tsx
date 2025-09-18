@@ -12,7 +12,7 @@ export default function ParkingView({
   parkingCount,
 }: ParkingViewProps) {
   return (
-    <div className="grid grid-cols-4 items-center">
+    <div className="grid grid-cols-2 gap-4 items-center">
       <Field label="주차 유형">
         <div className="h-9 flex items-center text-sm">
           {parkingType?.trim() || "-"}

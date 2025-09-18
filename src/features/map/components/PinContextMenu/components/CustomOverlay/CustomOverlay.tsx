@@ -23,6 +23,10 @@ export default function CustomOverlay({
   if (!containerRef.current && typeof document !== "undefined") {
     const el = document.createElement("div");
     if (className) el.className = className;
+    // 내용만큼만 차지 + 과도한 가로 확장 방지
+    el.style.display = "inline-block";
+    el.style.width = "max-content";
+    // 포인터 이벤트 정책 초기 적용
     el.style.pointerEvents = pointerEventsEnabled ? "auto" : "none";
     containerRef.current = el;
   }
@@ -45,12 +49,12 @@ export default function CustomOverlay({
       xAnchor,
       yAnchor,
       zIndex,
-      clickable: true, // 내부 클릭 허용
+      // ⬇️ 상호작용이 필요한 경우에만 클릭 가능
+      clickable: pointerEventsEnabled,
     });
     overlayRef.current = ov;
 
-    // ✅ 최초 렌더 프레임에서 바로 붙이지 말고,
-    //    다음 animation frame에 붙여서 마커/라벨 토글 이후에 나타나게 한다.
+    // 다음 animation frame에 붙여서 마커/라벨 토글 이후 나타나게
     rAFRef.current = requestAnimationFrame(() => {
       ov.setMap(map);
     });
@@ -60,9 +64,8 @@ export default function CustomOverlay({
       ov.setMap(null);
       overlayRef.current = null;
     };
-    // position/zIndex 업데이트는 아래 별도 effect로 처리
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kakao, map, xAnchor, yAnchor]); // zIndex/position 제외
+    // pointerEventsEnabled 변경 시 clickable도 재구성되도록 포함
+  }, [kakao, map, xAnchor, yAnchor, pointerEventsEnabled]);
 
   // 위치 업데이트 (layout 시점)
   useLayoutEffect(() => {
@@ -74,10 +77,11 @@ export default function CustomOverlay({
     overlayRef.current?.setZIndex(zIndex);
   }, [zIndex]);
 
-  // 이벤트 버블링 방지 (지도 제스처로 전파되지 않게)
+  // 이벤트 버블링/스크롤 차단: "클릭 가능한" 오버레이일 때만
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    if (!pointerEventsEnabled) return;
 
     const stop = (e: Event) => e.stopPropagation();
     const stopAndPrevent = (e: Event) => {
@@ -116,7 +120,7 @@ export default function CustomOverlay({
       el.removeEventListener("pointerup", stop);
       el.removeEventListener("wheel", stopAndPrevent as any);
     };
-  }, []);
+  }, [pointerEventsEnabled]);
 
   if (!containerRef.current) return null;
   return createPortal(children, containerRef.current);
