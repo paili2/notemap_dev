@@ -1,3 +1,5 @@
+import { PoiKind } from "@/features/map/lib/poiCategory";
+
 export type MapMenuKey = "all" | "new" | "old";
 
 export interface MapMenuProps {
@@ -6,4 +8,6 @@ export interface MapMenuProps {
   isDistrictOn: boolean;
   onToggleDistrict: (next: boolean) => void;
   className?: string;
+  poiKinds: PoiKind[];
+  onChangePoiKinds: (next: PoiKind[]) => void;
 }

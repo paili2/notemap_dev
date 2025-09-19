@@ -16,7 +16,7 @@ import MapCreateModalHost from "../../components/MapCreateModalHost";
 // ⛔ 삭제: import MapEditModalHost from "../../components/MapEditModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
-import { Slot } from "@radix-ui/react-slot";
+import type { PoiKind } from "@/features/map/lib/poiCategory";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -79,6 +79,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
+
+  // ▼ 주변시설 토글 상태 (외부제어형으로 MapMenu/MapView에 전달)
+  const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]); // 기본 비활성
 
   // UI 전용
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
@@ -149,6 +152,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
             });
             onChangeHideLabelForId?.("__draft__");
           }}
+          /** ▼ 주변시설: 외부 제어형 상태 전달 */
+          poiKinds={poiKinds}
+          showPoiToolbar={false} // 내부 툴바 비활성(메뉴 한 곳에서만 제어)
         />
 
         {mapInstance &&
@@ -218,13 +224,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
       />
 
-      {/* 맵 메뉴 */}
+      {/* 맵 메뉴 (주변시설 토글 전달) */}
       <div className="fixed top-3 right-16 z-[60]">
         <MapMenu
           active={filter as any}
           onChange={onChangeFilter as any}
           isDistrictOn={isDistrictOn}
           onToggleDistrict={setIsDistrictOn}
+          /** ▼ 추가: 주변시설 제어형 props */
+          poiKinds={poiKinds}
+          onChangePoiKinds={setPoiKinds}
         />
       </div>
 

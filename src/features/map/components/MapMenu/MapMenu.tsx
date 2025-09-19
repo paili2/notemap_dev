@@ -1,6 +1,6 @@
 "use client";
 
-import { Map, Home } from "lucide-react";
+import { Map } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/utils";
 import { ExpandedMenu } from "./components/ExpandedMenu";
@@ -13,6 +13,10 @@ export default function MapMenu({
   isDistrictOn,
   onToggleDistrict,
   className,
+
+  /** ▼ 추가: 주변시설 제어형 props */
+  poiKinds,
+  onChangePoiKinds,
 }: MapMenuProps) {
   const {
     isExpanded,
@@ -24,15 +28,11 @@ export default function MapMenu({
 
   const handleMenuItemClick = (key: MapMenuKey) => {
     onChange?.(key);
-    // 메뉴를 닫지 않고 열린 상태 유지
-    // setIsExpanded(false);
-    // 필터 상태는 유지
-    handleToggle();
+    handleToggle(); // 열림 상태 유지하려면 이 줄을 주석 처리
   };
 
   return (
     <div className={cn("relative", className)}>
-      {/* 맵 메뉴 버튼 */}
       <Button
         variant="outline"
         size="icon"
@@ -43,7 +43,6 @@ export default function MapMenu({
         <Map className="h-4 w-4" />
       </Button>
 
-      {/* 확장된 메뉴 */}
       {isExpanded && (
         <ExpandedMenu
           active={active}
@@ -53,6 +52,9 @@ export default function MapMenu({
           onMenuItemClick={handleMenuItemClick}
           onToggleDistrict={onToggleDistrict}
           onToggle={handleToggle}
+          /** ▼ 전달 */
+          poiKinds={poiKinds}
+          onChangePoiKinds={onChangePoiKinds}
         />
       )}
     </div>

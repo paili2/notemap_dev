@@ -4,9 +4,15 @@ import { useCallback, useEffect, useRef } from "react";
 import { useClustererWithLabels } from "./hooks/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
-import { useMapClick } from "./hooks/useMapClick";
 import type { MapViewProps } from "./types";
 import { PinKind } from "@/features/pins/types";
+
+// ▼ POI
+import { PoiKind } from "../../lib/poiCategory";
+import { usePoiLayer } from "../../hooks/usePoiLayer";
+import { fetchBusStopsByBBox } from "../../lib/busStops";
+// (옵션) 내부 토글 UI 쓰고 싶을 때만 사용
+import { PoiLayerToggle } from "../PoiLayerToggle";
 
 type Props = MapViewProps & {
   /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */
@@ -14,6 +20,11 @@ type Props = MapViewProps & {
   /** 라벨 숨길 대상 핀 id (말풍선 열린 핀) */
   hideLabelForId?: string | null;
   onDraftPinClick?: (pos: { lat: number; lng: number }) => void;
+
+  /** 외부 제어형 주변시설 종류 */
+  poiKinds?: PoiKind[];
+  /** 내부 툴바 노출 여부(기본 false; 메뉴에서 제어 시 false 권장) */
+  showPoiToolbar?: boolean;
 };
 
 const MapView: React.FC<Props> = ({
@@ -31,10 +42,13 @@ const MapView: React.FC<Props> = ({
   onViewportChange,
   pinKind = "1room",
   hideLabelForId = null,
+
+  // ▼ 새로 추가된 외부 제어형 props
+  poiKinds = [],
+  showPoiToolbar = false,
 }) => {
   // idle 디바운스
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const IDLE_DEBOUNCE_MS = 500;
 
   const { containerRef, kakao, map } = useKakaoMap({
@@ -53,8 +67,24 @@ const MapView: React.FC<Props> = ({
       );
     },
   });
+
   useDistrictOverlay(kakao, map, useDistrict);
 
+  // ▼ 주변시설 레이어 (외부 상태 사용)
+  usePoiLayer({
+    kakaoSDK: kakao,
+    map,
+    enabledKinds: poiKinds,
+    maxResultsPerKind: 80,
+    // 500m 체감 게이트
+    minViewportEdgeMeters: 1000,
+    showAtOrBelowLevel: 6,
+    busStopFetcher: poiKinds.includes("busstop")
+      ? fetchBusStopsByBBox
+      : undefined,
+  });
+
+  // 지도 클릭으로 생성 허용 시
   useEffect(() => {
     if (!kakao || !map) return;
     if (!allowCreateOnMapClick || !onMapClick) return;
@@ -78,7 +108,6 @@ const MapView: React.FC<Props> = ({
         if (draft && onDraftPinClick) {
           onDraftPinClick(draft.position);
         } else if (map && onDraftPinClick && kakao) {
-          // 폴백: 드래프트가 배열에 없으면 지도 중심으로라도 메뉴 오픈
           const c = map.getCenter();
           onDraftPinClick({ lat: c.getLat(), lng: c.getLng() });
         }
@@ -106,7 +135,23 @@ const MapView: React.FC<Props> = ({
     };
   }, []);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div className="relative w-full h-full">
+      {/* 옵션: 내부 툴바를 계속 쓰고 싶다면 showPoiToolbar=true 로 */}
+      {showPoiToolbar && (
+        <div className="absolute top-3 left-3 z-[1000] bg-white/90 backdrop-blur rounded-xl p-2 shadow">
+          <PoiLayerToggle
+            value={poiKinds}
+            onChange={() => {
+              /* 외부 제어형이므로 여기서 상태 변경은 하지 않음 */
+            }}
+          />
+        </div>
+      )}
+
+      <div ref={containerRef} className="w-full h-full" />
+    </div>
+  );
 };
 
 export default MapView;
