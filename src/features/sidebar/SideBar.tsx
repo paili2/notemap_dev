@@ -6,6 +6,7 @@ import type { ToggleSidebarProps } from "./types/sidebar";
 import { useSidebarState } from "./hooks/useSidebarState";
 import { SidebarSection } from "./components/SidebarSection";
 import { ContractRecordsButton } from "./components/ContractRecordsButton";
+import { AdminButton } from "./components/AdminButton";
 
 export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   const {
@@ -13,9 +14,12 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
     setNestedFavorites,
     explorations,
     setExplorations,
+    siteReservations,
+    setSiteReservations,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
     handleDeleteExploration,
+    handleDeleteSiteReservation,
     handleContractRecordsClick,
   } = useSidebarState();
 
@@ -40,6 +44,13 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onDeleteItem={handleDeleteExploration}
         />
 
+        <SidebarSection
+          title="답사지 예약"
+          items={siteReservations}
+          onItemsChange={setSiteReservations}
+          onDeleteItem={handleDeleteSiteReservation}
+        />
+
         {/* 즐겨찾기 */}
         <SidebarSection
           title="즐겨찾기"
@@ -53,6 +64,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
         />
 
         <ContractRecordsButton onClick={handleContractRecordsClick} />
+        <AdminButton />
         {/* 계정 정보 및 로그아웃 버튼 */}
         <div className="flex justify-between items-center p-2 border-t border-gray-200">
           <span className="text-base font-medium text-gray-700">

@@ -144,51 +144,57 @@ export function SalesContractRecordsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="!max-w-none w-[80vw] max-w-[1000px] h-[95vh] max-h-[900px] overflow-y-auto p-2 sm:p-3 md:p-4">
-        <DialogHeader className="pb-1 flex-shrink-0">
+      <DialogContent className="w-[100vw] max-w-[1240px] h-[95vh] max-h-[900px] p-0 flex flex-col">
+        {/* 고정 헤더 */}
+        <DialogHeader className="pb-1 flex-shrink-0 p-4 border-b">
           <DialogTitle className="text-lg font-bold">
             영업 계약기록 관리
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2">
-          {/* 인적 정보 */}
-          <PersonalInfoSection
-            customerInfo={data.customerInfo}
-            salesManager={data.salesManager}
-            salesPerson={data.salesPerson}
-            onCustomerInfoChange={handleCustomerInfoChange}
-            onSalesManagerChange={handleSalesManagerChange}
-            onSalesPersonChange={handleSalesPersonChange}
-          />
+        {/* 스크롤 가능한 콘텐츠 영역 */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex flex-col gap-2">
+            {/* 인적 정보 */}
+            <PersonalInfoSection
+              customerInfo={data.customerInfo}
+              salesManager={data.salesManager}
+              salesPerson={data.salesPerson}
+              onCustomerInfoChange={handleCustomerInfoChange}
+              onSalesManagerChange={handleSalesManagerChange}
+              onSalesPersonChange={handleSalesPersonChange}
+            />
 
-          {/* 재무 정보 */}
-          <FinancialInfoSection
-            financialInfo={data.financialInfo}
-            onFinancialInfoChange={handleFinancialInfoChange}
-          />
+            {/* 재무 정보 */}
+            <FinancialInfoSection
+              financialInfo={data.financialInfo}
+              onFinancialInfoChange={handleFinancialInfoChange}
+            />
 
-          {/* 담당자 분배 */}
-          <StaffAllocationSection
-            staffAllocations={data.staffAllocations}
-            onStaffAllocationsChange={handleStaffAllocationsChange}
-            totalCalculation={data.totalCalculation}
-            totalRebate={data.financialInfo.totalRebate}
-          />
+            {/* 담당자 분배 */}
+            <StaffAllocationSection
+              staffAllocations={data.staffAllocations}
+              onStaffAllocationsChange={handleStaffAllocationsChange}
+              totalCalculation={data.totalCalculation}
+              totalRebate={data.financialInfo.totalRebate}
+            />
 
-          {/* 계약 이미지 */}
-          <ContractImageSection onImagesChange={handleContractImagesChange} />
+            {/* 계약 이미지 */}
+            <ContractImageSection onImagesChange={handleContractImagesChange} />
+          </div>
         </div>
 
-        <Separator className="flex-shrink-0" />
-
-        <div className="flex justify-end space-x-2 pt-1 flex-shrink-0">
-          <Button onClick={onClose} className="h-7 text-xs">
-            닫기
-          </Button>
-          <Button onClick={handleSave} className="h-7 text-xs">
-            저장
-          </Button>
+        {/* 고정 하단 버튼 영역 */}
+        <div className="flex-shrink-0 border-t p-4">
+          <Separator className="mb-3" />
+          <div className="flex justify-end space-x-2">
+            <Button onClick={onClose} className="h-7 text-xs">
+              닫기
+            </Button>
+            <Button onClick={handleSave} className="h-7 text-xs">
+              저장
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

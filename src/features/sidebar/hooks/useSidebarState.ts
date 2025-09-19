@@ -28,6 +28,12 @@ export function useSidebarState() {
     { id: "7", title: "강원특별자치도 속초시 설악산로 1091" },
   ]);
 
+  const [siteReservations, setSiteReservations] = useState<ListItem[]>([
+    { id: "res1", title: "서울특별시 강남구 테헤란로 123 - 2024.01.15" },
+    { id: "res2", title: "부산광역시 해운대구 해운대해변로 264 - 2024.01.20" },
+    { id: "res3", title: "제주특별자치도 제주시 첨단로 242 - 2024.01.25" },
+  ]);
+
   const handleDeleteNestedFavorite = (id: string) => {
     setNestedFavorites(nestedFavorites.filter((item) => item.id !== id));
   };
@@ -49,6 +55,10 @@ export function useSidebarState() {
     setExplorations(explorations.filter((item) => item.id !== id));
   };
 
+  const handleDeleteSiteReservation = (id: string) => {
+    setSiteReservations(siteReservations.filter((item) => item.id !== id));
+  };
+
   const handleContractRecordsClick = () => {
     console.log("영업자 계약기록 버튼 클릭됨");
   };
@@ -58,9 +68,12 @@ export function useSidebarState() {
     setNestedFavorites,
     explorations,
     setExplorations,
+    siteReservations,
+    setSiteReservations,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
     handleDeleteExploration,
+    handleDeleteSiteReservation,
     handleContractRecordsClick,
   };
 }

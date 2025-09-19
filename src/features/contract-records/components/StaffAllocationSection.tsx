@@ -147,14 +147,14 @@ export function StaffAllocationSection({
     return availableOptions.sort((a, b) => a - b);
   };
 
-  // 리베이트 수당과 최종수당 자동 계산
+  // 리베이트 수당과 최종수당 자동 계산 (최종수당은 총합계에서 비율로 계산)
   const calculateStaffAllocations = () => {
     return staffAllocations.map((staff) => {
       const percentage = staff.percentage || 0;
       // 리베이트 수당은 입력된 리베이트 금액 그대로 표시
       const rebateAllowance = totalRebate;
-      // 최종수당은 비율에 따라 계산
-      const finalAllowance = (totalRebate * percentage) / 100;
+      // 최종수당은 총합계에서 비율에 따라 계산
+      const finalAllowance = (totalCalculation * percentage) / 100;
 
       return {
         ...staff,
@@ -164,11 +164,15 @@ export function StaffAllocationSection({
     });
   };
 
-  // totalRebate가 변경될 때마다 자동 계산
+  // totalRebate와 totalCalculation이 변경될 때마다 자동 계산
   React.useEffect(() => {
     const updatedAllocations = calculateStaffAllocations();
     onStaffAllocationsChange(updatedAllocations);
-  }, [totalRebate, staffAllocations.map((s) => s.percentage).join(",")]);
+  }, [
+    totalRebate,
+    totalCalculation,
+    staffAllocations.map((s) => s.percentage).join(","),
+  ]);
 
   return (
     <Card className="flex-1 min-h-0">
