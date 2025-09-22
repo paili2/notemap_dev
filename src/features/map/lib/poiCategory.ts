@@ -24,7 +24,7 @@ const circleLabel = (bg: string, text: string) =>
   );
 
 export const POI_ICON = {
-  convenience: circleLabel("#10b981", "CU"), // 편의점
+  convenience: circleLabel("#10b981", "24"), // 편의점
   cafe: circleLabel("#f59e0b", "☕"), // 카페
   pharmacy: circleLabel("#ef4444", "약"), // 약국
   subway: circleLabel("#3b82f6", "S"), // 지하철

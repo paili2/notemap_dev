@@ -12,23 +12,25 @@ import {
 export type UsePoiLayerOptions = {
   kakaoSDK?: any | null;
   map?: any | null;
-  enabledKinds?: PoiKind[]; // ⬅️ 버스여도 매핑이 없으면 자동 무시
+  /** 표시할 POI 종류(버튼에서 토글) */
+  enabledKinds?: PoiKind[];
+  /** 각 종류별 최종 마커 상한 */
   maxResultsPerKind?: number;
-  /** 화면의 '짧은 변' 길이가 이 값(미터) 이하일 때만 POI 표시. 1000m = 좌우/상하 500m 범위 */
+  /** 화면의 '짧은 변' 길이가 이 값(미터) 이하일 때만 POI 표시. 1000m ≈ 좌/우 또는 상/하 500m 체감 */
   minViewportEdgeMeters?: number;
   /** 이 레벨 이하일 때 POI 표시 (숫자 작을수록 더 확대) */
   showAtOrBelowLevel?: number;
 };
 
 const DEFAULTS = {
-  maxResultsPerKind: 40,
+  maxResultsPerKind: 80,
   minViewportEdgeMeters: 1000,
   showAtOrBelowLevel: 6,
 } as const;
 
 const IDLE_THROTTLE_MS = 1200;
 
-// throttle
+/* ────────────────────────────── utils ────────────────────────────── */
 function useThrottle(fn: (...a: any[]) => void, wait = IDLE_THROTTLE_MS) {
   const lastRef = useRef(0);
   const timer = useRef<any>(null);
@@ -56,13 +58,69 @@ function distM(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lat2 - lng2);
+  const dLng = toRad(lng2 - lng1);
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
+/** bounds를 nx×ny 격자로 잘라 kakao.maps.LatLngBounds 배열로 반환 */
+function splitBoundsToGrid(kakao: any, bounds: any, nx: number, ny: number) {
+  const sw = bounds.getSouthWest();
+  const ne = bounds.getNorthEast();
+  const minLat = sw.getLat(),
+    minLng = sw.getLng();
+  const maxLat = ne.getLat(),
+    maxLng = ne.getLng();
+
+  const cells: any[] = [];
+  for (let ix = 0; ix < nx; ix++) {
+    for (let iy = 0; iy < ny; iy++) {
+      const aLat = minLat + ((maxLat - minLat) * ix) / nx;
+      const bLat = minLat + ((maxLat - minLat) * (ix + 1)) / nx;
+      const aLng = minLng + ((maxLng - minLng) * iy) / ny;
+      const bLng = minLng + ((maxLng - minLng) * (iy + 1)) / ny;
+      cells.push(
+        new kakao.maps.LatLngBounds(
+          new kakao.maps.LatLng(aLat, aLng),
+          new kakao.maps.LatLng(bLat, bLng)
+        )
+      );
+    }
+  }
+  return cells;
+}
+
+/** Kakao Places categorySearch의 모든 페이지(최대 3) 수집 */
+async function searchCategoryAllPagesByBounds(
+  kakao: any,
+  places: any,
+  categoryCode: string,
+  bounds: any,
+  hardLimit = 200
+): Promise<any[]> {
+  return new Promise((resolve) => {
+    const acc: any[] = [];
+    const handle = (data: any[], status: string, pagination: any) => {
+      if (status === kakao.maps.services.Status.OK && Array.isArray(data)) {
+        acc.push(...data);
+        if (acc.length >= hardLimit) {
+          resolve(acc.slice(0, hardLimit));
+          return;
+        }
+        if (pagination && pagination.hasNextPage) {
+          pagination.nextPage();
+          return;
+        }
+      }
+      resolve(acc); // NO_RESULT 또는 마지막 페이지
+    };
+    places.categorySearch(categoryCode, handle, { bounds });
+  });
+}
+
+/* ────────────────────────────── hook ────────────────────────────── */
 export function usePoiLayer({
   kakaoSDK,
   map,
@@ -73,6 +131,7 @@ export function usePoiLayer({
 }: UsePoiLayerOptions) {
   const kakao =
     kakaoSDK ?? (typeof window !== "undefined" ? (window as any).kakao : null);
+
   const [markers, setMarkers] = useState<any[]>([]);
   const placesRef = useRef<any | null>(null);
   const reqSeqRef = useRef(0);
@@ -81,7 +140,7 @@ export function usePoiLayer({
     ne: { lat: number; lng: number };
   } | null>(null);
 
-  // bounds → BBox
+  // helpers
   const getBoundsBox = useCallback(() => {
     if (!map || !kakao) return null;
     const b = map.getBounds();
@@ -93,13 +152,11 @@ export function usePoiLayer({
     };
   }, [map, kakao]);
 
-  // kakao LatLngBounds (categorySearch bounds 전달용)
   const getKakaoBounds = useCallback(() => {
     if (!map || !kakao) return null;
     return map.getBounds();
   }, [map, kakao]);
 
-  // 뷰포트 짧은 변 길이(m)
   const getMinViewportEdgeMeters = useCallback(() => {
     if (!map || !kakao) return Infinity;
     const b = map.getBounds();
@@ -112,7 +169,6 @@ export function usePoiLayer({
     return Math.min(width, height);
   }, [map, kakao]);
 
-  // 바운즈 변화가 충분할 때만 재검색(대략 ~200m)
   const movedEnough = useCallback((a: any, b: any) => {
     if (!b) return true;
     const d = (x: number, y: number) => Math.abs(x - y);
@@ -124,20 +180,19 @@ export function usePoiLayer({
     );
   }, []);
 
-  // ▶ force: 같은 뷰포트여도 실행
   const runSearch = useCallback(
     async (opts?: { force?: boolean }) => {
       if (!map || !kakao) return;
 
-      beginPoiFrame(); // 깜빡임 억제용 프레임 카운트
+      beginPoiFrame(); // 깜빡임 억제 프레임 시작
 
-      // 레벨/거리 게이트
+      // 확대/거리 게이트
       const lv = map.getLevel();
       const minEdge = getMinViewportEdgeMeters();
       const pass = lv <= showAtOrBelowLevel || minEdge <= minViewportEdgeMeters;
 
-      if (!pass) {
-        // 게이트 미통과 시 즉시 숨김
+      if (!pass || enabledKinds.length === 0) {
+        // 안 보여줄 조건이면 전부 숨김
         reconcilePoiMarkers(new Set(), { graceFrames: 0 });
         setMarkers((prev) => {
           clearMarkers(prev);
@@ -153,65 +208,71 @@ export function usePoiLayer({
 
       const mySeq = ++reqSeqRef.current;
 
-      const nextKeys = new Set<string>();
-      const list: any[] = [];
-
-      // Kakao Places 인스턴스
       if (!placesRef.current && kakao?.maps?.services?.Places) {
         placesRef.current = new kakao.maps.services.Places();
       }
-
       const boundsObj = getKakaoBounds();
+      if (!boundsObj || !placesRef.current) return;
 
-      // ✅ KAKAO_CATEGORY에 매핑된 종류만 검색 (버스는 매핑이 없으므로 자동 제외)
-      const kindsForKakao = enabledKinds.filter(
-        (k): k is keyof typeof KAKAO_CATEGORY => k in KAKAO_CATEGORY
-      );
+      // 화면이 넓으면 더 잘게(많이) 긁어오기
+      const shortEdgeM = getMinViewportEdgeMeters();
+      const gridSize = shortEdgeM > 2500 ? 3 : shortEdgeM > 1400 ? 2 : 1;
+      const cells =
+        gridSize > 1
+          ? splitBoundsToGrid(kakao, boundsObj, gridSize, gridSize)
+          : [boundsObj];
 
-      if (kindsForKakao.length && placesRef.current) {
-        await Promise.all(
-          kindsForKakao.map(
-            (kind) =>
-              new Promise<void>((resolve) => {
-                const code = KAKAO_CATEGORY[kind];
-                placesRef.current!.categorySearch(
-                  code,
-                  (data: any[], status: string) => {
-                    if (
-                      status === kakao.maps.services.Status.OK &&
-                      Array.isArray(data)
-                    ) {
-                      data.slice(0, maxResultsPerKind).forEach((p) => {
-                        const x = Number(p.x);
-                        const y = Number(p.y);
-                        const key = `${kind}:${p.id ?? `${x},${y}`}`;
-                        const m = upsertPoiMarker(
-                          kakao,
-                          map,
-                          key,
-                          x,
-                          y,
-                          p.place_name,
-                          (POI_ICON as any)[kind]
-                        );
-                        nextKeys.add(key);
-                        list.push(m);
-                      });
-                    }
-                    resolve();
-                  },
-                  { bounds: boundsObj ?? undefined }
-                );
-              })
-          )
-        );
+      const nextKeys = new Set<string>();
+      const newMarkers: any[] = [];
+
+      // 각 종류별로, 셀을 돌며 수집 → id 중복 제거 → 상한 적용
+      for (const kind of enabledKinds) {
+        const code = (KAKAO_CATEGORY as Record<PoiKind, string>)[kind];
+        if (!code) continue;
+
+        let acc: any[] = [];
+        for (const cell of cells) {
+          const chunk = await searchCategoryAllPagesByBounds(
+            kakao,
+            placesRef.current,
+            code,
+            cell,
+            // 셀 당 하드 상한 (전체 상한보다 크게, 중복제거 후 최종 상한 적용)
+            Math.min(maxResultsPerKind * 2, 200)
+          );
+          acc = acc.concat(chunk);
+        }
+
+        const seen = new Set<string>();
+        for (const p of acc) {
+          const x = Number(p.x);
+          const y = Number(p.y);
+          const id = p.id ?? `${x},${y}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+
+          const key = `${kind}:${id}`;
+          const m = upsertPoiMarker(
+            kakao,
+            map,
+            key,
+            x,
+            y,
+            p.place_name,
+            (POI_ICON as any)[kind]
+          );
+          nextKeys.add(key);
+          newMarkers.push(m);
+
+          if (seen.size >= maxResultsPerKind) break;
+        }
       }
 
       if (mySeq !== reqSeqRef.current) return;
 
-      // force일 땐 유예 없이 즉시 숨김
+      // 표시/숨김 정리
       reconcilePoiMarkers(nextKeys, { graceFrames: opts?.force ? 0 : 2 });
-      setMarkers(list);
+      setMarkers(newMarkers);
     },
     [
       map,
@@ -243,7 +304,7 @@ export function usePoiLayer({
     };
   }, [map, kakao, throttled, runSearch]);
 
-  // kinds 바뀌면 기존 마커 즉시 숨기고 강제 재검색
+  // 종류 바뀌면 즉시 새로고침(기존 것 숨김)
   useEffect(() => {
     reconcilePoiMarkers(new Set(), { graceFrames: 0 });
     setMarkers((prev) => {
@@ -260,3 +321,6 @@ export function usePoiLayer({
     clear: () => clearMarkers(markers),
   };
 }
+
+// 기본/이름 둘 다 export (import 방식 혼선을 방지)
+export default usePoiLayer;
