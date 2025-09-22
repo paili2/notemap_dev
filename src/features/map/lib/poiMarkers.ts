@@ -83,13 +83,17 @@ export function upsertPoiMarker(
   x: number,
   y: number,
   title: string,
-  iconUrl?: string
+  iconUrl?: string,
+  opts?: { zIndex?: number }
 ) {
   const pos = new kakao.maps.LatLng(y, x);
   let m: any = markerPool.get(key);
 
   if (!m) {
     m = new kakao.maps.Marker({ map, position: pos, title });
+    if (opts?.zIndex != null && typeof m.setZIndex === "function") {
+      m.setZIndex(opts.zIndex);
+    }
     markerPool.set(key, m);
   } else {
     // 위치가 크게 바뀐 경우에만 업데이트(미세 변화로 인한 잔떨림 감소)
@@ -101,8 +105,13 @@ export function upsertPoiMarker(
     ) {
       m.setPosition(pos);
     }
-    if (!m.getMap()) m.setMap(map);
-    if (!m.getVisible?.()) m.setVisible(true);
+    if (!m.getMap?.()) m.setMap?.(map);
+    // ✅ setVisible 안전 호출(없으면 setMap로 대체)
+    if (m.setVisible) m.setVisible(true);
+    else if (!m.getMap?.()) m.setMap?.(map);
+    if (opts?.zIndex != null && typeof m.setZIndex === "function") {
+      m.setZIndex(opts.zIndex);
+    }
   }
 
   // 아이콘
@@ -116,7 +125,7 @@ export function upsertPoiMarker(
     loadImageOnce(resolved).then(() => {
       const nextImage = getMarkerImage(kakao, resolved, size);
       const curImage = m.getImage?.();
-      if (curImage !== nextImage) m.setImage(nextImage);
+      if (curImage !== nextImage) m.setImage?.(nextImage);
     });
   }
 
@@ -138,19 +147,31 @@ export function reconcilePoiMarkers(
     const last = seenTick.get(key) ?? -9999;
     const stale = tick - last >= grace;
     if (stale) {
-      if (m.getVisible?.()) m.setVisible(false);
+      // ✅ setVisible이 없으면 setMap(null)로 폴백
+      if (typeof m.setVisible === "function") {
+        if (m.getVisible?.()) m.setVisible(false);
+      } else {
+        m.setMap?.(null);
+      }
     }
   });
 }
 
 /** 배열로 받은 마커 제거(레거시 호환) */
 export function clearMarkers(markers: any[]) {
-  markers.forEach((m) => m?.setMap?.(null));
+  markers.forEach((m) => {
+    // 가급적 setVisible(false)로 숨기고, 없으면 setMap(null)
+    if (typeof m?.setVisible === "function") m.setVisible(false);
+    else m?.setMap?.(null);
+  });
 }
 
 /** 전체 풀 리셋 */
 export function resetPoiPool() {
-  markerPool.forEach((m) => m?.setMap?.(null));
+  markerPool.forEach((m) => {
+    if (typeof m?.setVisible === "function") m.setVisible(false);
+    else m?.setMap?.(null);
+  });
   markerPool.clear();
   okImageCache.clear();
   loadingCache.clear();

@@ -1,15 +1,10 @@
-export type PoiKind =
-  | "convenience"
-  | "cafe"
-  | "pharmacy"
-  | "subway"
-  | "busstop";
+export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway";
 
 export const KAKAO_CATEGORY: Record<Exclude<PoiKind, "busstop">, string> = {
-  convenience: "CS2",
-  cafe: "CE7",
-  pharmacy: "PM9",
-  subway: "SW8",
+  convenience: "CS2", // 편의점
+  cafe: "CE7", // 카페
+  pharmacy: "PM9", // 약국
+  subway: "SW8", // 지하철역
 };
 
 export const POI_LABEL: Record<PoiKind, string> = {
@@ -17,7 +12,6 @@ export const POI_LABEL: Record<PoiKind, string> = {
   cafe: "카페",
   pharmacy: "약국",
   subway: "지하철역",
-  busstop: "버스정류장",
 };
 
 const circleLabel = (bg: string, text: string) =>

@@ -10,7 +10,6 @@ import { PinKind } from "@/features/pins/types";
 // ▼ POI
 import { PoiKind } from "../../lib/poiCategory";
 import { usePoiLayer } from "../../hooks/usePoiLayer";
-import { fetchBusStopsByBBox } from "../../lib/busStops";
 // (옵션) 내부 토글 UI 쓰고 싶을 때만 사용
 import { PoiLayerToggle } from "../PoiLayerToggle";
 
@@ -74,14 +73,13 @@ const MapView: React.FC<Props> = ({
   usePoiLayer({
     kakaoSDK: kakao,
     map,
-    enabledKinds: poiKinds,
+    enabledKinds: poiKinds, // ← 여기엔 'busstop'이 안 들어오도록(버튼 제거)
     maxResultsPerKind: 80,
     // 500m 체감 게이트
     minViewportEdgeMeters: 1000,
     showAtOrBelowLevel: 6,
-    busStopFetcher: poiKinds.includes("busstop")
-      ? fetchBusStopsByBBox
-      : undefined,
+    // ✅ 버스 정류장 버튼을 없앴으므로 fetcher도 전달하지 않음
+    // busStopFetcher: undefined,
   });
 
   // 지도 클릭으로 생성 허용 시

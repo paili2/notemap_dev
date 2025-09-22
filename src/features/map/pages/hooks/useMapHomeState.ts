@@ -16,13 +16,37 @@ import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToIte
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
+import { PoiKind } from "../../lib/poiCategory";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 const VISIT_PINS_STORAGE_KEY = "maphome:visitPins";
 
-// 부동소수점 비교 오차 보정
+/** 부동소수점 비교 오차 보정 */
 const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
   !!a && !!b && Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
+
+/** 뷰포트 타입(프로젝트 정의와 일치하도록 맞춰 주세요) */
+type Viewport = {
+  leftTop: LatLng;
+  leftBottom: LatLng;
+  rightTop: LatLng;
+  rightBottom: LatLng;
+  zoomLevel: number;
+};
+
+/** 얕은 뷰포트 비교 */
+const sameViewport = (a?: Viewport | null, b?: Viewport | null, eps = 1e-7) => {
+  if (!a || !b) return false;
+  const eq = (p: LatLng, q: LatLng) =>
+    Math.abs(p.lat - q.lat) < eps && Math.abs(p.lng - q.lng) < eps;
+  return (
+    a.zoomLevel === b.zoomLevel &&
+    eq(a.leftTop, b.leftTop) &&
+    eq(a.leftBottom, b.leftBottom) &&
+    eq(a.rightTop, b.rightTop) &&
+    eq(a.rightBottom, b.rightBottom)
+  );
+};
 
 export function useMapHomeState({ appKey }: { appKey: string }) {
   // 지도 관련 상태
@@ -68,6 +92,9 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
 
+  // ⭐ POI 선택 상태
+  const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
+
   const { items, setItems } = useLocalItems({ storageKey: "properties" });
 
   // Search / filter
@@ -79,7 +106,33 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   );
   const [q, setQ] = useState("");
 
-  const { sendViewportQuery } = useViewportPost();
+  // ─ Viewport post (기존 훅 래핑해서 force 옵션 추가)
+  const postViewport = useViewportPost(); // 기존 훅(프로젝트 구현에 맞춤)
+  const lastViewportRef = useRef<Viewport | null>(null);
+
+  const sendViewportQuery = useCallback(
+    (vp: Viewport, opts?: { force?: boolean }) => {
+      // 변경 없고 force도 아니면 스킵
+      if (!opts?.force && sameViewport(vp, lastViewportRef.current)) return;
+      lastViewportRef.current = vp;
+
+      // 기존 훅 호출
+      postViewport.sendViewportQuery
+        ? postViewport.sendViewportQuery(vp)
+        : (postViewport as any)(vp);
+
+      // 즉시 렌더 동기화를 위해 idle 한 번 더
+      if (kakaoSDK && mapInstance) {
+        kakaoSDK.maps.event.trigger(mapInstance, "idle");
+        requestAnimationFrame(() =>
+          kakaoSDK.maps.event.trigger(mapInstance, "idle")
+        );
+      }
+    },
+    [postViewport, kakaoSDK, mapInstance]
+  );
+
+  const lastViewport = lastViewportRef.current;
 
   // ▸ 초기 복원 (draftPin)
   useEffect(() => {
@@ -165,15 +218,23 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     [resolveAddress, panToWithOffset, setDraftPin]
   );
 
-  // 검색
-  const runSearch = useRunSearch({
+  // 검색 훅 원본 (keyword: string)
+  const runSearchRaw = useRunSearch({
     kakaoSDK,
     mapInstance,
     items,
-    onMatchedPin: openMenuForExistingPin,
-    onNoMatch: (coords) => setDraftPin(coords), // 검색으로 신규등록 흐름일 땐 draftPin 사용
+    onMatchedPin: (p: PropertyItem) => openMenuForExistingPin(p),
+    onNoMatch: (coords: LatLng) => setDraftPin(coords),
     panToWithOffset,
-  });
+    // useRunSearch 내부 queryKey에서 poiKinds를 쓰는 경우를 대비해 전달
+    poiKinds,
+  } as any);
+
+  // 선택형 래퍼: 인자 없으면 현재 q를 사용
+  const runSearch = useCallback(
+    (keyword?: string) => runSearchRaw(keyword ?? q),
+    [runSearchRaw, q]
+  );
 
   // ▸ draftPin 세팅 시(생성용) — 말주머니 처리(복원 시 자동 오픈 금지)
   useEffect(() => {
@@ -244,7 +305,7 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
       const isDraft = propertyId === "__draft__";
       setSelectedId(isDraft ? null : String(propertyId));
       setMenuTargetId(isDraft ? null : String(propertyId));
-      setDraftPin(isDraft ? position : null); // 드래프트일 때 지도에 임시핀 유지/표시(원치 않으면 이 줄 제거)
+      setDraftPin(isDraft ? position : null);
       setFitAllOnce(false);
 
       setMenuAnchor(position);
@@ -259,10 +320,8 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
         setMenuJibunAddr(jibun ?? null);
       }
 
-      // 살짝 스크롤 오프셋 맞춰 이동
       panToWithOffset(position, 180);
 
-      // 다음 프레임에 열기
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
@@ -301,10 +360,7 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const onSubmitEdit = useCallback(
     async (payload: CreatePayload) => {
       if (!selectedId) return;
-      // patch 생성(이미지/파일은 refs→hydrate까지 포함)
       const patch = await buildEditPatchWithMedia(payload, String(selectedId));
-
-      // 불변 갱신으로 해당 아이템에 patch 병합
       setItems((prev) =>
         prev.map((p) =>
           String(p.id) === String(selectedId)
@@ -312,8 +368,6 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
             : p
         )
       );
-
-      // 모달 닫기(선택)
       setEditOpen(false);
     },
     [selectedId, setItems, setEditOpen]
@@ -329,7 +383,7 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
 
     // 말주머니가 특정 핀 대상이 아닌(= 신규 좌표 기반) 경우, 남아있는 draftPin 제거
     if (!menuTargetId && draftPin) {
-      setDraftPin(null); // 로컬스토리지에서도 자동 제거됨 (setDraftPin 구현 참고)
+      setDraftPin(null);
     }
   }, [menuTargetId, draftPin, setDraftPin]);
 
@@ -428,12 +482,32 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     setMenuOpen(false);
   }, [setDraftPin]);
 
+  /* ─────────────────────────────────────────────────────────────
+     ⭐ POI 변경 시 즉시 반영: 현재 뷰포트 강제 재조회 + idle 트리거
+     ───────────────────────────────────────────────────────────── */
+  useEffect(() => {
+    if (lastViewportRef.current) {
+      sendViewportQuery(lastViewportRef.current, { force: true });
+    } else {
+      // 초기엔 검색 훅으로도 보조
+      runSearch();
+      if (kakaoSDK && mapInstance) {
+        kakaoSDK.maps.event.trigger(mapInstance, "idle");
+        requestAnimationFrame(() =>
+          kakaoSDK.maps.event.trigger(mapInstance, "idle")
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poiKinds]);
+
   return {
     // sdk/map
     kakaoSDK,
     mapInstance,
     onMapReady,
     sendViewportQuery,
+    lastViewport,
 
     // data
     items,
@@ -462,6 +536,10 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     setUseSidebar,
     useDistrict,
     setUseDistrict,
+
+    // ⭐ POI
+    poiKinds,
+    setPoiKinds,
 
     // menu
     menuOpen,

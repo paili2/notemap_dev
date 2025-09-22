@@ -231,9 +231,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
           onChange={onChangeFilter as any}
           isDistrictOn={isDistrictOn}
           onToggleDistrict={setIsDistrictOn}
-          /** ▼ 추가: 주변시설 제어형 props */
+          /** ▼ 추가: 주변시설 제어형 props (버스/버스정류장은 기본지도에 있으므로 제외) */
           poiKinds={poiKinds}
-          onChangePoiKinds={setPoiKinds}
+          onChangePoiKinds={(next) => {
+            const filtered = next.filter((k) => k !== "busstop");
+            setPoiKinds(filtered);
+            // (선택) 사용자 안내가 필요하면 토스트/알림: "버스정류장은 기본지도에 표시됩니다."
+          }}
         />
       </div>
 

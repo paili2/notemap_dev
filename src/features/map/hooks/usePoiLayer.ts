@@ -6,33 +6,29 @@ import {
   upsertPoiMarker,
   reconcilePoiMarkers,
   clearMarkers,
+  beginPoiFrame,
 } from "../lib/poiMarkers";
 
 export type UsePoiLayerOptions = {
-  kakaoSDK?: any | null; // window.kakao 또는 주입된 SDK
-  map?: any | null; // kakao.maps.Map
-  enabledKinds?: PoiKind[]; // 보여줄 종류
-  maxResultsPerKind?: number; // 각 종류당 최대 마커 수
+  kakaoSDK?: any | null;
+  map?: any | null;
+  enabledKinds?: PoiKind[]; // ⬅️ 버스여도 매핑이 없으면 자동 무시
+  maxResultsPerKind?: number;
   /** 화면의 '짧은 변' 길이가 이 값(미터) 이하일 때만 POI 표시. 1000m = 좌우/상하 500m 범위 */
   minViewportEdgeMeters?: number;
   /** 이 레벨 이하일 때 POI 표시 (숫자 작을수록 더 확대) */
   showAtOrBelowLevel?: number;
-  busStopFetcher?: (bbox: {
-    sw: { lat: number; lng: number };
-    ne: { lat: number; lng: number };
-  }) => Promise<{ id: string; name: string; lat: number; lng: number }[]>;
 };
 
-// 기본값/튜닝
 const DEFAULTS = {
   maxResultsPerKind: 40,
-  minViewportEdgeMeters: 1000, // 짧은 변 1km → 체감 500m부터
-  showAtOrBelowLevel: 6, // map.getLevel() <= 6 에서 표시 (필요시 7로)
+  minViewportEdgeMeters: 1000,
+  showAtOrBelowLevel: 6,
 } as const;
 
-const IDLE_THROTTLE_MS = 1200; // 검색 스로틀
+const IDLE_THROTTLE_MS = 1200;
 
-// 간단 throttle
+// throttle
 function useThrottle(fn: (...a: any[]) => void, wait = IDLE_THROTTLE_MS) {
   const lastRef = useRef(0);
   const timer = useRef<any>(null);
@@ -60,7 +56,7 @@ function distM(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
+  const dLng = toRad(lat2 - lng2);
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
@@ -74,7 +70,6 @@ export function usePoiLayer({
   maxResultsPerKind = DEFAULTS.maxResultsPerKind,
   minViewportEdgeMeters = DEFAULTS.minViewportEdgeMeters,
   showAtOrBelowLevel = DEFAULTS.showAtOrBelowLevel,
-  busStopFetcher,
 }: UsePoiLayerOptions) {
   const kakao =
     kakaoSDK ?? (typeof window !== "undefined" ? (window as any).kakao : null);
@@ -98,6 +93,12 @@ export function usePoiLayer({
     };
   }, [map, kakao]);
 
+  // kakao LatLngBounds (categorySearch bounds 전달용)
+  const getKakaoBounds = useCallback(() => {
+    if (!map || !kakao) return null;
+    return map.getBounds();
+  }, [map, kakao]);
+
   // 뷰포트 짧은 변 길이(m)
   const getMinViewportEdgeMeters = useCallback(() => {
     if (!map || !kakao) return Infinity;
@@ -111,7 +112,7 @@ export function usePoiLayer({
     return Math.min(width, height);
   }, [map, kakao]);
 
-  // 바운즈 변화가 충분할 때만 재검색(약 ~200m 기준)
+  // 바운즈 변화가 충분할 때만 재검색(대략 ~200m)
   const movedEnough = useCallback((a: any, b: any) => {
     if (!b) return true;
     const d = (x: number, y: number) => Math.abs(x - y);
@@ -123,119 +124,108 @@ export function usePoiLayer({
     );
   }, []);
 
-  const runSearch = useCallback(async () => {
-    if (!map || !kakao) return;
+  // ▶ force: 같은 뷰포트여도 실행
+  const runSearch = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if (!map || !kakao) return;
 
-    // ▼ 레벨/거리 듀얼 게이트: 둘 중 하나라도 통과하면 표시
-    const lv = map.getLevel();
-    const minEdge = getMinViewportEdgeMeters();
-    const pass = lv <= showAtOrBelowLevel || minEdge <= minViewportEdgeMeters;
+      beginPoiFrame(); // 깜빡임 억제용 프레임 카운트
 
-    if (!pass) {
-      // 너무 멀면 표시/검색 모두 중단 (기존 마커 정리)
-      setMarkers((prev) => {
-        clearMarkers(prev);
-        return [];
-      });
-      return;
-    }
+      // 레벨/거리 게이트
+      const lv = map.getLevel();
+      const minEdge = getMinViewportEdgeMeters();
+      const pass = lv <= showAtOrBelowLevel || minEdge <= minViewportEdgeMeters;
 
-    const bbox = getBoundsBox();
-    if (!bbox) return;
-    if (!movedEnough(bbox, lastBoxRef.current)) return;
-    lastBoxRef.current = bbox;
-
-    const mySeq = ++reqSeqRef.current;
-
-    const nextKeys = new Set<string>();
-    const list: any[] = [];
-
-    // 1) 카테고리(편의점/카페/약국/지하철)
-    const nonBusKinds = enabledKinds.filter((k) => k !== "busstop") as Exclude<
-      PoiKind,
-      "busstop"
-    >[];
-    if (nonBusKinds.length) {
-      if (!placesRef.current) {
-        placesRef.current = new kakao.maps.services.Places(map);
-      }
-      await Promise.all(
-        nonBusKinds.map(
-          (kind) =>
-            new Promise<void>((resolve) => {
-              const code = KAKAO_CATEGORY[kind];
-              placesRef.current!.categorySearch(
-                code,
-                (data: any[], status: string) => {
-                  if (
-                    status === kakao.maps.services.Status.OK &&
-                    Array.isArray(data)
-                  ) {
-                    data.slice(0, maxResultsPerKind).forEach((p) => {
-                      const x = Number(p.x);
-                      const y = Number(p.y);
-                      const key = `${kind}:${p.id ?? `${x},${y}`}`;
-                      const m = upsertPoiMarker(
-                        kakao,
-                        map,
-                        key,
-                        x,
-                        y,
-                        p.place_name,
-                        POI_ICON[kind]
-                      );
-                      nextKeys.add(key);
-                      list.push(m);
-                    });
-                  }
-                  resolve();
-                },
-                { useMapBounds: true }
-              );
-            })
-        )
-      );
-    }
-
-    // 2) 버스정류장
-    if (enabledKinds.includes("busstop") && busStopFetcher) {
-      try {
-        const stops = await busStopFetcher(bbox);
-        stops.slice(0, maxResultsPerKind).forEach((s) => {
-          const key = `busstop:${s.id ?? `${s.lng},${s.lat}`}`;
-          const m = upsertPoiMarker(
-            kakao,
-            map,
-            key,
-            s.lng,
-            s.lat,
-            s.name,
-            POI_ICON["busstop"]
-          );
-          nextKeys.add(key);
-          list.push(m);
+      if (!pass) {
+        // 게이트 미통과 시 즉시 숨김
+        reconcilePoiMarkers(new Set(), { graceFrames: 0 });
+        setMarkers((prev) => {
+          clearMarkers(prev);
+          return [];
         });
-      } catch (e) {
-        console.error("busStopFetcher error", e);
+        return;
       }
-    }
 
-    if (mySeq !== reqSeqRef.current) return;
+      const bbox = getBoundsBox();
+      if (!bbox) return;
+      if (!opts?.force && !movedEnough(bbox, lastBoxRef.current)) return;
+      lastBoxRef.current = bbox;
 
-    reconcilePoiMarkers(nextKeys);
-    setMarkers(list);
-  }, [
-    map,
-    kakao,
-    enabledKinds,
-    maxResultsPerKind,
-    minViewportEdgeMeters,
-    showAtOrBelowLevel,
-    getMinViewportEdgeMeters,
-    getBoundsBox,
-    movedEnough,
-    busStopFetcher,
-  ]);
+      const mySeq = ++reqSeqRef.current;
+
+      const nextKeys = new Set<string>();
+      const list: any[] = [];
+
+      // Kakao Places 인스턴스
+      if (!placesRef.current && kakao?.maps?.services?.Places) {
+        placesRef.current = new kakao.maps.services.Places();
+      }
+
+      const boundsObj = getKakaoBounds();
+
+      // ✅ KAKAO_CATEGORY에 매핑된 종류만 검색 (버스는 매핑이 없으므로 자동 제외)
+      const kindsForKakao = enabledKinds.filter(
+        (k): k is keyof typeof KAKAO_CATEGORY => k in KAKAO_CATEGORY
+      );
+
+      if (kindsForKakao.length && placesRef.current) {
+        await Promise.all(
+          kindsForKakao.map(
+            (kind) =>
+              new Promise<void>((resolve) => {
+                const code = KAKAO_CATEGORY[kind];
+                placesRef.current!.categorySearch(
+                  code,
+                  (data: any[], status: string) => {
+                    if (
+                      status === kakao.maps.services.Status.OK &&
+                      Array.isArray(data)
+                    ) {
+                      data.slice(0, maxResultsPerKind).forEach((p) => {
+                        const x = Number(p.x);
+                        const y = Number(p.y);
+                        const key = `${kind}:${p.id ?? `${x},${y}`}`;
+                        const m = upsertPoiMarker(
+                          kakao,
+                          map,
+                          key,
+                          x,
+                          y,
+                          p.place_name,
+                          (POI_ICON as any)[kind]
+                        );
+                        nextKeys.add(key);
+                        list.push(m);
+                      });
+                    }
+                    resolve();
+                  },
+                  { bounds: boundsObj ?? undefined }
+                );
+              })
+          )
+        );
+      }
+
+      if (mySeq !== reqSeqRef.current) return;
+
+      // force일 땐 유예 없이 즉시 숨김
+      reconcilePoiMarkers(nextKeys, { graceFrames: opts?.force ? 0 : 2 });
+      setMarkers(list);
+    },
+    [
+      map,
+      kakao,
+      enabledKinds,
+      maxResultsPerKind,
+      minViewportEdgeMeters,
+      showAtOrBelowLevel,
+      getMinViewportEdgeMeters,
+      getBoundsBox,
+      getKakaoBounds,
+      movedEnough,
+    ]
+  );
 
   const throttled = useThrottle(runSearch);
 
@@ -243,7 +233,7 @@ export function usePoiLayer({
     if (!map || !kakao) return;
     const handler = () => throttled();
     kakao.maps.event.addListener(map, "idle", handler);
-    runSearch(); // 최초 1회
+    runSearch({ force: true }); // 최초 1회 강제
     return () => {
       kakao.maps.event.removeListener(map, "idle", handler);
       setMarkers((prev) => {
@@ -253,11 +243,20 @@ export function usePoiLayer({
     };
   }, [map, kakao, throttled, runSearch]);
 
-  // 종류 바뀌면 즉시 재검색
+  // kinds 바뀌면 기존 마커 즉시 숨기고 강제 재검색
   useEffect(() => {
-    runSearch();
+    reconcilePoiMarkers(new Set(), { graceFrames: 0 });
+    setMarkers((prev) => {
+      clearMarkers(prev);
+      return [];
+    });
+    runSearch({ force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabledKinds.join(",")]);
 
-  return { markers, refresh: runSearch, clear: () => clearMarkers(markers) };
+  return {
+    markers,
+    refresh: () => runSearch({ force: true }),
+    clear: () => clearMarkers(markers),
+  };
 }

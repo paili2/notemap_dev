@@ -1,8 +1,9 @@
 import { PropertyItem } from "@/features/properties/types/propertyItem";
-import { MapMarker } from "../../types/map";
+import { MapMarker, MapMarkerTagged } from "../../types/map";
 import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
+import { PoiKind } from "../../lib/poiCategory";
 
 export type MapHomeUIProps = {
   // core
@@ -13,7 +14,7 @@ export type MapHomeUIProps = {
   // data
   items: PropertyItem[];
   filtered: PropertyItem[];
-  markers: MapMarker[];
+  markers: (MapMarker | MapMarkerTagged)[]; // ✅ MapMarkerTagged 허용
   fitAllOnce: boolean;
 
   // search & filter
@@ -21,12 +22,16 @@ export type MapHomeUIProps = {
   filter: string;
   onChangeQ: (v: string) => void;
   onChangeFilter: (v: any) => void;
-  onSubmitSearch: (v: string) => void;
+  onSubmitSearch: (v?: string) => void; // ✅ kw optional
 
   // toggles
   useSidebar: boolean;
   setUseSidebar: React.Dispatch<React.SetStateAction<boolean>>;
-  useDistrict: boolean; // 현재 컴포넌트에서는 사용 안 하지만 확장 대비 유지
+  useDistrict: boolean; // 확장 대비 유지
+
+  // ⭐ POI
+  poiKinds: PoiKind[];
+  onChangePoiKinds: (next: PoiKind[]) => void;
 
   // menu
   menuOpen: boolean;
@@ -39,10 +44,11 @@ export type MapHomeUIProps = {
   onViewFromMenu: (id: string) => void;
   onCreateFromMenu: () => void;
   onPlanFromMenu: (pos: LatLng) => void;
+
   // map callbacks
-  onMarkerClick: (id: string) => void;
+  onMarkerClick: (id: string | number) => void; // ✅ number 허용
   onMapReady: ({ kakao, map }: any) => void;
-  onViewportChange: (vp: any) => void;
+  onViewportChange: (vp: any, opts?: { force?: boolean }) => void; // ✅ force 옵션
 
   // modals
   viewOpen: boolean;
@@ -63,7 +69,7 @@ export type MapHomeUIProps = {
   createHostHandlers: {
     onClose: () => void;
     appendItem: (item: PropertyItem) => void;
-    selectAndOpenView: (id: string) => void;
+    selectAndOpenView: (id: string | number) => void; // ✅ number 허용 (내부 사용 편의)
     resetAfterCreate: () => void;
   };
   editHostHandlers: {
@@ -79,7 +85,7 @@ export type MapHomeUIProps = {
     position: { lat: number; lng: number };
     propertyId: "__draft__" | string;
     propertyTitle?: string | null;
-    pin: { kind: string; isFav?: boolean };
+    pin?: { kind: string; isFav?: boolean };
   }) => void;
   onChangeHideLabelForId?: (id: string | null) => void;
 

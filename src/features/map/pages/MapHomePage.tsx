@@ -30,28 +30,19 @@ export default function MapHomePage() {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const normalized: Record<string, boolean> = {};
       for (const [k, v] of Object.entries(parsed)) {
-        normalized[k] = typeof v === "boolean" ? v : v === "true";
+        normalized[k] = typeof v === "boolean" ? v : (v as any) === "true";
       }
       return normalized;
     } catch {
       return {};
     }
   });
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem(FAV_LS_KEY, JSON.stringify(favById));
     } catch {}
-  }, [favById]);
-
-  // ✅ 변경될 때마다 저장
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(FAV_LS_KEY, JSON.stringify(favById));
-    } catch {
-      // noop
-    }
   }, [favById]);
 
   // ✅ 즐겨찾기 토글 핸들러
@@ -109,10 +100,27 @@ export default function MapHomePage() {
       filter={s.filter}
       onChangeQ={s.setQ}
       onChangeFilter={s.setFilter}
-      onSubmitSearch={s.runSearch}
+      onSubmitSearch={(kw) => s.runSearch(kw)} // 선택 키워드 검색 가능
       useDistrict={s.useDistrict}
       useSidebar={s.useSidebar}
       setUseSidebar={s.setUseSidebar}
+      // ⭐ POI 툴바
+      poiKinds={s.poiKinds}
+      onChangePoiKinds={(next) => {
+        s.setPoiKinds(next); // 상태 반영
+        // ▼ 뷰포트가 그대로여도 강제로 재조회
+        if (s.lastViewport) {
+          s.sendViewportQuery(s.lastViewport, { force: true });
+        } else {
+          s.runSearch(); // q 기본값으로 실행
+          if (s.kakaoSDK && s.mapInstance) {
+            s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle");
+            requestAnimationFrame(() =>
+              s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle")
+            );
+          }
+        }
+      }}
       // 메뉴/모달 상태
       menuOpen={s.menuOpen}
       menuAnchor={s.menuAnchor}
