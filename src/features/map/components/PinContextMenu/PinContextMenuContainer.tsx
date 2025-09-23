@@ -8,8 +8,12 @@ import type { PinContextMenuProps } from "./types";
 /**
  * 컨텍스트 메뉴 컨테이너
  * - position: kakao.maps.Marker | kakao.maps.LatLng | {lat,lng} 모두 허용
- * - 답사예정핀(__visit__*)은 UI 상 plan 으로 취급하며 ❌ 즐겨찾기 버튼 미노출
- * - 매물 등록된 핀(= plan/visit 아님, propertyId 유효)에서만 즐겨찾기 버튼 노출
+ * - 상태 판별 규칙
+ *   - draft: pin.state === "draft" 이거나 propertyId 없음/"__draft__"
+ *   - plan (답사예정): pin.kind === "question" 이거나 propertyId가 "__visit__*" (레거시 호환)
+ *   - listed: draft/plan이 아니면서 propertyId가 유효
+ * - 즐겨찾기 버튼은 listed 핀에서만 노출
+ * - plan 핀에서는 "답사예정지 등록" 액션을 노출 (상세보기 대체)
  */
 export default function PinContextMenuContainer({
   kakao,
@@ -58,16 +62,23 @@ export default function PinContextMenuContainer({
     onPlan?.({ lat, lng });
   }, [onPlan, position]);
 
-  // ✅ 방문(답사예정) 핀 감지: __visit__* 아이디
-  const isVisit = !!propertyId && String(propertyId).startsWith("__visit__");
+  /** ---------------------------
+   *  상태 기반 판별 (PinKind/PinState + 레거시 호환)
+   * -------------------------- */
+  const legacyDraft = !propertyId || propertyId === "__draft__";
+  const legacyVisit =
+    !!propertyId && String(propertyId).startsWith("__visit__");
 
-  // ✅ plan 판정: pin.kind === 'plan' 이거나 방문핀일 때 plan처럼 취급
-  const isPlanPin = pin?.kind === "plan" || isVisit;
+  // draft: state === 'draft' 이거나 아직 id 없음/__draft__
+  const isDraftPin = pin?.state === "draft" || legacyDraft;
 
-  // ✅ 매물 등록된 핀: plan/visit 이 아니고, propertyId가 정상인 경우
-  const isListedPin = !isPlanPin && !!propertyId;
+  // plan(답사예정): kind === 'question' 이거나 레거시 __visit__*
+  const isPlanPin = pin?.kind === "question" || legacyVisit;
 
-  // ✅ 즐겨찾기 상태는 listed 핀에서만 의미 있음
+  // listed: draft/plan 아님 && propertyId 존재
+  const isListedPin = !isDraftPin && !isPlanPin && !!propertyId;
+
+  // 즐겨찾기 상태는 listed 핀에서만 의미 있음
   const favActive = isListedPin ? !!pin?.isFav : false;
 
   return (
@@ -91,6 +102,8 @@ export default function PinContextMenuContainer({
               onView={handleView}
               onCreate={handleCreate}
               onPlan={handlePlan}
+              /** 컨테이너에서 상태 불리언 확정 후 전달 */
+              isDraftPin={isDraftPin}
               isPlanPin={isPlanPin}
               /** ✅ 즐겨찾기 버튼은 매물 등록된 핀에서만 노출 */
               showFav={isListedPin}

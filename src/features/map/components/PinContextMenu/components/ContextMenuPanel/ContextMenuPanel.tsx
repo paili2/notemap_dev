@@ -10,6 +10,7 @@ export default function ContextMenuPanel({
   jibunAddress,
   propertyId,
   propertyTitle,
+  isDraftPin, // ✅ 추가
   isPlanPin,
   showFav,
   favActive,
@@ -19,7 +20,8 @@ export default function ContextMenuPanel({
   onCreate,
   onPlan,
 }: ContextMenuPanelProps) {
-  const isDraft = !propertyId || propertyId === "__draft__";
+  // ✅ 컨테이너에서 내려주면 그 값을 우선 사용, 아니면 기존 로컬 계산으로 폴백
+  const isDraft = isDraftPin ?? (!propertyId || propertyId === "__draft__");
   const isVisit = !!propertyId && propertyId.startsWith("__visit__");
 
   const headerTitle = isDraft
@@ -30,7 +32,6 @@ export default function ContextMenuPanel({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // Esc로 닫기
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -39,19 +40,18 @@ export default function ContextMenuPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // ✅ 바깥 클릭으로 닫기 (지도 내부 클릭은 닫지 않음 → 다른 핀 한 번에 전환)
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as Node | null;
       if (!panelRef.current || !target) return;
       if (!panelRef.current.contains(target)) onClose();
     };
-    document.addEventListener("click", onDocClick); // ✅ click
+    document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [onClose]);
 
   useEffect(() => {
-    panelRef.current?.focus(); // 패널에만 포커스
+    panelRef.current?.focus();
   }, []);
 
   return (
@@ -73,7 +73,6 @@ export default function ContextMenuPanel({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* ✅ 매물 등록된 핀에서만 즐겨찾기 버튼 노출 */}
           {showFav && typeof onToggleFav === "function" && (
             <StarToggleButton
               active={!!favActive}
@@ -114,14 +113,13 @@ export default function ContextMenuPanel({
       {isDraft ? (
         <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
       ) : isVisit || isPlanPin ? (
-        // ✅ 답사예정핀: 상세보기 대신 "답사예정지 등록"
         <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="default"
             size="lg"
             onClick={() => {
-              onPlan?.(); // 컨테이너에서 위치(lat,lng) 포함한 onPlan이 바인딩되어 있음
+              onPlan?.();
               onClose();
             }}
             className="w-full"
@@ -130,7 +128,6 @@ export default function ContextMenuPanel({
           </Button>
         </div>
       ) : (
-        // ✅ 매물핀: 상세 보기
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -147,7 +144,6 @@ export default function ContextMenuPanel({
   );
 }
 
-/** 신규핀 draft 상태에서만 사용되는 액션 버튼 묶음 */
 function DraftActions({
   onCreate,
   onClose,

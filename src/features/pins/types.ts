@@ -18,6 +18,7 @@ export type PinKind =
 export type PinState = "draft" | "saved";
 
 export type PinItem = PropertyItem & {
-  kind: PinKind;
-  state?: PinState;
+  kind: PinKind; // "question" = 답사예정
+  state?: "draft" | "saved"; // 임시/저장됨
+  isFav?: boolean;
 };

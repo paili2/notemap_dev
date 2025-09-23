@@ -1,4 +1,6 @@
+// features/map/components/PinContextMenu/types.ts
 import { LatLng } from "@/lib/geo/types";
+import type { PinItem } from "@/features/pins/types"; // ✅ PinItem으로 업그레이드
 
 // 지도 컨텍스트 메뉴가 붙을 수 있는 대상(마커, LatLng 객체, 리터럴 좌표)
 export type PinTarget = kakao.maps.Marker | kakao.maps.LatLng | LatLng;
@@ -20,14 +22,19 @@ export type PinContextMenuProps = {
   propertyId?: "__draft__" | string | null;
   /** 매물명(선택) — 있으면 헤더에 표시 */
   propertyTitle?: string | null;
-  pin: { kind: string; isFav?: boolean };
+
+  /** ✅ 업그레이드: 최소 타입 → PinItem */
+  pin?: PinItem;
+
+  /** 즐겨찾기 토글 */
   onToggleFav?: (next: boolean) => void;
 
   /** 닫기 / 상세 보기 / 신규 등록 동작 */
   onClose: () => void;
   onView: (id: string) => void;
   onCreate: () => void;
-  onPlan?: (pos: LatLng) => void; // 좌표 인자 받도록
+  /** 좌표 인자 받도록 */
+  onPlan?: (pos: LatLng) => void;
 
   /** 오버레이 z-index (기본 10000) */
   zIndex?: number;

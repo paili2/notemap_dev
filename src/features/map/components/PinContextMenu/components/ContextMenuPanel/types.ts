@@ -1,12 +1,3 @@
-import { LucideIcon } from "lucide-react";
-
-export type ContextMenuItemProps = {
-  label: string;
-  icon: LucideIcon;
-  onClick: () => void;
-  disabled?: boolean;
-};
-
 export type ContextMenuPanelProps = {
   roadAddress?: string | null;
   jibunAddress?: string | null;
@@ -16,6 +7,7 @@ export type ContextMenuPanelProps = {
   propertyTitle?: string | null;
 
   /** plan(답사예정/임시) 핀인지 부모에서 판단해 넘겨줄 수 있음 */
+  isDraftPin?: boolean;
   isPlanPin?: boolean;
 
   /** 즐겨찾기 버튼 노출 여부(부모에서 결정: 매물 등록된 핀에서만 true) */
