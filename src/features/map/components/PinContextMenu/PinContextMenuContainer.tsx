@@ -8,7 +8,8 @@ import type { PinContextMenuProps } from "./types";
 /**
  * 컨텍스트 메뉴 컨테이너
  * - position: kakao.maps.Marker | kakao.maps.LatLng | {lat,lng} 모두 허용
- * - 답사예정핀(__visit__*)은 UI 상 plan 으로 취급하여 즐겨찾기 토글 노출
+ * - 답사예정핀(__visit__*)은 UI 상 plan 으로 취급하며 ❌ 즐겨찾기 버튼 미노출
+ * - 매물 등록된 핀(= plan/visit 아님, propertyId 유효)에서만 즐겨찾기 버튼 노출
  */
 export default function PinContextMenuContainer({
   kakao,
@@ -63,8 +64,11 @@ export default function PinContextMenuContainer({
   // ✅ plan 판정: pin.kind === 'plan' 이거나 방문핀일 때 plan처럼 취급
   const isPlanPin = pin?.kind === "plan" || isVisit;
 
-  // ✅ 즐겨찾기 상태 boolean 보장
-  const favActive = !!pin?.isFav;
+  // ✅ 매물 등록된 핀: plan/visit 이 아니고, propertyId가 정상인 경우
+  const isListedPin = !isPlanPin && !!propertyId;
+
+  // ✅ 즐겨찾기 상태는 listed 핀에서만 의미 있음
+  const favActive = isListedPin ? !!pin?.isFav : false;
 
   return (
     <CustomOverlay
@@ -88,8 +92,10 @@ export default function PinContextMenuContainer({
               onCreate={handleCreate}
               onPlan={handlePlan}
               isPlanPin={isPlanPin}
+              /** ✅ 즐겨찾기 버튼은 매물 등록된 핀에서만 노출 */
+              showFav={isListedPin}
               favActive={favActive}
-              onToggleFav={onToggleFav}
+              onToggleFav={isListedPin ? onToggleFav : undefined}
             />
 
             {/* 꼬리(삼각형) */}

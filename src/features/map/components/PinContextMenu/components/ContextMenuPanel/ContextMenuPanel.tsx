@@ -15,7 +15,9 @@ type Props = {
   /** plan(답사예정/임시) 핀인지 부모에서 판단해 넘겨줄 수 있음 */
   isPlanPin?: boolean;
 
-  /** 즐겨찾기 상태/토글 콜백 (있을 때만 별 버튼 노출) */
+  /** 즐겨찾기 버튼 노출 여부(부모에서 결정: 매물 등록된 핀에서만 true) */
+  showFav?: boolean;
+  /** 즐겨찾기 상태/토글 콜백 (showFav=true 이고 onToggleFav가 있을 때만 버튼 렌더) */
   favActive?: boolean;
   onToggleFav?: (next: boolean) => void;
 
@@ -35,6 +37,7 @@ export default function ContextMenuPanel({
   propertyId,
   propertyTitle,
   isPlanPin,
+  showFav,
   favActive,
   onToggleFav,
   onClose,
@@ -44,7 +47,6 @@ export default function ContextMenuPanel({
 }: Props) {
   const isDraft = !propertyId || propertyId === "__draft__";
   const isVisit = !!propertyId && propertyId.startsWith("__visit__");
-  const planLike = isPlanPin ?? isVisit;
 
   const headerTitle = isDraft
     ? "선택 위치"
@@ -97,16 +99,14 @@ export default function ContextMenuPanel({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {!isDraft &&
-            planLike &&
-            typeof favActive === "boolean" &&
-            onToggleFav && (
-              <StarToggleButton
-                active={favActive}
-                onChange={onToggleFav}
-                size="sm"
-              />
-            )}
+          {/* ✅ 매물 등록된 핀에서만 즐겨찾기 버튼 노출 */}
+          {showFav && typeof onToggleFav === "function" && (
+            <StarToggleButton
+              active={!!favActive}
+              onChange={onToggleFav}
+              size="sm"
+            />
+          )}
           <Button
             type="button"
             onClick={onClose}
@@ -139,7 +139,24 @@ export default function ContextMenuPanel({
       {/* 액션 */}
       {isDraft ? (
         <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
-      ) : isVisit ? null : (
+      ) : isVisit || isPlanPin ? (
+        // ✅ 답사예정핀: 상세보기 대신 "답사예정지 등록"
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="default"
+            size="lg"
+            onClick={() => {
+              onPlan?.(); // 컨테이너에서 위치(lat,lng) 포함한 onPlan이 바인딩되어 있음
+              onClose();
+            }}
+            className="w-full"
+          >
+            답사예정지 등록
+          </Button>
+        </div>
+      ) : (
+        // ✅ 매물핀: 상세 보기
         <div className="flex items-center gap-2">
           <Button
             type="button"
