@@ -2,7 +2,7 @@
 
 import { Map } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { ExpandedMenu } from "./components/ExpandedMenu";
 import { useMapMenuState } from "./hooks/useMapMenuState";
 import type { MapMenuKey, MapMenuProps } from "./types/types";

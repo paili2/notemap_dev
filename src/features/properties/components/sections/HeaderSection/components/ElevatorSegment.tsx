@@ -1,5 +1,5 @@
 import { Button } from "@/components/atoms/Button/Button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 const ElevatorSegment = ({
   value,

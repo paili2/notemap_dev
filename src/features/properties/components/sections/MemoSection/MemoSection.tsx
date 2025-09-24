@@ -1,7 +1,7 @@
 "use client";
 
 import { Textarea } from "@/components/atoms/Textarea/Textarea";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { useEffect, useRef } from "react";
 import { MemoSectionProps } from "./types";
 

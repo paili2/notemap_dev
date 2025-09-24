@@ -10,13 +10,7 @@ export function PoiLayerToggle({
   value: PoiKind[];
   onChange: (next: PoiKind[]) => void;
 }) {
-  const candidates: PoiKind[] = [
-    "convenience",
-    "cafe",
-    "pharmacy",
-    "subway",
-    "busstop",
-  ];
+  const candidates: PoiKind[] = ["convenience", "cafe", "pharmacy", "subway"];
   const setOf = useMemo(() => new Set(value), [value]);
 
   return (

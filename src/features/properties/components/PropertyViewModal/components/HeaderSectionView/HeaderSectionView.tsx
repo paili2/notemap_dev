@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import StarsRating from "@/components/molecules/StarsRating";
 import { HeaderSectionViewProps } from "./types";
 import { getPinUrl } from "@/features/pins/lib/assets";

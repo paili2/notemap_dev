@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 export interface PropertyPageLayoutProps {
   /** 지도 영역 */

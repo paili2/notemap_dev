@@ -1,7 +1,7 @@
 "use client";
 
 import { X, GripVertical, ChevronDown, ChevronUp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ListItem } from "../types/sidebar";
 

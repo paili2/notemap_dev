@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/atoms/Button/Button";
 import GridTilesIcon from "@/features/map/components/top/MapQuickControls/components/DistrictToggleButton/components/GridTilesIcon";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 type Props = {
   pressed: boolean;

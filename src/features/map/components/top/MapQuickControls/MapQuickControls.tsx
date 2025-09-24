@@ -2,7 +2,7 @@
 
 import DistrictToggleButton from "./components/DistrictToggleButton/DistrictToggleButton";
 import type { MapQuickControlsProps } from "./types";
-import { cn } from "@/lib/utils"; // tailwind merge 유틸 (이미 쓰고 계시죠)
+import { cn } from "@/lib/cn";
 
 export default function MapQuickControls({
   isDistrictOn,

@@ -1,6 +1,5 @@
 "use client";
-
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import SearchForm from "./components/SearchForm";
 import type { MapTopBarProps } from "./types";
 

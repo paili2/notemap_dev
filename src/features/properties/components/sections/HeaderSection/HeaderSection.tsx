@@ -1,7 +1,7 @@
 "use client";
 
 import { RefreshCw } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import StarsRating from "@/components/molecules/StarsRating";
 import ElevatorSegment from "./components/ElevatorSegment";
 

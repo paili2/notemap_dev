@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/atoms/Button/Button";
 import { Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 type Props = {
   active: boolean;

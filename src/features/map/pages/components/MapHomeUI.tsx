@@ -177,12 +177,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
               hasFav ? favById[menuTargetId!] : (targetPin as any)?.isFav
             );
 
-            const pin = menuTargetId
-              ? {
-                  kind: isVisit ? "plan" : (targetPin as any)?.kind ?? "1room",
-                  isFav: computedIsFav,
-                }
-              : { kind: "plan", isFav: false };
+            const pin =
+              menuTargetId && targetPin
+                ? {
+                    id: String(targetPin.id),
+                    title: targetPin.title ?? "이름 없음",
+                    position: targetPin.position,
+                    kind: isVisit
+                      ? "plan"
+                      : (targetPin as any)?.kind ?? "1room",
+                    isFav: computedIsFav,
+                  }
+                : {
+                    id: "__draft__",
+                    title: "선택 위치",
+                    position: menuAnchor,
+                    kind: "plan",
+                    isFav: false,
+                  };
 
             return (
               <PinContextMenu
@@ -234,9 +246,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           /** ▼ 추가: 주변시설 제어형 props (버스/버스정류장은 기본지도에 있으므로 제외) */
           poiKinds={poiKinds}
           onChangePoiKinds={(next) => {
-            const filtered = next.filter((k) => k !== "busstop");
-            setPoiKinds(filtered);
-            // (선택) 사용자 안내가 필요하면 토스트/알림: "버스정류장은 기본지도에 표시됩니다."
+            setPoiKinds(next);
           }}
         />
       </div>

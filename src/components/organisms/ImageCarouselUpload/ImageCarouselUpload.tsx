@@ -2,7 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 import { ImageItem } from "@/features/properties/types/media";
 import { useEffect, useId, useRef, useState } from "react";
 import { ImageCarouselUploadProps } from "./types";

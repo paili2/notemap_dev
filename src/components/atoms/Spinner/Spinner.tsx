@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 export const spinnerVariants = cva(
   // 공통 스타일에서 border-t-transparent는 빼둡니다 (나중에 마지막에 추가)

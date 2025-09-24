@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import SidebarToggleButton from "./components/SidebarToggleButton";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/cn";
 
 export type ToggleSidebarProps = {
   className?: string;
