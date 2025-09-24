@@ -1,7 +1,8 @@
 import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
 import type { MapMenuKey } from "../types/types";
-import { Train, Coffee, Store, Pill } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Train, Coffee, Store, Pill, Bus } from "lucide-react";
 import { PoiKind } from "@/features/map/lib/poiOverlays";
 
 interface ExpandedMenuProps {
@@ -18,23 +19,26 @@ interface ExpandedMenuProps {
   onChangePoiKinds: (next: PoiKind[]) => void;
 }
 
-// ⬇️ busstop 제거 + 타입 안전
-const POI_ORDER: Array<Exclude<PoiKind, "busstop">> = [
+// 버스정류장 포함한 표시 순서
+const POI_ORDER: PoiKind[] = [
   "subway",
+  "bus",
   "convenience",
   "cafe",
   "pharmacy",
 ];
 
-const POI_ICON: Record<Exclude<PoiKind, "busstop">, any> = {
+const POI_ICON: Record<PoiKind, LucideIcon> = {
   subway: Train,
+  bus: Bus,
   convenience: Store,
   cafe: Coffee,
   pharmacy: Pill,
 };
 
-const POI_LABEL: Record<Exclude<PoiKind, "busstop">, string> = {
+const POI_LABEL: Record<PoiKind, string> = {
   subway: "지하철",
+  bus: "버스정류장",
   convenience: "편의점",
   cafe: "카페",
   pharmacy: "약국",
@@ -51,7 +55,7 @@ export const ExpandedMenu = ({
   poiKinds,
   onChangePoiKinds,
 }: ExpandedMenuProps) => {
-  const toggleKind = (k: Exclude<PoiKind, "busstop">) => {
+  const toggleKind = (k: PoiKind) => {
     const has = poiKinds.includes(k);
     const next = has ? poiKinds.filter((x) => x !== k) : [...poiKinds, k];
     onChangePoiKinds(next);

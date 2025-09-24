@@ -1,13 +1,13 @@
-// src/features/map/lib/poiOverlays.tsx
 "use client";
 
 import React from "react";
 import ReactDOM from "react-dom/client";
 import type { LucideIcon, LucideProps } from "lucide-react";
-import { Train, Coffee, Store, Pill } from "lucide-react";
+// lucide 버전에 BusFront가 있으면 교체해서 쓰세요.
+import { Train, Coffee, Store, Pill /* , BusFront */, Bus } from "lucide-react";
 
 /** POI 종류 */
-export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway";
+export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway" | "bus";
 
 /** POI 한 점 */
 export type PoiPoint = {
@@ -24,14 +24,24 @@ export const POI_LABEL: Record<PoiKind, string> = {
   cafe: "카페",
   pharmacy: "약국",
   subway: "지하철역",
+  bus: "버스정류장",
 };
 
-/** Kakao Places 카테고리 코드 매핑 */
-export const KAKAO_CATEGORY: Record<PoiKind, string> = {
+/** Kakao Places 카테고리 코드 매핑 (버스는 카테고리 코드가 없음) */
+export const KAKAO_CATEGORY: Partial<Record<PoiKind, string>> = {
   convenience: "CS2",
   cafe: "CE7",
   pharmacy: "PM9",
   subway: "SW8",
+};
+
+/** 카테고리 코드가 없는 버스정류장만 키워드 검색 사용 */
+export const KAKAO_KEYWORD: Record<PoiKind, string | string[] | undefined> = {
+  convenience: undefined,
+  cafe: undefined,
+  pharmacy: undefined,
+  subway: undefined,
+  bus: ["버스정류장", "정류장", "버스", "승강장"],
 };
 
 /** (마커 API용) 아이콘 스펙 */
@@ -52,12 +62,13 @@ function svgDot(bg: string, size = 28) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-/** (마커 API용) POI별 아이콘 프리셋 */
+/** (마커 API용) POI별 아이콘 프리셋 — 필요 시 사용 */
 export const POI_ICON: Record<PoiKind, PoiIconSpec> = {
   convenience: { url: svgDot("#10b981"), size: [28, 28], offset: [14, 14] },
   cafe: { url: svgDot("#f59e0b"), size: [28, 28], offset: [14, 14] },
   pharmacy: { url: svgDot("#ef4444"), size: [28, 28], offset: [14, 14] },
   subway: { url: svgDot("#3b82f6"), size: [28, 28], offset: [14, 14] },
+  bus: { url: svgDot("#0ea5e9"), size: [28, 28], offset: [14, 14] },
 };
 
 /** (오버레이용) 배경색 & 아이콘 매핑 */
@@ -66,19 +77,24 @@ const POI_BG: Record<PoiKind, string> = {
   cafe: "#f59e0b",
   pharmacy: "#ef4444",
   subway: "#3b82f6",
+  bus: "#0ea5e9",
 };
+
+// lucide에 BusFront가 없으면 Bus로, 지하철은 임시로 Train 사용
 const POI_ICON_COMP: Record<PoiKind, LucideIcon> = {
   convenience: Store,
   cafe: Coffee,
   pharmacy: Pill,
   subway: Train,
+  // bus: BusFront,
+  bus: Bus,
 };
 
 /** 줌 레벨(작을수록 확대)에 따른 크기 계산 */
 export function calcPoiSizeByLevel(level: number) {
   // level 3에서 36px, level 12에서 16px 사이로 선형 보간
-  const maxSize = 36,
-    minSize = 16;
+  const maxSize = 36;
+  const minSize = 16;
   const t = (level - 3) / (12 - 3); // 0~1
   const clamped = Math.min(1, Math.max(0, t));
   const size = Math.round(maxSize - (maxSize - minSize) * clamped);
@@ -86,28 +102,24 @@ export function calcPoiSizeByLevel(level: number) {
   return { size, iconSize };
 }
 
-/** 아이콘 DOM 엘리먼트 생성 (React로 그려서 반환) */
-function makePoiMarkerElement(
-  kind: PoiKind,
-  options?: { size?: number; iconSize?: number; onClick?: () => void }
-) {
-  const size = options?.size ?? 32;
-  const iconSize = options?.iconSize ?? 16;
-
-  const el = document.createElement("div");
-  el.style.position = "relative";
-  el.style.width = `${size}px`;
-  el.style.height = `${size}px`;
-  el.style.cursor = "pointer";
-
-  const root = ReactDOM.createRoot(el);
+/** 오버레이 내용: React 컴포넌트(재렌더로만 갱신 → 깜빡임 최소화) */
+function PoiBubble({
+  kind,
+  size,
+  iconSize,
+  onClick,
+}: {
+  kind: PoiKind;
+  size: number;
+  iconSize: number;
+  onClick?: () => void;
+}) {
   const Icon = POI_ICON_COMP[kind];
-
-  root.render(
+  return (
     <div
-      onClick={options?.onClick}
+      onClick={onClick}
       role="img"
-      aria-label={kind}
+      aria-label={POI_LABEL[kind]}
       style={{
         width: size,
         height: size,
@@ -128,8 +140,6 @@ function makePoiMarkerElement(
       />
     </div>
   );
-
-  return { el, root };
 }
 
 /** 하나의 CustomOverlay 생성 */
@@ -143,32 +153,39 @@ export function createPoiOverlay(
   let curSize = opts?.size ?? 32;
   let curIconSize = opts?.iconSize ?? 16;
 
-  const first = makePoiMarkerElement(curKind, {
-    onClick: opts?.onClick ? () => opts.onClick!(poi.id) : undefined,
-    size: curSize,
-    iconSize: curIconSize,
-  });
+  // DOM 컨테이너 & React root (한 번만 생성)
+  const el = document.createElement("div");
+  el.style.position = "relative";
+  const root = ReactDOM.createRoot(el);
+
+  const render = () => {
+    root.render(
+      <PoiBubble
+        kind={curKind}
+        size={curSize}
+        iconSize={curIconSize}
+        onClick={opts?.onClick ? () => opts.onClick!(poi.id) : undefined}
+      />
+    );
+  };
+  render();
 
   const overlay = new kakaoSDK.maps.CustomOverlay({
     position: new kakaoSDK.maps.LatLng(poi.lat, poi.lng),
-    content: first.el,
+    content: el,
     xAnchor: 0.5,
     yAnchor: 0.5,
     zIndex: poi.zIndex ?? 3,
   });
   overlay.setMap(map);
 
-  // 현재 React root를 overlay에 보관
-  (overlay as any).__root = first.root;
-
-  /** 제거 (항상 최신 root를 언마운트) */
+  /** 제거 */
   const destroy = () => {
     overlay.setMap(null);
-    const r = (overlay as any).__root as { unmount: () => void } | undefined;
-    r?.unmount();
+    root.unmount();
   };
 
-  /** 변경 사항 반영(위치/zIndex/종류/크기) */
+  /** 변경 사항 반영(위치/zIndex/종류/크기) — React root는 재사용 */
   const update = (
     next: Partial<PoiPoint> & { size?: number; iconSize?: number }
   ) => {
@@ -179,35 +196,20 @@ export function createPoiOverlay(
       overlay.setZIndex(next.zIndex);
     }
 
-    // kind/size/iconSize 변경 감지
-    const nextKind = (next.kind ?? curKind) as PoiKind;
-    const nextSize = next.size ?? curSize;
-    const nextIconSize = next.iconSize ?? curIconSize;
-    const needRerender =
-      nextKind !== curKind ||
-      nextSize !== curSize ||
-      nextIconSize !== curIconSize;
-
-    if (needRerender) {
-      // 기존 루트 언마운트
-      const prevRoot = (overlay as any).__root as
-        | { unmount: () => void }
-        | undefined;
-      prevRoot?.unmount();
-
-      // 새 엘리먼트/루트로 교체
-      const n = makePoiMarkerElement(nextKind, {
-        onClick: opts?.onClick ? () => opts.onClick!(poi.id) : undefined,
-        size: nextSize,
-        iconSize: nextIconSize,
-      });
-      overlay.setContent(n.el);
-      (overlay as any).__root = n.root;
-
-      curKind = nextKind;
-      curSize = nextSize;
-      curIconSize = nextIconSize;
+    let needRender = false;
+    if (next.kind && next.kind !== curKind) {
+      curKind = next.kind;
+      needRender = true;
     }
+    if (typeof next.size === "number" && next.size !== curSize) {
+      curSize = next.size;
+      needRender = true;
+    }
+    if (typeof next.iconSize === "number" && next.iconSize !== curIconSize) {
+      curIconSize = next.iconSize;
+      needRender = true;
+    }
+    if (needRender) render();
   };
 
   return { overlay, update, destroy };
