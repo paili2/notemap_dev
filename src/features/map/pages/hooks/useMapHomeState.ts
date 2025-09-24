@@ -16,7 +16,7 @@ import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToIte
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
-import { PoiKind } from "../../lib/poiCategory";
+import { PoiKind } from "../../lib/poiOverlays";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 const VISIT_PINS_STORAGE_KEY = "maphome:visitPins";

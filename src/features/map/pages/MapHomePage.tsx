@@ -6,7 +6,7 @@ import { LatLng } from "@/lib/geo/types";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { MapHomeUI } from "./components/MapHomeUI";
 
-const FAV_LS_KEY = "map:favs"; // ⭐ 즐겨찾기 로컬스토리지 키
+const MAP_FAVS_LS_KEY = "map:favs";
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -25,7 +25,7 @@ export default function MapHomePage() {
   const [favById, setFavById] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
     try {
-      const raw = localStorage.getItem(FAV_LS_KEY);
+      const raw = localStorage.getItem(MAP_FAVS_LS_KEY);
       if (!raw) return {};
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const normalized: Record<string, boolean> = {};
@@ -41,7 +41,7 @@ export default function MapHomePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(FAV_LS_KEY, JSON.stringify(favById));
+      localStorage.setItem(MAP_FAVS_LS_KEY, JSON.stringify(favById));
     } catch {}
   }, [favById]);
 

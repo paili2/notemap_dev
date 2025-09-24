@@ -1,8 +1,8 @@
 import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
 import type { MapMenuKey } from "../types/types";
-import type { PoiKind } from "@/features/map/lib/poiCategory";
-import { Train, Coffee, Store, Pill } from "lucide-react"; // ⬅️ Bus 제거
+import { Train, Coffee, Store, Pill } from "lucide-react";
+import { PoiKind } from "@/features/map/lib/poiOverlays";
 
 interface ExpandedMenuProps {
   active: MapMenuKey;

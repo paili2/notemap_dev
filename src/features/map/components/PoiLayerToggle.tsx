@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { POI_LABEL, PoiKind } from "../lib/poiCategory";
+import { POI_LABEL, PoiKind } from "../lib/poiOverlays";
 
 export function PoiLayerToggle({
   value,

@@ -13,10 +13,9 @@ import MapView from "../../components/MapView/MapView";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "../../lib/constants";
 import { FilterSearch } from "../../FilterSearch";
 import MapCreateModalHost from "../../components/MapCreateModalHost";
-// ⛔ 삭제: import MapEditModalHost from "../../components/MapEditModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
-import type { PoiKind } from "@/features/map/lib/poiCategory";
+import { PoiKind } from "../../lib/poiOverlays";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {

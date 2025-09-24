@@ -8,10 +8,10 @@ import type { MapViewProps } from "./types";
 import { PinKind } from "@/features/pins/types";
 
 // ▼ POI
-import { PoiKind } from "../../lib/poiCategory";
 import { usePoiLayer } from "../../hooks/usePoiLayer";
 // (옵션) 내부 토글 UI 쓰고 싶을 때만 사용
 import { PoiLayerToggle } from "../PoiLayerToggle";
+import { PoiKind } from "../../lib/poiOverlays";
 
 type Props = MapViewProps & {
   /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */

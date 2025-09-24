@@ -3,7 +3,7 @@ import { MapMarker, MapMarkerTagged } from "../../types/map";
 import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
-import { PoiKind } from "../../lib/poiCategory";
+import { PoiKind } from "../../lib/poiOverlays";
 
 export type MapHomeUIProps = {
   // core

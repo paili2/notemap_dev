@@ -1,4 +1,4 @@
-import { PoiKind } from "@/features/map/lib/poiCategory";
+import { PoiKind } from "@/features/map/lib/poiOverlays";
 
 export type MapMenuKey = "all" | "new" | "old";
 

@@ -1,24 +1,20 @@
+// src/features/map/hooks/usePoiLayer.ts  (Overlay ver. with center-bias & zoom-scaling)
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { KAKAO_CATEGORY, POI_ICON, PoiKind } from "../lib/poiCategory";
+import { useCallback, useEffect, useRef } from "react";
 import {
-  upsertPoiMarker,
-  reconcilePoiMarkers,
-  clearMarkers,
-  beginPoiFrame,
-} from "../lib/poiMarkers";
+  PoiKind,
+  KAKAO_CATEGORY,
+  createPoiOverlay,
+  calcPoiSizeByLevel,
+} from "../lib/poiOverlays";
 
 export type UsePoiLayerOptions = {
   kakaoSDK?: any | null;
   map?: any | null;
-  /** 표시할 POI 종류(버튼에서 토글) */
   enabledKinds?: PoiKind[];
-  /** 각 종류별 최종 마커 상한 */
   maxResultsPerKind?: number;
-  /** 화면의 '짧은 변' 길이가 이 값(미터) 이하일 때만 POI 표시. 1000m ≈ 좌/우 또는 상/하 500m 체감 */
   minViewportEdgeMeters?: number;
-  /** 이 레벨 이하일 때 POI 표시 (숫자 작을수록 더 확대) */
   showAtOrBelowLevel?: number;
 };
 
@@ -30,7 +26,7 @@ const DEFAULTS = {
 
 const IDLE_THROTTLE_MS = 1200;
 
-/* ────────────────────────────── utils ────────────────────────────── */
+/* ───────── utils ───────── */
 function useThrottle(fn: (...a: any[]) => void, wait = IDLE_THROTTLE_MS) {
   const lastRef = useRef(0);
   const timer = useRef<any>(null);
@@ -53,7 +49,6 @@ function useThrottle(fn: (...a: any[]) => void, wait = IDLE_THROTTLE_MS) {
   );
 }
 
-// Haversine 거리(m)
 function distM(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -65,7 +60,6 @@ function distM(lat1: number, lng1: number, lat2: number, lng2: number) {
   return 2 * R * Math.asin(Math.sqrt(a));
 }
 
-/** bounds를 nx×ny 격자로 잘라 kakao.maps.LatLngBounds 배열로 반환 */
 function splitBoundsToGrid(kakao: any, bounds: any, nx: number, ny: number) {
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
@@ -92,7 +86,6 @@ function splitBoundsToGrid(kakao: any, bounds: any, nx: number, ny: number) {
   return cells;
 }
 
-/** Kakao Places categorySearch의 모든 페이지(최대 3) 수집 */
 async function searchCategoryAllPagesByBounds(
   kakao: any,
   places: any,
@@ -114,13 +107,13 @@ async function searchCategoryAllPagesByBounds(
           return;
         }
       }
-      resolve(acc); // NO_RESULT 또는 마지막 페이지
+      resolve(acc);
     };
     places.categorySearch(categoryCode, handle, { bounds });
   });
 }
 
-/* ────────────────────────────── hook ────────────────────────────── */
+/* ───────── hook (Overlay) ───────── */
 export function usePoiLayer({
   kakaoSDK,
   map,
@@ -132,15 +125,26 @@ export function usePoiLayer({
   const kakao =
     kakaoSDK ?? (typeof window !== "undefined" ? (window as any).kakao : null);
 
-  const [markers, setMarkers] = useState<any[]>([]);
-  const placesRef = useRef<any | null>(null);
-  const reqSeqRef = useRef(0);
-  const lastBoxRef = useRef<{
-    sw: { lat: number; lng: number };
-    ne: { lat: number; lng: number };
-  } | null>(null);
+  // key -> { destroy, update }
+  const overlaysRef = useRef<
+    Map<
+      string,
+      {
+        destroy: () => void;
+        update: (
+          p: Partial<{
+            lat: number;
+            lng: number;
+            zIndex: number;
+            kind: PoiKind;
+            size: number;
+            iconSize: number;
+          }>
+        ) => void;
+      }
+    >
+  >(new Map());
 
-  // helpers
   const getBoundsBox = useCallback(() => {
     if (!map || !kakao) return null;
     const b = map.getBounds();
@@ -180,11 +184,16 @@ export function usePoiLayer({
     );
   }, []);
 
+  const lastBoxRef = useRef<{
+    sw: { lat: number; lng: number };
+    ne: { lat: number; lng: number };
+  } | null>(null);
+  const reqSeqRef = useRef(0);
+  const placesRef = useRef<any | null>(null);
+
   const runSearch = useCallback(
     async (opts?: { force?: boolean }) => {
       if (!map || !kakao) return;
-
-      beginPoiFrame(); // 깜빡임 억제 프레임 시작
 
       // 확대/거리 게이트
       const lv = map.getLevel();
@@ -192,12 +201,9 @@ export function usePoiLayer({
       const pass = lv <= showAtOrBelowLevel || minEdge <= minViewportEdgeMeters;
 
       if (!pass || enabledKinds.length === 0) {
-        // 안 보여줄 조건이면 전부 숨김
-        reconcilePoiMarkers(new Set(), { graceFrames: 0 });
-        setMarkers((prev) => {
-          clearMarkers(prev);
-          return [];
-        });
+        // 모두 제거
+        for (const [, inst] of overlaysRef.current) inst.destroy();
+        overlaysRef.current.clear();
         return;
       }
 
@@ -214,18 +220,35 @@ export function usePoiLayer({
       const boundsObj = getKakaoBounds();
       if (!boundsObj || !placesRef.current) return;
 
-      // 화면이 넓으면 더 잘게(많이) 긁어오기
+      // 화면이 넓으면 더 잘게 긁어오기 + 중심 가까운 셀부터
       const shortEdgeM = getMinViewportEdgeMeters();
       const gridSize = shortEdgeM > 2500 ? 3 : shortEdgeM > 1400 ? 2 : 1;
-      const cells =
+      let cells =
         gridSize > 1
           ? splitBoundsToGrid(kakao, boundsObj, gridSize, gridSize)
           : [boundsObj];
 
-      const nextKeys = new Set<string>();
-      const newMarkers: any[] = [];
+      const center = map.getCenter();
+      const cLat = center.getLat();
+      const cLng = center.getLng();
+      const cellCenter = (b: any) => {
+        const sw = b.getSouthWest();
+        const ne = b.getNorthEast();
+        return {
+          lat: (sw.getLat() + ne.getLat()) / 2,
+          lng: (sw.getLng() + ne.getLng()) / 2,
+        };
+      };
+      cells.sort((a, b) => {
+        const A = cellCenter(a),
+          B = cellCenter(b);
+        return (
+          distM(A.lat, A.lng, cLat, cLng) - distM(B.lat, B.lng, cLat, cLng)
+        );
+      });
 
-      // 각 종류별로, 셀을 돌며 수집 → id 중복 제거 → 상한 적용
+      const nextKeys = new Set<string>();
+
       for (const kind of enabledKinds) {
         const code = (KAKAO_CATEGORY as Record<PoiKind, string>)[kind];
         if (!code) continue;
@@ -237,42 +260,66 @@ export function usePoiLayer({
             placesRef.current,
             code,
             cell,
-            // 셀 당 하드 상한 (전체 상한보다 크게, 중복제거 후 최종 상한 적용)
             Math.min(maxResultsPerKind * 2, 200)
           );
           acc = acc.concat(chunk);
         }
 
-        const seen = new Set<string>();
+        // 중복 제거
+        const dedup: any[] = [];
+        const seenIds = new Set<string>();
         for (const p of acc) {
+          const id = p.id ?? `${p.x},${p.y}`;
+          if (seenIds.has(id)) continue;
+          seenIds.add(id);
+          dedup.push(p);
+        }
+
+        // 중심 가까운 순 정렬
+        dedup.sort((a, b) => {
+          const da = distM(Number(a.y), Number(a.x), cLat, cLng);
+          const db = distM(Number(b.y), Number(b.x), cLat, cLng);
+          return da - db;
+        });
+
+        // 상한 적용
+        const pick = dedup.slice(0, maxResultsPerKind);
+
+        // 현재 줌 레벨 기준 초기 크기
+        const { size: initSize, iconSize: initIconSize } =
+          calcPoiSizeByLevel(lv);
+
+        for (const p of pick) {
           const x = Number(p.x);
           const y = Number(p.y);
           const id = p.id ?? `${x},${y}`;
-          if (seen.has(id)) continue;
-          seen.add(id);
-
           const key = `${kind}:${id}`;
-          const m = upsertPoiMarker(
-            kakao,
-            map,
-            key,
-            x,
-            y,
-            p.place_name,
-            (POI_ICON as any)[kind]
-          );
           nextKeys.add(key);
-          newMarkers.push(m);
 
-          if (seen.size >= maxResultsPerKind) break;
+          const ex = overlaysRef.current.get(key);
+          if (ex) {
+            ex.update({ lat: y, lng: x, zIndex: 3, kind });
+          } else {
+            const { destroy, update } = createPoiOverlay(
+              kakao,
+              map,
+              { id: key, kind, lat: y, lng: x, zIndex: 3 },
+              { size: initSize, iconSize: initIconSize }
+            );
+            overlaysRef.current.set(key, { destroy, update });
+          }
         }
       }
 
       if (mySeq !== reqSeqRef.current) return;
 
-      // 표시/숨김 정리
-      reconcilePoiMarkers(nextKeys, { graceFrames: opts?.force ? 0 : 2 });
-      setMarkers(newMarkers);
+      // remove stale
+      for (const [key, inst] of overlaysRef.current.entries()) {
+        if (!nextKeys.has(key)) {
+          inst.destroy();
+          overlaysRef.current.delete(key);
+        }
+      }
     },
     [
       map,
@@ -294,33 +341,48 @@ export function usePoiLayer({
     if (!map || !kakao) return;
     const handler = () => throttled();
     kakao.maps.event.addListener(map, "idle", handler);
-    runSearch({ force: true }); // 최초 1회 강제
+    runSearch({ force: true });
     return () => {
       kakao.maps.event.removeListener(map, "idle", handler);
-      setMarkers((prev) => {
-        clearMarkers(prev);
-        return [];
-      });
+      for (const [, inst] of overlaysRef.current) inst.destroy();
+      overlaysRef.current.clear();
     };
   }, [map, kakao, throttled, runSearch]);
 
-  // 종류 바뀌면 즉시 새로고침(기존 것 숨김)
+  // 줌 레벨이 바뀔 때마다 모든 오버레이 크기 갱신
   useEffect(() => {
-    reconcilePoiMarkers(new Set(), { graceFrames: 0 });
-    setMarkers((prev) => {
-      clearMarkers(prev);
-      return [];
-    });
+    if (!map || !kakao) return;
+    const applyZoomSize = () => {
+      const lv = map.getLevel();
+      const { size, iconSize } = calcPoiSizeByLevel(lv);
+      for (const [, inst] of overlaysRef.current) {
+        inst.update({ size, iconSize });
+      }
+    };
+    applyZoomSize(); // 초기 1회
+    const handler = () => applyZoomSize();
+    kakao.maps.event.addListener(map, "zoom_changed", handler);
+    return () => {
+      kakao.maps.event.removeListener(map, "zoom_changed", handler);
+    };
+  }, [map, kakao]);
+
+  // 종류 변경 시 즉시 리프레시
+  useEffect(() => {
+    for (const [, inst] of overlaysRef.current) inst.destroy();
+    overlaysRef.current.clear();
     runSearch({ force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabledKinds.join(",")]);
 
   return {
-    markers,
+    count: overlaysRef.current.size,
     refresh: () => runSearch({ force: true }),
-    clear: () => clearMarkers(markers),
+    clear: () => {
+      for (const [, inst] of overlaysRef.current) inst.destroy();
+      overlaysRef.current.clear();
+    },
   };
 }
 
-// 기본/이름 둘 다 export (import 방식 혼선을 방지)
 export default usePoiLayer;

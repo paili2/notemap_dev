@@ -52,7 +52,6 @@ export default function MapMenu({
           onMenuItemClick={handleMenuItemClick}
           onToggleDistrict={onToggleDistrict}
           onToggle={handleToggle}
-          /** ▼ 전달 */
           poiKinds={poiKinds}
           onChangePoiKinds={onChangePoiKinds}
         />
