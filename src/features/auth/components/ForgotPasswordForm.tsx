@@ -72,7 +72,7 @@ export function ForgotPasswordForm({
                     <Input
                       id="fp-email"
                       type="email"
-                      placeholder="you@example.com"
+                      placeholder="demo@example.com"
                       autoComplete="email"
                       disabled={submitting}
                       className="pr-9"

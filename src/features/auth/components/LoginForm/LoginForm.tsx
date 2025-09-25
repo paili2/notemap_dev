@@ -85,7 +85,7 @@ export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="you@example.com"
+                      placeholder="demo@example.com"
                       autoComplete="email"
                       autoFocus
                       disabled={isSubmitting}
