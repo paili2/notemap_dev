@@ -54,6 +54,8 @@ export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
           j?.message || "이메일 또는 비밀번호가 올바르지 않습니다."
         );
       }
+      sessionStorage.setItem("nm_session", "1");
+
       router.replace(redirect);
     } catch (e: any) {
       setError(e?.message ?? "로그인 중 오류가 발생했어요.");

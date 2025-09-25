@@ -22,24 +22,5 @@ export default function SignInPage() {
     <AuthPageLayout>
       <LoginForm onForgotClick={() => setMode("forgot")} />
     </AuthPageLayout>
-
-    // <AuthPageLayout
-    //   leftWidthPx={720}
-    //   className="lg:[grid-template-columns:var(--left-col)_minmax(560px,1fr)]"
-    //   title={title}
-    //   subtitle={subtitle}
-    //   logo={
-    //     <div className="text-xl font-bold">
-    //       <KNLogo />
-    //     </div>
-    //   }
-    //   sideImageUrl="https://placehold.co/1200x1600?text=Brand"
-    // >
-    //   {mode === "login" ? (
-    //     <LoginForm onForgotClick={() => setMode("forgot")} />
-    //   ) : (
-    //     <ForgotPasswordForm onBackToLogin={() => setMode("login")} />
-    //   )}
-    // </AuthPageLayout>
   );
 }

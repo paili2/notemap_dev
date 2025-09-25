@@ -1,18 +1,27 @@
+// 서버 컴포넌트
+import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 export default function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // TODO: 실제 쿠키 이름/검증 로직으로 바꾸세요 (예: 'session', 'access_token' 등)
-  const token = cookies().get("session")?.value;
+  // 서버 쿠키 검사 (session_v2)
+  const raw = cookies().get("session_v2")?.value;
+  if (!raw) redirect("/login");
 
-  if (!token) {
-    // 로그인 후 돌아갈 경로를 쿼리로 넘기고 싶다면 search 포함해서 구성해도 됨
+  try {
+    const parsed = JSON.parse(raw);
+    const BOOT_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
+    if (parsed?.boot !== BOOT_ID) redirect("/login");
+  } catch {
     redirect("/login");
   }
 
-  return <>{children}</>;
+  // ✅ 클라이언트에서도 sessionStorage 마커 확인
+  return <ClientSessionGuard>{children}</ClientSessionGuard>;
 }
