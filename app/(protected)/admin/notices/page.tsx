@@ -1,13 +1,7 @@
-import { AdminLayout } from "@/features/admin/components/AdminLayout";
+import { NoticesPage } from "@/features/admin/pages/NoticesPage";
 
-const NoticesPage = () => {
-  return (
-    <AdminLayout>
-      <div className="mx-auto max-w-7xl p-6 space-y-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">공지사항</h1>
-      </div>
-    </AdminLayout>
-  );
+const NoticesPageRoute = () => {
+  return <NoticesPage />;
 };
 
-export default NoticesPage;
+export default NoticesPageRoute;

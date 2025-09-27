@@ -1,12 +1,12 @@
 "use client";
 
-import { AdminPageHeader } from "./AdminPageHeader";
+import { AdminPageHeader } from "@/features/admin/components/AdminPageHeader";
 
-interface AdminLayoutProps {
+export default function AdminLayout({
+  children,
+}: {
   children: React.ReactNode;
-}
-
-export function AdminLayout({ children }: AdminLayoutProps) {
+}) {
   return (
     <div className="min-h-screen bg-gray-50">
       <AdminPageHeader />

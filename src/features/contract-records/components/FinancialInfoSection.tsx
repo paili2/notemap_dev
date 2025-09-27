@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/atoms/Select/Select";
+import { Textarea } from "@/components/atoms/Textarea/Textarea";
 import type { FinancialInfo } from "../types/contract-records";
 import { formatCurrency } from "../utils/utils";
 
@@ -33,6 +34,13 @@ export function FinancialInfoSection({
   ) => {
     const numValue = typeof value === "string" ? parseFloat(value) || 0 : value;
     onFinancialInfoChange({ ...financialInfo, [field]: numValue });
+  };
+
+  const handleStringInputChange = (
+    field: keyof FinancialInfo,
+    value: string
+  ) => {
+    onFinancialInfoChange({ ...financialInfo, [field]: value });
   };
 
   const handleRebateInputChange = (value: string) => {
@@ -179,6 +187,51 @@ export function FinancialInfoSection({
               <span className="text-xs text-muted-foreground">원</span>
             </div>
           </div>
+        </div>
+
+        {/* 고객 계좌 정보 */}
+        <div className="mt-4 space-y-3">
+          <div className="text-sm font-medium text-gray-700">고객 계좌</div>
+          <div className="flex items-end gap-4 flex-wrap">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">은행</Label>
+              <Input
+                value={financialInfo.customerBank || ""}
+                onChange={(e) =>
+                  handleStringInputChange("customerBank", e.target.value)
+                }
+                className="h-7 text-xs min-w-32 w-auto"
+                placeholder="은행명 입력"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">계좌번호</Label>
+              <Input
+                value={financialInfo.customerAccountNumber || ""}
+                onChange={(e) =>
+                  handleStringInputChange(
+                    "customerAccountNumber",
+                    e.target.value
+                  )
+                }
+                className="h-7 text-xs min-w-40 w-80"
+                placeholder="계좌번호 입력"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 지원 내용 */}
+        <div className="mt-4 space-y-2">
+          <Label className="text-sm font-medium text-gray-700">지원 내용</Label>
+          <Textarea
+            value={financialInfo.supportContent || ""}
+            onChange={(e) =>
+              handleStringInputChange("supportContent", e.target.value)
+            }
+            className="min-h-20 text-xs resize-none"
+            placeholder="지원 내용을 입력하세요"
+          />
         </div>
 
         <div className="mt-3 space-y-2">
