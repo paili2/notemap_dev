@@ -5,9 +5,9 @@ import { cn } from "@/lib/cn";
 import { TableHeader } from "./TableHeader";
 import { TableBody } from "./TableBody";
 import { Pagination } from "./Pagination";
-import type { TableProps } from "../types/table";
+import type { TableProps, TableData } from "../types/table";
 
-export function Table<T>({
+export function Table<T extends TableData>({
   data,
   columns,
   pagination,

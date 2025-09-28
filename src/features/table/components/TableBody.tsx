@@ -2,9 +2,9 @@
 
 import React from "react";
 import { cn } from "@/lib/cn";
-import type { TableBodyProps } from "../types/table";
+import type { TableBodyProps, TableData } from "../types/table";
 
-export function TableBody<T>({
+export function TableBody<T extends TableData>({
   data,
   columns,
   loading = false,
@@ -53,7 +53,7 @@ export function TableBody<T>({
           onClick={() => onRowClick?.(row, index)}
         >
           {columns.map((column) => {
-            const value = row[column.key];
+            const value = row[column.key as keyof T];
             const cellContent = column.render
               ? column.render(value, row, index)
               : value;
