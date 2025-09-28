@@ -30,7 +30,7 @@ export interface TableFilter {
   value: string;
 }
 // 테이블 기본구조(속성)
-export interface TableProps<T = any> {
+export interface TableProps<T extends TableData = TableData> {
   data: T[];
   columns: TableColumn<T>[];
   pagination?: TablePagination;
@@ -51,7 +51,7 @@ export interface TableHeaderProps<T = any> {
   onSort?: (key: string, direction: "asc" | "desc") => void;
 }
 
-export interface TableBodyProps<T = any> {
+export interface TableBodyProps<T extends TableData = TableData> {
   data: T[];
   columns: TableColumn<T>[];
   loading?: boolean;
