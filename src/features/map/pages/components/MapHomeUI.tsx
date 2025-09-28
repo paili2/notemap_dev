@@ -15,7 +15,6 @@ import { FilterSearch } from "../../FilterSearch";
 import MapCreateModalHost from "../../components/MapCreateModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
-import { PoiKind } from "../../lib/poiOverlays";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -33,6 +32,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
     useSidebar,
     setUseSidebar,
+
+    poiKinds,
+    onChangePoiKinds,
 
     menuOpen,
     menuAnchor,
@@ -78,9 +80,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
-
-  // ▼ 주변시설 토글 상태 (외부제어형으로 MapMenu/MapView에 전달)
-  const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]); // 기본 비활성
 
   // UI 전용
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
@@ -244,9 +243,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           onToggleDistrict={setIsDistrictOn}
           /** ▼ 추가: 주변시설 제어형 props (버스/버스정류장은 기본지도에 있으므로 제외) */
           poiKinds={poiKinds}
-          onChangePoiKinds={(next) => {
-            setPoiKinds(next);
-          }}
+          onChangePoiKinds={onChangePoiKinds}
         />
       </div>
 

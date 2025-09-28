@@ -1,7 +1,6 @@
 import { LatLng } from "@/lib/geo/types";
 import { useEffect, useRef, useState } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
-import { DEFAULT_LEVEL } from "@/features/map/lib/constants";
 import { KOREA_BOUNDS } from "@/features/map/lib/constants";
 
 type Args = {
@@ -246,7 +245,7 @@ const useKakaoMap = ({
     map.setBounds(b);
   };
 
-  const setMaxZoom = (maxLv: number) => {
+  const setMaxLevel = (maxLv: number) => {
     const map = mapRef.current;
     if (!map) return;
     maxLevelRef.current = maxLv;
@@ -266,7 +265,7 @@ const useKakaoMap = ({
     // 선택 API
     panTo,
     fitBounds,
-    setMaxZoom,
+    setMaxLevel,
   };
 };
 
