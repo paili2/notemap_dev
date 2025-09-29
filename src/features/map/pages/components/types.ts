@@ -33,6 +33,8 @@ export type MapHomeUIProps = {
   poiKinds: PoiKind[];
   onChangePoiKinds: (next: PoiKind[]) => void;
 
+  addFav: boolean;
+
   // menu
   menuOpen: boolean;
   menuAnchor: LatLng | null;
@@ -89,6 +91,6 @@ export type MapHomeUIProps = {
   }) => void;
   onChangeHideLabelForId?: (id: string | null) => void;
 
-  onToggleFav?: (next: boolean, ctx?: { id?: string; pos?: LatLng }) => void;
+  onAddFav?: () => void | Promise<void>;
   favById?: Record<string, boolean>;
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
@@ -51,6 +51,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onMapReady,
     onViewportChange,
 
+    addFav,
+
     viewOpen,
     // ⛔ 외부 수정 모달 관련 값은 더 이상 쓰지 않지만 타입 유지 위해 언더스코어로 받기
     editOpen: _editOpen,
@@ -75,7 +77,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onChangeHideLabelForId,
 
     // ✅ 즐겨찾기
-    onToggleFav,
+    onAddFav,
     favById = {},
   } = props;
 
@@ -85,6 +87,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
   const [isDistrictOn, setIsDistrictOn] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+
+  const handleAddFav = useCallback(() => {
+    if (onAddFav) void onAddFav(); // Promise여도 void로 처리 → () => void 타입 만족
+  }, [onAddFav]);
 
   useEffect(() => {
     if (menuOpen && menuAnchor && kakaoSDK && mapInstance) {
@@ -215,12 +221,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 onView={onViewFromMenu}
                 onCreate={onCreateFromMenu}
                 onPlan={onPlanFromMenu}
-                onToggleFav={(next) =>
-                  onToggleFav?.(next, {
-                    id: menuTargetId ?? undefined,
-                    pos: menuAnchor ?? undefined,
-                  })
-                }
+                onAddFav={handleAddFav}
                 zIndex={10000}
               />
             );
@@ -241,7 +242,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           onChange={onChangeFilter as any}
           isDistrictOn={isDistrictOn}
           onToggleDistrict={setIsDistrictOn}
-          /** ▼ 추가: 주변시설 제어형 props (버스/버스정류장은 기본지도에 있으므로 제외) */
           poiKinds={poiKinds}
           onChangePoiKinds={onChangePoiKinds}
         />
@@ -283,6 +283,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onClose={() => setFilterSearchOpen(false)}
       />
 
+      {/* 즐겨찾기 모달 */}
+      {addFav && <div>모달</div>}
+
       {/* 상세 보기 모달 */}
       {viewOpen && selectedViewItem && (
         <PropertyViewModal
@@ -291,8 +294,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           data={selectedViewItem}
           onSave={onSaveViewPatch}
           onDelete={onDeleteFromView}
-          // ⛔ 외부 수정모달 트리거 제거
-          // onEdit={onEditFromView}
         />
       )}
 
@@ -309,18 +310,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           resetAfterCreate={createHostHandlers.resetAfterCreate}
         />
       )}
-
-      {/* ⛔ 외부 수정 모달 제거
-      {editOpen && selectedViewItem && selectedId && (
-        <MapEditModalHost
-          open={true}
-          data={selectedViewItem}
-          selectedId={selectedId}
-          onClose={editHostHandlers.onClose}
-          updateItems={editHostHandlers.updateItems}
-          onSubmit={editHostHandlers.onSubmit}
-        />
-      )} */}
     </div>
   );
 }

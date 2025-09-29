@@ -6,6 +6,11 @@ import { LatLng } from "@/lib/geo/types";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { MapHomeUI } from "./components/MapHomeUI";
 
+// ⭐ 사이드바 Provider 상태
+import { useSidebar } from "@/features/sidebar/SideBarProvider";
+import FavGroupModal from "@/features/sidebar/components/FavGroupModal";
+import type { ListItem } from "@/features/sidebar/types/sidebar"; // ← 스냅샷 타입
+
 const MAP_FAVS_LS_KEY = "map:favs";
 
 export default function MapHomePage() {
@@ -19,9 +24,22 @@ export default function MapHomePage() {
     );
   }
 
-  const s = useMapHomeState({ appKey: KAKAO_MAP_KEY });
+  const s = useMapHomeState();
 
-  // ✅ 즐겨찾기 상태 (id → boolean)
+  // ✅ 사이드바 Provider 상태
+  const {
+    nestedFavorites,
+    addFavoriteToGroup,
+    createGroupAndAdd,
+    ensureFavoriteGroup,
+  } = useSidebar();
+
+  const [favModalOpen, setFavModalOpen] = useState(false);
+
+  // ✅ “현재 핀” 스냅샷 (모달 열릴 때 고정)
+  const [favCandidate, setFavCandidate] = useState<ListItem | null>(null);
+
+  // (선택) 로컬 마킹 상태 (id → boolean)
   const [favById, setFavById] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
     try {
@@ -45,15 +63,55 @@ export default function MapHomePage() {
     } catch {}
   }, [favById]);
 
-  // ✅ 즐겨찾기 토글 핸들러
-  const onToggleFav = useCallback(
-    (next: boolean, ctx?: { id?: string; pos?: LatLng }) => {
-      const id = ctx?.id ?? s.menuTargetId;
-      if (!id) return;
-      setFavById((prev) => ({ ...prev, [id]: next }));
-      // TODO: 서버 동기화 필요 시 여기서 API 호출
+  // 현재 선택된 핀을 Sidebar 아이템 형태로 변환
+  const makeCurrentItem = useCallback((): ListItem | null => {
+    const id = s.menuTargetId;
+    if (!id) return null;
+    const title =
+      s.menuRoadAddr ||
+      s.menuJibunAddr ||
+      (s.items.find((p) => p.id === id)?.title ?? "이름 없음");
+    return { id: String(id), title };
+  }, [s.menuTargetId, s.menuRoadAddr, s.menuJibunAddr, s.items]);
+
+  // ✅ 즐겨찾기 추가 버튼 → 모달 오픈
+  const onAddFav = useCallback(() => {
+    const snap = makeCurrentItem();
+    setFavCandidate(snap);
+    setFavModalOpen(true);
+  }, [makeCurrentItem]);
+
+  // 기존 그룹 선택 시 → 추가 + 닫힘
+  const handleSelectGroup = useCallback(
+    (groupId: string) => {
+      const item = favCandidate;
+      if (!item) {
+        alert("추가할 대상이 없습니다. 지도를 다시 선택해 주세요.");
+        return;
+      }
+      addFavoriteToGroup(groupId, item);
+      setFavById((prev) => ({ ...prev, [item.id]: true }));
+      setFavModalOpen(false);
+      setFavCandidate(null);
     },
-    [s.menuTargetId]
+    [addFavoriteToGroup, favCandidate]
+  );
+
+  // 새 그룹 생성 + 자동 추가 + 닫힘
+  const handleCreateAndSelect = useCallback(
+    (groupId: string) => {
+      ensureFavoriteGroup(groupId);
+
+      const item = favCandidate;
+      if (item) {
+        createGroupAndAdd(groupId, item);
+        setFavById((prev) => ({ ...prev, [item.id]: true }));
+      }
+
+      setFavModalOpen(false);
+      setFavCandidate(null);
+    },
+    [ensureFavoriteGroup, createGroupAndAdd, favCandidate]
   );
 
   const menuTitle = useMemo(() => {
@@ -78,91 +136,94 @@ export default function MapHomePage() {
     ? s.menuTargetId ?? (s.draftPin ? "__draft__" : null)
     : null;
 
-  // 답사예정: 모달 열지 않고 핀만 추가
   const onPlanFromMenu = (pos: LatLng) => {
     s.addVisitPin(pos);
     s.closeMenu();
   };
 
   return (
-    <MapHomeUI
-      // 지도 관련
-      appKey={KAKAO_MAP_KEY}
-      kakaoSDK={s.kakaoSDK}
-      mapInstance={s.mapInstance}
-      // 데이터
-      items={s.items}
-      filtered={s.filtered}
-      markers={s.markers}
-      fitAllOnce={s.fitAllOnce}
-      // 검색 & 필터
-      q={s.q}
-      filter={s.filter}
-      onChangeQ={s.setQ}
-      onChangeFilter={s.setFilter}
-      onSubmitSearch={(kw) => s.runSearch(kw)} // 선택 키워드 검색 가능
-      useDistrict={s.useDistrict}
-      useSidebar={s.useSidebar}
-      setUseSidebar={s.setUseSidebar}
-      // ⭐ POI 툴바
-      poiKinds={s.poiKinds}
-      onChangePoiKinds={(next) => {
-        s.setPoiKinds(next); // 상태 반영
-        // ▼ 뷰포트가 그대로여도 강제로 재조회
-        if (s.lastViewport) {
-          s.sendViewportQuery(s.lastViewport, { force: true });
-        } else {
-          s.runSearch(); // q 기본값으로 실행
-          if (s.kakaoSDK && s.mapInstance) {
-            s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle");
-            requestAnimationFrame(() =>
-              s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle")
-            );
+    <>
+      <MapHomeUI
+        appKey={KAKAO_MAP_KEY}
+        kakaoSDK={s.kakaoSDK}
+        mapInstance={s.mapInstance}
+        items={s.items}
+        filtered={s.filtered}
+        markers={s.markers}
+        fitAllOnce={s.fitAllOnce}
+        q={s.q}
+        filter={s.filter}
+        onChangeQ={s.setQ}
+        onChangeFilter={s.setFilter}
+        onSubmitSearch={(kw) => s.runSearch(kw)}
+        useDistrict={s.useDistrict}
+        useSidebar={s.useSidebar}
+        setUseSidebar={s.setUseSidebar}
+        poiKinds={s.poiKinds}
+        onChangePoiKinds={(next) => {
+          s.setPoiKinds(next);
+          if (s.lastViewport) {
+            s.sendViewportQuery(s.lastViewport, { force: true });
+          } else {
+            s.runSearch();
+            if (s.kakaoSDK && s.mapInstance) {
+              s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle");
+              requestAnimationFrame(() =>
+                s.kakaoSDK.maps.event.trigger(s.mapInstance, "idle")
+              );
+            }
           }
-        }
-      }}
-      // 메뉴/모달 상태
-      menuOpen={s.menuOpen}
-      menuAnchor={s.menuAnchor}
-      menuTargetId={s.menuTargetId}
-      menuRoadAddr={s.menuRoadAddr}
-      menuJibunAddr={s.menuJibunAddr}
-      menuTitle={menuTitle}
-      // 핸들러 함수들
-      onCloseMenu={s.closeMenu}
-      onViewFromMenu={s.openViewFromMenu}
-      onCreateFromMenu={s.openCreateFromMenu}
-      onPlanFromMenu={onPlanFromMenu}
-      onMarkerClick={s.handleMarkerClick}
-      onMapReady={s.onMapReady}
-      onViewportChange={s.sendViewportQuery}
-      // 모달들
-      viewOpen={s.viewOpen}
-      editOpen={s.editOpen}
-      createOpen={s.createOpen}
-      selectedViewItem={selectedViewItem}
-      selectedId={s.selectedId}
-      prefillAddress={s.prefillAddress}
-      // 드래프트 핀 관련
-      draftPin={s.draftPin}
-      setDraftPin={s.setDraftPin}
-      // 기타
-      selectedPos={s.selected?.position ?? null}
-      closeView={() => s.setViewOpen(false)}
-      closeEdit={() => s.setEditOpen(false)}
-      closeCreate={s.closeCreate}
-      onSaveViewPatch={s.onSaveViewPatch}
-      onEditFromView={() => s.setEditOpen(true)}
-      onDeleteFromView={s.onDeleteFromView}
-      createHostHandlers={s.createHostHandlers}
-      editHostHandlers={s.editHostHandlers}
-      hideLabelForId={hideId}
-      onOpenMenu={({ position, propertyId }) => {
-        s.openMenuAt(position, propertyId);
-      }}
-      // ⭐ 즐겨찾기 상태/토글 전달
-      favById={favById}
-      onToggleFav={onToggleFav}
-    />
+        }}
+        menuOpen={s.menuOpen}
+        menuAnchor={s.menuAnchor}
+        menuTargetId={s.menuTargetId}
+        menuRoadAddr={s.menuRoadAddr}
+        menuJibunAddr={s.menuJibunAddr}
+        menuTitle={menuTitle}
+        onCloseMenu={s.closeMenu}
+        onViewFromMenu={s.openViewFromMenu}
+        onCreateFromMenu={s.openCreateFromMenu}
+        onPlanFromMenu={onPlanFromMenu}
+        onMarkerClick={s.handleMarkerClick}
+        onMapReady={s.onMapReady}
+        onViewportChange={s.sendViewportQuery}
+        addFav={s.addFav}
+        viewOpen={s.viewOpen}
+        editOpen={s.editOpen}
+        createOpen={s.createOpen}
+        selectedViewItem={selectedViewItem}
+        selectedId={s.selectedId}
+        prefillAddress={s.prefillAddress}
+        draftPin={s.draftPin}
+        setDraftPin={s.setDraftPin}
+        selectedPos={s.selected?.position ?? null}
+        closeView={() => s.setViewOpen(false)}
+        closeEdit={() => s.setEditOpen(false)}
+        closeCreate={s.closeCreate}
+        onSaveViewPatch={s.onSaveViewPatch}
+        onEditFromView={() => s.setEditOpen(true)}
+        onDeleteFromView={s.onDeleteFromView}
+        createHostHandlers={s.createHostHandlers}
+        editHostHandlers={s.editHostHandlers}
+        hideLabelForId={hideId}
+        onOpenMenu={({ position, propertyId }) => {
+          s.openMenuAt(position, propertyId);
+        }}
+        favById={favById}
+        onAddFav={onAddFav}
+      />
+
+      {/* 그룹 선택/생성 모달 */}
+      <FavGroupModal
+        open={favModalOpen}
+        onClose={() => {
+          setFavModalOpen(false);
+          setFavCandidate(null);
+        }}
+        groups={nestedFavorites}
+        onSelectGroup={handleSelectGroup}
+        onCreateGroup={handleCreateAndSelect}
+      />
+    </>
   );
 }

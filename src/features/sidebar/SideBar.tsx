@@ -3,7 +3,7 @@
 import { X, LogOut } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ToggleSidebarProps } from "./types/sidebar";
-import { useSidebarState } from "./hooks/useSidebarState";
+import { useSidebar } from "./SideBarProvider";
 import { SidebarSection } from "./components/SidebarSection";
 import { ContractRecordsButton } from "./components/ContractRecordsButton";
 import { AdminButton } from "./components/AdminButton";
@@ -21,7 +21,7 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
     handleDeleteExploration,
     handleDeleteSiteReservation,
     handleContractRecordsClick,
-  } = useSidebarState();
+  } = useSidebar();
 
   // 사이드바가 닫혀있으면 아무것도 렌더링하지 않음
   if (!isSidebarOn) {

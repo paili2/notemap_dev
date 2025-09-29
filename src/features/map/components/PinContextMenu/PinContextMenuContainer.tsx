@@ -24,11 +24,11 @@ export default function PinContextMenuContainer({
   propertyId,
   propertyTitle,
   pin,
+  onAddFav,
   onClose,
   onView,
   onCreate,
   onPlan,
-  onToggleFav,
   zIndex = 10000,
 }: PinContextMenuProps) {
   if (!kakao || !map || !target) return null;
@@ -107,8 +107,8 @@ export default function PinContextMenuContainer({
               isPlanPin={isPlanPin}
               /** ✅ 즐겨찾기 버튼은 매물 등록된 핀에서만 노출 */
               showFav={isListedPin}
+              onAddFav={onAddFav}
               favActive={favActive}
-              onToggleFav={isListedPin ? onToggleFav : undefined}
             />
 
             {/* 꼬리(삼각형) */}

@@ -1,20 +1,20 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import StarToggleButton from "@/features/pins/components/StarToggleButton";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ContextMenuPanelProps } from "./types";
+import { Plus } from "lucide-react";
 
 export default function ContextMenuPanel({
   roadAddress,
   jibunAddress,
   propertyId,
   propertyTitle,
-  isDraftPin, // ✅ 추가
+  isDraftPin,
   isPlanPin,
   showFav,
   favActive,
-  onToggleFav,
+  onAddFav,
   onClose,
   onView,
   onCreate,
@@ -73,12 +73,18 @@ export default function ContextMenuPanel({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {showFav && typeof onToggleFav === "function" && (
-            <StarToggleButton
-              active={!!favActive}
-              onChange={onToggleFav}
+          {showFav && (
+            <Button
+              type="button"
+              onClick={onAddFav}
+              aria-label="즐겨찾기"
+              variant="outline"
               size="sm"
-            />
+              ref={closeBtnRef}
+            >
+              즐겨찾기
+              <Plus />
+            </Button>
           )}
           <Button
             type="button"
@@ -124,7 +130,7 @@ export default function ContextMenuPanel({
             }}
             className="w-full"
           >
-            답사예정지 등록
+            답사지 예약
           </Button>
         </div>
       ) : (

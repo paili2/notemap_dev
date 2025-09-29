@@ -6,4 +6,5 @@ export { ExplorationItem } from "./components/ExplorationItem";
 export { ContractRecordsButton } from "./components/ContractRecordsButton";
 export { useSidebarState } from "./hooks/useSidebarState";
 export { useDragAndDrop } from "./hooks/useDragAndDrop";
+export { SideBarProvider, useSidebar } from "./SideBarProvider";
 export type * from "./types/sidebar";

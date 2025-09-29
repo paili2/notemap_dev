@@ -48,7 +48,7 @@ const sameViewport = (a?: Viewport | null, b?: Viewport | null, eps = 1e-7) => {
   );
 };
 
-export function useMapHomeState({ appKey }: { appKey: string }) {
+export function useMapHomeState() {
   // 지도 관련 상태
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
@@ -96,6 +96,8 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
 
   const { items, setItems } = useLocalItems({ storageKey: "properties" });
+
+  const [addFav, setAddFav] = useState<boolean>(false);
 
   // Search / filter
   const [query, setQuery] = useState("");
@@ -565,6 +567,7 @@ export function useMapHomeState({ appKey }: { appKey: string }) {
     handleMarkerClick,
 
     // modals
+    addFav,
     viewOpen,
     setViewOpen,
     editOpen,

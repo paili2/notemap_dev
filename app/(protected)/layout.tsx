@@ -1,5 +1,5 @@
-// 서버 컴포넌트
 import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
+import SidebarProviders from "./SidebarProviders"; // ✅ 추가
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -22,6 +22,10 @@ export default function ProtectedLayout({
     redirect("/login");
   }
 
-  // ✅ 클라이언트에서도 sessionStorage 마커 확인
-  return <ClientSessionGuard>{children}</ClientSessionGuard>;
+  // ✅ 클라이언트에서도 sessionStorage 마커 확인 + 사이드바 상태 Provider 주입
+  return (
+    <ClientSessionGuard>
+      <SidebarProviders>{children}</SidebarProviders>
+    </ClientSessionGuard>
+  );
 }

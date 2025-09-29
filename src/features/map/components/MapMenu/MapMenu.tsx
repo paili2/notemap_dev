@@ -13,8 +13,6 @@ export default function MapMenu({
   isDistrictOn,
   onToggleDistrict,
   className,
-
-  /** ▼ 추가: 주변시설 제어형 props */
   poiKinds,
   onChangePoiKinds,
 }: MapMenuProps) {
@@ -53,7 +51,7 @@ export default function MapMenu({
           onToggleDistrict={onToggleDistrict}
           onToggle={handleToggle}
           poiKinds={poiKinds}
-          onChangePoiKinds={onChangePoiKinds}
+          onChangePoiKinds={onChangePoiKinds} // 그대로 패스
         />
       )}
     </div>

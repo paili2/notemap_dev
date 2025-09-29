@@ -26,8 +26,8 @@ export type PinContextMenuProps = {
   /** ✅ 업그레이드: 최소 타입 → PinItem */
   pin?: PinItem;
 
-  /** 즐겨찾기 토글 */
-  onToggleFav?: (next: boolean) => void;
+  /** 즐겨찾기 */
+  onAddFav: () => void;
 
   /** 닫기 / 상세 보기 / 신규 등록 동작 */
   onClose: () => void;
