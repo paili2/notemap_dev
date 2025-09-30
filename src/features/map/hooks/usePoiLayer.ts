@@ -1,4 +1,3 @@
-// (Overlay ver. with center-bias & zoom-scaling & scalebar gate)
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
@@ -27,18 +26,23 @@ const DEFAULTS = {
 
 const IDLE_THROTTLE_MS = 500;
 
-// 스케일바 픽셀 길이(대개 ~100px) & 원하는 스케일바 미터 임계값
+/** ✅ 항상 레벨 3(≈50m)에서만 보이게 고정 */
+const VISIBLE_MAX_LEVEL = 3;
+
+// 스케일바 픽셀 길이(대개 ~100px) & 원하는 스케일바 미터 임계값(보조용)
 const SCALEBAR_PX = 100;
+/** 참고: 스케일바가 이 값 이하일 때만 보이게(보조 게이트). 레벨 게이트가 우선이므로 값은 느슨하게 둠 */
 const DESIRED_SCALEBAR_M = 400;
 
 // 중심 근처 우선 채우기 설정
 const NEAR_RATIO = 0.6;
+/** ✅ 버스 → 학교로 교체 */
 const RADIUS_BY_KIND: Record<PoiKind, number> = {
   convenience: 800,
   cafe: 800,
   pharmacy: 1000,
   subway: 1500,
-  bus: 1200,
+  school: 1000,
 };
 
 /* ───────── utils ───────── */
@@ -303,11 +307,12 @@ export function usePoiLayer({
   const movedEnough = useCallback((a: any, b: any) => {
     if (!b) return true;
     const d = (x: number, y: number) => Math.abs(x - y);
+    const TH = 0.0005; // ≈ 50~60m
     return (
-      d(a.sw.lat, b.sw.lat) > 0.002 ||
-      d(a.sw.lng, b.sw.lng) > 0.002 ||
-      d(a.ne.lat, b.ne.lat) > 0.002 ||
-      d(a.ne.lng, b.ne.lng) > 0.002
+      d(a.sw.lat, b.sw.lat) > TH ||
+      d(a.sw.lng, b.sw.lng) > TH ||
+      d(a.ne.lat, b.ne.lat) > TH ||
+      d(a.ne.lng, b.ne.lng) > TH
     );
   }, []);
 
@@ -317,15 +322,17 @@ export function usePoiLayer({
   } | null>(null);
   const reqSeqRef = useRef(0);
   const placesRef = useRef<any | null>(null);
+  const wasVisibleRef = useRef<boolean>(false);
 
   const runSearch = useCallback(
     async (opts?: { force?: boolean }) => {
       if (!map || !kakao) return;
 
-      // 현재 레벨(아이콘 크기 계산용)
+      /** ✅ 1) 레벨 게이트: 레벨이 3 이하일 때만 표시 */
       const lv = map.getLevel();
+      const levelPass = lv <= VISIBLE_MAX_LEVEL;
 
-      // 스케일바 기준 표시 게이트
+      /** 2) (보조) 스케일바 게이트: 너무 축소된 경우 차단 */
       const minEdgeM = getMinViewportEdgeMeters();
       const node: any =
         (map as any).getNode?.() ||
@@ -340,10 +347,10 @@ export function usePoiLayer({
       );
       const currentScaleBarM =
         (minEdgeM / Math.max(1, minEdgePx)) * SCALEBAR_PX;
+      const scalebarPass = currentScaleBarM <= DESIRED_SCALEBAR_M;
 
-      const pass = currentScaleBarM <= DESIRED_SCALEBAR_M;
-
-      if (!pass || enabledKinds.length === 0) {
+      // ✅ 레벨/스케일바/종류 어느 하나라도 실패 시 전부 제거
+      if (!levelPass || !scalebarPass || enabledKinds.length === 0) {
         for (const [, inst] of overlaysRef.current) inst.destroy();
         overlaysRef.current.clear();
         return;
@@ -509,20 +516,46 @@ export function usePoiLayer({
   // 줌 레벨이 바뀔 때마다 모든 오버레이 크기 갱신
   useEffect(() => {
     if (!map || !kakao) return;
-    const applyZoomSize = () => {
+
+    // 최초 가시성 버킷 기록
+    wasVisibleRef.current = map.getLevel() <= VISIBLE_MAX_LEVEL;
+
+    const onZoomChanged = () => {
       const lv = map.getLevel();
+
+      // 1) 사이즈는 항상 즉시 갱신
       const { size, iconSize } = calcPoiSizeByLevel(lv);
       for (const [, inst] of overlaysRef.current) {
         inst.update({ size, iconSize });
       }
+
+      // 2) 가시성 버킷 전환 감지: (>3 ↔ ≤3)
+      const nowVisible = lv <= VISIBLE_MAX_LEVEL;
+      if (nowVisible !== wasVisibleRef.current) {
+        wasVisibleRef.current = nowVisible;
+
+        if (nowVisible) {
+          // 100m(>3) → 50m(≤3) 진입: 강제 재검색
+          runSearch({ force: true });
+        } else {
+          // 50m(≤3) → 100m(>3) 이탈: 즉시 정리
+          for (const [, inst] of overlaysRef.current) inst.destroy();
+          overlaysRef.current.clear();
+        }
+      } else if (nowVisible) {
+        // 같은 버킷(≤3) 내 확대/축소: 스로틀 재검색
+        throttled();
+      }
     };
-    applyZoomSize(); // 초기 1회
-    const handler = () => applyZoomSize();
-    kakao.maps.event.addListener(map, "zoom_changed", handler);
+
+    // 초기 1회 실행
+    onZoomChanged();
+
+    kakao.maps.event.addListener(map, "zoom_changed", onZoomChanged);
     return () => {
-      kakao.maps.event.removeListener(map, "zoom_changed", handler);
+      kakao.maps.event.removeListener(map, "zoom_changed", onZoomChanged);
     };
-  }, [map, kakao]);
+  }, [map, kakao, throttled, runSearch]);
 
   // 종류 변경 시 즉시 리프레시
   useEffect(() => {

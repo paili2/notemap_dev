@@ -3,11 +3,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import type { LucideIcon, LucideProps } from "lucide-react";
-// lucide 버전에 BusFront가 있으면 교체해서 쓰세요.
-import { Train, Coffee, Store, Pill /* , BusFront */, Bus } from "lucide-react";
+import { Train, Coffee, Store, Pill, School } from "lucide-react";
 
 /** POI 종류 */
-export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway" | "bus";
+export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway" | "school";
 
 /** POI 한 점 */
 export type PoiPoint = {
@@ -24,24 +23,25 @@ export const POI_LABEL: Record<PoiKind, string> = {
   cafe: "카페",
   pharmacy: "약국",
   subway: "지하철역",
-  bus: "버스정류장",
+  school: "학교",
 };
 
-/** Kakao Places 카테고리 코드 매핑 (버스는 카테고리 코드가 없음) */
+/** Kakao Places 카테고리 코드 매핑 (학교: SC4) */
 export const KAKAO_CATEGORY: Partial<Record<PoiKind, string>> = {
   convenience: "CS2",
   cafe: "CE7",
   pharmacy: "PM9",
   subway: "SW8",
+  school: "SC4",
 };
 
-/** 카테고리 코드가 없는 버스정류장만 키워드 검색 사용 */
+/** 학교는 카테고리 검색 사용 → 키워드 불필요 */
 export const KAKAO_KEYWORD: Record<PoiKind, string | string[] | undefined> = {
   convenience: undefined,
   cafe: undefined,
   pharmacy: undefined,
   subway: undefined,
-  bus: ["버스정류장", "정류장", "버스", "승강장"],
+  school: undefined,
 };
 
 /** (마커 API용) 아이콘 스펙 */
@@ -68,7 +68,7 @@ export const POI_ICON: Record<PoiKind, PoiIconSpec> = {
   cafe: { url: svgDot("#f59e0b"), size: [28, 28], offset: [14, 14] },
   pharmacy: { url: svgDot("#ef4444"), size: [28, 28], offset: [14, 14] },
   subway: { url: svgDot("#3b82f6"), size: [28, 28], offset: [14, 14] },
-  bus: { url: svgDot("#0ea5e9"), size: [28, 28], offset: [14, 14] },
+  school: { url: svgDot("#8b5cf6"), size: [28, 28], offset: [14, 14] }, // 보라
 };
 
 /** (오버레이용) 배경색 & 아이콘 매핑 */
@@ -77,17 +77,15 @@ const POI_BG: Record<PoiKind, string> = {
   cafe: "#f59e0b",
   pharmacy: "#ef4444",
   subway: "#3b82f6",
-  bus: "#0ea5e9",
+  school: "#8b5cf6",
 };
 
-// lucide에 BusFront가 없으면 Bus로, 지하철은 임시로 Train 사용
 const POI_ICON_COMP: Record<PoiKind, LucideIcon> = {
   convenience: Store,
   cafe: Coffee,
   pharmacy: Pill,
   subway: Train,
-  // bus: BusFront,
-  bus: Bus,
+  school: School, // (lucide에 School 아이콘이 있으면 교체 가능)
 };
 
 /** 줌 레벨(작을수록 확대)에 따른 크기 계산 */
@@ -198,7 +196,7 @@ export function createPoiOverlay(
 
     let needRender = false;
     if (next.kind && next.kind !== curKind) {
-      curKind = next.kind;
+      curKind = next.kind as PoiKind;
       needRender = true;
     }
     if (typeof next.size === "number" && next.size !== curSize) {

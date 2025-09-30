@@ -2,7 +2,7 @@ import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
 import type { MapMenuKey } from "../types/types";
 import type { LucideIcon } from "lucide-react";
-import { Train, Coffee, Store, Pill, Bus } from "lucide-react";
+import { Train, Coffee, Store, Pill, School } from "lucide-react";
 import { PoiKind } from "@/features/map/lib/poiOverlays";
 
 interface ExpandedMenuProps {
@@ -19,10 +19,10 @@ interface ExpandedMenuProps {
   onChangePoiKinds: (next: PoiKind[]) => void;
 }
 
-// 버스정류장 포함한 표시 순서
+// 학교 포함한 표시 순서
 const POI_ORDER: PoiKind[] = [
   "subway",
-  "bus",
+  "school",
   "convenience",
   "cafe",
   "pharmacy",
@@ -30,7 +30,7 @@ const POI_ORDER: PoiKind[] = [
 
 const POI_ICON: Record<PoiKind, LucideIcon> = {
   subway: Train,
-  bus: Bus,
+  school: School,
   convenience: Store,
   cafe: Coffee,
   pharmacy: Pill,
@@ -38,7 +38,7 @@ const POI_ICON: Record<PoiKind, LucideIcon> = {
 
 const POI_LABEL: Record<PoiKind, string> = {
   subway: "지하철",
-  bus: "버스정류장",
+  school: "학교",
   convenience: "편의점",
   cafe: "카페",
   pharmacy: "약국",
