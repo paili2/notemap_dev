@@ -15,6 +15,7 @@ import { FilterSearch } from "../../FilterSearch";
 import MapCreateModalHost from "../../components/MapCreateModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
+import { useRoadview } from "../../hooks/useRoadview";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -82,6 +83,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
+
+  // 로드뷰 표시 상태 (메뉴에 전달)
+  const {
+    roadviewContainerRef,
+    visible: roadviewVisible,
+    loading: roadviewLoading,
+    openAtCenter,
+    openAt,
+    close,
+  } = useRoadview({
+    kakaoSDK,
+    map: mapInstance,
+    autoSync: true,
+  });
+
+  const toggleRoadview = useCallback(() => {
+    roadviewVisible ? close() : openAtCenter();
+  }, [roadviewVisible, close, openAtCenter]);
 
   // UI 전용
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
@@ -235,15 +254,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
       />
 
-      {/* 맵 메뉴 (주변시설 토글 전달) */}
+      {/* 맵 메뉴 (주변시설·로드뷰 토글 전달) */}
       <div className="fixed top-3 right-16 z-[60]">
         <MapMenu
           active={filter as any}
           onChange={onChangeFilter as any}
           isDistrictOn={isDistrictOn}
-          onToggleDistrict={setIsDistrictOn}
+          onToggleDistrict={(next) => setIsDistrictOn(next)}
           poiKinds={poiKinds}
           onChangePoiKinds={onChangePoiKinds}
+          roadviewVisible={roadviewVisible}
+          onToggleRoadview={toggleRoadview}
         />
       </div>
 
@@ -283,7 +304,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onClose={() => setFilterSearchOpen(false)}
       />
 
-      {/* 즐겨찾기 모달 */}
+      {/* 즐겨찾기 모달 (임시) */}
       {addFav && <div>모달</div>}
 
       {/* 상세 보기 모달 */}

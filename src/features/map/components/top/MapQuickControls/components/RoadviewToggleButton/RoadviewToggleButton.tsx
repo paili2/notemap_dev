@@ -1,16 +1,16 @@
 "use client";
 
+import { Camera } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
-import GridTilesIcon from "@/features/map/components/top/MapQuickControls/components/DistrictToggleButton/components/GridTilesIcon";
 
 type Props = {
   pressed: boolean;
   onPress: () => void;
-  showLabel?: boolean; // ← 추가: 카드형 여부
+  showLabel?: boolean; // 카드형 여부
   className?: string;
 };
 
-export default function DistrictToggleButton({
+export default function RoadviewToggleButton({
   pressed,
   onPress,
   showLabel = false,
@@ -27,11 +27,11 @@ export default function DistrictToggleButton({
         className={["h-10 w-10 rounded-xl shadow", className]
           .filter(Boolean)
           .join(" ")}
-        title="지적편집도 토글"
+        title="로드뷰 토글"
         aria-pressed={pressed}
-        aria-label="지적편집도 토글"
+        aria-label="로드뷰 토글"
       >
-        <GridTilesIcon aria-hidden="true" />
+        <Camera aria-hidden="true" className="h-4 w-4" />
       </Button>
     );
   }
@@ -49,11 +49,11 @@ export default function DistrictToggleButton({
         className ?? "",
       ].join(" ")}
       aria-pressed={pressed}
-      title="지적편집도"
-      aria-label="지적편집도"
+      title="로드뷰"
+      aria-label="로드뷰"
     >
-      <GridTilesIcon className="w-5 h-5" aria-hidden="true" />
-      <span>지적편집도</span>
+      <Camera className="w-5 h-5" aria-hidden="true" />
+      <span>로드뷰</span>
     </button>
   );
 }

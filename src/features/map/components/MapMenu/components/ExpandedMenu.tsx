@@ -1,9 +1,20 @@
+// src/features/map/components/MapMenu/components/ExpandedMenu.tsx
 import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
 import type { MapMenuKey } from "../types/types";
 import type { LucideIcon } from "lucide-react";
-import { Train, Coffee, Store, Pill, School } from "lucide-react";
+import {
+  Train,
+  Coffee,
+  Store,
+  Pill,
+  School,
+  Camera,
+  Grid3X3,
+} from "lucide-react";
 import { PoiKind } from "@/features/map/lib/poiOverlays";
+import RoadviewToggleButton from "../../top/MapQuickControls/components/RoadviewToggleButton/RoadviewToggleButton";
+import DistrictToggleButton from "../../top/MapQuickControls/components/DistrictToggleButton/DistrictToggleButton";
 
 interface ExpandedMenuProps {
   active: MapMenuKey;
@@ -17,6 +28,10 @@ interface ExpandedMenuProps {
   // 주변시설 제어형
   poiKinds: PoiKind[];
   onChangePoiKinds: (next: PoiKind[]) => void;
+
+  // ✅ 로드뷰 토글
+  roadviewVisible: boolean;
+  onToggleRoadview: () => void;
 }
 
 // 학교 포함한 표시 순서
@@ -54,6 +69,8 @@ export const ExpandedMenu = ({
   onToggle,
   poiKinds,
   onChangePoiKinds,
+  roadviewVisible,
+  onToggleRoadview,
 }: ExpandedMenuProps) => {
   const toggleKind = (k: PoiKind) => {
     const has = poiKinds.includes(k);
@@ -69,12 +86,26 @@ export const ExpandedMenu = ({
         onSubmenuClick={onSubmenuClick}
         onMenuItemClick={onMenuItemClick}
       />
-
-      <DistrictSection
-        isDistrictOn={isDistrictOn}
-        onToggleDistrict={onToggleDistrict}
-        onToggle={onToggle}
-      />
+      <div className="px-2 pb-1">
+        <div className="text-xs font-semibold text-gray-600 mb-2">
+          지도 도구
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <DistrictToggleButton
+            pressed={isDistrictOn}
+            onPress={() => {
+              onToggleDistrict(!isDistrictOn);
+              onToggle();
+            }}
+            showLabel={true}
+          />
+          <RoadviewToggleButton
+            pressed={roadviewVisible}
+            onPress={onToggleRoadview}
+            showLabel={true}
+          />
+        </div>
+      </div>
 
       {/* 주변시설 */}
       <div className="px-2 pb-2">

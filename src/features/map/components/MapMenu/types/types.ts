@@ -10,4 +10,6 @@ export interface MapMenuProps {
   className?: string;
   poiKinds: PoiKind[];
   onChangePoiKinds: (next: PoiKind[]) => void;
+  roadviewVisible: boolean;
+  onToggleRoadview: () => void;
 }

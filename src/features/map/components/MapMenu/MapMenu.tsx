@@ -15,6 +15,8 @@ export default function MapMenu({
   className,
   poiKinds,
   onChangePoiKinds,
+  roadviewVisible,
+  onToggleRoadview,
 }: MapMenuProps) {
   const {
     isExpanded,
@@ -51,7 +53,9 @@ export default function MapMenu({
           onToggleDistrict={onToggleDistrict}
           onToggle={handleToggle}
           poiKinds={poiKinds}
-          onChangePoiKinds={onChangePoiKinds} // 그대로 패스
+          onChangePoiKinds={onChangePoiKinds}
+          roadviewVisible={roadviewVisible}
+          onToggleRoadview={onToggleRoadview}
         />
       )}
     </div>
