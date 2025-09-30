@@ -1,4 +1,3 @@
-// src/features/map/lib/poiMarkers.ts
 "use client";
 
 /**

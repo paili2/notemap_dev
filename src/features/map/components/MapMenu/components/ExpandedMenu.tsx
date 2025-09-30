@@ -1,4 +1,3 @@
-// src/features/map/components/MapMenu/components/ExpandedMenu.tsx
 import { FilterSection } from "./FilterSection";
 import { DistrictSection } from "./DistrictSection";
 import type { MapMenuKey } from "../types/types";
@@ -79,7 +78,11 @@ export const ExpandedMenu = ({
   };
 
   return (
-    <div className="fixed top-16 right-16 flex flex-col gap-2 p-1 bg-white border border-gray-400 rounded-lg shadow-xl w-56 z-[60]">
+    <div
+      className="fixed top-16 right-16 flex flex-col gap-2 p-1 bg-white border border-gray-400 rounded-lg shadow-xl w-56 z-[60]"
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
       <FilterSection
         active={active}
         activeSubmenu={activeSubmenu}
@@ -95,7 +98,6 @@ export const ExpandedMenu = ({
             pressed={isDistrictOn}
             onPress={() => {
               onToggleDistrict(!isDistrictOn);
-              onToggle();
             }}
             showLabel={true}
           />

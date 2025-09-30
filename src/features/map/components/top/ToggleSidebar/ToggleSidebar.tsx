@@ -45,7 +45,7 @@ function ToggleSidebarBase({
   // 위치/오버레이
   offsetTopPx = 12,
   fixedRightPx = 12,
-  zIndex = 90,
+  zIndex = 11000,
   overlay = true,
 
   // 기타
@@ -116,7 +116,7 @@ function ToggleSidebarBase({
     }
     return (
       <div
-        className={cn("absolute", className)}
+        className={cn("fixed", className)}
         style={{
           right: fixedRightPx,
           top: offsetTopPx,
@@ -133,12 +133,17 @@ function ToggleSidebarBase({
 
   return (
     <Wrapper>
-      <SidebarToggleButton
-        pressed={open}
-        onPress={toggle}
-        ariaLabel={ariaLabel}
-        title={`${ariaLabel} (Cmd/Ctrl+B)`}
-      />
+      <div
+        className="flex items-center gap-2"
+        style={{ position: "relative", zIndex: 2147483647 }}
+      >
+        <SidebarToggleButton
+          pressed={open}
+          onPress={toggle}
+          ariaLabel={ariaLabel}
+          title={`${ariaLabel} (Cmd/Ctrl+B)`}
+        />
+      </div>
     </Wrapper>
   );
 }

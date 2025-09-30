@@ -1,4 +1,3 @@
-// features/map/components/PinContextMenu/types.ts
 import { LatLng } from "@/lib/geo/types";
 import type { PinItem } from "@/features/pins/types"; // ✅ PinItem으로 업그레이드
 

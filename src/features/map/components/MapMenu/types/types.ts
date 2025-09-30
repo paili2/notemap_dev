@@ -12,4 +12,8 @@ export interface MapMenuProps {
   onChangePoiKinds: (next: PoiKind[]) => void;
   roadviewVisible: boolean;
   onToggleRoadview: () => void;
+
+  // ✅ 컨트롤드 모드용
+  expanded?: boolean;
+  onExpandChange?: (expanded: boolean) => void;
 }

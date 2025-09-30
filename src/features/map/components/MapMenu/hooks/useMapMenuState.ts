@@ -1,32 +1,32 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 export const useMapMenuState = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeSubmenu, setActiveSubmenu] = useState<"filter" | "edit" | null>(
-    "filter" // 필터를 기본으로 펼쳐진 상태로 설정
+    "filter"
   );
 
-  const handleMainClick = () => {
-    setIsExpanded(!isExpanded);
-    // 메뉴가 열릴 때 필터 상태를 유지
-    if (!isExpanded) {
-      setActiveSubmenu("filter");
-    }
-  };
-
-  const handleSubmenuClick = (submenu: "filter" | "edit") => {
-    setActiveSubmenu(activeSubmenu === submenu ? null : submenu);
-  };
-
-  const handleToggle = () => {
+  const open = useCallback(() => {
+    setIsExpanded(true);
     setActiveSubmenu("filter");
-  };
+  }, []);
 
-  return {
-    isExpanded,
-    activeSubmenu,
-    handleMainClick,
-    handleSubmenuClick,
-    handleToggle,
-  };
+  const close = useCallback(() => {
+    setIsExpanded(false);
+    setActiveSubmenu("filter");
+  }, []);
+
+  const toggle = useCallback(() => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      if (next) setActiveSubmenu("filter");
+      return next;
+    });
+  }, []);
+
+  const handleSubmenuClick = useCallback((submenu: "filter" | "edit") => {
+    setActiveSubmenu((cur) => (cur === submenu ? null : submenu));
+  }, []);
+
+  return { isExpanded, activeSubmenu, open, close, toggle, handleSubmenuClick };
 };

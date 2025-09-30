@@ -1,10 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { Map } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
 import { ExpandedMenu } from "./components/ExpandedMenu";
-import { useMapMenuState } from "./hooks/useMapMenuState";
 import type { MapMenuKey, MapMenuProps } from "./types/types";
 
 export default function MapMenu({
@@ -17,28 +17,45 @@ export default function MapMenu({
   onChangePoiKinds,
   roadviewVisible,
   onToggleRoadview,
+  expanded,
+  onExpandChange,
 }: MapMenuProps) {
-  const {
-    isExpanded,
-    activeSubmenu,
-    handleMainClick,
-    handleSubmenuClick,
-    handleToggle,
-  } = useMapMenuState();
+  const isExpanded = !!expanded;
+
+  const api = useMemo(
+    () => ({
+      open: () => onExpandChange?.(true),
+      close: () => onExpandChange?.(false),
+      toggle: () => onExpandChange?.(!isExpanded),
+    }),
+    [isExpanded, onExpandChange]
+  );
 
   const handleMenuItemClick = (key: MapMenuKey) => {
     onChange?.(key);
-    handleToggle(); // 열림 상태 유지하려면 이 줄을 주석 처리
+    api.close(); // 항목 누르면 닫기
   };
 
   return (
-    <div className={cn("relative", className)}>
+    <div className={cn("relative z-[210]", className)}>
       <Button
-        variant="outline"
+        type="button"
+        variant={isExpanded ? "default" : "outline"}
         size="icon"
-        onClick={handleMainClick}
-        className="h-10 w-10 rounded-xl shadow-sm"
+        // ✅ 버튼 자체에서만 버블링 차단 (preventDefault 쓰지 않음)
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          api.toggle();
+        }}
+        className={cn(
+          "h-10 w-10 rounded-xl",
+          "hover:opacity-100 hover:bg-opacity-100",
+          isExpanded ? "shadow-md" : "shadow-sm"
+        )}
         aria-label="맵 메뉴 열기"
+        aria-pressed={isExpanded}
+        data-state={isExpanded ? "on" : "off"}
       >
         <Map className="h-4 w-4" />
       </Button>
@@ -46,12 +63,12 @@ export default function MapMenu({
       {isExpanded && (
         <ExpandedMenu
           active={active}
-          activeSubmenu={activeSubmenu}
+          activeSubmenu={"filter"}
           isDistrictOn={isDistrictOn}
-          onSubmenuClick={handleSubmenuClick}
+          onSubmenuClick={() => {}}
           onMenuItemClick={handleMenuItemClick}
           onToggleDistrict={onToggleDistrict}
-          onToggle={handleToggle}
+          onToggle={api.close}
           poiKinds={poiKinds}
           onChangePoiKinds={onChangePoiKinds}
           roadviewVisible={roadviewVisible}

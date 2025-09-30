@@ -22,12 +22,17 @@ export default function SidebarToggleButton({
   return (
     <Button
       type="button"
-      onClick={onPress}
+      // ✅ 버튼이 직접 클릭을 “먹는다”
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.nativeEvent?.stopImmediatePropagation?.();
+        onPress();
+      }}
       variant={pressed ? "default" : "outline"}
       size="icon"
       className={cn(
-        "h-10 w-10 rounded-xl shadow",
-        pressed ? "shadow-md" : "shadow-sm",
+        "h-10 w-10 rounded-xl shadow pointer-events-auto",
         className
       )}
       title={title}

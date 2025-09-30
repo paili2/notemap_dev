@@ -19,6 +19,7 @@ import { MapHomeUIProps } from "./types";
 import { useRoadview } from "../../hooks/useRoadview";
 
 export function MapHomeUI(props: MapHomeUIProps) {
+  const [rightOpen, setRightOpen] = useState(false);
   const {
     appKey,
     kakaoSDK,
@@ -265,29 +266,53 @@ export function MapHomeUI(props: MapHomeUIProps) {
           })()}
       </div>
 
-      {/* 상단 바 */}
       <MapTopBar
         value={q}
         onChangeSearch={onChangeQ}
         onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
       />
 
-      {/* 맵 메뉴 (주변시설·로드뷰 토글 전달) */}
-      <div className="fixed top-3 right-16 z-[60]">
-        <MapMenu
-          active={filter as any}
-          onChange={onChangeFilter as any}
-          isDistrictOn={isDistrictOn}
-          onToggleDistrict={(next) => setIsDistrictOn(next)}
-          poiKinds={poiKinds}
-          onChangePoiKinds={onChangePoiKinds}
-          roadviewVisible={roadviewVisible}
-          onToggleRoadview={toggleRoadview}
-        />
+      {/* MapMenu토글버튼 + 모달 (주변시설·로드뷰) */}
+      <div className="fixed top-3 right-3 z-[20000] pointer-events-none">
+        <div
+          className="relative flex items-center gap-2 pointer-events-auto"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* (왼쪽) 주변시설/로드뷰 메뉴 */}
+          <div className="relative z-[20002] shrink-0">
+            <MapMenu
+              active={filter as any}
+              onChange={onChangeFilter as any}
+              isDistrictOn={isDistrictOn}
+              onToggleDistrict={setIsDistrictOn}
+              poiKinds={poiKinds}
+              onChangePoiKinds={onChangePoiKinds}
+              roadviewVisible={roadviewVisible}
+              onToggleRoadview={toggleRoadview}
+              expanded={rightOpen}
+              onExpandChange={(expanded) => {
+                setRightOpen(expanded);
+                if (expanded && useSidebar) setUseSidebar(false);
+              }}
+            />
+          </div>
+
+          {/* (오른쪽) 계약관리/답사지예약 토글 버튼 */}
+          <div className="relative z-[20003] shrink-0">
+            <ToggleSidebar
+              overlay={false} // 버튼만 렌더
+              controlledOpen={useSidebar}
+              onChangeOpen={(open) => {
+                setUseSidebar(open);
+                if (open) setRightOpen(false); // 라디오처럼 하나만
+              }}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* 사이드바 */}
-      <ToggleSidebar controlledOpen={useSidebar} onChangeOpen={setUseSidebar} />
+      {/* 답사, 즐겨찾기 등 모달 */}
       <Sidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}

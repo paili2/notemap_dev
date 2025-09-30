@@ -1,4 +1,3 @@
-// constants.ts
 import { FILTER_KEYS, type FilterKey } from "./types";
 
 export const FILTER_LABELS: Record<FilterKey, string> = {
