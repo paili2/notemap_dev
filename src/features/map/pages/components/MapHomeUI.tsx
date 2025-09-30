@@ -6,6 +6,7 @@ import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
 import MapMenu from "@/features/map/components/MapMenu/MapMenu";
 import { Sidebar } from "@/features/sidebar";
+import { useSidebar as useSidebarCtx } from "@/features/sidebar";
 
 import PropertyViewModal from "@/features/properties/components/PropertyViewModal/PropertyViewModal";
 
@@ -83,7 +84,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
-
+  const { handleAddSiteReservation } = useSidebarCtx();
   // 로드뷰 표시 상태 (메뉴에 전달)
   const {
     roadviewContainerRef,
@@ -239,7 +240,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 onClose={onCloseMenu}
                 onView={onViewFromMenu}
                 onCreate={onCreateFromMenu}
-                onPlan={onPlanFromMenu}
+                onPlan={() => {
+                  // ✅ ‘답사지 예약’ 버튼을 눌렀을 때만 사이드바에 추가
+                  const titleFromMenu =
+                    menuTitle ??
+                    menuRoadAddr ??
+                    menuJibunAddr ??
+                    pin.title ??
+                    "답사예정";
+                  const idForMenu = menuTargetId ?? "__draft__";
+
+                  handleAddSiteReservation({
+                    id: String(idForMenu),
+                    title: String(titleFromMenu),
+                  });
+
+                  // ✅ onPlanFromMenu는 (pos: {lat, lng}) 인자를 꼭 받아야 함
+                  onPlanFromMenu?.(menuAnchor);
+                }}
                 onAddFav={handleAddFav}
                 zIndex={10000}
               />

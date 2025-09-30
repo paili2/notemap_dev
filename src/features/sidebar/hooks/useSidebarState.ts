@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FavorateListItem, ListItem } from "../types/sidebar";
 
-const LS_KEY = "sidebar:favGroups"; // 그룹 저장 키
+const LS_KEY = "sidebar:favGroups";
+const LS_KEY_SITE = "sidebar:siteReservations";
 
 export function useSidebarState() {
   // 1) 초기값: 하드코딩 + localStorage 복원
@@ -26,11 +27,31 @@ export function useSidebarState() {
     { id: "6", title: "전라북도 전주시 완산구 기린대로 99" },
     { id: "7", title: "강원특별자치도 속초시 설악산로 1091" },
   ]);
-  const [siteReservations, setSiteReservations] = useState<ListItem[]>([
-    { id: "res1", title: "서울특별시 강남구 테헤란로 123 - 2024.01.15" },
-    { id: "res2", title: "부산광역시 해운대구 해운대해변로 264 - 2024.01.20" },
-    { id: "res3", title: "제주특별자치도 제주시 첨단로 242 - 2024.01.25" },
-  ]);
+  const [siteReservations, setSiteReservations] = useState<ListItem[]>(() => {
+    if (typeof window === "undefined") return []; // SSR 안전
+    try {
+      const raw = localStorage.getItem(LS_KEY_SITE);
+      if (!raw) return []; // 초기값은 빈 배열
+      const parsed = JSON.parse(raw) as ListItem[];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(LS_KEY_SITE, JSON.stringify(siteReservations));
+    } catch {}
+  }, [siteReservations]);
+
+  const handleAddSiteReservation = useCallback((item: ListItem) => {
+    setSiteReservations((prev) => {
+      if (prev.some((x) => x.id === item.id)) return prev; // 중복 방지
+      return [item, ...prev].slice(0, 200); // 최대 200개 보관 예시
+    });
+  }, []);
 
   // 3) 로컬스토리지 동기화
   useEffect(() => {
@@ -138,11 +159,13 @@ export function useSidebarState() {
     setNestedFavorites,
     setExplorations,
     setSiteReservations,
+
     // actions - 즐겨찾기 그룹
     ensureFavoriteGroup,
     addFavoriteToGroup,
     createGroupAndAdd,
     deleteFavoriteGroup,
+    handleAddSiteReservation,
     // actions - 삭제류
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
