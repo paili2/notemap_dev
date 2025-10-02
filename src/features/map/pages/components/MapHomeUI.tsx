@@ -88,6 +88,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
 
+  // 좌표→보정키 (소수점 5자리 반올림 예시)
+  const getPosKey = (
+    p?: { lat: number; lng: number } | null
+  ): string | undefined => {
+    if (!p || typeof p.lat !== "number" || typeof p.lng !== "number")
+      return undefined; // null 대신 undefined 반환
+    const lat = Number(p.lat).toFixed(5);
+    const lng = Number(p.lng).toFixed(5);
+    return `${lat},${lng}`;
+  };
+
   const { handleAddSiteReservation, siteReservations } = useSidebarCtx();
 
   // 예약(답사지예약) 등록 여부를 폭넓게 감지
@@ -160,22 +171,33 @@ export function MapHomeUI(props: MapHomeUIProps) {
     return new Set(list.map((it: any) => String(it.id)));
   }, [siteReservations]);
 
+  // 좌표 보정키(posKey) 집합 (id가 바뀌어도 좌표로 매칭)
+  const reservedPosSet = useMemo(() => {
+    const list = Array.isArray(siteReservations) ? siteReservations : [];
+    const s = new Set<string>();
+    list.forEach((it: any) => {
+      if (typeof it?.posKey === "string" && it.posKey) s.add(it.posKey);
+    });
+    return s;
+  }, [siteReservations]);
+
   const visibleMarkers = useMemo(() => {
     if (activeMenu !== "plannedOnly") return markers;
 
     return markers.filter((m: any) => {
-      // “답사예정” 기준: __visit__ 프리픽스 또는 명시적 planned 플래그
       const plannedLike =
         (typeof m?.id !== "undefined" && isVisitId(String(m.id))) ||
         m?.visit?.planned === true;
 
-      // 사이드바에 등록된 예약 id이거나, 마커 자체가 예약 상태면 제외
-      const reservedBySidebar =
+      const reservedById =
         typeof m?.id !== "undefined" && reservedIdSet.has(String(m.id));
 
-      return plannedLike && !reservedBySidebar && !isReserved(m);
+      const posKey = m?.position ? getPosKey(m.position) : null;
+      const reservedByPos = !!(posKey && reservedPosSet.has(posKey));
+
+      return plannedLike && !reservedById && !reservedByPos && !isReserved(m);
     });
-  }, [markers, activeMenu, reservedIdSet]);
+  }, [markers, activeMenu, reservedIdSet, reservedPosSet]);
 
   // 로드뷰 표시 상태 (메뉴에 전달)
   const {
@@ -192,6 +214,23 @@ export function MapHomeUI(props: MapHomeUIProps) {
   });
 
   const mapViewRef = useRef<MapViewHandle>(null);
+
+  // 최초 1회만 level=4 고정 후, 그 다음부터 fitToMarkers 허용
+  const [didInit, setDidInit] = useState(false);
+
+  const handleMapReady = useCallback(
+    (api: unknown) => {
+      // 원래 콜백 먼저
+      onMapReady?.(api);
+
+      // 초기 한 프레임 동안 fitToMarkers를 비활성화했으므로
+      // level={DEFAULT_LEVEL} 그대로 초기 렌더에 적용됨
+      requestAnimationFrame(() => {
+        setDidInit(true);
+      });
+    },
+    [onMapReady]
+  );
 
   const toggleRoadview = useCallback(() => {
     roadviewVisible ? close() : openAtCenter();
@@ -233,7 +272,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           center={DEFAULT_CENTER}
           level={DEFAULT_LEVEL}
           markers={visibleMarkers}
-          fitToMarkers={fitAllOnce}
+          fitToMarkers={didInit ? fitAllOnce : undefined}
           useDistrict={isDistrictOn}
           onMarkerClick={(id) => {
             const m = visibleMarkers.find((x) => String(x.id) === String(id));
@@ -347,6 +386,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
                   handleAddSiteReservation({
                     id: String(idForMenu),
                     title: String(titleFromMenu),
+                    posKey: getPosKey(menuAnchor), // ← 좌표 보정키 저장
                   });
 
                   // ✅ onPlanFromMenu는 (pos: {lat, lng}) 인자를 꼭 받아야 함
