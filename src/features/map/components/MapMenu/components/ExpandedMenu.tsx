@@ -28,7 +28,6 @@ interface ExpandedMenuProps {
   poiKinds: PoiKind[];
   onChangePoiKinds: (next: PoiKind[]) => void;
 
-  // ✅ 로드뷰 토글
   roadviewVisible: boolean;
   onToggleRoadview: () => void;
 }

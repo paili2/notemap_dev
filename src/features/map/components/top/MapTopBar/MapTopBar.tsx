@@ -1,8 +1,16 @@
 "use client";
+
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/atoms/Button/Button";
+import { Eye } from "lucide-react";
 import SearchForm from "./components/SearchForm";
 import type { MapTopBarProps } from "./types";
 
+/**
+ * 지도 상단 검색/컨트롤 바
+ * - pointer-events-none 컨테이너에 내부 요소만 클릭 가능하도록 pointer-events-auto 적용
+ * - 로드뷰 버튼은 선택 프롭(onOpenRoadviewAtCenter) 전달 시 노출
+ */
 export default function MapTopBar({
   className,
   value,
@@ -12,7 +20,10 @@ export default function MapTopBar({
   onClearSearch,
   placeholder,
   wrapOnMobile = true,
-}: MapTopBarProps) {
+  onOpenRoadviewAtCenter, // optional: 맵 중심 로드뷰 열기
+}: MapTopBarProps & {
+  onOpenRoadviewAtCenter?: () => void;
+}) {
   return (
     <div
       className={cn(
@@ -24,7 +35,7 @@ export default function MapTopBar({
       role="region"
       aria-label="지도 상단 검색"
     >
-      {/* 내부만 클릭 가능 */}
+      {/* 검색폼 */}
       <div className="pointer-events-auto">
         <SearchForm
           value={value}

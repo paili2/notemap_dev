@@ -23,6 +23,10 @@ type SearchOptions = {
   clearPrev?: boolean;
   recenter?: boolean;
   fitZoom?: boolean;
+  /** 입력이 ‘…역’일 때 지하철역(SW8)부터 우선 검색 */
+  preferStation?: boolean;
+  /** 좌표를 받아서 추가 행동(로드뷰 열기 등) 수행 */
+  onFound?: (pos: LatLng) => void;
 };
 
 const useKakaoMap = ({
@@ -189,6 +193,7 @@ const useKakaoMap = ({
   };
 
   /** 주소 → 실패 시 키워드로 검색하여 좌표에 마커 배치 */
+  /** 주소/키워드/역 검색 우선순위 적용 + 마커 배치 */
   const searchPlace = (query: string, opts?: SearchOptions) => {
     if (!ready || !kakaoRef.current || !mapRef.current || !query) return;
 
@@ -196,29 +201,91 @@ const useKakaoMap = ({
     const geocoder = new kakao.maps.services.Geocoder();
     const places = new kakao.maps.services.Places();
 
-    geocoder.addressSearch(query, (addrResult: any[], addrStatus: string) => {
-      if (
-        addrStatus === kakao.maps.services.Status.OK &&
-        addrResult.length > 0
-      ) {
-        const lat = parseFloat(addrResult[0].y);
-        const lng = parseFloat(addrResult[0].x);
-        placeMarkerAt(new kakao.maps.LatLng(lat, lng), opts);
-      } else {
-        places.keywordSearch(query, (kwResult: any[], kwStatus: string) => {
-          if (
-            kwStatus === kakao.maps.services.Status.OK &&
-            kwResult.length > 0
-          ) {
-            const lat = parseFloat(kwResult[0].y);
-            const lng = parseFloat(kwResult[0].x);
-            placeMarkerAt(new kakao.maps.LatLng(lat, lng), opts);
+    const { preferStation = false, onFound } = opts || {};
+    const endsWithStation = query.trim().endsWith("역");
+
+    // 1) ‘…역’ 또는 preferStation이면 지하철역(SW8) 우선 시도
+    const tryStationFirst = (): Promise<{ lat: number; lng: number } | null> =>
+      new Promise((resolve) => {
+        places.keywordSearch(query, (data: any[], status: string) => {
+          if (status === kakao.maps.services.Status.OK && data?.length) {
+            // SW8: 지하철역 카테고리
+            const station =
+              data.find(
+                (d) =>
+                  d.category_group_code === "SW8" ||
+                  d.category_name?.includes("지하철역")
+              ) || null;
+            if (station) {
+              resolve({
+                lat: parseFloat(station.y),
+                lng: parseFloat(station.x),
+              });
+              return;
+            }
+          }
+          resolve(null);
+        });
+      });
+
+    // 2) 키워드(일반 장소) 시도
+    const tryKeyword = (): Promise<{ lat: number; lng: number } | null> =>
+      new Promise((resolve) => {
+        places.keywordSearch(query, (data: any[], status: string) => {
+          if (status === kakao.maps.services.Status.OK && data?.[0]) {
+            resolve({
+              lat: parseFloat(data[0].y),
+              lng: parseFloat(data[0].x),
+            });
           } else {
-            console.warn("검색 결과 없음:", query);
+            resolve(null);
           }
         });
+      });
+
+    // 3) 주소 지오코딩 시도
+    const tryAddress = (): Promise<{ lat: number; lng: number } | null> =>
+      new Promise((resolve) => {
+        geocoder.addressSearch(query, (res: any[], status: string) => {
+          if (status === kakao.maps.services.Status.OK && res?.[0]) {
+            resolve({
+              lat: parseFloat(res[0].y),
+              lng: parseFloat(res[0].x),
+            });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+
+    (async () => {
+      let found: {
+        lat: number;
+        lng: number;
+      } | null = null;
+
+      // ✅ 우선순위: (역) → 키워드 → 주소
+      if (endsWithStation || preferStation) {
+        found = await tryStationFirst();
+        if (!found) found = await tryKeyword();
+        if (!found) found = await tryAddress();
+      } else {
+        // 기본: 주소 → 키워드
+        found = await tryAddress();
+        if (!found) found = await tryKeyword();
       }
-    });
+
+      if (!found) {
+        console.warn("검색 결과 없음:", query);
+        return;
+      }
+
+      // 마커 + 리센터/줌
+      placeMarkerAt(new kakao.maps.LatLng(found.lat, found.lng), opts);
+
+      // 추가 액션(예: 로드뷰 열기)
+      onFound?.({ lat: found.lat, lng: found.lng });
+    })();
   };
 
   const clearLastMarker = () => {

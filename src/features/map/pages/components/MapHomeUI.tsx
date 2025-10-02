@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
@@ -10,13 +10,14 @@ import { useSidebar as useSidebarCtx } from "@/features/sidebar";
 
 import PropertyViewModal from "@/features/properties/components/PropertyViewModal/PropertyViewModal";
 
-import MapView from "../../components/MapView/MapView";
+import MapView, { MapViewHandle } from "../../components/MapView/MapView";
 import { DEFAULT_CENTER, DEFAULT_LEVEL } from "../../lib/constants";
 import { FilterSearch } from "../../FilterSearch";
 import MapCreateModalHost from "../../components/MapCreateModalHost";
 import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextMenu";
 import { MapHomeUIProps } from "./types";
 import { useRoadview } from "../../hooks/useRoadview";
+import RoadviewHost from "../../components/Roadview/RoadviewHost";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
@@ -100,6 +101,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     autoSync: true,
   });
 
+  const mapViewRef = useRef<MapViewHandle>(null);
+
   const toggleRoadview = useCallback(() => {
     roadviewVisible ? close() : openAtCenter();
   }, [roadviewVisible, close, openAtCenter]);
@@ -135,6 +138,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       {/* 지도 */}
       <div className="absolute inset-0">
         <MapView
+          ref={mapViewRef}
           appKey={appKey}
           center={DEFAULT_CENTER}
           level={DEFAULT_LEVEL}
@@ -269,7 +273,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
       <MapTopBar
         value={q}
         onChangeSearch={onChangeQ}
-        onSubmitSearch={(v) => v.trim() && onSubmitSearch(v)}
+        onSubmitSearch={(text) => {
+          const query = text.trim();
+          if (!query) return;
+          const preferStation = /역|출구/.test(query);
+          mapViewRef.current?.searchPlace(query, {
+            fitZoom: true,
+            recenter: true,
+            preferStation,
+            onFound: (pos) => openAt(pos, { face: pos }),
+          });
+        }}
       />
 
       {/* MapMenu토글버튼 + 모달 (주변시설·로드뷰) */}
@@ -374,6 +388,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
           resetAfterCreate={createHostHandlers.resetAfterCreate}
         />
       )}
+      <RoadviewHost
+        open={roadviewVisible}
+        onClose={close}
+        onResize={() => {
+          // 필요하다면 roadview.resize() 호출
+        }}
+        containerRef={roadviewContainerRef}
+      />
     </div>
   );
 }
