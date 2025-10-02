@@ -42,6 +42,13 @@ export function AdminMainPage() {
       color: "bg-green-500",
     },
     {
+      title: "실적 확인",
+      description: "직원별 영업 실적 조회",
+      href: "/admin/performance",
+      icon: TrendingUp,
+      color: "bg-orange-500",
+    },
+    {
       title: "공지사항",
       description: "사이트 공지사항 관리",
       href: "/admin/notices",

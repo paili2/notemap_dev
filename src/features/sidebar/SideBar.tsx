@@ -12,13 +12,10 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   const {
     nestedFavorites,
     setNestedFavorites,
-    explorations,
-    setExplorations,
     siteReservations,
     setSiteReservations,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
-    handleDeleteExploration,
     handleDeleteSiteReservation,
     handleContractRecordsClick,
   } = useSidebar();
@@ -37,13 +34,6 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
       `}</style>
 
       <div className="flex flex-col gap-2 p-1 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-track-white scrollbar-thumb-black hover:scrollbar-thumb-gray-800 scrollbar-no-arrows">
-        <SidebarSection
-          title="답사"
-          items={explorations}
-          onItemsChange={setExplorations}
-          onDeleteItem={handleDeleteExploration}
-        />
-
         <SidebarSection
           title="답사지 예약"
           items={siteReservations}

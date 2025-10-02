@@ -21,6 +21,7 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
       href: "/admin/employee-favorites",
     },
     { key: "contracts", label: "계약관리", href: "/admin/contracts" },
+    { key: "performance", label: "실적확인", href: "/admin/performance" },
     { key: "notices", label: "공지사항", href: "/admin/notices" },
   ];
 

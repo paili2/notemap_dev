@@ -20,13 +20,7 @@ export function useSidebarState() {
     }
   );
 
-  // 2) 즐겨찾기 외 섹션 (그대로)
-  const [explorations, setExplorations] = useState<ListItem[]>([
-    { id: "4", title: "경상북도 경주시 첨성로 169" },
-    { id: "5", title: "강원특별자치도 강릉시 창해로 17" },
-    { id: "6", title: "전라북도 전주시 완산구 기린대로 99" },
-    { id: "7", title: "강원특별자치도 속초시 설악산로 1091" },
-  ]);
+  // 2) 답사지 예약 섹션
   const [siteReservations, setSiteReservations] = useState<ListItem[]>(() => {
     if (typeof window === "undefined") return []; // SSR 안전
     try {
@@ -139,9 +133,6 @@ export function useSidebarState() {
   const handleDeleteNestedFavorite = (id: string) => {
     setNestedFavorites((prev) => prev.filter((item) => item.id !== id));
   };
-  const handleDeleteExploration = (id: string) => {
-    setExplorations((prev) => prev.filter((item) => item.id !== id));
-  };
   const handleDeleteSiteReservation = (id: string) => {
     setSiteReservations((prev) => prev.filter((item) => item.id !== id));
   };
@@ -153,11 +144,9 @@ export function useSidebarState() {
   return {
     // state
     nestedFavorites,
-    explorations,
     siteReservations,
     // setters (필요 시)
     setNestedFavorites,
-    setExplorations,
     setSiteReservations,
 
     // actions - 즐겨찾기 그룹
@@ -169,7 +158,6 @@ export function useSidebarState() {
     // actions - 삭제류
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
-    handleDeleteExploration,
     handleDeleteSiteReservation,
     // misc
     handleContractRecordsClick,
