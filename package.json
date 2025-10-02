@@ -5,6 +5,7 @@
   "scripts": {
     "test": "jest",
     "dev": "next dev",
+    "prebuild": "node -e \"try{console.log('recharts=', require('recharts/package.json').version)}catch(e){console.log('recharts NOT INSTALLED')}\"",
     "build": "node -e \"console.log('KAKAO_KEY_LEN='+(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY||'').length)\" && next build --no-lint",
     "start": "next start -H 0.0.0.0 -p $PORT",
     "lint": "next lint",
