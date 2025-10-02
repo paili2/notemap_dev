@@ -7,6 +7,11 @@ const FILTER_MENU_ITEMS = [
   { key: "all" as const, label: "전체", icon: Map },
   { key: "new" as const, label: "신축", icon: Home },
   { key: "old" as const, label: "구옥", icon: "/pins/oldhouse-pin.svg" },
+  {
+    key: "plannedOnly" as const,
+    label: "답사예정",
+    icon: "/pins/question-pin.svg",
+  },
 ];
 
 interface FilterSectionProps {

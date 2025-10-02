@@ -1,6 +1,6 @@
 import { PoiKind } from "@/features/map/lib/poiOverlays";
 
-export type MapMenuKey = "all" | "new" | "old";
+export type MapMenuKey = "all" | "new" | "old" | "plannedOnly";
 
 export interface MapMenuProps {
   active: MapMenuKey;

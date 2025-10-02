@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import ToggleSidebar from "@/features/map/components/top/ToggleSidebar/ToggleSidebar";
@@ -18,6 +18,7 @@ import PinContextMenu from "@/features/map/components/PinContextMenu/PinContextM
 import { MapHomeUIProps } from "./types";
 import { useRoadview } from "../../hooks/useRoadview";
 import RoadviewHost from "../../components/Roadview/RoadviewHost";
+import { MapMenuKey } from "../../components/MapMenu";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
@@ -86,6 +87,23 @@ export function MapHomeUI(props: MapHomeUIProps) {
   } = props;
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
+
+  // 현재 선택된 필터 키
+  const activeMenu = (filter as MapMenuKey) ?? "all";
+
+  // 지도에 실제 표시할 마커 목록
+  const visibleMarkers = useMemo(() => {
+    if (activeMenu !== "plannedOnly") return markers;
+    // 답사예정 등록만 있고(예약 미등록) __visit__로 시작하는 핀만 노출
+    return markers.filter((m: any) => {
+      const isVisit =
+        typeof m?.id !== "undefined" && String(m.id).startsWith("__visit__");
+      const reservedFlag = m?.visit?.reserved === true;
+      const hasReservationObj = !!m?.visit?.reservation;
+      return isVisit && !reservedFlag && !hasReservationObj;
+    });
+  }, [markers, activeMenu]);
+
   const { handleAddSiteReservation } = useSidebarCtx();
   // 로드뷰 표시 상태 (메뉴에 전달)
   const {
@@ -142,11 +160,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
           appKey={appKey}
           center={DEFAULT_CENTER}
           level={DEFAULT_LEVEL}
-          markers={markers}
+          markers={visibleMarkers}
           fitToMarkers={fitAllOnce}
           useDistrict={isDistrictOn}
           onMarkerClick={(id) => {
-            const m = markers.find((x) => String(x.id) === String(id));
+            const m = visibleMarkers.find((x) => String(x.id) === String(id));
             if (!m) return;
 
             if (isVisitId(String(id))) {
@@ -181,9 +199,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
             });
             onChangeHideLabelForId?.("__draft__");
           }}
-          /** ▼ 주변시설: 외부 제어형 상태 전달 */
           poiKinds={poiKinds}
-          showPoiToolbar={false} // 내부 툴바 비활성(메뉴 한 곳에서만 제어)
+          showPoiToolbar={false}
         />
 
         {mapInstance &&
@@ -293,11 +310,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* (왼쪽) 주변시설/로드뷰 메뉴 */}
           <div className="relative z-[20002] shrink-0">
             <MapMenu
-              active={filter as any}
-              onChange={onChangeFilter as any}
+              active={activeMenu}
+              onChange={(next) => {
+                const resolved = next === activeMenu ? "all" : next;
+                (onChangeFilter as any)(resolved);
+              }}
               isDistrictOn={isDistrictOn}
               onToggleDistrict={setIsDistrictOn}
               poiKinds={poiKinds}
