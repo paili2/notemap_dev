@@ -24,9 +24,16 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  ResponsiveContainer,
   LabelList,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import type { PerformanceData } from "../types/PerformanceData";
 import { COLORS } from "../types/PerformanceData";
 import { mockPerformanceData } from "../data/data";
@@ -38,6 +45,34 @@ export function Performance() {
   const [selectedTeamDetail, setSelectedTeamDetail] = useState<string | null>(
     null
   );
+
+  // Chart configuration
+  const chartConfig = {
+    totalAllowance: {
+      label: "총 수당",
+      color: "hsl(var(--primary))",
+    },
+    finalAllowance: {
+      label: "최종수당",
+      color: "hsl(var(--primary))",
+    },
+    contractCount: {
+      label: "계약 건수",
+      color: "hsl(var(--secondary))",
+    },
+  };
+
+  // 파이 차트용 색상 배열
+  const pieColors = [
+    "#3b82f6", // 파란색
+    "#10b981", // 초록색
+    "#f59e0b", // 주황색
+    "#ef4444", // 빨간색
+    "#8b5cf6", // 보라색
+    "#06b6d4", // 청록색
+    "#84cc16", // 라임색
+    "#f97316", // 오렌지색
+  ];
 
   // 연도 옵션 생성 (현재 년도가 제일 끝에 오도록)
   const yearOptions = Array.from({ length: 6 }, (_, i) => {
@@ -152,61 +187,108 @@ export function Performance() {
       </div>
 
       {/* 팀별 실적 그래프 */}
-      <Card className="border-gray-200">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">
-            팀별 최종수당 비교
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">각 팀의 총 최종수당</p>
-        </CardHeader>
-        <CardContent className="pl-2">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart
-              data={teamStats}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid
-                strokeDasharray="3 3"
-                className="stroke-muted"
-                vertical={false}
-              />
-              <XAxis
-                dataKey="team"
-                className="text-xs"
-                tick={{ fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                className="text-xs"
-                tick={{ fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `${(value / 10000000).toFixed(0)}천`}
-              />
-              <Bar
-                dataKey="totalAllowance"
-                fill="hsl(var(--primary))"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={40}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 팀별 최종수당 비교 (바 차트) */}
+        <Card className="border-gray-200">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold">
+              팀별 최종수당 비교
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">각 팀의 총 최종수당</p>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ChartContainer config={chartConfig} className="h-[300px]">
+              <BarChart
+                data={teamStats}
+                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
               >
-                <LabelList
-                  dataKey="totalAllowance"
-                  position="top"
-                  offset={10}
-                  formatter={(value) =>
-                    `${(Number(value) / 10000).toLocaleString()}만원`
-                  }
-                  style={{
-                    fontSize: "12px",
-                    fill: "hsl(var(--muted-foreground))",
-                  }}
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  className="stroke-muted"
+                  vertical={false}
                 />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+                <XAxis
+                  dataKey="team"
+                  className="text-xs"
+                  tick={{ fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  className="text-xs"
+                  tick={{ fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value: number) =>
+                    `${(value / 10000000).toFixed(0)}천`
+                  }
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar
+                  dataKey="totalAllowance"
+                  fill="hsl(var(--primary))"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={40}
+                >
+                  <LabelList
+                    dataKey="totalAllowance"
+                    position="top"
+                    offset={10}
+                    formatter={(value: number) =>
+                      `${(Number(value) / 10000).toLocaleString()}만원`
+                    }
+                    style={{
+                      fontSize: "12px",
+                      fill: "hsl(var(--muted-foreground))",
+                    }}
+                  />
+                </Bar>
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* 팀별 최종수당 비율 (파이 차트) */}
+        <Card className="border-gray-200">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold">
+              팀별 최종수당 비율
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">각 팀의 수당 비중</p>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <ChartContainer config={chartConfig} className="h-[300px]">
+              <PieChart>
+                <Pie
+                  data={teamStats}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ team, percent }) =>
+                    `${team} ${(percent * 100).toFixed(1)}%`
+                  }
+                  outerRadius={80}
+                  dataKey="totalAllowance"
+                >
+                  {teamStats.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={pieColors[index % pieColors.length]}
+                    />
+                  ))}
+                </Pie>
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  formatter={(value: number) => [
+                    `${(value / 10000).toLocaleString()}만원`,
+                    "총 수당",
+                  ]}
+                />
+              </PieChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* 팀별 상세 통계 카드 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -262,6 +344,7 @@ export function Performance() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="month">이번 달</SelectItem>
+                        <SelectItem value="year">올해</SelectItem>
                         <SelectItem value="yearly">연도 선택</SelectItem>
                       </SelectContent>
                     </Select>
@@ -299,7 +382,7 @@ export function Performance() {
                   <h4 className="text-lg font-semibold mb-4">
                     직원별 최종수당
                   </h4>
-                  <ResponsiveContainer width="100%" height={250}>
+                  <ChartContainer config={chartConfig} className="h-[250px]">
                     <BarChart
                       data={selectedTeamMembers}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -321,10 +404,11 @@ export function Performance() {
                         tick={{ fill: "hsl(var(--muted-foreground))" }}
                         tickLine={false}
                         axisLine={false}
-                        tickFormatter={(value) =>
+                        tickFormatter={(value: number) =>
                           `${(value / 10000).toFixed(0)}만`
                         }
                       />
+                      <ChartTooltip content={<ChartTooltipContent />} />
                       <Bar
                         dataKey="finalAllowance"
                         fill="hsl(var(--primary))"
@@ -335,7 +419,7 @@ export function Performance() {
                           dataKey="finalAllowance"
                           position="top"
                           offset={8}
-                          formatter={(value) =>
+                          formatter={(value: number) =>
                             `${(Number(value) / 10000).toLocaleString()}만원`
                           }
                           style={{
@@ -345,7 +429,7 @@ export function Performance() {
                         />
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 </div>
 
                 {/* 직원별 계약 건수 바 차트 */}
@@ -353,7 +437,7 @@ export function Performance() {
                   <h4 className="text-lg font-semibold mb-4">
                     직원별 계약 건수
                   </h4>
-                  <ResponsiveContainer width="100%" height={250}>
+                  <ChartContainer config={chartConfig} className="h-[250px]">
                     <BarChart
                       data={selectedTeamMembers}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -376,6 +460,7 @@ export function Performance() {
                         tickLine={false}
                         axisLine={false}
                       />
+                      <ChartTooltip content={<ChartTooltipContent />} />
                       <Bar
                         dataKey="contractCount"
                         fill="hsl(var(--secondary))"
@@ -386,7 +471,7 @@ export function Performance() {
                           dataKey="contractCount"
                           position="top"
                           offset={8}
-                          formatter={(value) => `${value}건`}
+                          formatter={(value: number) => `${value}건`}
                           style={{
                             fontSize: "10px",
                             fill: "hsl(var(--muted-foreground))",
@@ -394,7 +479,7 @@ export function Performance() {
                         />
                       </Bar>
                     </BarChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                 </div>
               </div>
 
