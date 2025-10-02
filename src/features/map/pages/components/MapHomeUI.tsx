@@ -88,23 +88,95 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const isVisitId = (id: string) => String(id).startsWith("__visit__");
 
+  const { handleAddSiteReservation, siteReservations } = useSidebarCtx();
+
+  // 예약(답사지예약) 등록 여부를 폭넓게 감지
+  const isReserved = (m: any) => {
+    if (!m || typeof m !== "object") return false;
+
+    // 1) 대표 케이스
+    if (m?.visit?.reserved === true) return true;
+    if (m?.visit?.reservation) return true;
+    if (m?.reservationId) return true;
+    if (m?.reservation) return true;
+
+    // 2) 배열/카운트 형태
+    if (
+      Array.isArray(m?.visit?.reservations) &&
+      m.visit.reservations.length > 0
+    )
+      return true;
+    if (Array.isArray(m?.reservations) && m.reservations.length > 0)
+      return true;
+
+    // 3) 상태(enum/string) 형태
+    const statusCandidates = [
+      m?.visit?.status,
+      m?.visit?.state,
+      m?.status,
+      m?.state,
+    ];
+    if (
+      statusCandidates.some(
+        (s) =>
+          typeof s === "string" &&
+          ["reserved", "booked", "scheduled", "confirmed"].includes(
+            s.toLowerCase()
+          )
+      )
+    )
+      return true;
+
+    // 4) 이름 규칙 스캔: reservation*, reserved*, booking*, schedule*
+    const scanObj = (obj: any): boolean => {
+      if (!obj || typeof obj !== "object") return false;
+      for (const [k, v] of Object.entries(obj)) {
+        const key = k.toLowerCase();
+        if (/(reserv|booking|schedule)/.test(key)) {
+          // truthy면 예약이 있는 걸로 간주 (불리언 true, 문자열/날짜, 객체/배열 등)
+          if (v) return true;
+          if (typeof v === "number" && v > 0) return true; // count 같은 숫자
+        }
+        if (v && typeof v === "object") {
+          if (scanObj(v)) return true;
+        }
+      }
+      return false;
+    };
+
+    // visit 우선 스캔 → 루트 스캔
+    if (scanObj(m?.visit)) return true;
+    if (scanObj(m)) return true;
+
+    return false;
+  };
+
   // 현재 선택된 필터 키
   const activeMenu = (filter as MapMenuKey) ?? "all";
 
-  // 지도에 실제 표시할 마커 목록
+  // 사이드바 예약 목록의 id 집합
+  const reservedIdSet = useMemo(() => {
+    const list = Array.isArray(siteReservations) ? siteReservations : [];
+    return new Set(list.map((it: any) => String(it.id)));
+  }, [siteReservations]);
+
   const visibleMarkers = useMemo(() => {
     if (activeMenu !== "plannedOnly") return markers;
-    // 답사예정 등록만 있고(예약 미등록) __visit__로 시작하는 핀만 노출
-    return markers.filter((m: any) => {
-      const isVisit =
-        typeof m?.id !== "undefined" && String(m.id).startsWith("__visit__");
-      const reservedFlag = m?.visit?.reserved === true;
-      const hasReservationObj = !!m?.visit?.reservation;
-      return isVisit && !reservedFlag && !hasReservationObj;
-    });
-  }, [markers, activeMenu]);
 
-  const { handleAddSiteReservation } = useSidebarCtx();
+    return markers.filter((m: any) => {
+      // “답사예정” 기준: __visit__ 프리픽스 또는 명시적 planned 플래그
+      const plannedLike =
+        (typeof m?.id !== "undefined" && isVisitId(String(m.id))) ||
+        m?.visit?.planned === true;
+
+      // 사이드바에 등록된 예약 id이거나, 마커 자체가 예약 상태면 제외
+      const reservedBySidebar =
+        typeof m?.id !== "undefined" && reservedIdSet.has(String(m.id));
+
+      return plannedLike && !reservedBySidebar && !isReserved(m);
+    });
+  }, [markers, activeMenu, reservedIdSet]);
+
   // 로드뷰 표시 상태 (메뉴에 전달)
   const {
     roadviewContainerRef,
