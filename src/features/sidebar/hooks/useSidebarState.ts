@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FavorateListItem, ListItem } from "../types/sidebar";
 
 const LS_KEY = "sidebar:favGroups";
@@ -32,6 +32,22 @@ export function useSidebarState() {
       return [];
     }
   });
+
+  // ✅ 현재 순서 -> 배지/지도에 사용하는 맵 (id -> 1-based order)
+  const reservationOrderMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    siteReservations.forEach((it, idx) => {
+      const id = it?.id;
+      if (id) map[id] = idx + 1;
+    });
+    return map;
+  }, [siteReservations]);
+
+  // (선택) 헬퍼
+  const getReservationOrder = useCallback(
+    (pinId: string) => reservationOrderMap[pinId] ?? null,
+    [reservationOrderMap]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -148,6 +164,9 @@ export function useSidebarState() {
     // setters (필요 시)
     setNestedFavorites,
     setSiteReservations,
+
+    reservationOrderMap,
+    getReservationOrder,
 
     // actions - 즐겨찾기 그룹
     ensureFavoriteGroup,

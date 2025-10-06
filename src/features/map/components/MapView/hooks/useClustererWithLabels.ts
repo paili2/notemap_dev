@@ -4,6 +4,7 @@ import { PinKind } from "@/features/pins/types";
 import { getPinUrl } from "@/features/pins/lib/assets";
 // import { styleHitboxEl, styleLabelEl } from "@/features/map/lib/overlays/style"; // ← 임시 비활성화(런타임 이슈 회피)
 import { HITBOX, LABEL, PIN_MARKER, Z } from "@/features/map/lib/constants";
+import { useSidebar } from "@/features/sidebar";
 
 export type ClustererWithLabelsOptions = {
   labelMaxLevel?: number; // 라벨/핀 보이는 최대 레벨 (이하: 라벨모드)
@@ -18,6 +19,7 @@ export type ClustererWithLabelsOptions = {
 
 const ACCENT = "#3B82F6"; // 라벨 배경 고정(파랑)
 const DRAFT_ID = "__draft__"; // ✅ 드래프트 핀 고정 표시용
+const SELECTED_Z = 2000; // 선택된 마커를 항상 최상위로
 
 // ── 로컬 스타일 헬퍼 (임포트 이슈 우회) ─────────────────────────────────────────
 const applyLabelStyles = (el: HTMLDivElement, gapPx = 12) => {
@@ -50,6 +52,40 @@ const applyHitboxStyles = (el: HTMLDivElement, sizePx = 48) => {
     touchAction: "manipulation",
   } as CSSStyleDeclaration);
 };
+
+// ✅ 순번 배지 + 텍스트를 labelEl에 구성 (order 없으면 텍스트만)
+const applyOrderBadgeToLabel = (
+  el: HTMLDivElement,
+  text: string,
+  order?: number | null
+) => {
+  el.innerHTML = ""; // 기존 내용 초기화
+
+  if (order) {
+    const badge = document.createElement("span");
+    Object.assign(badge.style, {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "18px",
+      height: "18px",
+      minWidth: "18px",
+      borderRadius: "9999px",
+      fontSize: "10px",
+      fontWeight: "800",
+      background: "#fff",
+      color: "#000",
+      marginRight: "6px",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+    } as CSSStyleDeclaration);
+    badge.textContent = String(order);
+    el.appendChild(badge);
+  }
+
+  const textSpan = document.createElement("span");
+  textSpan.textContent = text ?? "";
+  el.appendChild(textSpan);
+};
 // ────────────────────────────────────────────────────────────────────────────────
 
 export function useClustererWithLabels(
@@ -67,6 +103,8 @@ export function useClustererWithLabels(
     hideLabelForId = null,
   }: ClustererWithLabelsOptions = {}
 ) {
+  const { reservationOrderMap } = useSidebar();
+
   // 의도적 재생성 tick (필요시 setRerenderTick(+1)로 강제 재빌드 가능)
   const [rerenderTick] = useState(0);
 
@@ -164,7 +202,7 @@ export function useClustererWithLabels(
         clustererRef.current?.removeMarker?.(sel);
       } catch {}
       sel?.setMap?.(map);
-      sel?.setZIndex?.(1000);
+      sel?.setZIndex?.(SELECTED_Z);
     }
 
     // ✅ 드래프트 핀도 항상 지도에 직접
@@ -174,7 +212,7 @@ export function useClustererWithLabels(
         clustererRef.current?.removeMarker?.(draftMk);
       } catch {}
       draftMk.setMap(map);
-      draftMk.setZIndex(1100);
+      draftMk.setZIndex(SELECTED_Z + 100);
     }
 
     // 나머지 마커는 지도에서 제거(클러스터만 보이도록)
@@ -240,7 +278,7 @@ export function useClustererWithLabels(
     markers.forEach((m) => {
       const key = String(m.id);
       const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
-
+      const order = reservationOrderMap?.[key] ?? null; // ✅ 예약 순번(1-base)
       const isDraft = key === DRAFT_ID;
 
       // 마커
@@ -274,6 +312,15 @@ export function useClustererWithLabels(
       const mk = new kakao.maps.Marker(mkOptions);
       markerObjsRef.current[key] = mk;
 
+      // ✅ 예약 순서 기반 zIndex (1번이 가장 위, 선택은 별도 2000)
+      if (!isDraft) {
+        const BASE_Z = 1000;
+        const z = order ? BASE_Z + (1000 - order) : BASE_Z;
+        try {
+          mk.setZIndex(z);
+        } catch {}
+      }
+
       // 클릭 리스너: ref 사용
       const handler = () => onMarkerClickRef.current?.(key);
       kakao.maps.event.addListener(mk, "click", handler);
@@ -283,11 +330,14 @@ export function useClustererWithLabels(
       const labelEl = document.createElement("div");
       labelEl.className = "kakao-label";
       const labelText = isDraft ? "답사예정" : m.title ?? key;
-      labelEl.innerText = labelText;
+      (labelEl as any).dataset.rawLabel = labelText; // 원문 보관
       applyLabelStyles(labelEl, labelGapPx);
-      labelEl.style.color = "#FFFFFF"; // 안전하게 한 번 더
+      labelEl.style.color = "#FFFFFF";
 
-      // 가시성 확정(혹시 숨김 클래스/스타일이 남아 있어도 복구)
+      // 순번 배지 적용 (답사예정 왼쪽에 숫자)
+      applyOrderBadgeToLabel(labelEl as HTMLDivElement, labelText, order);
+
+      // 가시성 확정
       labelEl.style.visibility = "visible";
       labelEl.style.display = "";
       labelEl.classList?.remove(
@@ -350,7 +400,8 @@ export function useClustererWithLabels(
         hitEntries.forEach(([id, ov]) =>
           ov.setMap(!cleared && id === selectedKey ? null : map)
         );
-        if (!cleared) markerObjsRef.current[selectedKey!]?.setZIndex?.(1000);
+        if (!cleared)
+          markerObjsRef.current[selectedKey!]?.setZIndex?.(SELECTED_Z);
         return;
       }
 
@@ -402,6 +453,7 @@ export function useClustererWithLabels(
     labelGapPx,
     hitboxSizePx,
     defaultPinKind,
+    reservationOrderMap, // 순서가 변해도 라벨/마커 갱신 용이하도록 포함(무거운 이펙트이긴 함)
     // selectedKey, onMarkerClick, fitToMarkers 제외 (라이트/가벼운 이펙트에서 처리)
   ]);
 
@@ -441,7 +493,8 @@ export function useClustererWithLabels(
         hitEntries.forEach(([id, ov]) =>
           ov.setMap(!cleared && id === selectedKey ? null : map)
         );
-        if (!cleared) markerObjsRef.current[selectedKey!]?.setZIndex?.(1000);
+        if (!cleared)
+          markerObjsRef.current[selectedKey!]?.setZIndex?.(SELECTED_Z);
         return;
       }
 
@@ -496,7 +549,7 @@ export function useClustererWithLabels(
       if (selectedKey) {
         const mk = markerObjsRef.current[selectedKey];
         mk?.setMap?.(map);
-        mk?.setZIndex?.(1000);
+        mk?.setZIndex?.(SELECTED_Z);
       }
 
       prevSelectedIdRef.current = selectedKey;
@@ -519,7 +572,7 @@ export function useClustererWithLabels(
           clusterer?.removeMarker?.(sel);
         } catch {}
         sel?.setMap?.(map);
-        sel?.setZIndex?.(1000);
+        sel?.setZIndex?.(SELECTED_Z);
       }
 
       // ✅ 드래프트 핀은 항상 지도에 직접
@@ -529,7 +582,7 @@ export function useClustererWithLabels(
           clusterer?.removeMarker?.(draftMk);
         } catch {}
         draftMk.setMap(map);
-        draftMk.setZIndex(1100);
+        draftMk.setZIndex(SELECTED_Z + 100);
       }
 
       clusterer?.redraw?.();
@@ -553,6 +606,37 @@ export function useClustererWithLabels(
     labels.forEach((ov) => ov.setMap(map));
     hits.forEach((ov) => ov.setMap(map));
   }, [selectedKey, kakao, map, safeLabelMax]);
+
+  // 6) ✅ 답사지예약 순서 변경 시 라벨 배지/마커 zIndex만 가볍게 갱신
+  useEffect(() => {
+    if (!kakao || !map) return;
+
+    const BASE_Z = 1000;
+
+    // z-index 업데이트
+    Object.entries(markerObjsRef.current).forEach(([id, mk]) => {
+      if (id === DRAFT_ID) return;
+      const order = reservationOrderMap?.[id] ?? null;
+      const z = order ? BASE_Z + (1000 - order) : BASE_Z;
+      try {
+        // 선택된 마커는 별도 SELECTED_Z 유지
+        if (selectedKey && id === selectedKey) {
+          mk.setZIndex?.(SELECTED_Z);
+        } else {
+          mk.setZIndex?.(z);
+        }
+      } catch {}
+    });
+
+    // 라벨 내용 업데이트 (배지 + 텍스트)
+    Object.entries(labelOvRef.current).forEach(([id, ov]) => {
+      const el = ov.getContent?.() as HTMLDivElement | null;
+      if (!el) return;
+      const raw = (el as any).dataset?.rawLabel ?? el.textContent ?? "";
+      const order = reservationOrderMap?.[id] ?? null;
+      applyOrderBadgeToLabel(el, raw, order);
+    });
+  }, [reservationOrderMap, selectedKey, kakao, map]);
 }
 
 export default useClustererWithLabels;
