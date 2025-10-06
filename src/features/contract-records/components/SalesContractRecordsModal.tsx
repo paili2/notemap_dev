@@ -22,7 +22,7 @@ import { ContractImageSection } from "./ContractImageSection";
 // 기본 데이터
 const defaultData: SalesContractData = {
   customerInfo: { name: "", contact: "" },
-  salesManager: { name: "", contact: "" },
+  salesManager: { name: "", contact: "" }, // 사용하지 않지만 기본값으로 유지
   salesPerson: { name: "", contact: "" },
   financialInfo: {
     brokerageFee: 0,
@@ -90,10 +90,6 @@ export function SalesContractRecordsModal({
     handleDataChange({ ...data, customerInfo });
   };
 
-  const handleSalesManagerChange = (salesManager: any) => {
-    handleDataChange({ ...data, salesManager });
-  };
-
   const handleSalesPersonChange = (salesPerson: any) => {
     handleDataChange({ ...data, salesPerson });
   };
@@ -140,8 +136,40 @@ export function SalesContractRecordsModal({
 
   // 저장 핸들러
   const handleSave = () => {
-    // 여기에 저장 로직 추가
-    console.log("저장된 데이터:", data);
+    // 필수 데이터 검증
+    if (!data.customerInfo.name.trim()) {
+      alert("고객명을 입력해주세요.");
+      return;
+    }
+    if (!data.salesPerson.name.trim()) {
+      alert("담당자를 선택해주세요.");
+      return;
+    }
+    if (data.totalCalculation <= 0) {
+      alert("계약금액을 확인해주세요.");
+      return;
+    }
+
+    // 계약 데이터에 메타데이터 추가
+    const now = new Date();
+    const contractData = {
+      ...data,
+      contractDate: data.contractDate || now.toISOString().split("T")[0],
+      status: data.status || "completed",
+      createdAt: data.createdAt || now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    // TODO: 백엔드 API 호출
+    // await saveContract(contractData);
+
+    console.log("저장된 계약 데이터:", contractData);
+
+    // 계약관리 리스트 업데이트를 위한 콜백
+    if (onDataChange) {
+      onDataChange(contractData);
+    }
+
     onClose();
   };
 
@@ -161,10 +189,8 @@ export function SalesContractRecordsModal({
             {/* 인적 정보 */}
             <PersonalInfoSection
               customerInfo={data.customerInfo}
-              salesManager={data.salesManager}
               salesPerson={data.salesPerson}
               onCustomerInfoChange={handleCustomerInfoChange}
-              onSalesManagerChange={handleSalesManagerChange}
               onSalesPersonChange={handleSalesPersonChange}
             />
 
