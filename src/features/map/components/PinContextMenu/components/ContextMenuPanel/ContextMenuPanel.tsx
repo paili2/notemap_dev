@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import { ContextMenuPanelProps } from "./types";
 import { Plus } from "lucide-react";
 
@@ -11,22 +11,38 @@ export default function ContextMenuPanel({
   propertyId,
   propertyTitle,
   isDraftPin,
-  isPlanPin,
+  isPlanPin, // 예정(추가 전)
+  isVisitReservedPin, // 예약(추가 완료)
   showFav,
-  favActive,
+  favActive, // 시그니처 유지
   onAddFav,
   onClose,
   onView,
   onCreate,
   onPlan,
 }: ContextMenuPanelProps) {
-  // ✅ 컨테이너에서 내려주면 그 값을 우선 사용, 아니면 기존 로컬 계산으로 폴백
-  const isDraft = isDraftPin ?? (!propertyId || propertyId === "__draft__");
-  const isVisit = !!propertyId && propertyId.startsWith("__visit__");
+  // ---------------------------
+  // 상태 계산 (우선순위: 예정 > 예약 > 드래프트 > 일반)
+  // ---------------------------
+  const planned = isPlanPin === true;
 
-  const headerTitle = isDraft
+  // 레거시 접두어까지 포함한 '원시' 예약 감지
+  const reservedRaw =
+    isVisitReservedPin === true ||
+    (typeof propertyId === "string" && propertyId.startsWith("__visit__"));
+
+  // ✅ 예정이 우선이므로, 예정이면 예약으로 취급하지 않음
+  const reserved = !planned && reservedRaw;
+
+  // 드래프트: 예정/예약이 모두 아닐 때만
+  const draft =
+    !planned &&
+    !reserved &&
+    (isDraftPin === true || propertyId === "__draft__");
+
+  const headerTitle = draft
     ? "선택 위치"
-    : propertyTitle?.trim() || "선택된 매물";
+    : (propertyTitle ?? "").trim() || "선택된 매물";
 
   const headingId = useId();
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -115,17 +131,16 @@ export default function ContextMenuPanel({
         </div>
       )}
 
-      {/* 액션 */}
-      {isDraft ? (
-        <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
-      ) : isVisit || isPlanPin ? (
+      {/* 액션 (우선순위: 예정 → 예약 → 드래프트 → 일반) */}
+      {planned ? (
+        // 1) 답사 '예정'(추가 전): 답사지 예약
         <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="default"
             size="lg"
             onClick={() => {
-              onPlan?.();
+              onPlan?.(); // 예약 실행
               onClose();
             }}
             className="w-full"
@@ -133,7 +148,27 @@ export default function ContextMenuPanel({
             답사지 예약
           </Button>
         </div>
+      ) : reserved ? (
+        // 2) 답사지 '예약'(추가 완료): 매물 정보 입력
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="default"
+            size="lg"
+            onClick={() => {
+              onCreate(); // 신규 등록(정보 입력) 플로우
+              onClose();
+            }}
+            className="w-full"
+          >
+            매물 정보 입력
+          </Button>
+        </div>
+      ) : draft ? (
+        // 3) 드래프트: 답사예정 / 신규등록
+        <DraftActions onCreate={onCreate} onClose={onClose} onPlan={onPlan} />
       ) : (
+        // 4) 일반 매물: 상세 보기
         <div className="flex items-center gap-2">
           <Button
             type="button"

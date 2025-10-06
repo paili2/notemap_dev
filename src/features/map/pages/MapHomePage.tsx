@@ -67,11 +67,20 @@ export default function MapHomePage() {
   const makeCurrentItem = useCallback((): ListItem | null => {
     const id = s.menuTargetId;
     if (!id) return null;
+
     const title =
       s.menuRoadAddr ||
       s.menuJibunAddr ||
       (s.items.find((p) => p.id === id)?.title ?? "이름 없음");
-    return { id: String(id), title };
+
+    // ✨ 필수 필드 채우기: dateISO (오늘 날짜)
+    const todayISO = new Date().toISOString().slice(0, 10);
+
+    return {
+      id: String(id),
+      title,
+      dateISO: todayISO, // ← 이 한 줄 추가
+    };
   }, [s.menuTargetId, s.menuRoadAddr, s.menuJibunAddr, s.items]);
 
   // ✅ 즐겨찾기 추가 버튼 → 모달 오픈

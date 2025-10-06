@@ -10,10 +10,9 @@ import type { PinContextMenuProps } from "./types";
  * - position: kakao.maps.Marker | kakao.maps.LatLng | {lat,lng} 모두 허용
  * - 상태 판별 규칙
  *   - draft: pin.state === "draft" 이거나 propertyId 없음/"__draft__"
- *   - plan (답사예정): pin.kind === "question" 이거나 propertyId가 "__visit__*" (레거시 호환)
- *   - listed: draft/plan이 아니면서 propertyId가 유효
- * - 즐겨찾기 버튼은 listed 핀에서만 노출
- * - plan 핀에서는 "답사예정지 등록" 액션을 노출 (상세보기 대체)
+ *   - plan (답사예정): 부모 플래그 우선, 없으면 pin.kind === "question" (필요 시 visit.planned 보조)
+ *   - reserved (답사지예약 완료): 🔒 부모 플래그만 신뢰(사이드바 예약 목록에 존재)
+ *   - listed: draft/plan/reserved이 아니면서 propertyId가 유효
  */
 export default function PinContextMenuContainer({
   kakao,
@@ -30,6 +29,10 @@ export default function PinContextMenuContainer({
   onCreate,
   onPlan,
   zIndex = 10000,
+
+  // ⬇ (옵션) 부모에서 명시 플래그를 내려줄 수도 있음
+  isPlanPin: isPlanPinFromParent,
+  isVisitReservedPin: isVisitReservedFromParent,
 }: PinContextMenuProps) {
   if (!kakao || !map || !target) return null;
 
@@ -70,8 +73,8 @@ export default function PinContextMenuContainer({
     onPlan?.({
       lat,
       lng,
-      address: primaryAddress, // ✅ 필수
-      roadAddress: roadAddress ?? null, // 옵션
+      address: primaryAddress,
+      roadAddress: roadAddress ?? null,
       jibunAddress: jibunAddress ?? null,
       propertyId: propertyId ?? null,
       propertyTitle: propertyTitle ?? null,
@@ -80,23 +83,31 @@ export default function PinContextMenuContainer({
   }, [onPlan, position, roadAddress, jibunAddress, propertyId, propertyTitle]);
 
   /** ---------------------------
-   *  상태 기반 판별 (PinKind/PinState + 레거시 호환)
+   *  상태 기반 판별 (부모 플래그 우선, 추정 제거)
    * -------------------------- */
   const legacyDraft = !propertyId || propertyId === "__draft__";
-  const legacyVisit =
-    !!propertyId && String(propertyId).startsWith("__visit__");
 
-  // draft: state === 'draft' 이거나 아직 id 없음/__draft__
-  const isDraftPin = pin?.state === "draft" || legacyDraft;
+  // 1) 예정: 부모 플래그 우선 → 없으면 kind === "question" (필요 시 visit.planned 보조)
+  const planned =
+    (typeof isPlanPinFromParent === "boolean"
+      ? isPlanPinFromParent
+      : pin?.kind === "question" || (pin as any)?.visit?.planned === true) ||
+    false;
 
-  // plan(답사예정): kind === 'question' 이거나 레거시 __visit__*
-  const isPlanPin = pin?.kind === "question" || legacyVisit;
+  // 2) 예약(raw): 🔒 오직 부모 플래그만 신뢰 (사이드바에 실제로 추가된 경우만 true)
+  const reservedRaw = Boolean(isVisitReservedFromParent);
 
-  // listed: draft/plan 아님 && propertyId 존재
-  const isListedPin = !isDraftPin && !isPlanPin && !!propertyId;
+  // 3) 최종 예약: 예정이 아닐 때만 예약 인정
+  const reserved = !planned && reservedRaw;
 
-  // 즐겨찾기 상태는 listed 핀에서만 의미 있음
-  const favActive = isListedPin ? !!pin?.isFav : false;
+  // 4) 드래프트: 예정/예약이 모두 아닐 때만
+  const draft =
+    !planned && !reserved && (pin?.state === "draft" || legacyDraft);
+
+  // 5) listed: draft/plan/reserved이 아니고 id가 유효
+  const listed = !draft && !planned && !reserved && !!propertyId;
+
+  const favActive = listed ? !!pin?.isFav : false;
 
   return (
     <CustomOverlay
@@ -120,10 +131,11 @@ export default function PinContextMenuContainer({
               onCreate={handleCreate}
               onPlan={handlePlan}
               /** 컨테이너에서 상태 불리언 확정 후 전달 */
-              isDraftPin={isDraftPin}
-              isPlanPin={isPlanPin}
+              isDraftPin={draft}
+              isPlanPin={planned}
+              isVisitReservedPin={reserved}
               /** ✅ 즐겨찾기 버튼은 매물 등록된 핀에서만 노출 */
-              showFav={isListedPin}
+              showFav={listed}
               onAddFav={onAddFav}
               favActive={favActive}
             />

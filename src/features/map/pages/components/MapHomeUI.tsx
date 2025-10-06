@@ -284,9 +284,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
               onOpenMenu({
                 position: m.position,
                 propertyId: key,
-                propertyTitle: m.title ?? "답사예정",
+                propertyTitle: m.title ?? "답사예정", // ← 예정 컨텍스트로
                 pin: {
-                  kind: "plan",
+                  kind: "question", // ← 예약 아님! 항상 예정으로 열기
                   isFav: Boolean(
                     key in favById ? favById[key] : (m as any)?.isFav
                   ),
@@ -324,35 +324,50 @@ export function MapHomeUI(props: MapHomeUIProps) {
               ? markers.find((m) => String(m.id) === String(menuTargetId))
               : undefined;
 
-            const isVisit =
-              !!menuTargetId && String(menuTargetId).startsWith("__visit__");
+            const reservedById =
+              !!menuTargetId && reservedIdSet.has(String(menuTargetId));
 
-            const hasFav =
-              !!menuTargetId &&
-              Object.prototype.hasOwnProperty.call(favById, menuTargetId);
+            const posKeyOfTarget = targetPin?.position
+              ? getPosKey(targetPin.position)
+              : undefined;
 
-            const computedIsFav = Boolean(
-              hasFav ? favById[menuTargetId!] : (targetPin as any)?.isFav
-            );
+            const reservedByPos =
+              !!posKeyOfTarget && reservedPosSet.has(posKeyOfTarget);
 
+            // ✅ 최종 예약 판정: 오직 사이드바 정보로만
+            const isVisitReservedPin = reservedById || reservedByPos;
+
+            // 메뉴에 표시할 pin 오브젝트(렌더용)
             const pin =
               menuTargetId && targetPin
                 ? {
                     id: String(targetPin.id),
                     title: targetPin.title ?? "이름 없음",
                     position: targetPin.position,
-                    kind: isVisit
-                      ? "plan"
-                      : (targetPin as any)?.kind ?? "1room",
-                    isFav: computedIsFav,
+                    // ← 예약 여부와 무관하게 원본 kind 유지(없으면 1room)
+                    kind: (targetPin as any)?.kind ?? "1room",
+                    isFav: Boolean(
+                      !!menuTargetId &&
+                        Object.prototype.hasOwnProperty.call(
+                          favById,
+                          menuTargetId
+                        )
+                        ? favById[menuTargetId!]
+                        : (targetPin as any)?.isFav
+                    ),
                   }
                 : {
                     id: "__draft__",
                     title: "선택 위치",
                     position: menuAnchor,
-                    kind: "plan",
+                    // 드래프트는 예정 액션 노출을 위해 plan/question 중 하나로
+                    // 타입에 안전한 값만 사용: "question"
+                    kind: "question",
                     isFav: false,
                   };
+
+            // ✅ 예정 판정: 예약이 아닐 때만, 그리고 kind === "question"일 때만
+            const isPlanPin = !isVisitReservedPin && pin.kind === "question";
 
             return (
               <PinContextMenu
@@ -375,7 +390,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 onView={onViewFromMenu}
                 onCreate={onCreateFromMenu}
                 onPlan={(payload) => {
-                  // payload: { lat, lng, address, roadAddress?, jibunAddress?, propertyId?, propertyTitle?, dateISO? }
                   const {
                     lat,
                     lng,
@@ -387,7 +401,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
                     dateISO,
                   } = payload || {};
 
-                  // 최종 값 정리
                   const finalLat = lat ?? menuAnchor.lat;
                   const finalLng = lng ?? menuAnchor.lng;
                   const finalTitle = String(
@@ -407,7 +420,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
                   const finalDateISO =
                     dateISO ?? new Date().toISOString().slice(0, 10);
 
-                  // ✅ 사이드바 "답사지예약"에 즉시 추가 (주소 + 날짜 + posKey)
                   handleAddSiteReservation({
                     id: finalId,
                     title: finalTitle,
@@ -415,16 +427,15 @@ export function MapHomeUI(props: MapHomeUIProps) {
                     posKey: getPosKey({ lat: finalLat, lng: finalLng }),
                   });
 
-                  // 🔒 하나만 열리도록
                   setRightOpen(false);
                   setUseSidebar(true);
                   onCloseMenu?.();
-
-                  // 기존 콜백 유지(필요 시)
                   onPlanFromMenu?.({ lat: finalLat, lng: finalLng });
                 }}
                 onAddFav={handleAddFav}
                 zIndex={10000}
+                isVisitReservedPin={isVisitReservedPin}
+                isPlanPin={isPlanPin}
               />
             );
           })()}

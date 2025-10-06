@@ -6,25 +6,18 @@ export type PinTarget = kakao.maps.Marker | kakao.maps.LatLng | LatLng;
 
 /** 컨텍스트 메뉴에서 '답사예약지 등록(onPlan)'으로 전달할 페이로드 */
 export type PlanRequestPayload = {
-  /** 위도 */
   lat: number;
-  /** 경도 */
   lng: number;
-
   /**
    * 대표 주소 (우선순위: 도로명 > 지번 > 매물명 > "lat,lng")
    * - 저장은 address/date 분리 권장, 표시 시 결합 추천: "주소 · YYYY-MM-DD(요일)"
    */
   address: string;
-
-  /** 세부 주소(옵션) */
   roadAddress?: string | null;
   jibunAddress?: string | null;
-
   /** 매물 식별 정보(옵션) */
   propertyId?: "__draft__" | string | null;
   propertyTitle?: string | null;
-
   dateISO?: string;
 };
 
@@ -69,6 +62,10 @@ export type PinContextMenuProps = {
 
   /** 오버레이 z-index (기본 10000) */
   zIndex?: number;
+
+  /** ⬇⬇⬇ 추가: 상태 플래그 (예약 > 예정 우선순위 판단용) */
+  isVisitReservedPin?: boolean; // 답사지예약(추가 완료)인지
+  isPlanPin?: boolean; // 답사예정(추가 전)인지 (예약이면 자동 무시)
 };
 
 /** 커스텀 오버레이 위치 계산 결과 */
