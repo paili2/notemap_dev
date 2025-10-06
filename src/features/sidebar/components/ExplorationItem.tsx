@@ -5,6 +5,18 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ListItem } from "../types/sidebar";
 
+// ⬇️ YYYY-MM-DD(요일) 표시용
+const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
+function formatISODate(iso?: string) {
+  if (!iso) return "";
+  const [y, m, d] = (iso || "").split("-").map(Number);
+  if (!y || !m || !d) return iso || "";
+  const dt = new Date(y, m - 1, d);
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}(${
+    WEEK[dt.getDay()]
+  })`;
+}
+
 interface ExplorationItemProps {
   item: ListItem;
   index: number;
@@ -36,16 +48,24 @@ export function ExplorationItem({
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, item.id)}
       className={cn(
-        "group flex items-center gap-2 p-1.5 rounded-md border border-transparent transition-colors",
+        "group flex items-start gap-2 p-1.5 rounded-md border border-transparent transition-colors",
         "hover:bg-gray-100 hover:border-gray-300 cursor-move",
         draggedItem === item.id && "opacity-50"
       )}
     >
-      <GripVertical className="h-3 w-3 text-muted-foreground group-hover:text-gray-700" />
+      <GripVertical className="mt-0.5 h-3 w-3 text-muted-foreground group-hover:text-gray-700" />
 
-      <span className="flex-1 text-xs text-gray-700 group-hover:text-gray-900 break-words leading-tight">
-        {item.title}
-      </span>
+      {/* ⬇️ 제목 + 날짜 */}
+      <div className="flex-1 min-w-0 leading-tight">
+        <div className="text-xs text-gray-700 group-hover:text-gray-900 truncate">
+          {item.title}
+        </div>
+        {item.dateISO && (
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            {formatISODate(item.dateISO)}
+          </div>
+        )}
+      </div>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button

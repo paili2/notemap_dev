@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FavorateListItem, ListItem } from "../types/sidebar";
+import type {
+  FavorateListItem,
+  ListItem,
+  PendingReservation, // ✅ 추가
+} from "../types/sidebar";
 
 const LS_KEY = "sidebar:favGroups";
 const LS_KEY_SITE = "sidebar:siteReservations";
@@ -22,16 +26,32 @@ export function useSidebarState() {
 
   // 2) 답사지 예약 섹션
   const [siteReservations, setSiteReservations] = useState<ListItem[]>(() => {
-    if (typeof window === "undefined") return []; // SSR 안전
+    if (typeof window === "undefined") return [];
     try {
       const raw = localStorage.getItem(LS_KEY_SITE);
-      if (!raw) return []; // 초기값은 빈 배열
-      const parsed = JSON.parse(raw) as ListItem[];
-      return Array.isArray(parsed) ? parsed : [];
+      if (!raw) return [];
+      const parsed = JSON.parse(raw) as Partial<ListItem>[];
+      return Array.isArray(parsed)
+        ? parsed.map((it) => ({
+            id: String(it.id ?? crypto.randomUUID()),
+            title: String(it.title ?? ""),
+            dateISO: String(it.dateISO ?? ""), // ← 과거 데이터 폴백
+            createdAt: it.createdAt ?? new Date().toISOString(),
+            posKey: it.posKey ?? undefined,
+          }))
+        : [];
     } catch {
       return [];
     }
   });
+
+  // ✅ 답사지예약 '초안' 상태 (컨텍스트 메뉴 → 사이드바로 넘길 임시 데이터)
+  const [pendingReservation, setPendingReservation] =
+    useState<PendingReservation | null>(null);
+  const clearPendingReservation = useCallback(
+    () => setPendingReservation(null),
+    []
+  );
 
   // ✅ 현재 순서 -> 배지/지도에 사용하는 맵 (id -> 1-based order)
   const reservationOrderMap = useMemo(() => {
@@ -49,6 +69,9 @@ export function useSidebarState() {
     [reservationOrderMap]
   );
 
+  const makePosKey = (lat: number, lng: number) =>
+    `${lat.toFixed(6)},${lng.toFixed(6)}`;
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -59,7 +82,11 @@ export function useSidebarState() {
   const handleAddSiteReservation = useCallback((item: ListItem) => {
     setSiteReservations((prev) => {
       if (prev.some((x) => x.id === item.id)) return prev; // 중복 방지
-      return [item, ...prev].slice(0, 200); // 최대 200개 보관 예시
+      const withCreated: ListItem = {
+        ...item,
+        createdAt: item.createdAt ?? new Date().toISOString(),
+      };
+      return [withCreated, ...prev].slice(0, 200);
     });
   }, []);
 
@@ -161,6 +188,8 @@ export function useSidebarState() {
     // state
     nestedFavorites,
     siteReservations,
+    pendingReservation, // ✅ 추가
+
     // setters (필요 시)
     setNestedFavorites,
     setSiteReservations,
@@ -173,11 +202,17 @@ export function useSidebarState() {
     addFavoriteToGroup,
     createGroupAndAdd,
     deleteFavoriteGroup,
+
+    // actions - 답사지예약
     handleAddSiteReservation,
+    handleDeleteSiteReservation,
+    setPendingReservation, // ✅ 추가
+    clearPendingReservation, // ✅ 추가
+
     // actions - 삭제류
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
-    handleDeleteSiteReservation,
+
     // misc
     handleContractRecordsClick,
   };

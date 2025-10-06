@@ -59,8 +59,25 @@ export default function PinContextMenuContainer({
   const handlePlan = React.useCallback(() => {
     const lat = position.getLat();
     const lng = position.getLng();
-    onPlan?.({ lat, lng });
-  }, [onPlan, position]);
+
+    // 우선순위: 도로명 > 지번 > 매물명 > "lat,lng"
+    const primaryAddress =
+      roadAddress?.trim() ||
+      jibunAddress?.trim() ||
+      propertyTitle?.trim() ||
+      `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+    onPlan?.({
+      lat,
+      lng,
+      address: primaryAddress, // ✅ 필수
+      roadAddress: roadAddress ?? null, // 옵션
+      jibunAddress: jibunAddress ?? null,
+      propertyId: propertyId ?? null,
+      propertyTitle: propertyTitle ?? null,
+      dateISO: new Date().toISOString().slice(0, 10),
+    });
+  }, [onPlan, position, roadAddress, jibunAddress, propertyId, propertyTitle]);
 
   /** ---------------------------
    *  상태 기반 판별 (PinKind/PinState + 레거시 호환)

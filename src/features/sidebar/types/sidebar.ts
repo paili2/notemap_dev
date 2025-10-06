@@ -12,9 +12,22 @@ export interface FavorateListItem {
 export interface ListItem {
   id: string;
   title: string;
+  dateISO: string;
+  createdAt?: string;
 
   /** 좌표 보정키: 답사예정 핀의 위치 기반 예약 식별용 (id 변경 대비) */
   posKey?: string;
+}
+
+export interface PendingReservation {
+  lat: number;
+  lng: number;
+  address: string;
+  roadAddress?: string;
+  jibunAddress?: string;
+  propertyId?: string | null;
+  propertyTitle?: string | null;
+  dateISO?: string;
 }
 
 export interface SidebarSectionProps {

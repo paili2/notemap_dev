@@ -99,7 +99,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     return `${lat},${lng}`;
   };
 
-  const { handleAddSiteReservation, siteReservations } = useSidebarCtx();
+  const { handleAddSiteReservation, siteReservations, setPendingReservation } =
+    useSidebarCtx();
 
   // 예약(답사지예약) 등록 여부를 폭넓게 감지
   const isReserved = (m: any) => {
@@ -373,24 +374,54 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 onClose={onCloseMenu}
                 onView={onViewFromMenu}
                 onCreate={onCreateFromMenu}
-                onPlan={() => {
-                  // ✅ ‘답사지 예약’ 버튼을 눌렀을 때만 사이드바에 추가
-                  const titleFromMenu =
-                    menuTitle ??
-                    menuRoadAddr ??
-                    menuJibunAddr ??
-                    pin.title ??
-                    "답사예정";
-                  const idForMenu = menuTargetId ?? "__draft__";
+                onPlan={(payload) => {
+                  // payload: { lat, lng, address, roadAddress?, jibunAddress?, propertyId?, propertyTitle?, dateISO? }
+                  const {
+                    lat,
+                    lng,
+                    address,
+                    roadAddress,
+                    jibunAddress,
+                    propertyId,
+                    propertyTitle,
+                    dateISO,
+                  } = payload || {};
 
+                  // 최종 값 정리
+                  const finalLat = lat ?? menuAnchor.lat;
+                  const finalLng = lng ?? menuAnchor.lng;
+                  const finalTitle = String(
+                    address ??
+                      menuTitle ??
+                      menuRoadAddr ??
+                      menuJibunAddr ??
+                      pin.title ??
+                      "답사예정"
+                  );
+                  const finalId =
+                    (propertyId ??
+                      (menuTargetId && menuTargetId !== "__draft__"
+                        ? String(menuTargetId)
+                        : undefined)) ||
+                    crypto.randomUUID();
+                  const finalDateISO =
+                    dateISO ?? new Date().toISOString().slice(0, 10);
+
+                  // ✅ 사이드바 "답사지예약"에 즉시 추가 (주소 + 날짜 + posKey)
                   handleAddSiteReservation({
-                    id: String(idForMenu),
-                    title: String(titleFromMenu),
-                    posKey: getPosKey(menuAnchor), // ← 좌표 보정키 저장
+                    id: finalId,
+                    title: finalTitle,
+                    dateISO: finalDateISO,
+                    posKey: getPosKey({ lat: finalLat, lng: finalLng }),
                   });
 
-                  // ✅ onPlanFromMenu는 (pos: {lat, lng}) 인자를 꼭 받아야 함
-                  onPlanFromMenu?.(menuAnchor);
+                  // 🔒 하나만 열리도록
+                  setRightOpen(false);
+                  setUseSidebar(true);
+                  onCloseMenu?.();
+
+                  // 기존 콜백 유지(필요 시)
+                  onPlanFromMenu?.({ lat: finalLat, lng: finalLng });
                 }}
                 onAddFav={handleAddFav}
                 zIndex={10000}
