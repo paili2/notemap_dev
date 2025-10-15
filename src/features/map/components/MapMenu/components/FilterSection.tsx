@@ -1,17 +1,25 @@
+"use client";
+
+import * as React from "react";
 import { ChevronDown, Map, Home } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
 import type { MapMenuKey } from "../types/types";
 
-const FILTER_MENU_ITEMS = [
-  { key: "all" as const, label: "전체", icon: Map },
-  { key: "new" as const, label: "신축", icon: Home },
-  { key: "old" as const, label: "구옥", icon: "/pins/oldhouse-pin.svg" },
-  {
-    key: "plannedOnly" as const,
-    label: "답사예정",
-    icon: "/pins/question-pin.svg",
-  },
+type IconDef = LucideIcon | string;
+
+type FilterItem = {
+  key: MapMenuKey;
+  label: string;
+  icon: IconDef;
+};
+
+const FILTER_MENU_ITEMS: FilterItem[] = [
+  { key: "all", label: "전체", icon: Map },
+  { key: "new", label: "신축", icon: Home },
+  { key: "old", label: "구옥", icon: "/pins/oldhouse-pin.svg" },
+  { key: "plannedOnly", label: "답사예정", icon: "/pins/question-pin.svg" },
 ];
 
 interface FilterSectionProps {
@@ -21,62 +29,85 @@ interface FilterSectionProps {
   onMenuItemClick: (key: MapMenuKey) => void;
 }
 
-export const FilterSection = ({
-  active,
-  activeSubmenu,
-  onSubmenuClick,
-  onMenuItemClick,
-}: FilterSectionProps) => {
-  return (
-    <div className="flex flex-col">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => onSubmenuClick("filter")}
-        className="h-8 justify-between text-gray-700 hover:bg-gray-100"
-      >
-        <span className="text-xs">필터</span>
-        <ChevronDown
-          className={cn(
-            "h-3 w-3 transition-transform",
-            activeSubmenu === "filter" && "rotate-180"
-          )}
-        />
-      </Button>
+export const FilterSection: React.FC<FilterSectionProps> = React.memo(
+  function FilterSection({
+    active,
+    activeSubmenu,
+    onSubmenuClick,
+    onMenuItemClick,
+  }) {
+    const isOpen = activeSubmenu === "filter";
+    const panelId = "mapmenu-filter-panel";
 
-      {activeSubmenu === "filter" && (
-        <div className="mx-3 space-y-0.5">
-          {FILTER_MENU_ITEMS.map((item) => {
-            const isActive = active === item.key;
+    const handleToggle = React.useCallback(() => {
+      onSubmenuClick("filter");
+    }, [onSubmenuClick]);
 
-            return (
-              <Button
-                key={item.key}
-                variant="ghost"
-                size="sm"
-                onClick={() => onMenuItemClick(item.key)}
-                className={cn(
-                  "h-7 w-full justify-start p-1 text-xs",
-                  isActive
-                    ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                    : "text-gray-600 hover:bg-gray-100"
-                )}
-              >
-                {typeof item.icon === "string" ? (
-                  <img
-                    src={item.icon}
-                    alt={item.label}
-                    className="h-3 w-3 mr-2"
-                  />
-                ) : (
-                  <item.icon className="h-3 w-3 mr-2" />
-                )}
-                {item.label}
-              </Button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
+    const items = React.useMemo(
+      () =>
+        FILTER_MENU_ITEMS.map((item) => {
+          const isActive = active === item.key;
+          const Icon =
+            typeof item.icon === "string" ? null : (item.icon as LucideIcon);
+
+          return (
+            <Button
+              key={item.key}
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => onMenuItemClick(item.key)}
+              className={cn(
+                "h-7 w-full justify-start p-1 text-xs",
+                isActive
+                  ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                  : "text-gray-600 hover:bg-gray-100"
+              )}
+              aria-pressed={isActive}
+              title={item.label}
+            >
+              {Icon ? (
+                <Icon className="mr-2 h-3 w-3" aria-hidden />
+              ) : (
+                <img
+                  src={item.icon as string}
+                  alt=""
+                  className="mr-2 h-3 w-3"
+                />
+              )}
+              <span>{item.label}</span>
+            </Button>
+          );
+        }),
+      [active, onMenuItemClick]
+    );
+
+    return (
+      <div className="flex flex-col">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleToggle}
+          className="h-8 justify-between text-gray-700 hover:bg-gray-100"
+          aria-expanded={isOpen}
+          aria-controls={panelId}
+        >
+          <span className="text-xs">필터</span>
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 transition-transform",
+              isOpen && "rotate-180"
+            )}
+          />
+        </Button>
+
+        {isOpen && (
+          <div id={panelId} className="mx-3 space-y-0.5">
+            {items}
+          </div>
+        )}
+      </div>
+    );
+  }
+);

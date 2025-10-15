@@ -5,4 +5,5 @@ export type PropertyCreateModalProps = {
   onClose: () => void;
   onSubmit?: (data: CreatePayload) => void | Promise<void>;
   initialAddress?: string;
+  addressLocked?: boolean;
 };

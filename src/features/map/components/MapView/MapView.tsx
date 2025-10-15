@@ -6,34 +6,20 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
-import { useClustererWithLabels } from "./hooks/useClustererWithLabels";
-import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import useKakaoMap from "./hooks/useKakaoMap";
+import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
+import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
-import { PinKind } from "@/features/pins/types";
+import type { PinKind } from "@/features/pins/types";
 
 // ▼ POI
-import { usePoiLayer } from "../../hooks/usePoiLayer";
-// (옵션) 내부 토글 UI 쓰고 싶을 때만 사용
+import { usePoiLayer } from "../../hooks/poi/usePoiLayer";
 import { PoiLayerToggle } from "../PoiLayerToggle";
-import { PoiKind } from "../../lib/poiOverlays";
+import type { PoiKind } from "../overlays/poiOverlays";
 
-type Props = MapViewProps & {
-  /** 헤더에서 선택한 핀 종류 (없으면 기본값 사용) */
-  pinKind?: PinKind;
-  /** 라벨 숨길 대상 핀 id (말풍선 열린 핀) */
-  hideLabelForId?: string | null;
-  onDraftPinClick?: (pos: { lat: number; lng: number }) => void;
+type Props = MapViewProps;
 
-  /** 외부 제어형 주변시설 종류 */
-  poiKinds?: PoiKind[];
-  /** 내부 툴바 노출 여부(기본 false; 메뉴에서 제어 시 false 권장) */
-  showPoiToolbar?: boolean;
-};
-
-/** MapHomeUI에서 접근 가능한 공개 메서드들 */
 export type MapViewHandle = {
-  /** 카카오 Places/주소 검색 → 맵 이동/마커/콜백 */
   searchPlace: (
     q: string,
     opts?: {
@@ -41,10 +27,10 @@ export type MapViewHandle = {
       recenter?: boolean;
       fitZoom?: boolean;
       preferStation?: boolean;
+      showMarker?: boolean;
       onFound?: (pos: { lat: number; lng: number }) => void;
     }
   ) => void;
-  /** 맵을 특정 좌표로 이동 */
   panTo: (p: { lat: number; lng: number }) => void;
 };
 
@@ -65,34 +51,25 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     pinKind = "1room",
     hideLabelForId = null,
 
-    // ▼ 새로 추가된 외부 제어형 props
     poiKinds = [],
     showPoiToolbar = false,
+    onOpenMenu,
   },
   ref
 ) {
-  // idle 디바운스
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const IDLE_DEBOUNCE_MS = 500;
-
+  // useKakaoMap이 idle 디바운스를 제공하므로 내부 타이머 제거
   const { containerRef, kakao, map, searchPlace, panTo } = useKakaoMap({
     appKey,
     center,
     level,
     fitKoreaBounds: true,
     maxLevel: 11,
+    viewportDebounceMs: 500,
     onMapReady,
-    onViewportChange: (q) => {
-      if (!onViewportChange) return;
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(
-        () => onViewportChange(q),
-        IDLE_DEBOUNCE_MS
-      );
-    },
+    onViewportChange, // 그대로 전달 (훅이 디바운스 처리)
   });
 
-  // 🔓 외부로 메서드 노출
+  // 외부로 제어 메서드 노출
   useImperativeHandle(
     ref,
     () => ({
@@ -102,13 +79,14 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     [searchPlace, panTo]
   );
 
+  // 구/군 경계 오버레이
   useDistrictOverlay(kakao, map, useDistrict);
 
-  // ▼ 주변시설 레이어 (외부 상태 사용)
+  // ▼ 주변시설 레이어 (외부 상태 사용) — 가드 강화
   usePoiLayer({
     kakaoSDK: kakao,
     map,
-    enabledKinds: poiKinds,
+    enabledKinds: [...(poiKinds ?? [])] as PoiKind[],
     maxResultsPerKind: 80,
     // 500m 체감 게이트
     minViewportEdgeMeters: 1000,
@@ -120,8 +98,10 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     if (!kakao || !map) return;
     if (!allowCreateOnMapClick || !onMapClick) return;
 
-    const handler = (mouseEvent: any) => {
-      const latlng = mouseEvent.latLng;
+    // Kakao 이벤트 객체에 공식 타입이 없어 any 사용
+    const handler = (e: any) => {
+      const latlng = e?.latLng;
+      if (!latlng) return;
       onMapClick({
         lat: latlng.getLat(),
         lng: latlng.getLng(),
@@ -129,11 +109,15 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     };
 
     kakao.maps.event.addListener(map, "click", handler);
-    return () => kakao.maps.event.removeListener(map, "click", handler);
+    return () => {
+      kakao.maps.event.removeListener(map, "click", handler);
+    };
   }, [kakao, map, allowCreateOnMapClick, onMapClick]);
 
+  // 마커 클릭 핸들러 (참조 안정화)
   const handleMarkerClick = useCallback(
     (id: string) => {
+      // 1) 드래프트 핀
       if (id === "__draft__") {
         const draft = markers.find((m) => String(m.id) === "__draft__");
         if (draft && onDraftPinClick) {
@@ -144,11 +128,28 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         }
         return;
       }
+
+      // 2) 답사예정 핀 → 자동 예약 금지, 메뉴만 오픈
+      if (String(id).startsWith("__visit__")) {
+        const m = markers.find((x) => String(x.id) === String(id));
+        if (m && onOpenMenu) {
+          onOpenMenu({
+            position: m.position,
+            propertyId: String(m.id),
+            propertyTitle: (m as any).title ?? null,
+            pin: { kind: "question", isFav: !!(m as any).isFav },
+          });
+          return;
+        }
+      }
+
+      // 3) 일반 핀
       onMarkerClick?.(id);
     },
-    [markers, onDraftPinClick, onMarkerClick, map, kakao]
+    [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu]
   );
 
+  // 클러스터러 + 라벨
   useClustererWithLabels(kakao, map, markers, {
     hitboxSizePx: 56,
     onMarkerClick: handleMarkerClick,
@@ -157,29 +158,18 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     hideLabelForId,
   });
 
-  useEffect(() => {
-    return () => {
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
-    };
-  }, []);
-
   return (
     <div className="relative w-full h-full">
-      {/* 옵션: 내부 툴바를 계속 쓰고 싶다면 showPoiToolbar=true 로 */}
       {showPoiToolbar && (
         <div className="absolute top-3 left-3 z-[1000] bg-white/90 backdrop-blur rounded-xl p-2 shadow">
           <PoiLayerToggle
-            value={poiKinds}
+            value={[...poiKinds] as PoiKind[]}
             onChange={() => {
-              /* 외부 제어형이므로 여기서 상태 변경은 하지 않음 */
+              /* 외부 제어형: 부모에서 상태를 바꾸도록 유지 */
             }}
           />
         </div>
       )}
-
       <div ref={containerRef} className="w-full h-full" />
     </div>
   );

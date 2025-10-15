@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import GridTilesIcon from "@/features/map/components/top/MapQuickControls/components/DistrictToggleButton/components/GridTilesIcon";
+import GridTilesIcon from "@/features/map/components/MapMenu/components/common/icons/GridTilesIcon";
 import { cn } from "@/lib/cn";
 
 type Props = {
@@ -22,7 +22,6 @@ export default function SidebarToggleButton({
   return (
     <Button
       type="button"
-      // ✅ 버튼이 직접 클릭을 “먹는다”
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

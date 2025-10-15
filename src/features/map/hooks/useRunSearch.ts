@@ -1,19 +1,22 @@
 "use client";
+
 import { useCallback } from "react";
 
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-
 import { NEAR_THRESHOLD_M } from "@/features/map/lib/constants";
-import { LatLng } from "@/lib/geo/types";
+import type { LatLng } from "@/lib/geo/types";
 import { distanceMeters } from "@/lib/geo/distance";
 
 type Args = {
   kakaoSDK: any;
   mapInstance: any;
   items: PropertyItem[];
-  onMatchedPin: (p: PropertyItem) => Promise<void>;
-  onNoMatch: (coords: LatLng) => void;
-  panToWithOffset?: (pos: LatLng, offsetY?: number, offsetX?: number) => void; // 선택사항
+  /** 가까운 기존 핀을 찾았을 때 호출 */
+  onMatchedPin: (p: PropertyItem) => Promise<void> | void;
+  /** 매칭되는 핀이 없을 때 좌표를 넘겨줌(여기서 openMenuAt(coords, "__draft__") 호출 가능) */
+  onNoMatch: (coords: LatLng) => Promise<void> | void;
+  /** 선택: 살짝 화면 위로 올리고 싶을 때 사용 */
+  panToWithOffset?: (pos: LatLng, offsetY?: number, offsetX?: number) => void;
 };
 
 export function useRunSearch({
@@ -26,13 +29,13 @@ export function useRunSearch({
 }: Args) {
   return useCallback(
     async (keyword: string) => {
-      if (!kakaoSDK || !mapInstance || !keyword.trim()) return;
+      if (!kakaoSDK || !mapInstance || !keyword?.trim()) return;
 
       const geocoder = new kakaoSDK.maps.services.Geocoder();
       const places = new kakaoSDK.maps.services.Places();
 
       const afterLocate = async (lat: number, lng: number) => {
-        const coords = { lat, lng };
+        const coords: LatLng = { lat, lng };
 
         // 가까운 기존 핀 매칭
         let nearest: PropertyItem | null = null;
@@ -44,10 +47,13 @@ export function useRunSearch({
             nearest = p;
           }
         }
-        if (nearest) await onMatchedPin(nearest);
-        else onNoMatch(coords);
+        if (nearest) {
+          await onMatchedPin(nearest);
+        } else {
+          await onNoMatch(coords);
+        }
 
-        // 지도 이동
+        // 지도 이동/이벤트 트리거
         const center = new kakaoSDK.maps.LatLng(lat, lng);
         mapInstance.setCenter(center);
         mapInstance.setLevel(Math.min(5, 11));

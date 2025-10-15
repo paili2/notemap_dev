@@ -1,4 +1,4 @@
-import DistrictToggleButton from "../../top/MapQuickControls/components/DistrictToggleButton/DistrictToggleButton";
+import DistrictToggleButton from "./common/controls/DistrictToggleButton";
 
 interface DistrictSectionProps {
   isDistrictOn: boolean;

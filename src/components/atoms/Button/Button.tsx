@@ -1,6 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-
 import { cn } from "@/lib/cn";
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
@@ -29,10 +28,7 @@ const buttonVariants = cva(
         tinyIcon: "h-3 w-3",
       },
     },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
+    defaultVariants: { variant: "default", size: "default" },
   }
 );
 
@@ -43,12 +39,14 @@ export interface ButtonProps
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, type, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        className={cn(buttonVariants({ variant, size, className }))}
+        // ✅ 기본을 'button'으로 강제 (form 안에서도 submit 안 됨)
+        {...(!asChild ? { type: (type as any) ?? "button" } : {})}
         {...props}
       />
     );

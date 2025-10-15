@@ -7,8 +7,12 @@ type Props = {
   open: boolean;
   onClose: () => void;
   groups: FavorateListItem[];
-  onSelectGroup: (groupId: string) => void; // 기존 그룹 선택
-  onCreateGroup: (groupId: string) => void; // 새 그룹 생성 + 자동 추가
+  /** 기존 그룹 선택 */
+  onSelectGroup: (groupId: string) => void;
+  /** 새 그룹 생성 + 즉시 선택 (있으면 이걸 우선 사용) */
+  onCreateAndSelect?: (groupId: string) => void;
+  /** 새 그룹만 생성 (없으면 선택은 호출부에서 별도로 처리) */
+  onCreateGroup?: (groupId: string) => void | Promise<void>;
 };
 
 export default function FavGroupModal({
@@ -16,6 +20,7 @@ export default function FavGroupModal({
   onClose,
   groups,
   onSelectGroup,
+  onCreateAndSelect,
   onCreateGroup,
 }: Props) {
   const [newGroupId, setNewGroupId] = useState("");
@@ -29,6 +34,27 @@ export default function FavGroupModal({
 
   const handleBackdropMouseDown = () => onClose();
   const stop = (e: ReactMouseEvent) => e.stopPropagation();
+
+  const handleCreateSubmit = async () => {
+    if (!valid) return;
+    const gid = newGroupId;
+
+    // 1) onCreateAndSelect가 있으면 그걸 우선 사용
+    if (onCreateAndSelect) {
+      await onCreateAndSelect(gid);
+      onClose();
+      setNewGroupId("");
+      return;
+    }
+
+    // 2) fallback: onCreateGroup → onSelectGroup → close
+    if (onCreateGroup) {
+      await onCreateGroup(gid);
+    }
+    onSelectGroup(gid);
+    onClose();
+    setNewGroupId("");
+  };
 
   return (
     <div
@@ -64,7 +90,10 @@ export default function FavGroupModal({
               <button
                 key={g.id}
                 type="button"
-                onClick={() => onSelectGroup(g.title)}
+                onClick={() => {
+                  onSelectGroup(String(g.id)); // ✅ id로 전달
+                  onClose();
+                }}
                 className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 border border-gray-200"
               >
                 <div className="font-medium">{g.title}</div>
@@ -85,9 +114,7 @@ export default function FavGroupModal({
             className="mt-2 flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!valid) return;
-              onCreateGroup(newGroupId); // ✅ 생성 + 자동 추가 + 닫힘
-              setNewGroupId("");
+              void handleCreateSubmit();
             }}
           >
             <input

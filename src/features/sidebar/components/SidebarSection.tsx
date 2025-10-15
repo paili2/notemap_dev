@@ -11,8 +11,8 @@ import { ExplorationItem } from "./ExplorationItem";
 
 export function SidebarSection({
   title,
-  items,
-  nestedItems = [],
+  items = [], // ✅ 기본값 추가: undefined 안전
+  nestedItems = [], // (기존 유지)
   onItemsChange,
   onDeleteItem,
   onNestedItemsChange,
@@ -20,6 +20,8 @@ export function SidebarSection({
   onDeleteSubItem,
 }: SidebarSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+
+  // ✅ items는 항상 배열이라 안전하게 훅에 넘길 수 있음
   const { draggedItem, handleDragStart, handleDragOver, handleDrop, moveItem } =
     useDragAndDrop(items, onItemsChange);
 
@@ -30,6 +32,9 @@ export function SidebarSection({
     );
     onNestedItemsChange(newItems);
   };
+
+  const isEmpty =
+    (items?.length ?? 0) === 0 && (nestedItems?.length ?? 0) === 0; // ✅ 안전한 비어있음 체크
 
   return (
     <Card className="bg-white border-gray-200 shadow-sm">
@@ -51,7 +56,8 @@ export function SidebarSection({
       {isExpanded && (
         <CardContent className="pt-0 pb-2">
           <div className="space-y-1">
-            {nestedItems.map((item) => (
+            {/* 즐겨찾기(그룹) */}
+            {(nestedItems ?? []).map((item) => (
               <FavorateListItem
                 key={item.id}
                 item={item}
@@ -61,12 +67,14 @@ export function SidebarSection({
               />
             ))}
 
-            {items.length === 0 && nestedItems.length === 0 ? (
+            {/* 비어있을 때 */}
+            {isEmpty ? (
               <p className="text-sm text-muted-foreground text-center py-2">
                 목록이 비어있습니다
               </p>
             ) : (
-              items.map((item, index) => (
+              // 답사지 예약(평면 리스트)
+              (items ?? []).map((item, index) => (
                 <ExplorationItem
                   key={item.id}
                   item={item}
