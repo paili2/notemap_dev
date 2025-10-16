@@ -1,6 +1,6 @@
 "use client";
 import ParkingSection from "../../sections/ParkingSection/ParkingSection";
-import type { EditFormAPI } from "../hooks/useEditForm";
+import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function ParkingContainer({ form }: { form: EditFormAPI }) {
   return (

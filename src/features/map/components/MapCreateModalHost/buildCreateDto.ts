@@ -6,6 +6,7 @@ import {
   sanitizeDirections,
 } from "./dtoUtils";
 
+/* ───────────── 문자열/클리닝 유틸 ───────────── */
 const toStr = (v: any) => (typeof v === "string" ? v : String(v ?? ""));
 const clip = (s: string, max: number) => s.slice(0, max);
 const sanitizeLabel = (v: any, max = 20) => clip(toStr(v).trim(), max);
@@ -17,6 +18,17 @@ const sanitizePhone = (v: any, max = 50) =>
     max
   );
 const sanitizeText = (v: any, max = 4000) => clip(toStr(v).trim(), max);
+
+/** YYYY-MM-DD / YYYY.MM.DD / YYYY/MM/DD / YYYYMMDD → YYYY-MM-DD 로 정규화. 실패 시 null */
+const toIsoDate = (v: any): string | null => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{4})[.\-\/]?(\d{2})[.\-\/]?(\d{2})$/);
+  if (!m) return null;
+  const iso = `${m[1]}-${m[2]}-${m[3]}`;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : iso;
+};
 
 export const resolveAddressLine = (
   payload: CreatePayload,
@@ -52,17 +64,20 @@ export function buildCreateDto(
     isNew: !!(payload as any)?.isNew,
   };
 
+  // completionDate: 유효할 때만 포함 (ex. "1" 같은 값은 제외)
+  const normalizedDate = toIsoDate((payload as any)?.completionDate);
+
   Object.assign(
     dto,
+    // enum/선택값은 공백이면 아예 미포함
     toStr((payload as any)?.badge).trim()
       ? { badge: toStr((payload as any)?.badge).trim() }
       : {},
+    // name: 공백이면 미포함(서버의 @Length(1,…) 회피)
     toStr((payload as any)?.name).trim()
       ? { name: toStr((payload as any)?.name).trim() }
       : {},
-    (payload as any)?.completionDate
-      ? { completionDate: String((payload as any).completionDate).slice(0, 10) }
-      : {},
+    normalizedDate ? { completionDate: normalizedDate } : {},
     (payload as any)?.buildingType
       ? { buildingType: (payload as any).buildingType }
       : {},
@@ -101,6 +116,7 @@ export function buildCreateDto(
       : {}
   );
 
+  // 옵션 세트: 스위치 만졌을 때만 포함
   if ((payload as any)?.optionsTouched) {
     dto.options = {
       hasAircon: !!(payload as any)?.hasAircon,
@@ -109,13 +125,13 @@ export function buildCreateDto(
       hasDryer: !!(payload as any)?.hasDryer,
       hasBidet: !!(payload as any)?.hasBidet,
       hasAirPurifier: !!(payload as any)?.hasAirPurifier,
-      isDirectLease: !!(payload as any)?.isDirectLease,
       ...(toStr((payload as any)?.extraOptionsText).trim()
         ? { extraOptionsText: sanitizeText((payload as any).extraOptionsText) }
         : {}),
     };
   }
 
+  // 유닛: 유효값이 있는 항목만 포함
   if (Array.isArray((payload as any)?.units) && (payload as any).units.length) {
     const units = (payload as any).units
       .map((u: any) => ({
@@ -133,11 +149,18 @@ export function buildCreateDto(
     if (units.length) dto.units = units;
   }
 
+  // 방향/면적 그룹 정리
   const directions = sanitizeDirections((payload as any)?.directions);
   if (directions) dto.directions = directions;
 
   const areaGroups = sanitizeAreaGroups((payload as any)?.areaGroups);
   if (areaGroups) dto.areaGroups = areaGroups;
 
+  // 빈 문자열 name은 제거 (이중 안전망)
+  if (typeof dto.name === "string" && dto.name.trim().length === 0) {
+    delete dto.name;
+  }
+
+  // null/undefined 깊은 제거
   return pruneNullishDeep(dto);
 }

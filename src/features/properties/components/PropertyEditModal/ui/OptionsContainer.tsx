@@ -1,7 +1,7 @@
 "use client";
 import { PRESET_OPTIONS } from "../../constants";
 import OptionsSection from "../../sections/OptionsSection/OptionsSection";
-import type { EditFormAPI } from "../hooks/useEditForm";
+import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function OptionsContainer({ form }: { form: EditFormAPI }) {
   return (

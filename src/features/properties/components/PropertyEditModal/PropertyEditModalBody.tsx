@@ -6,7 +6,7 @@ import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import type { PropertyEditModalProps } from "./types";
 
 import { useEditImages } from "./hooks/useEditImages";
-import { useEditForm } from "./hooks/useEditForm";
+import { useEditForm } from "./hooks/useEditForm/useEditForm";
 import { buildEditPayload } from "./lib/buildEditPayload";
 
 import HeaderContainer from "./ui/HeaderContainer";

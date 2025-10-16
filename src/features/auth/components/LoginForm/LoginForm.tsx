@@ -1,3 +1,4 @@
+// src/features/auth/components/LoginForm/LoginForm.tsx
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -20,11 +21,19 @@ import { useState } from "react";
 import PasswordInput from "./PasswordInput";
 import { LoginSchema, type LoginValues } from "../../schemas/login";
 import { FormError } from "@/components/atoms/FormError/FormError";
+import { api } from "@/shared/api/api"; // ✅ axios 인스턴스
+// 서버 타입이 있다면 import 해서 써도 됨 (예: SignInResp)
 
-export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
+type LoginFormProps = {
+  onForgotClick?: () => void;
+  onSuccess?: () => void; // ✅ 추가
+};
+
+export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
   const router = useRouter();
   const params = useSearchParams();
   const redirect = params.get("redirect") || "/";
+
   const [error, setError] = useState<string | null>(null);
 
   const form = useForm<LoginValues>({
@@ -42,23 +51,31 @@ export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
   async function onSubmit(values: LoginValues) {
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         cache: "no-store",
-        body: JSON.stringify(values),
+        // ✅ 필요한 필드만 전송
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+        }),
+        // 같은 오리진이면 생략 가능하지만 명시해도 무방
+        credentials: "same-origin",
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(
-          j?.message || "이메일 또는 비밀번호가 올바르지 않습니다."
-        );
-      }
-      sessionStorage.setItem("nm_session", "1");
 
+      if (!res.ok) {
+        // 에러 메시지 확인해보고 싶으면 아래 두 줄 잠깐 켜서 보세요
+        // const err = await res.json().catch(() => null);
+        // console.log("signin error:", err);
+        setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+        return;
+      }
+
+      sessionStorage.setItem("nm_session", "1");
       router.replace(redirect);
-    } catch (e: any) {
-      setError(e?.message ?? "로그인 중 오류가 발생했어요.");
+    } catch {
+      setError("이메일 또는 비밀번호가 올바르지 않습니다.");
     }
   }
 
@@ -66,7 +83,6 @@ export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
     <div className="space-y-5">
       <FormError message={error} />
 
-      {/* form 전체 객체를 스프레드로 전달 */}
       <Form {...form}>
         <form
           onSubmit={handleSubmit(onSubmit)}
@@ -151,6 +167,7 @@ export function LoginForm({ onForgotClick }: { onForgotClick?: () => void }) {
               </FormItem>
             )}
           />
+
           <Button
             type="submit"
             className="w-full"

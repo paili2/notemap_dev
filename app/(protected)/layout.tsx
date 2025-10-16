@@ -1,30 +1,39 @@
-import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
-import SidebarProviders from "./SidebarProviders"; // ✅ 추가
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
+import SidebarProviders from "./SidebarProviders";
 
 export const dynamic = "force-dynamic";
 
-export default function ProtectedLayout({
+export default async function ProtectedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // 서버 쿠키 검사 (session_v2)
-  const raw = cookies().get("session_v2")?.value;
-  if (!raw) redirect("/login");
+  // 현재 SSR 요청 쿠키를 그대로 /api/auth/me에 전달해서 1차 확인
+  const cookieHeader = cookies().toString();
 
+  // 상대 경로 + SSR 쿠키 전달 (프록시/리라이트 통해 백엔드로 전달)
+  let isLoggedIn = false;
   try {
-    const parsed = JSON.parse(raw);
-    const BOOT_ID = process.env.VERCEL_GIT_COMMIT_SHA ?? "local";
-    if (parsed?.boot !== BOOT_ID) redirect("/login");
+    const res = await fetch("/api/auth/me", {
+      method: "GET",
+      headers: { cookie: cookieHeader },
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = await res.json().catch(() => null);
+      isLoggedIn = !!json?.data;
+    }
   } catch {
-    redirect("/login");
+    // 네트워크 에러면 false 유지
   }
 
-  // ✅ 클라이언트에서도 sessionStorage 마커 확인 + 사이드바 상태 Provider 주입
+  // SSR에서 즉시 튕기고 싶으면 아래 주석 해제
+  // if (!isLoggedIn) redirect("/login");
+
+  // CSR에서도 한 번 더 확인(로그인 직후 쿠키 레이스 대비)
   return (
-    <ClientSessionGuard>
+    <ClientSessionGuard redirectTo="/login">
       <SidebarProviders>{children}</SidebarProviders>
     </ClientSessionGuard>
   );

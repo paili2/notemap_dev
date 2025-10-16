@@ -4,34 +4,29 @@ import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/ImageCarouselUpload";
 import { ImageItem, ResolvedFileItem } from "@/features/properties/types/media";
-import { useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
-// 🔧 ImageFile은 ImageItem alias로 유지 (가로 카드용)
 export type ImageFile = ImageItem;
 
 type Props = {
-  /** 폴더별 이미지(파일명 포함) — 가로 카드 */
   imagesByCard: ImageItem[][];
   onOpenPicker: (idx: number) => void;
   onChangeFiles: (idx: number, e: React.ChangeEvent<HTMLInputElement>) => void;
-  registerInputRef: (idx: number, el: HTMLInputElement | null) => void;
+
+  /** (선택) 상위로 input 엘리먼트를 알려주고 싶다면 — 반드시 useCallback 으로 안정화해서 넘기세요 */
+  registerInputRef?: (idx: number, el: HTMLInputElement | null) => void;
+
   onAddPhotoFolder: () => void;
-  /** ⬇️ 추가: 폴더(카드) 삭제 */
   onRemovePhotoFolder?: (
     folderIdx: number,
     opts?: { keepAtLeastOne?: boolean }
   ) => void;
   maxPerCard: number;
 
-  /** 캡션 변경 */
   onChangeCaption?: (cardIdx: number, imageIdx: number, text: string) => void;
-
-  /** 가로형(폴더 내부) 이미지 삭제 */
   onRemoveImage?: (cardIdx: number, imageIdx: number) => void;
 
-  /** 세로 카드(파일들) — ✅ url이 확정된 타입만 받음 */
   fileItems: ResolvedFileItem[];
-  /** 세로 카드 업로드 */
   onAddFiles: (files: FileList | null) => void;
   onChangeFileItemCaption?: (index: number, text: string) => void;
   onRemoveFileItem?: (index: number) => void;
@@ -39,35 +34,67 @@ type Props = {
   maxFiles: number;
 };
 
-export default function ImagesSection({
-  imagesByCard,
-  onOpenPicker,
-  onChangeFiles,
-  registerInputRef,
-  onAddPhotoFolder,
-  onRemovePhotoFolder,
-  maxPerCard,
-  onChangeCaption,
-  onRemoveImage,
-  fileItems,
-  onAddFiles,
-  onChangeFileItemCaption,
-  onRemoveFileItem,
-  maxFiles,
-}: Props) {
+export default function ImagesSection(props: Props) {
+  const {
+    imagesByCard,
+    onOpenPicker,
+    onChangeFiles,
+    registerInputRef,
+    onAddPhotoFolder,
+    onRemovePhotoFolder,
+    maxPerCard,
+    onChangeCaption,
+    onRemoveImage,
+    fileItems,
+    onAddFiles,
+    onChangeFileItemCaption,
+    onRemoveFileItem,
+    maxFiles,
+  } = props;
+
   const list = imagesByCard?.length ? imagesByCard : [[]];
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** ✅ 카드별 파일 input을 위한 객체 ref 배열 (인스턴스 유지) */
+  const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
+  if (cardInputRefs.current.length !== list.length) {
+    cardInputRefs.current = Array.from(
+      { length: list.length },
+      (_, i) => cardInputRefs.current[i] ?? React.createRef<HTMLInputElement>()
+    );
+  }
+
+  /** ✅ 이전에 부모에게 전달했던 노드 스냅샷 */
+  const prevNodesRef = useRef<Array<HTMLInputElement | null>>([]);
+
+  /** ✅ ‘노드가 바뀐 경우에만’ 부모에게 통지 (루프 차단) */
+  useEffect(() => {
+    if (!registerInputRef) return;
+
+    const nextNodes = cardInputRefs.current.map((r) => r.current ?? null);
+    const prevNodes = prevNodesRef.current;
+
+    // 변경된 인덱스만 통지
+    for (let i = 0; i < nextNodes.length; i++) {
+      if (prevNodes[i] !== nextNodes[i]) {
+        registerInputRef(i, nextNodes[i]);
+      }
+    }
+    prevNodesRef.current = nextNodes;
+    // ⚠️ 의존성에서 registerInputRef를 제외해 루프 고리 제거
+  }, [list.length]); // 카드 수 변동시에만 재평가
+
+  /** 세로 업로드용 단일 input */
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <section className="flex flex-col gap-3">
       {/* 가로형 이미지 카드들 */}
       {list.map((files, idx) => (
         <div key={idx} className="rounded-xl border p-3">
-          {/* 카드 헤더: 제목 + 폴더 삭제 버튼 */}
           <div className="mb-2 flex items-center justify-between">
             <h4 className="text-sm font-medium">사진 폴더 {idx + 1}</h4>
             <div className="flex items-center gap-2">
-              {idx > 0 && ( // ✅ 첫 번째 폴더는 삭제 버튼 숨김
+              {idx > 0 && (
                 <Button
                   type="button"
                   variant="outline"
@@ -90,16 +117,16 @@ export default function ImagesSection({
             onChangeCaption={(imageIdx, text) =>
               onChangeCaption?.(idx, imageIdx, text)
             }
-            /** ⬇️ 우상단 X 버튼 → 부모로 삭제 이벤트 전달 */
             onRemoveImage={(imageIdx) => onRemoveImage?.(idx, imageIdx)}
             onOpenPicker={() => onOpenPicker(idx)}
-            registerInputRef={(el) => registerInputRef(idx, el)}
+            /** ✅ 콜백 ref 금지, 객체 ref 전달 */
+            inputRef={cardInputRefs.current[idx]}
             onChangeFiles={(e) => onChangeFiles(idx, e)}
           />
         </div>
       ))}
 
-      {/* 세로형(파일) 카드 — ✅ ResolvedFileItem[] */}
+      {/* 세로형(파일) 카드 */}
       <ImageCarouselUpload
         items={fileItems}
         maxCount={maxFiles}
@@ -107,10 +134,9 @@ export default function ImagesSection({
         tallHeightClass="h-80"
         objectFit="cover"
         onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
-        /** ⬇️ 우상단 X 버튼 → 부모로 삭제 이벤트 전달 */
         onRemoveImage={(i) => onRemoveFileItem?.(i)}
         onOpenPicker={() => fileInputRef.current?.click()}
-        registerInputRef={(el) => (fileInputRef.current = el)}
+        inputRef={fileInputRef}
         onChangeFiles={(e) => onAddFiles(e.target.files)}
       />
 

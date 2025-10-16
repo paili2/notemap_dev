@@ -11,6 +11,7 @@ import { createPin } from "@/shared/api/pins";
 import { toastBus } from "@/shared/toast/toastBus";
 import { buildCreateDto } from "./buildCreateDto";
 import { pickErrorMessage } from "./dtoUtils";
+import { ensureAuthed } from "@/shared/api/auth";
 
 type MapCreateModalHostProps = {
   open: boolean;
@@ -47,6 +48,13 @@ export default function MapCreateModalHost({
         submittingRef.current = true;
 
         try {
+          const ok = await ensureAuthed();
+          if (!ok) {
+            toastBus?.error?.("로그인이 필요합니다. 먼저 로그인해 주세요.");
+            submittingRef.current = false;
+            return;
+          }
+
           const pos = resolvePos();
           const safeDto = buildCreateDto(payload, pos, prefillAddress);
 
@@ -69,9 +77,19 @@ export default function MapCreateModalHost({
           );
           onClose?.();
         } catch (e: any) {
-          console.error("Create (POST /pins) failed:", e?.response ?? e);
-          const msg = pickErrorMessage(e) || "매물 등록에 실패했습니다.";
-          toastBus?.error?.(msg);
+          const res = e?.response?.data;
+
+          const messages = Array.isArray(res?.messages)
+            ? res.messages
+            : undefined;
+
+          if (messages?.length) {
+            console.log("messages:", messages); // 어떤 필드가 막혔는지 바로 확인
+            toastBus?.error?.(messages.join("\n"));
+          } else {
+            const msg = pickErrorMessage(e) || "매물 등록에 실패했습니다.";
+            toastBus?.error?.(msg);
+          }
         } finally {
           submittingRef.current = false;
         }

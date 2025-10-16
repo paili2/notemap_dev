@@ -1,7 +1,7 @@
 "use client";
 import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 import CompletionRegistrySection from "../../sections/CompletionRegistrySection/CompletionRegistrySection";
-import type { EditFormAPI } from "../hooks/useEditForm";
+import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function CompletionRegistryContainer({
   form,

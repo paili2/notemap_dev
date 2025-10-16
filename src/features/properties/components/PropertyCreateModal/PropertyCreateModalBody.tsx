@@ -10,7 +10,7 @@ import {
 } from "../constants";
 import { usePropertyImages } from "./hooks/usePropertyImages";
 import { buildCreatePayload } from "./lib/buildCreatePayload";
-import { useCreateForm } from "./hooks/useCreateForm";
+import { useCreateForm } from "./hooks/useCreateForm/useCreateForm";
 import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 
 // ⬇️ UI 컨테이너
