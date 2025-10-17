@@ -14,11 +14,12 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
   const [activeMenu, setActiveMenu] = useState<string>("");
 
   const menuItems = [
-    { key: "employees", label: "직원관리", href: "/admin/employees" },
+    { key: "my-team", label: "팀관리", href: "/admin/my-team" },
+    { key: "account-create", label: "계정생성", href: "/admin/account-create" },
     {
-      key: "employee-favorites",
-      label: "직원즐겨찾기",
-      href: "/admin/employee-favorites",
+      key: "team-favorites",
+      label: "팀즐겨찾기",
+      href: "/admin/team-favorites",
     },
     { key: "contracts", label: "계약관리", href: "/admin/contracts" },
     { key: "performance", label: "실적확인", href: "/admin/performance" },

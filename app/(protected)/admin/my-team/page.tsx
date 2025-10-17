@@ -1,6 +1,6 @@
 import UserSettingsPage from "@/features/users/pages/UserSettingsPage";
 
-const EmployeesPage = () => {
+const MyTeamPage = () => {
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
       <UserSettingsPage />
@@ -8,4 +8,4 @@ const EmployeesPage = () => {
   );
 };
 
-export default EmployeesPage;
+export default MyTeamPage;

@@ -36,7 +36,13 @@ export type CreateAccountPayload = {
   email: string;
   password: string;
   name: string;
-  role: "manager" | "staff";
+  role:
+    | "manager"
+    | "team_leader"
+    | "deputy_manager"
+    | "general_manager"
+    | "department_head"
+    | "staff";
   phone: string;
   birthday: string; // YYYY-MM-DD (빈값 허용 시 "")
   emergency_contact: string;
@@ -67,9 +73,19 @@ const CreateUserSchema = z
       .string()
       .min(8, "비밀번호 확인도 8자 이상이어야 합니다."),
     name: z.string().min(1, "이름을 입력하세요.").max(100),
-    role: z.enum(["manager", "staff"], {
-      required_error: "역할을 선택하세요.",
-    }),
+    role: z.enum(
+      [
+        "manager",
+        "team_leader",
+        "deputy_manager",
+        "general_manager",
+        "department_head",
+        "staff",
+      ],
+      {
+        required_error: "역할을 선택하세요.",
+      }
+    ),
     phone: z
       .string()
       .regex(phoneRegex, "연락처 형식이 올바르지 않습니다.")
@@ -300,18 +316,18 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>권한 *</FormLabel>
                     <FormControl>
-                      <Select
+                      <select
                         value={field.value}
-                        onValueChange={field.onChange}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="manager">팀장</SelectItem>
-                          <SelectItem value="staff">사원</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="manager">관리자</option>
+                        <option value="team_leader">팀장</option>
+                        <option value="deputy_manager">과장</option>
+                        <option value="general_manager">실장</option>
+                        <option value="department_head">부장</option>
+                        <option value="staff">사원</option>
+                      </select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -351,7 +367,6 @@ export default function AccountCreatePage({
                         }
                         fromYear={1960}
                         toYear={new Date().getFullYear()}
-                        disabled={!!uploading}
                       />
                     </FormControl>
                     <FormMessage />
@@ -458,60 +473,65 @@ export default function AccountCreatePage({
 
             {/* ===== 추가 정보 (파일 업로드) ===== */}
             <div className="space-y-4">
-              {/* 증명사진 */}
-              <UploadRow
-                label="증명사진"
-                value={photoUrl}
-                error={uploadErrors.photo_url}
-                loading={uploading === "photo_url"}
-                onChange={handleFileChange("photo_url")}
-                onClear={() => clearFile("photo_url")}
-                isImage
-              />
+              <div className="text-sm font-medium text-muted-foreground">
+                추가 정보 (선택사항 - 이미지/문서 업로드)
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {/* 증명사진 */}
+                <UploadRow
+                  label="증명사진"
+                  value={photoUrl}
+                  error={uploadErrors.photo_url}
+                  loading={uploading === "photo_url"}
+                  onChange={handleFileChange("photo_url")}
+                  onClear={() => clearFile("photo_url")}
+                  isImage
+                />
 
-              {/* 신분증 사진 */}
-              <UploadRow
-                label="신분증 사진"
-                value={idPhotoUrl}
-                error={uploadErrors.id_photo_url}
-                loading={uploading === "id_photo_url"}
-                onChange={handleFileChange("id_photo_url")}
-                onClear={() => clearFile("id_photo_url")}
-                isImage
-              />
+                {/* 신분증 사진 */}
+                <UploadRow
+                  label="신분증 사진"
+                  value={idPhotoUrl}
+                  error={uploadErrors.id_photo_url}
+                  loading={uploading === "id_photo_url"}
+                  onChange={handleFileChange("id_photo_url")}
+                  onClear={() => clearFile("id_photo_url")}
+                  isImage
+                />
 
-              {/* 등본 */}
-              <UploadRow
-                label="등본"
-                value={regUrl}
-                error={uploadErrors.resident_register_url}
-                loading={uploading === "resident_register_url"}
-                onChange={handleFileChange("resident_register_url")}
-                onClear={() => clearFile("resident_register_url")}
-                isImage={isImageUrl(regUrl)}
-              />
+                {/* 등본 */}
+                <UploadRow
+                  label="등본"
+                  value={regUrl}
+                  error={uploadErrors.resident_register_url}
+                  loading={uploading === "resident_register_url"}
+                  onChange={handleFileChange("resident_register_url")}
+                  onClear={() => clearFile("resident_register_url")}
+                  isImage={isImageUrl(regUrl)}
+                />
 
-              {/* 초본 */}
-              <UploadRow
-                label="초본"
-                value={extUrl}
-                error={uploadErrors.resident_extract_url}
-                loading={uploading === "resident_extract_url"}
-                onChange={handleFileChange("resident_extract_url")}
-                onClear={() => clearFile("resident_extract_url")}
-                isImage={isImageUrl(extUrl)}
-              />
+                {/* 초본 */}
+                <UploadRow
+                  label="초본"
+                  value={extUrl}
+                  error={uploadErrors.resident_extract_url}
+                  loading={uploading === "resident_extract_url"}
+                  onChange={handleFileChange("resident_extract_url")}
+                  onClear={() => clearFile("resident_extract_url")}
+                  isImage={isImageUrl(extUrl)}
+                />
 
-              {/* 가족관계증명서 */}
-              <UploadRow
-                label="가족관계증명서"
-                value={famUrl}
-                error={uploadErrors.family_relation_url}
-                loading={uploading === "family_relation_url"}
-                onChange={handleFileChange("family_relation_url")}
-                onClear={() => clearFile("family_relation_url")}
-                isImage={isImageUrl(famUrl)}
-              />
+                {/* 가족관계증명서 */}
+                <UploadRow
+                  label="가족관계증명서"
+                  value={famUrl}
+                  error={uploadErrors.family_relation_url}
+                  loading={uploading === "family_relation_url"}
+                  onChange={handleFileChange("family_relation_url")}
+                  onClear={() => clearFile("family_relation_url")}
+                  isImage={isImageUrl(famUrl)}
+                />
+              </div>
             </div>
 
             {/* 액션 */}
@@ -577,7 +597,7 @@ function UploadRow({
       <div className="flex items-center gap-2">
         <Input
           type="file"
-          accept="*/*"
+          accept="image/*,.pdf"
           onChange={onChange}
           disabled={loading}
         />

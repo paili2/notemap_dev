@@ -249,18 +249,18 @@ function AccountEditModalBody({
               </Field>
               {/* 권한 */}
               <Field label="권한">
-                <Select
+                <select
                   value={role}
-                  onValueChange={(v) => setRole(v as RoleKey)}
+                  onChange={(e) => setRole(e.target.value as RoleKey)}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manager">팀장</SelectItem>
-                    <SelectItem value="staff">사원</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="manager">관리자</option>
+                  <option value="team_leader">팀장</option>
+                  <option value="deputy_manager">과장</option>
+                  <option value="general_manager">실장</option>
+                  <option value="department_head">부장</option>
+                  <option value="staff">사원</option>
+                </select>
               </Field>
               {/* 이메일 */}
               <Field label="이메일">

@@ -7,7 +7,6 @@ import {
   Banknote,
   Pencil,
   Trash2,
-  Shield,
   X,
   Eye,
   FileText,
@@ -26,9 +25,7 @@ import { useState } from "react";
 type Props = {
   rows: UserRow[];
   onChangeRole: (id: string, role: RoleKey) => void; // (필요 시 모달 등에서 사용)
-  onToggleActive: (id: string, next: boolean) => void;
   onRemove: (id: string) => void;
-  onEdit: (row: UserRow) => void;
   onApplyEdit?: (
     id: string,
     patch: Partial<UserRow> & {
@@ -49,9 +46,7 @@ type Props = {
 
 export default function AccountsListPage({
   rows,
-  onToggleActive,
   onRemove,
-  onEdit,
   onApplyEdit,
 }: Props) {
   const [detailOpen, setDetailOpen] = useState(false);
@@ -96,50 +91,12 @@ export default function AccountsListPage({
           const salary = (u as any).salary_account ?? "";
           const photo = (u as any).photo_url ?? "";
 
-          const toggleDisabled = (u as any).protected || u.role === "owner";
-          const isProtected = (u as any).protected || u.role === "owner";
-
           return (
             <article
               key={u.id}
               className="relative flex flex-col rounded-2xl border bg-background p-4 shadow-sm"
             >
-              {/* 우상단 활성 토글 (옵션) */}
-              <button
-                type="button"
-                onClick={() => onToggleActive(u.id, !u.active)}
-                disabled={toggleDisabled}
-                title={
-                  toggleDisabled
-                    ? "이 계정은 상태를 변경할 수 없습니다."
-                    : u.active
-                    ? "비활성으로 전환"
-                    : "활성으로 전환"
-                }
-                aria-pressed={u.active}
-                aria-label={
-                  u.active
-                    ? "활성화됨, 비활성으로 전환"
-                    : "비활성, 활성으로 전환"
-                }
-                className={[
-                  "absolute right-4 top-4 inline-flex h-5 w-9 items-center rounded-full border transition-colors",
-                  toggleDisabled
-                    ? "bg-gray-200 border-gray-300 opacity-60 cursor-not-allowed"
-                    : u.active
-                    ? "bg-emerald-500 border-emerald-600"
-                    : "bg-gray-200 border-gray-300",
-                ].join(" ")}
-              >
-                <span
-                  className={[
-                    "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
-                    u.active ? "translate-x-4" : "translate-x-1",
-                  ].join(" ")}
-                />
-              </button>
-
-              {/* 상단: 아바타 + 이름/보호뱃지 (뱃지 영역 고정 크기) */}
+              {/* 상단: 아바타 + 이름 */}
               <div className="flex items-start gap-3">
                 <button
                   className="shrink-0"
@@ -159,22 +116,9 @@ export default function AccountsListPage({
                 </button>
 
                 <div className="min-w-0 flex-1">
-                  {/* 이름/뱃지: 2행 그리드, 뱃지 높이 고정 + 너비 고정 */}
-                  <div className="grid grid-rows-[auto_18px] gap-0 min-h-[42px]">
-                    <h3 className="truncate text-base font-semibold leading-5">
-                      {u.name}
-                    </h3>
-                    {isProtected ? (
-                      <span className="inline-flex h-[18px] w-[44px] items-center justify-center rounded-md border border-amber-200 bg-amber-50 text-[10px] text-amber-800">
-                        {/* 고정폭 뱃지: '보호' 텍스트 길이에 상관없이 동일 크기 */}
-                        <Shield className="mr-1 h-3 w-3" />
-                        보호
-                      </span>
-                    ) : (
-                      // 뱃지가 없을 때도 동일 높이/폭 확보
-                      <span className="invisible h-[18px] w-[44px]">.</span>
-                    )}
-                  </div>
+                  <h3 className="truncate text-base font-semibold leading-5">
+                    {u.name}
+                  </h3>
                 </div>
               </div>
 
@@ -221,11 +165,10 @@ export default function AccountsListPage({
                   수정
                 </button>
                 <button
-                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                  className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
                   onClick={() => {
                     if (confirm("해당 계정을 삭제할까요?")) onRemove(u.id);
                   }}
-                  disabled={(u as any).protected}
                   title="삭제"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -289,7 +232,6 @@ function DetailModal({
   const name = user.name;
   const email = user.email;
   const role = user.role;
-  const active = (user as any).active;
 
   const phone = (user as any).phone ?? "";
   const emergency = (user as any).emergency_contact ?? "";
@@ -345,7 +287,6 @@ function DetailModal({
               <div className="text-lg font-semibold">{name}</div>
               <div className="mt-1 flex flex-wrap gap-2 text-xs">
                 <Badge label={`권한: ${roleLabel(role as RoleKey)}`} />
-                <Badge label={`상태: ${active ? "활성" : "비활성"}`} />
                 {birthday && <Badge label={`생년월일: ${birthday}`} />}
               </div>
 
@@ -522,7 +463,15 @@ function roleLabel(r: RoleKey) {
     case "owner":
       return "관리자";
     case "manager":
+      return "관리자";
+    case "team_leader":
       return "팀장";
+    case "deputy_manager":
+      return "과장";
+    case "general_manager":
+      return "실장";
+    case "department_head":
+      return "부장";
     case "staff":
       return "사원";
     default:

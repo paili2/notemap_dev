@@ -13,6 +13,12 @@ export const contractTableColumns: TableColumn<ContractData>[] = [
     render: (value) => <div className="font-medium text-blue-600">{value}</div>,
   },
   {
+    key: "salesPerson",
+    label: "담당자",
+    width: "100px",
+    align: "center",
+  },
+  {
     key: "customerName",
     label: "고객명",
     width: "100px",
@@ -25,14 +31,17 @@ export const contractTableColumns: TableColumn<ContractData>[] = [
     align: "center",
   },
   {
-    key: "salesPerson",
-    label: "담당자",
-    width: "100px",
-    align: "center",
-  },
-  {
     key: "totalCalculation",
     label: "계약금액",
+    width: "120px",
+    align: "center",
+    render: (value) => (
+      <div className="font-medium">{formatCurrency(value)}</div>
+    ),
+  },
+  {
+    key: "salesPersonSalary",
+    label: "담당자 급여",
     width: "120px",
     align: "center",
     render: (value) => (

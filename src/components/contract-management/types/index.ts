@@ -7,6 +7,7 @@ export interface ContractData extends TableData {
   customerName: string;
   customerContact: string;
   salesPerson: string;
+  salesPersonSalary: number;
   totalCalculation: number;
   contractDate: string;
   status: "completed" | "pending" | "cancelled";

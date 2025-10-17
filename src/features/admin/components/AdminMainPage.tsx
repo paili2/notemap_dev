@@ -15,22 +15,30 @@ import {
   TrendingUp,
   Activity,
   Heart,
+  UserPlus,
 } from "lucide-react";
 import Link from "next/link";
 
 export function AdminMainPage() {
   const quickActions = [
     {
-      title: "직원 관리",
-      description: "직원 정보 조회 및 관리",
-      href: "/admin/employees",
+      title: "팀 관리",
+      description: "팀원 정보 조회 및 관리",
+      href: "/admin/my-team",
       icon: Users,
       color: "bg-blue-500",
     },
     {
-      title: "직원즐겨찾기",
-      description: "즐겨찾기한 직원 관리",
-      href: "/admin/employee-favorites",
+      title: "계정 생성",
+      description: "새로운 계정 생성",
+      href: "/admin/account-create",
+      icon: UserPlus,
+      color: "bg-cyan-500",
+    },
+    {
+      title: "팀즐겨찾기",
+      description: "즐겨찾기한 팀원 관리",
+      href: "/admin/team-favorites",
       icon: Heart,
       color: "bg-pink-500",
     },
@@ -43,7 +51,7 @@ export function AdminMainPage() {
     },
     {
       title: "실적 확인",
-      description: "직원별 영업 실적 조회",
+      description: "팀원별 영업 실적 조회",
       href: "/admin/performance",
       icon: TrendingUp,
       color: "bg-orange-500",
