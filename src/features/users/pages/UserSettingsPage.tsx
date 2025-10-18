@@ -35,18 +35,12 @@ export default function UserSettingsPage() {
 
   return (
     <main className="mx-auto max-w-7xl p-6 space-y-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">팀 관리</h1>
-          <p className="text-sm text-muted-foreground">
-            팀원 계정을 조회하고 관리합니다.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <Button className="gap-2" onClick={() => setIsModalOpen(true)}>
           <UserPlus className="h-4 w-4" />
           팀원 추가
         </Button>
-      </header>
+      </div>
 
       <UnassignedEmployeesModal
         open={isModalOpen}

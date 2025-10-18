@@ -22,11 +22,18 @@ import Link from "next/link";
 export function AdminMainPage() {
   const quickActions = [
     {
+      title: "팀 관리(관리자)",
+      description: "전체 팀 목록 및 관리",
+      href: "/admin/team-management",
+      icon: Users,
+      color: "bg-blue-500",
+    },
+    {
       title: "팀 관리",
       description: "팀원 정보 조회 및 관리",
       href: "/admin/my-team",
       icon: Users,
-      color: "bg-blue-500",
+      color: "bg-indigo-500",
     },
     {
       title: "계정 생성",

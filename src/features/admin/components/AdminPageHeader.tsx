@@ -14,6 +14,11 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
   const [activeMenu, setActiveMenu] = useState<string>("");
 
   const menuItems = [
+    {
+      key: "team-management",
+      label: "팀관리(관리자)",
+      href: "/admin/team-management",
+    },
     { key: "my-team", label: "팀관리", href: "/admin/my-team" },
     { key: "account-create", label: "계정생성", href: "/admin/account-create" },
     {
