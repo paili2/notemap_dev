@@ -26,6 +26,7 @@ export const transformSalesContractToContract = (
     customerContact: salesData.customerInfo.contact || "", // 고객 연락처만 사용
     salesPerson: salesData.salesPerson.name, // 담당자 이름
     totalCalculation: salesData.totalCalculation || 0,
+    salesPersonSalary: 0, // 담당자 급여 (별도 계산 필요)
     contractDate:
       salesData.contractDate || new Date().toISOString().split("T")[0],
     status: salesData.status || status,
