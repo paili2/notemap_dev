@@ -15,6 +15,7 @@ import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 
 // ✅ draft 생성 API (프로젝트 경로에 맞게 조정)
 import { createPinDraft } from "@/shared/api/pins";
+import { buildAddressLine } from "../../components/PinContextMenu/components/PinContextMenu/utils/geo";
 
 // ──────────────────────────────────────────────────────────────
 // 유틸: id 동등 비교 (숫자/문자열 혼용 대비)
@@ -75,37 +76,53 @@ export default function MapHomePage() {
     async (payload: {
       lat: number;
       lng: number;
-      address: string;
+      address?: string; // address가 없을 수 있어 optional 처리
       roadAddress: string | null;
       jibunAddress: string | null;
       reservedDate?: string;
       dateISO?: string;
     }) => {
-      // 1) payload 기반으로 draft 생성
-      // createPinDraft 응답 예: { id: number, ... } 혹은 { data: { id: ... } }
-      const draft = await createPinDraft({
+      // 1) addressLine 생성: address > 도로명 > 지번 > "lat,lng"
+      const addressLine =
+        (payload.address && payload.address.trim()) ||
+        buildAddressLine(
+          payload.lat,
+          payload.lng,
+          payload.roadAddress,
+          payload.jibunAddress,
+          /* propertyTitle */ null
+        );
+
+      // 2) draft 생성 (API 스펙: { lat, lng, addressLine }만!)
+      const { id: draftId } = await createPinDraft({
         lat: payload.lat,
         lng: payload.lng,
-        title: payload.address,
-        roadAddress: payload.roadAddress,
-        jibunAddress: payload.jibunAddress,
-      } as any); // 필요한 경우 DTO 타입으로 교체
+        addressLine,
+      });
 
-      const draftId =
-        (draft && (draft as any).id) ??
-        (draft && (draft as any).data && (draft as any).data.id);
-
-      if (draftId == null) {
+      if (draftId == null)
         throw new Error("Draft 생성에 실패했습니다. (id 없음)");
-      }
 
-      // 2) 기존 Provider API 호출: (draftId, opts?)
-      return reserveVisitPlan(draftId, {
-        reservedDate: payload.reservedDate,
+      // 3) 기존 Provider API 호출: (draftId, opts?)
+      await reserveVisitPlan(String(draftId), {
+        reservedDate: payload.reservedDate ?? payload.dateISO, // "YYYY-MM-DD"
         dateISO: payload.dateISO,
       });
+
+      // 4) 예약 성공 후 서버 데이터 리로드(지도/사이드바)
+      //  - 사이드바: 내 예약 목록
+      //  - 지도: bounds 기반 핀 재조회 (여기선 s에 refetch가 있다면 호출, 없으면 onViewportChange를 한 번 트리거)
+      try {
+        // 사이드바 Provider에 loadScheduledReservations 노출되어 있으면 여기서 호출
+        // (useSidebar에서 가져와 쓰고 싶으면 위에서 구조분해에 추가)
+        (s as any).refetchPins?.({ draftState: "all" }); // 새 훅을 썼다면
+        (s as any).reloadPins?.(); // 기존 구현이면 이 이름일 가능성
+        (s as any).onViewportChange?.(s.mapInstance); // 없으면 뷰포트 변경 트리거
+      } catch {
+        /* 존재하는 메서드만 쓰기 때문에 조용히 무시 */
+      }
     },
-    [reserveVisitPlan]
+    [reserveVisitPlan, s]
   );
   // ──────────────────────────────────────────────────────────────
 

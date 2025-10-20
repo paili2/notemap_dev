@@ -1,4 +1,3 @@
-// src/features/auth/components/LoginForm/LoginForm.tsx
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -101,7 +100,7 @@ export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
                     <Input
                       id="email"
                       type="email"
-                      placeholder="demo@example.com"
+                      placeholder="admin@example.com"
                       autoComplete="email"
                       autoFocus
                       disabled={isSubmitting}

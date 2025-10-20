@@ -1,4 +1,3 @@
-// normalize.ts
 import { toPy } from "@/features/properties/lib/area";
 import type {
   AreaSet,

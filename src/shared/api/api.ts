@@ -1,4 +1,3 @@
-// src/shared/api/api.ts
 import axios, {
   AxiosHeaders,
   AxiosError,
@@ -174,4 +173,13 @@ function makeFakeError(
     config,
   };
   return new AxiosError(message, undefined, config, undefined, resp);
+}
+
+export async function assertAuthed() {
+  try {
+    const r = await api.get("/me");
+    console.debug("[AUTH] /me status =", r.status, r.data);
+  } catch (e) {
+    console.warn("[AUTH] /me fail", e);
+  }
 }

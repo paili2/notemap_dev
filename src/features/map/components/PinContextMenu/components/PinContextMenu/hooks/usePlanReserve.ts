@@ -18,7 +18,7 @@ export function usePlanReserve(params: {
     roadAddress: string | null;
     jibunAddress: string | null;
     title: string;
-  }) => Promise<{ id: string | number }>;
+  }) => Promise<{ id: string | number } | any>;
   reserveVisitPlan: (id: string) => Promise<void>;
   loadScheduledReservations: () => Promise<void>;
 }) {
@@ -100,6 +100,7 @@ export function usePlanReserve(params: {
           payload && "lng" in payload && typeof payload.lng === "number"
             ? payload.lng
             : position.getLng();
+
         const title =
           payload && "title" in payload && payload.title
             ? payload.title
@@ -124,20 +125,40 @@ export function usePlanReserve(params: {
               : jibunAddress ?? null,
           title,
         });
-        visitId = draft.id;
+
+        // ✅ draft 응답에서 id 안전 추출 (여러 형태 대응)
+        const draftId =
+          (draft &&
+            typeof draft === "object" &&
+            "id" in draft &&
+            (draft as any).id) ??
+          (draft &&
+            typeof draft === "object" &&
+            "draftId" in draft &&
+            (draft as any).draftId) ??
+          undefined;
+
+        if (draftId == null) {
+          throw new Error("임시핀 생성 실패: id 없음");
+        }
+        visitId = String(draftId);
       }
 
       await reserveVisitPlan(String(visitId));
       await loadScheduledReservations();
+
       await onReserve?.(
         visitId
           ? {
               kind: "visit",
               visitId,
-              dateISO: new Date().toISOString().slice(0, 10),
+              dateISO:
+                (payload && "dateISO" in payload && payload.dateISO) ||
+                new Date().toISOString().slice(0, 10),
             }
           : undefined
       );
+
       onClose?.();
     },
     [

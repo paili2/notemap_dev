@@ -131,6 +131,10 @@ export function buildCreatePayload(args: BuildArgs) {
   const extraAreaTitles = extraAreaSets.map((s) => (s.title ?? "").trim());
 
   // 3) 이미지 포맷
+  const imageFoldersRaw: ImageItem[][] = imageFolders.map((card) =>
+    card.map((i) => ({ ...i }))
+  );
+  const fileItemsRaw: ImageItem[] = fileItems.map((i) => ({ ...i }));
   // ▶ 레거시 UI용: url이 있는 것만 포함 (타입상 url: string이어야 함)
   const imageCardsUI: { url: string; name: string; caption?: string }[][] =
     imageFolders.map((card) =>
@@ -203,6 +207,8 @@ export function buildCreatePayload(args: BuildArgs) {
     areaSetTitle?: string;
     areaSetTitles?: string[];
     pinKind?: PinKind;
+    imageFoldersRaw: ImageItem[][];
+    fileItemsRaw: ImageItem[];
   } = {
     // 기본
     title,
@@ -252,13 +258,15 @@ export function buildCreatePayload(args: BuildArgs) {
     unitLines,
 
     // 이미지
-    imageFolders: imageFoldersStored, // ✅ 서버 전송용(전체 포함)
-    imagesByCard: imageCardsUI, // (레거시 UI)
-    imageCards: imageCardsUI, // (레거시 UI)
+    imageFolders: imageFoldersStored,
+    imagesByCard: imageCardsUI,
+    imageCards: imageCardsUI,
     imageCardCounts,
-    verticalImages: verticalImagesStored, // ✅ 서버 전송용(전체 포함)
-    images: imagesFlatStrings, // (레거시 UI)
-    fileItems: verticalImagesUI, // (레거시 UI)
+    verticalImages: verticalImagesStored,
+    images: imagesFlatStrings,
+    fileItems: verticalImagesUI,
+    imageFoldersRaw,
+    fileItemsRaw,
 
     // 추가 면적
     extraExclusiveAreas,

@@ -1,4 +1,3 @@
-// app/components/auth/ClientSessionGuard.tsx
 "use client";
 
 import { useEffect, useState } from "react";

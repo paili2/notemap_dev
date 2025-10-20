@@ -1,5 +1,3 @@
-// next.config.mjs
-
 // 🔎 빌드 시점 로그
 if (process.env.NEXT_PUBLIC_KAKAO_MAP_KEY) {
   console.log(

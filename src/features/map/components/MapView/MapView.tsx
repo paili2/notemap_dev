@@ -10,7 +10,6 @@ import useKakaoMap from "./hooks/useKakaoMap";
 import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
-import type { PinKind } from "@/features/pins/types";
 
 // ▼ POI
 import { usePoiLayer } from "../../hooks/poi/usePoiLayer";

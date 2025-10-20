@@ -1,19 +1,23 @@
+// src/features/properties/components/.../ImagesSection.tsx
 "use client";
 
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/ImageCarouselUpload";
 import { ImageItem, ResolvedFileItem } from "@/features/properties/types/media";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
-export type ImageFile = ImageItem;
+// ✅ 변경: 새 스펙 API
+import {
+  updatePhotos, // ← PATCH /photos
+  deletePhotos, // ← DELETE /photos
+  type PinPhoto,
+} from "@/shared/api/pinPhotos";
 
 type Props = {
   imagesByCard: ImageItem[][];
   onOpenPicker: (idx: number) => void;
   onChangeFiles: (idx: number, e: React.ChangeEvent<HTMLInputElement>) => void;
-
-  /** (선택) 상위로 input 엘리먼트를 알려주고 싶다면 — 반드시 useCallback 으로 안정화해서 넘기세요 */
   registerInputRef?: (idx: number, el: HTMLInputElement | null) => void;
 
   onAddPhotoFolder: () => void;
@@ -32,7 +36,13 @@ type Props = {
   onRemoveFileItem?: (index: number) => void;
 
   maxFiles: number;
+
+  pinId?: number | string; // 선택
 };
+
+// 프로젝트 구조에 맞게 photoId를 꺼내는 도우미
+const getPhotoId = (item: ImageItem) =>
+  (item as any).id as number | string | undefined;
 
 export default function ImagesSection(props: Props) {
   const {
@@ -54,7 +64,67 @@ export default function ImagesSection(props: Props) {
 
   const list = imagesByCard?.length ? imagesByCard : [[]];
 
-  /** ✅ 카드별 파일 input을 위한 객체 ref 배열 (인스턴스 유지) */
+  /* ─────────────────────────────
+   * 서버 연동 핸들러 (낙관적 업데이트)
+   * ───────────────────────────── */
+
+  // ⚠️ 백엔드에 caption 필드가 없으므로 서버 호출은 생략하고
+  //    로컬 UI만 선적용 (필요하면 백엔드 DTO에 caption 추가 후 복구)
+  const handleCaptionChange = async (
+    cardIdx: number,
+    imageIdx: number,
+    text: string
+  ) => {
+    onChangeCaption?.(cardIdx, imageIdx, text); // UI만 반영
+    // 서버 저장이 필요하면 여기서 별도 caption API로 호출하도록 확장
+  };
+
+  const handleRemove = async (cardIdx: number, imageIdx: number) => {
+    const item = list[cardIdx][imageIdx];
+    const photoId = getPhotoId(item);
+    onRemoveImage?.(cardIdx, imageIdx); // UI 선삭제
+    if (photoId == null) return; // 임시 파일이면 서버 호출 불필요
+    try {
+      await deletePhotos([String(photoId)]);
+    } catch (e) {
+      console.error(e);
+      // 실패 시 복구 로직이 필요하면 여기서 되돌리기
+    }
+  };
+
+  // DnD 정렬(있다면) → 서버엔 sortOrder로 반영
+  const handleReorder = async (
+    cardIdx: number,
+    fromIdx: number,
+    toIdx: number
+  ) => {
+    // UI 정렬은 상위에서 처리
+    const moved = list[cardIdx][toIdx];
+    const photoId = getPhotoId(moved);
+    if (photoId == null) return;
+    try {
+      await updatePhotos({ photoIds: [String(photoId)], sortOrder: toIdx });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // 대표 지정
+  const handleSetCover = async (cardIdx: number, imageIdx: number) => {
+    const item = list[cardIdx][imageIdx];
+    const photoId = getPhotoId(item);
+    if (photoId == null) return;
+    try {
+      await updatePhotos({ photoIds: [String(photoId)], isCover: true });
+      // UI에서 isCover 토글 반영이 필요하면 상위 상태 업데이트 로직도 함께 호출
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  /* ─────────────────────────────
+   * ref 유지/전달 (기존 그대로)
+   * ───────────────────────────── */
   const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
   if (cardInputRefs.current.length !== list.length) {
     cardInputRefs.current = Array.from(
@@ -62,28 +132,19 @@ export default function ImagesSection(props: Props) {
       (_, i) => cardInputRefs.current[i] ?? React.createRef<HTMLInputElement>()
     );
   }
-
-  /** ✅ 이전에 부모에게 전달했던 노드 스냅샷 */
   const prevNodesRef = useRef<Array<HTMLInputElement | null>>([]);
-
-  /** ✅ ‘노드가 바뀐 경우에만’ 부모에게 통지 (루프 차단) */
   useEffect(() => {
     if (!registerInputRef) return;
-
     const nextNodes = cardInputRefs.current.map((r) => r.current ?? null);
     const prevNodes = prevNodesRef.current;
-
-    // 변경된 인덱스만 통지
     for (let i = 0; i < nextNodes.length; i++) {
       if (prevNodes[i] !== nextNodes[i]) {
         registerInputRef(i, nextNodes[i]);
       }
     }
     prevNodesRef.current = nextNodes;
-    // ⚠️ 의존성에서 registerInputRef를 제외해 루프 고리 제거
-  }, [list.length]); // 카드 수 변동시에만 재평가
+  }, [list.length, registerInputRef]);
 
-  /** 세로 업로드용 단일 input */
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -115,18 +176,20 @@ export default function ImagesSection(props: Props) {
             wideAspectClass="aspect-video"
             objectFit="cover"
             onChangeCaption={(imageIdx, text) =>
-              onChangeCaption?.(idx, imageIdx, text)
+              handleCaptionChange(idx, imageIdx, text)
             }
-            onRemoveImage={(imageIdx) => onRemoveImage?.(idx, imageIdx)}
+            onRemoveImage={(imageIdx) => handleRemove(idx, imageIdx)}
             onOpenPicker={() => onOpenPicker(idx)}
-            /** ✅ 콜백 ref 금지, 객체 ref 전달 */
             inputRef={cardInputRefs.current[idx]}
             onChangeFiles={(e) => onChangeFiles(idx, e)}
+            // 있으면 연결:
+            // onReorder={(from, to) => handleReorder(idx, from, to)}
+            // onSetCover={(imageIdx) => handleSetCover(idx, imageIdx)}
           />
         </div>
       ))}
 
-      {/* 세로형(파일) 카드 */}
+      {/* 세로형(파일) 카드 — 서버 등록 전 파일 영역 */}
       <ImageCarouselUpload
         items={fileItems}
         maxCount={maxFiles}

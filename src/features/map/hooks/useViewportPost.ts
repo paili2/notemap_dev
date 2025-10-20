@@ -1,4 +1,3 @@
-// src/features/map/hooks/useViewportPost.ts
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
