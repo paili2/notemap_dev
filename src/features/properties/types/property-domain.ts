@@ -5,6 +5,8 @@ export type Registry = (typeof REGISTRY_LIST)[number];
 // --- Grade ---
 export type Grade = "상" | "중" | "하";
 
+export type BuildingType = "APT" | "OP" | "주택" | "근생"; // 백엔드 스펙에 맞춘 타입
+
 // --- Orientation ---
 export type OrientationValue =
   | "동"

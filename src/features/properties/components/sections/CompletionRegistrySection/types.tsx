@@ -1,6 +1,8 @@
-import { Grade, Registry } from "@/features/properties/types/property-domain";
-
-export type BuildingType = "APT" | "OP" | "주택" | "근생"; // 백엔드 스펙에 맞춘 타입
+import {
+  BuildingType,
+  Grade,
+  Registry,
+} from "@/features/properties/types/property-domain";
 
 export interface CompletionRegistrySectionProps {
   // 준공/실입

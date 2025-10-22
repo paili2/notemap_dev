@@ -1,7 +1,7 @@
 "use client";
 import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 import CompletionRegistrySection from "../../sections/CompletionRegistrySection/CompletionRegistrySection";
-import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
+import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 
 export default function CompletionRegistryContainer({
   form,
@@ -21,6 +21,8 @@ export default function CompletionRegistryContainer({
       setSlopeGrade={form.setSlopeGrade}
       structureGrade={form.structureGrade}
       setStructureGrade={form.setStructureGrade}
+      buildingType={form.buildingType}
+      setBuildingType={form.setBuildingType}
     />
   );
 }

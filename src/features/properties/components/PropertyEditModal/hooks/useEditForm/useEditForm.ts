@@ -17,14 +17,15 @@ import type {
   UnitLine,
   PinKind,
 } from "./types";
+import { BuildingType } from "@/features/properties/types/property-domain";
 
 export function useEditForm({ initialData }: UseEditFormArgs) {
   /* ========== 상태 ========== */
   const [pinKind, setPinKind] = useState<PinKind>("1room");
   const [title, setTitle] = useState("");
-  const [address, setAddress] = useState("");
-  const [officePhone, setOfficePhone] = useState("");
-  const [officePhone2, setOfficePhone2] = useState("");
+  const [address, setAddress] = useState<string>("");
+  const [officePhone, setOfficePhone] = useState<string>("");
+  const [officePhone2, setOfficePhone2] = useState<string>("");
   const [officeName, setOfficeName] = useState("");
   const [moveIn, setMoveIn] = useState("");
   const [floor, setFloor] = useState("");
@@ -69,6 +70,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [secretMemo, setSecretMemo] = useState("");
 
   const [unitLines, setUnitLines] = useState<UnitLine[]>([]);
+  const [buildingType, setBuildingType] = useState<BuildingType | null>(null);
 
   /* ========== 액션 ========== */
   const addAspect = useCallback(
@@ -165,6 +167,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setPublicMemo("");
     setSecretMemo("");
     setUnitLines([]);
+    setBuildingType(null);
   }, []);
 
   /* ========== 초기 주입 ========== */
@@ -218,6 +221,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setUnitLines(normalized.unitLines);
 
     setAspects(normalized.aspects);
+    setBuildingType((normalized as any).buildingType ?? null);
   }, [initialData, normalized]);
 
   /* ========== 파생값 ========== */
@@ -387,6 +391,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       publicMemo,
       secretMemo,
       unitLines,
+      buildingType,
     }),
     [
       pinKind,
@@ -421,6 +426,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       secretMemo,
       unitLines,
       registry,
+      buildingType,
     ]
   );
 
@@ -466,6 +472,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       updateLine,
       removeLine,
       reset,
+      setBuildingType,
     }),
     [
       addAspect,
@@ -492,8 +499,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     // flat derived/헬퍼
     ...derived,
     ...helpers,
-
-    // 기존 구조도 함께 유지 (혹시 다른 곳에서 쓰고 있을 수 있으니)
+    registryOne: registry,
+    setRegistryOne: setRegistry,
     state,
     actions,
     derived,

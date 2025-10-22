@@ -1,6 +1,6 @@
 "use client";
+import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 import MemoSection from "../../sections/MemoSection/MemoSection";
-import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function MemosContainer({ form }: { form: EditFormAPI }) {
   return (

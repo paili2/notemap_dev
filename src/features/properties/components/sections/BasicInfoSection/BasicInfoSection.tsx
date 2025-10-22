@@ -10,7 +10,7 @@ export default function BasicInfoSection({
   setAddress,
   officePhone,
   setOfficePhone,
-  officePhone2,
+  officePhone2 = "",
   setOfficePhone2,
 }: BasicInfoSectionProps) {
   return (

@@ -1,6 +1,6 @@
 "use client";
+import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 import BasicInfoSection from "../../sections/BasicInfoSection/BasicInfoSection";
-import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function BasicInfoContainer({ form }: { form: EditFormAPI }) {
   return (

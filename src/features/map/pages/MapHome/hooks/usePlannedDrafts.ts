@@ -6,8 +6,7 @@ import {
   BeforeDraft,
 } from "@/shared/api/surveyReservations";
 import type { MapMenuKey } from "../../../components/MapMenu";
-
-type Bounds = { swLat: number; swLng: number; neLat: number; neLng: number };
+import { Bounds } from "@/features/map/types/bounds";
 
 export function usePlannedDrafts({
   filter,

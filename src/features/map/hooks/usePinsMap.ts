@@ -6,13 +6,7 @@ import {
   type PinsMapDraft,
   type PinsMapPoint,
 } from "@/shared/api/pinsMap";
-
-type Bounds = {
-  swLat: number;
-  swLng: number;
-  neLat: number;
-  neLng: number;
-};
+import { Bounds } from "../types/bounds";
 
 function debounce<T extends (...a: any[]) => void>(fn: T, ms = 250) {
   let t: any;

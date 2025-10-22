@@ -2,22 +2,22 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
-import { FilterSearch } from "../../FilterSearch";
-import { MapMenuKey } from "../../components/MapMenu";
-import { useRoadview } from "../../hooks/useRoadview";
-import { usePinsFromViewport } from "../../hooks/usePinsFromViewport";
+import { FilterSearch } from "../../../FilterSearch";
+import { MapMenuKey } from "../../../components/MapMenu";
+import { useRoadview } from "../../../hooks/useRoadview";
+import { usePinsFromViewport } from "../../../hooks/usePinsFromViewport";
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
-
-import { MapViewHandle } from "../../components/MapView/MapView";
-import { MapHomeUIProps } from "../components/types";
-import { useMergedMarkers } from "./hooks/useMergedMarkers";
-import MapCanvas from "./components/MapCanvas";
-import ContextMenuHost from "./components/ContextMenuHost";
-import TopRightControls from "./components/TopRightControls";
-import FilterFab from "./components/FilterFab";
-import ModalsHost from "./components/ModalsHost";
-import { usePlannedDrafts } from "./hooks/usePlannedDrafts";
-import { useBounds } from "./hooks/useBounds";
+import { MapViewHandle } from "../../../components/MapView/MapView";
+import { MapHomeUIProps } from "../../components/types";
+import { useMergedMarkers } from "../hooks/useMergedMarkers";
+import MapCanvas from "../components/MapCanvas";
+import ContextMenuHost from "../components/ContextMenuHost";
+import TopRightControls from "../components/TopRightControls";
+import FilterFab from "../components/FilterFab";
+import ModalsHost from "../components/ModalsHost";
+import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
+import { useBounds } from "../hooks/useBounds";
+import { useBoundsRaw } from "./hooks/useBoundsRaw";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -66,6 +66,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     favById = {},
   } = props;
 
+  const getBoundsLLB = useBounds(kakaoSDK, mapInstance); // kakao.maps.LatLngBounds 반환
+  const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance); // {swLat, swLng, neLat, neLng} 반환
+
   // ===== 서버 핀 로딩 =====
   const {
     points: serverPoints,
@@ -74,7 +77,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     error: pinsError,
   } = usePinsFromViewport({ map: mapInstance, debounceMs: 300 });
 
-  // ✅ title의 null → undefined 정규화로 타입 미스매치 해소
+  // title의 null → undefined 정규화
   const normServerPoints = useMemo(
     () => serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })),
     [serverPoints]
@@ -99,9 +102,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     plannedMarkersOnly,
     reloadPlanned,
     state: plannedState,
-  } = usePlannedDrafts({ filter, getBounds: useBounds(kakaoSDK, mapInstance) });
+  } = usePlannedDrafts({ filter, getBounds: getBoundsRaw });
 
-  // ===== roadview (한 번만 호출) =====
+  // ===== roadview =====
   const {
     roadviewContainerRef,
     visible: roadviewVisible,
@@ -114,7 +117,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     roadviewVisible ? close() : openAtCenter();
   }, [roadviewVisible, close, openAtCenter]);
 
-  // ===== MapView 초기화 (level 고정 후 fit) =====
+  // ===== MapView 초기화 =====
   const mapViewRef = useRef<MapViewHandle>(null);
   const [didInit, setDidInit] = useState(false);
   const handleMapReady = useCallback(
@@ -132,17 +135,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
     return mergedWithTempDraft;
   }, [activeMenu, plannedMarkersOnly, mergedWithTempDraft]);
 
-  // ===== 우상단 컨트롤 확장 상태 =====
+  // ===== 우상단 컨트롤 상태 =====
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
   const [isDistrictOn, setIsDistrictOn] = useState(false);
 
-  // 사이드바 컨텍스트 (siteReservations 전달에 사용)
+  // 사이드바 컨텍스트
   const { siteReservations } = useSidebarCtx();
 
   return (
     <div className="fixed inset-0">
-      {/* 지도/오버레이 묶음 */}
+      {/* 지도/오버레이 */}
       <MapCanvas
         appKey={appKey}
         kakaoSDK={kakaoSDK}
@@ -197,7 +200,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         }}
       />
 
-      {/* 우상단: MapMenu + ToggleSidebar */}
+      {/* 우상단 컨트롤 */}
       <TopRightControls
         activeMenu={activeMenu}
         onChangeFilter={(next) => {
@@ -220,12 +223,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
           setUseSidebar(open);
           if (open) setRightOpen(false);
         }}
+        getBounds={getBoundsLLB}
       />
 
-      {/* 좌하단 필터버튼 */}
+      {/* 좌하단 필터 버튼 */}
       <FilterFab onOpen={() => setFilterSearchOpen(true)} />
 
-      {/* 사이드바 & 필터모달 & 상세/생성/로드뷰 모달 */}
+      {/* 사이드바 & 필터 모달 */}
       <Sidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}
@@ -235,6 +239,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onClose={() => setFilterSearchOpen(false)}
       />
 
+      {/* 모달 호스트 */}
       <ModalsHost
         viewOpen={viewOpen}
         selectedViewItem={selectedViewItem}

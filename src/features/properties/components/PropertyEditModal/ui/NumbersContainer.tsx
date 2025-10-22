@@ -1,6 +1,6 @@
 "use client";
+import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 import NumbersSection from "../../sections/NumbersSection/NumbersSection";
-import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function NumbersContainer({ form }: { form: EditFormAPI }) {
   return (

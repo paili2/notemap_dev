@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useMapHomeState } from "../hooks/useMapHomeState"; // 기존 훅 그대로 사용
-import { MapHomeUI } from "../MapHome/MapHomeUI"; // 기존 컴포넌트 그대로 사용
+import { MapHomeUI } from "../MapHome/MapHomeUI/MapHomeUI"; // 기존 컴포넌트 그대로 사용
 
 // 사이드바 Provider
 import { useSidebar } from "@/features/sidebar/SideBarProvider";

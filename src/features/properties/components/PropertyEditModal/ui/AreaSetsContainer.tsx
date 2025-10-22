@@ -1,4 +1,5 @@
 "use client";
+
 import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 import AreaSetsSection from "../../sections/AreaSetsSection/AreaSetsSection";
 
