@@ -6,8 +6,7 @@ import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { PoiKind } from "../../components/overlays/poiOverlays";
 
-// ✅ 가독성 좋게 유니온 페이로드 분리
-export type ReserveFromMenuPayload =
+type ReserveFromMenuPayload =
   | { visitId: string | number; dateISO?: string }
   | {
       lat: number;

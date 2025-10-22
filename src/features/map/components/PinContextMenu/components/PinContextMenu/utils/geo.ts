@@ -1,4 +1,4 @@
-export function isKakaoLatLng(
+function isKakaoLatLng(
   _kakao: typeof window.kakao,
   v: unknown
 ): v is kakao.maps.LatLng {
@@ -8,10 +8,10 @@ export function isKakaoLatLng(
     typeof (v as any).getLng === "function"
   );
 }
-export function isMarker(v: unknown): v is kakao.maps.Marker {
+function isMarker(v: unknown): v is kakao.maps.Marker {
   return !!v && typeof (v as any).getPosition === "function";
 }
-export function isPlainLatLng(v: unknown): v is { lat: number; lng: number } {
+function isPlainLatLng(v: unknown): v is { lat: number; lng: number } {
   return (
     !!v &&
     typeof (v as any).lat === "number" &&

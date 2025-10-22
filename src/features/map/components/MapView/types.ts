@@ -4,7 +4,7 @@ import type { MapMarker } from "@/features/map/types/map";
 import type { PoiKind } from "../overlays/poiOverlays";
 
 /** 뷰포트 변경 payload: 4꼭짓점 + 줌레벨 */
-export type MapViewportChange = {
+type MapViewportChange = {
   leftTop: LatLng;
   leftBottom: LatLng;
   rightTop: LatLng;
@@ -13,7 +13,7 @@ export type MapViewportChange = {
 };
 
 /** 검색 옵션 (useKakaoMap과 동일 인터페이스 유지) */
-export type SearchPlaceOptions = {
+type SearchPlaceOptions = {
   clearPrev?: boolean;
   recenter?: boolean;
   fitZoom?: boolean;

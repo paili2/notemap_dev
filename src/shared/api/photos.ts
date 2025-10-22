@@ -1,4 +1,3 @@
-// src/shared/api/photos.ts
 import { api } from "./api";
 
 export type UploadedFileMeta = {

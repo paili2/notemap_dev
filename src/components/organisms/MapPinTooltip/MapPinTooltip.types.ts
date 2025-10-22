@@ -1,4 +1,4 @@
-export type MapPinTooltipMode = "hover" | "click";
+type MapPinTooltipMode = "hover" | "click";
 
 export interface MapPinTooltipProps {
   mode?: MapPinTooltipMode;

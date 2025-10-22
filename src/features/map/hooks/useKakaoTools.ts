@@ -4,26 +4,28 @@ import { useCallback, useRef } from "react";
 import type { LatLng } from "@/lib/geo/types";
 
 /* ───────── Kakao 얇은 타입 ───────── */
-export interface KakaoLatLng {
+interface KakaoLatLng {
   getLat(): number;
   getLng(): number;
 }
-export interface KakaoPoint {
+interface KakaoPoint {
   x: number;
   y: number;
 }
-export interface KakaoProjection {
+interface KakaoProjection {
   pointFromCoords(latlng: KakaoLatLng): KakaoPoint;
   coordsFromPoint(point: KakaoPoint): KakaoLatLng;
 }
-export interface KakaoGeocoder {
+interface KakaoGeocoder {
   coord2Address(
     lng: number,
     lat: number,
     cb: (res: any[], status: string) => void
   ): void;
+  addressSearch(query: string, cb: (res: any[], status: string) => void): void;
 }
-export interface KakaoSDK {
+
+interface KakaoSDK {
   maps: {
     LatLng: new (lat: number, lng: number) => KakaoLatLng;
     Point: new (x: number, y: number) => KakaoPoint;
@@ -33,7 +35,7 @@ export interface KakaoSDK {
     };
   };
 }
-export interface KakaoMapInstance {
+interface KakaoMapInstance {
   getProjection?: () => KakaoProjection | undefined;
   panTo?: (latlngOrCoords: KakaoLatLng) => void;
   relayout?: () => void;
@@ -147,6 +149,77 @@ export function useResolveAddress(opts?: {
         return out;
       } catch {
         return { road: null, jibun: null };
+      }
+    },
+    [kakaoSDK, timeoutMs, cacheTtlMs]
+  );
+}
+
+type LatLngOut = { lat: number; lng: number };
+
+const geocodeCache = new Map<string, { value: LatLngOut; expiresAt: number }>();
+const inflightGeocode = new Map<string, Promise<LatLngOut>>();
+
+/**
+ * 주소 → 좌표 (정방향 지오코딩)
+ * - Kakao SDK의 addressSearch() 사용
+ * - 캐시 및 타임아웃, 동시요청 dedupe 지원
+ */
+export function useGeocodeAddress(opts?: {
+  kakaoSDK?: KakaoSDK | null;
+  timeoutMs?: number; // default 4000
+  cacheTtlMs?: number; // default 5분
+}): (address: string) => Promise<LatLngOut> {
+  const {
+    kakaoSDK = null,
+    timeoutMs = 4000,
+    cacheTtlMs = 5 * 60_000,
+  } = opts || {};
+
+  return useCallback(
+    async (address: string): Promise<LatLngOut> => {
+      const q = (address || "").trim();
+      if (!q) throw new Error("empty-address");
+
+      const kakao = getKakaoFromWindowOrRef(kakaoSDK);
+      if (!kakao?.maps?.services) throw new Error("kakao-sdk-not-loaded");
+
+      // 캐시 체크
+      const c = geocodeCache.get(q);
+      if (c && c.expiresAt > Date.now()) return c.value;
+
+      // 중복요청 방지
+      const ex = inflightGeocode.get(q);
+      if (ex) return ex;
+
+      const geocoder = getGeocoder(kakao);
+      const req = new Promise<LatLngOut>((resolve, reject) => {
+        geocoder.addressSearch(q, (res: any[], status: string) => {
+          if (status === kakao.maps.services.Status.OK && res?.[0]) {
+            const r0 = res[0];
+            const out = { lat: Number(r0.y), lng: Number(r0.x) }; // Kakao: x=lng, y=lat
+            geocodeCache.set(q, {
+              value: out,
+              expiresAt: Date.now() + cacheTtlMs,
+            });
+            resolve(out);
+          } else reject(new Error("address-search-failed"));
+        });
+      });
+
+      const withTimeout = Promise.race<LatLngOut>([
+        req,
+        new Promise<LatLngOut>((_, reject) =>
+          setTimeout(() => reject(new Error("geocode-timeout")), timeoutMs)
+        ),
+      ]);
+
+      inflightGeocode.set(q, withTimeout);
+      try {
+        const out = await withTimeout;
+        return out;
+      } finally {
+        inflightGeocode.delete(q);
       }
     },
     [kakaoSDK, timeoutMs, cacheTtlMs]

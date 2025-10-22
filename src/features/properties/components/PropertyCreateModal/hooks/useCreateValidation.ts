@@ -10,7 +10,8 @@ type Args = {
   title: string;
   address: string;
   officePhone: string;
-  parkingType: string;
+  /** 초기엔 미선택(null)일 수 있음 */
+  parkingType: string | null; // ⬅️ 변경
   completionDate: string;
   salePrice: string;
   // 숫자
@@ -61,6 +62,7 @@ export function useCreateValidation({
       baseAreaSet.exMaxPy,
     ]
   );
+
   const baseHasReal = useMemo(
     () =>
       hasPair(baseAreaSet.realMinM2, baseAreaSet.realMaxM2) ||
@@ -80,6 +82,7 @@ export function useCreateValidation({
       ),
     [extraAreaSets]
   );
+
   const extrasHaveReal = useMemo(
     () =>
       extraAreaSets.some(
@@ -113,7 +116,7 @@ export function useCreateValidation({
       filled(title) &&
       filled(address) &&
       filled(officePhone) &&
-      filled(parkingType) &&
+      filled(parkingType ?? "") && // ⬅️ null 방지
       filled(completionDate) &&
       filled(salePrice) &&
       hasExclusiveAny &&

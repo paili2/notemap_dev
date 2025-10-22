@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import { FilterSearch } from "../../FilterSearch";
 import { MapMenuKey } from "../../components/MapMenu";
@@ -74,11 +74,21 @@ export function MapHomeUI(props: MapHomeUIProps) {
     error: pinsError,
   } = usePinsFromViewport({ map: mapInstance, debounceMs: 300 });
 
+  // ✅ title의 null → undefined 정규화로 타입 미스매치 해소
+  const normServerPoints = useMemo(
+    () => serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })),
+    [serverPoints]
+  );
+  const normServerDrafts = useMemo(
+    () => serverDrafts?.map((d) => ({ ...d, title: d.title ?? undefined })),
+    [serverDrafts]
+  );
+
   // ===== 마커 병합 =====
   const { mergedMarkers, mergedWithTempDraft } = useMergedMarkers({
     localMarkers: markers,
-    serverPoints,
-    serverDrafts,
+    serverPoints: normServerPoints,
+    serverDrafts: normServerDrafts,
     menuOpen,
     menuAnchor,
   });
@@ -91,7 +101,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     state: plannedState,
   } = usePlannedDrafts({ filter, getBounds: useBounds(kakaoSDK, mapInstance) });
 
-  // ===== roadview =====
+  // ===== roadview (한 번만 호출) =====
   const {
     roadviewContainerRef,
     visible: roadviewVisible,
@@ -126,6 +136,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
   const [isDistrictOn, setIsDistrictOn] = useState(false);
+
+  // 사이드바 컨텍스트 (siteReservations 전달에 사용)
+  const { siteReservations } = useSidebarCtx();
 
   return (
     <div className="fixed inset-0">
@@ -162,7 +175,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         menuJibunAddr={menuJibunAddr}
         visibleMarkers={visibleMarkers}
         favById={favById}
-        siteReservations={useSidebarCtx().siteReservations}
+        siteReservations={siteReservations}
         onCloseMenu={onCloseMenu}
         onViewFromMenu={onViewFromMenu}
         onCreateFromMenu={onCreateFromMenu}
@@ -200,11 +213,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
         rightOpen={rightOpen}
         setRightOpen={(expanded) => {
           setRightOpen(expanded);
-          if (expanded && props.useSidebar) props.setUseSidebar(false);
+          if (expanded && useSidebar) setUseSidebar(false);
         }}
-        sidebarOpen={props.useSidebar}
+        sidebarOpen={useSidebar}
         setSidebarOpen={(open) => {
-          props.setUseSidebar(open);
+          setUseSidebar(open);
           if (open) setRightOpen(false);
         }}
       />
@@ -214,8 +227,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       {/* 사이드바 & 필터모달 & 상세/생성/로드뷰 모달 */}
       <Sidebar
-        isSidebarOn={props.useSidebar}
-        onToggleSidebar={() => props.setUseSidebar(!props.useSidebar)}
+        isSidebarOn={useSidebar}
+        onToggleSidebar={() => setUseSidebar(!useSidebar)}
       />
       <FilterSearch
         isOpen={filterSearchOpen}
@@ -234,9 +247,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         selectedPos={selectedPos}
         createHostHandlers={createHostHandlers}
         roadviewVisible={roadviewVisible}
-        roadviewContainerRef={
-          useRoadview({ kakaoSDK, map: mapInstance }).roadviewContainerRef
-        }
+        roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}
       />
     </div>

@@ -1,6 +1,6 @@
 import { api } from "./api";
 
-export type PinsMapQuery = {
+type PinsMapQuery = {
   swLat: number;
   swLng: number;
   neLat: number;

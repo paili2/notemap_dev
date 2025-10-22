@@ -1,7 +1,7 @@
 import { LABEL, HITBOX } from "@/features/map/lib/constants";
 
 // 공통 색/상수
-export const ACCENT = "#3B82F6";
+const ACCENT = "#3B82F6";
 export const DRAFT_ID = "__draft__";
 export const SELECTED_Z = 2000;
 

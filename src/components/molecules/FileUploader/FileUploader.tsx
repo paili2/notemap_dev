@@ -18,7 +18,7 @@ import {
 
 export type FileLike = File & { previewUrl?: string };
 
-export interface FileUploaderProps {
+interface FileUploaderProps {
   /** multiple 허용 여부 */
   multiple?: boolean;
   /** accept: MIME 타입/확장자 (예: "image/*" 혹은 "image/png,.jpg") */

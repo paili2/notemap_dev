@@ -1,6 +1,6 @@
 import type { MapMenuKey } from "../components/MapMenu/types/types";
 
-export type Pin = {
+type Pin = {
   id: string | number;
   building?: { grade?: "new" | "old" | string };
   visit?: {

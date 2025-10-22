@@ -8,7 +8,7 @@ import { buildEditPatchWithMedia } from "@/features/properties/components/Proper
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 
-type Props = {
+type MapEditModalHostProps = {
   open: boolean;
   data: PropertyViewDetails;
   selectedId: string;
@@ -25,7 +25,7 @@ export default function MapEditModalHost({
   onClose,
   updateItems,
   onSubmit,
-}: Props) {
+}: MapEditModalHostProps) {
   const submittingRef = useRef(false);
   const mountedRef = useRef(true);
 

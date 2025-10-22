@@ -30,7 +30,7 @@ const pickOrientation = (o: unknown): OrientationValue | "" =>
     | OrientationValue
     | "";
 
-export type Normalized = {
+type Normalized = {
   // 기본
   pinKind: PinKind;
   title: string;

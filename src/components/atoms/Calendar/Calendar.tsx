@@ -11,8 +11,7 @@ import { cn } from "@/lib/cn";
 import { Button, buttonVariants } from "@/components/atoms/Button/Button";
 import { useEffect, useMemo, useRef } from "react";
 
-/** 외부에서 타입도 재사용할 수 있게 export */
-export type CalendarProps = React.ComponentProps<typeof DayPicker> & {
+type CalendarProps = React.ComponentProps<typeof DayPicker> & {
   /** 네비 버튼 variant */
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
   /** 월/요일 포맷용 문자열 로케일 */

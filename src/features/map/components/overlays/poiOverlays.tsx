@@ -9,7 +9,7 @@ import { Train, Coffee, Store, Pill, School } from "lucide-react";
 export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway" | "school";
 
 /** POI 한 점 */
-export type PoiPoint = {
+type PoiPoint = {
   id: string;
   kind: PoiKind;
   lat: number;
@@ -45,7 +45,7 @@ export const KAKAO_KEYWORD: Record<PoiKind, string | string[] | undefined> = {
 };
 
 /** (마커 API용) 아이콘 스펙 */
-export type PoiIconSpec = {
+type PoiIconSpec = {
   url: string;
   size: [number, number]; // [w, h]
   offset: [number, number]; // [x, y]

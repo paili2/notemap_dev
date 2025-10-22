@@ -2,7 +2,6 @@
 
 import { PoiKind } from "@/features/map/components/overlays/poiOverlays";
 import MapView from "../../../components/MapView/MapView";
-import TempDraftPin from "../../../components/TempDraftPin";
 import type { MapMarker } from "../../../types/map";
 
 export default function MapCanvas(props: {
@@ -72,15 +71,6 @@ export default function MapCanvas(props: {
         }
         poiKinds={poiKinds}
         showPoiToolbar={false}
-      />
-
-      <TempDraftPin
-        kakao={kakaoSDK}
-        map={mapInstance}
-        visible={!!menuAnchor}
-        lat={menuAnchor?.lat}
-        lng={menuAnchor?.lng}
-        hideLabel={!!menuOpen}
       />
 
       {pinsLoading && (

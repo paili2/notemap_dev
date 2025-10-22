@@ -1,8 +1,6 @@
-// src/shared/api/pinPhotos.ts
+type PinPhotoId = number | string;
 
-export type PinPhotoId = number | string;
-
-export type PinPhoto = {
+type PinPhoto = {
   id: PinPhotoId;
   groupId: string;
   url: string;
@@ -29,7 +27,7 @@ export async function listGroupPhotos(
 }
 
 /* ───────── 등록: POST /photos/:groupId ───────── */
-export type CreateGroupPhotosBody = {
+type CreateGroupPhotosBody = {
   urls: string[]; // 업로드 후 최종 접근 가능한 URL 배열
   isCover?: boolean; // (선택) true 지정 시 해당 요청에 포함된 전부에 동일값 적용
   sortOrders?: number[]; // (선택) 각 url의 정렬순서
@@ -57,7 +55,7 @@ export async function createGroupPhotos(
 
 /* ───────── 수정: PATCH /photos ─────────
    여러 장 동시 수정 가능. 필요한 필드만 보냄. */
-export type UpdatePhotosBody = {
+type UpdatePhotosBody = {
   photoIds: string[]; // 수정 대상 사진 IDs
   isCover?: boolean; // 대표 여부 토글
   sortOrder?: number; // 단건 정렬 변경 시 사용

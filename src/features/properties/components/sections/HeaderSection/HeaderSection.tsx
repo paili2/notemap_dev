@@ -11,7 +11,7 @@ import PinTypeSelect from "./components/PinTypeSelect";
 import { Button } from "@/components/atoms/Button/Button";
 import { PinKind } from "@/features/pins/types";
 
-export type HeaderSectionExtraProps = {
+type HeaderSectionExtraProps = {
   /** 선택된 핀 종류 (매물 타입) */
   pinKind: PinKind;
   /** 핀 종류 변경 핸들러 */

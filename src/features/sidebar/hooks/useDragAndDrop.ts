@@ -1,8 +1,11 @@
 import { useState } from "react";
 
+type FinalizeFn<T> = (orderedIds: string[], orderedItems: T[]) => void;
+
 export function useDragAndDrop<T extends { id: string }>(
   items: T[],
-  onItemsChange: (items: T[]) => void
+  onItemsChange: (items: T[]) => void,
+  onFinalize?: FinalizeFn<T> // ✅ 드롭/이동이 끝난 뒤 최종 순서 전달(선택)
 ) {
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
 
@@ -22,7 +25,6 @@ export function useDragAndDrop<T extends { id: string }>(
 
     const draggedIndex = items.findIndex((item) => item.id === draggedItem);
     const targetIndex = items.findIndex((item) => item.id === targetId);
-
     if (draggedIndex === -1 || targetIndex === -1) return;
 
     const newItems = [...items];
@@ -31,6 +33,12 @@ export function useDragAndDrop<T extends { id: string }>(
 
     onItemsChange(newItems);
     setDraggedItem(null);
+
+    // ✅ 최종 순서 콜백 (서버 재정렬 PATCH에 사용)
+    onFinalize?.(
+      newItems.map((x) => x.id),
+      newItems
+    );
   };
 
   const moveItem = (itemId: string, direction: "up" | "down") => {
@@ -45,6 +53,12 @@ export function useDragAndDrop<T extends { id: string }>(
     newItems.splice(newIndex, 0, movedItem);
 
     onItemsChange(newItems);
+
+    // ✅ 버튼으로 이동해도 동일하게 서버에 반영 가능
+    onFinalize?.(
+      newItems.map((x) => x.id),
+      newItems
+    );
   };
 
   return {

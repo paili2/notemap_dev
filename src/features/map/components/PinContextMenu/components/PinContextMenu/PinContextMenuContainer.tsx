@@ -10,6 +10,7 @@ import { useDerivedPinState } from "./hooks/useDerivedPinState";
 import { usePlanReserve } from "./hooks/usePlanReserve";
 import ContextMenuPanel from "../ContextMenuPanel/ContextMenuPanel";
 import { PinContextMenuProps } from "./types";
+import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
 export default function PinContextMenuContainer(props: PinContextMenuProps) {
   const {
@@ -46,8 +47,8 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     isVisitReservedFromParent,
   });
 
-  const { createVisitPlanAt, reserveVisitPlan, loadScheduledReservations } =
-    useSidebar();
+  const { createVisitPlanAt, reserveVisitPlan } = useSidebar();
+  const { refetch: refetchScheduledReservations } = useScheduledReservations();
 
   const { handlePlan, handleReserve } = usePlanReserve({
     position,
@@ -60,7 +61,7 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     onClose,
     createVisitPlanAt,
     reserveVisitPlan,
-    loadScheduledReservations,
+    loadScheduledReservations: refetchScheduledReservations,
   });
 
   const xAnchor = 0.5;

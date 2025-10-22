@@ -4,26 +4,35 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Card, CardContent, CardHeader } from "@/components/atoms/Card/Card";
-import type { SidebarSectionProps } from "../types/sidebar";
+import type { SidebarSectionProps as BaseProps } from "../types/sidebar";
 import { FavorateListItem } from "./FavorateListItem";
 import { useDragAndDrop } from "../hooks/useDragAndDrop";
 import { ExplorationItem } from "./ExplorationItem";
 
+/** ✅ 드래그 종료 후 최종 순서 id 배열을 알려주는 콜백을 props에 추가 */
+type SidebarSectionProps = BaseProps & {
+  onReorderIds?: (orderedIds: string[]) => void;
+};
+
 export function SidebarSection({
   title,
-  items = [], // ✅ 기본값 추가: undefined 안전
-  nestedItems = [], // (기존 유지)
+  items = [], // undefined 안전
+  nestedItems = [], // 기존 유지
   onItemsChange,
   onDeleteItem,
   onNestedItemsChange,
   onDeleteNestedItem,
   onDeleteSubItem,
+  onReorderIds, // ✅ 추가된 콜백
 }: SidebarSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // ✅ items는 항상 배열이라 안전하게 훅에 넘길 수 있음
+  // useDragAndDrop: (items, onItemsChange, onFinalize?)
   const { draggedItem, handleDragStart, handleDragOver, handleDrop, moveItem } =
-    useDragAndDrop(items, onItemsChange);
+    useDragAndDrop(items, onItemsChange, (orderedIds) => {
+      // ✅ 드롭/이동 종료 시 최종 순서 id 배열을 상위로 전달
+      onReorderIds?.(orderedIds);
+    });
 
   const handleNestedItemChange = (updatedItem: any) => {
     if (!onNestedItemsChange) return;
@@ -34,7 +43,7 @@ export function SidebarSection({
   };
 
   const isEmpty =
-    (items?.length ?? 0) === 0 && (nestedItems?.length ?? 0) === 0; // ✅ 안전한 비어있음 체크
+    (items?.length ?? 0) === 0 && (nestedItems?.length ?? 0) === 0;
 
   return (
     <Card className="bg-white border-gray-200 shadow-sm">
@@ -81,10 +90,10 @@ export function SidebarSection({
                   index={index}
                   totalItems={items.length}
                   draggedItem={draggedItem}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                  onMoveItem={moveItem}
+                  onDragStart={handleDragStart} // (e, item.id) 형태로 호출되도록 ExplorationItem에서 전달
+                  onDragOver={handleDragOver} // (e)
+                  onDrop={handleDrop} // (e, targetId)
+                  onMoveItem={moveItem} // (item.id, "up"/"down")
                   onDeleteItem={onDeleteItem}
                 />
               ))

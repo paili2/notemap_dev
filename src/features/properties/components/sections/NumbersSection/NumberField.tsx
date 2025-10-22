@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Button } from "@/components/atoms/Button/Button";
 
-export interface NumberFieldProps {
+interface NumberFieldProps {
   label: string;
   value: string;
   setValue: (v: string) => void;

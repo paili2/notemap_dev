@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 
-export type CustomOverlayHandle = {
+type CustomOverlayHandle = {
   getOverlay: () => kakao.maps.CustomOverlay | null;
   setPosition: (pos: kakao.maps.LatLng) => void;
   setZIndex: (z: number) => void;
@@ -17,7 +17,7 @@ export type CustomOverlayHandle = {
   hide: () => void;
 };
 
-export type CustomOverlayProps = {
+type CustomOverlayProps = {
   kakao: typeof window.kakao | null;
   map: kakao.maps.Map | null;
   position: kakao.maps.LatLng;

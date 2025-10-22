@@ -2,10 +2,10 @@ import { toYMDFlexible, YMD_REGEX } from "@/lib/dateUtils";
 import { toPy } from "@/features/properties/lib/area";
 
 /** unknown -> string (null/undefined → "") */
-export const asStr = (v: unknown): string => (v == null ? "" : String(v));
+const asStr = (v: unknown): string => (v == null ? "" : String(v));
 
 /** unknown -> number | undefined (문자열의 콤마 제거까지 느슨히 허용) */
-export const asNum = (v: unknown): number | undefined => {
+const asNum = (v: unknown): number | undefined => {
   if (typeof v === "number") return Number.isFinite(v) ? v : undefined;
   const s = asStr(v).replace(/,/g, "").trim();
   if (!s) return undefined;

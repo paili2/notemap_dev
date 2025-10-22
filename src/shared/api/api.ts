@@ -43,22 +43,12 @@ function keyOf(url: string, params?: any) {
 /* -------------------------------------------- */
 /* GET single-flight: 동일 url+params 병합 호출 */
 /* -------------------------------------------- */
-export async function getOnce<T = any>(
+async function getOnce<T = any>(
   url: string,
   config?: { params?: any; signal?: AbortSignal }
 ): Promise<AxiosResponse<T>> {
   const nu = normalizeUrl(url);
   const key = keyOf(nu, config?.params);
-
-  if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log(
-      "[getOnce] key:",
-      key,
-      "mapId:",
-      (inflight as any).__id || ((inflight as any).__id = Math.random())
-    );
-  }
 
   // 1) 이미 진행 중이면 그 프라미스를 그대로 반환
   const existed = inflight.get(key);
@@ -125,17 +115,6 @@ api.interceptors.request.use((config) => {
     ""
   );
 
-  // 전체 로깅(원하면)
-  console.log(
-    "[REQ]",
-    method,
-    url,
-    "params:",
-    config.params,
-    "data:",
-    config.data
-  );
-
   // ✅ GET /pins 탐지 + 호출자 스택
   if (method === "GET" && /^\/?pins\/?$/.test(url)) {
     console.warn(
@@ -183,3 +162,63 @@ export async function assertAuthed() {
     console.warn("[AUTH] /me fail", e);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* ✅ 세션 프리플라이트 1회 보장 + 재시도 정책 (401만 1회)             */
+/* ------------------------------------------------------------------ */
+
+// 전역 공유 Promise (HMR/StrictMode에서도 1개만)
+let __ensureSessionPromise: Promise<void> | null = null;
+async function ensureSessionOnce() {
+  if (!__ensureSessionPromise) {
+    __ensureSessionPromise = api
+      .get("/me", {
+        headers: { "x-skip-auth": "1" }, // 자기 자신은 인터셉터 건너뜀
+        validateStatus: (s) => s >= 200 && s < 500,
+        withCredentials: true,
+      })
+      .then(() => void 0)
+      .finally(() => {
+        __ensureSessionPromise = null;
+      });
+  }
+  return __ensureSessionPromise;
+}
+
+// ✔ 요청 전: (원하면) 세션 1회 확인
+api.interceptors.request.use(async (config) => {
+  // /me 자체나, 명시적으로 스킵한 요청은 건너뜀
+  if (config.headers?.["x-skip-auth"] === "1") return config;
+
+  // 필요 시 세션 핑 (원치 않으면 이 줄을 주석처리)
+  // await ensureSessionOnce();
+  return config;
+});
+
+// ✔ 응답 후: 401/419에서만 1회 재시도, 그 외엔 절대 재전송 금지
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const { config, response } = error || {};
+    if (!config) throw error;
+
+    // 클라이언트에서 재시도 금지 플래그가 있으면 그대로 실패
+    if (config.headers && config.headers["x-no-retry"] === "1") {
+      throw error;
+    }
+
+    // 한 번만 재시도
+    if (
+      response &&
+      (response.status === 401 || response.status === 419) &&
+      !(config as any).__retried
+    ) {
+      (config as any).__retried = true;
+      await ensureSessionOnce();
+      return api.request(config);
+    }
+
+    // ✅ 2xx 성공이거나 그 외 상태면 절대 재요청하지 않음
+    throw error;
+  }
+);

@@ -7,6 +7,7 @@ import PropertyCreateModalBody from "./PropertyCreateModalBody";
 export default function PropertyCreateModal(props: PropertyCreateModalProps) {
   if (!props.open) return null;
 
+  // open 제외하고 모두 Body로 전달 (initialLat/initialLng 포함)
   const { open, ...rest } = props;
   return <PropertyCreateModalBody {...rest} />;
 }

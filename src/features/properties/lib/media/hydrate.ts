@@ -3,9 +3,7 @@ import type { AnyImageRef, ImageItem } from "@/features/properties/types/media";
 
 type Resolved = { url: string; name: string; caption?: string };
 
-export async function resolveImageRef(
-  u: AnyImageRef
-): Promise<Resolved | null> {
+async function resolveImageRef(u: AnyImageRef): Promise<Resolved | null> {
   if (typeof u === "string") return { url: u, name: "" };
 
   if (u && typeof (u as any).idbKey === "string") {

@@ -26,7 +26,7 @@ import {
   searchCategoryAllPagesByBounds,
 } from "./search";
 
-export type UsePoiLayerOptions = {
+type UsePoiLayerOptions = {
   kakaoSDK?: any | null;
   map?: any | null;
   enabledKinds?: PoiKind[];

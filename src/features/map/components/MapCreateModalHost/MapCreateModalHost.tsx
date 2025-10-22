@@ -1,4 +1,3 @@
-// src/features/map/components/MapCreateModalHost.tsx
 "use client";
 
 import { useRef } from "react";
@@ -63,9 +62,17 @@ export default function MapCreateModalHost({
 
           const pos = resolvePos();
           const safeDto = buildCreateDto(payload, pos, prefillAddress);
+          console.log(
+            "[safeDto] buildingType=",
+            safeDto.buildingType,
+            "parkingTypeId=",
+            safeDto.parkingTypeId
+          );
 
           // 1) 매물 생성
           const { id: serverId, matchedDraftId } = await createPin(safeDto);
+
+          resetAfterCreate();
 
           // ✅ 타입캐스팅 + 키 폴백(프로젝트에 따라 imageFolders/imagesByCard, fileItems/verticalImages 등)
           const _p = payload as any;

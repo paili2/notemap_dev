@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const propertyFormSchema = z.object({
+const propertyFormSchema = z.object({
   title: z.string().min(1, "제목은 필수입니다."),
   status: z.enum(["판매중", "계약완료"]),
   type: z.enum(["아파트", "오피스텔", "빌라", "상가", "토지"]).optional(),
@@ -14,5 +14,7 @@ export const propertyFormSchema = z.object({
   description: z.string().optional(),
   isPublished: z.boolean().default(true),
   imageUrls: z.array(z.string().url()).optional(),
+  publicMemo: z.string().optional(),
+  privateMemo: z.string().optional(),
 });
 export type PropertyStatus = z.infer<typeof propertyFormSchema>["status"];

@@ -1,22 +1,14 @@
 "use client";
 
 import * as React from "react";
-import ImagesSection, {
-  type ImageFile,
-  // 만약 ImagesSection에서 FileItem 타입을 export 한다면 주석 해제:
-  // type FileItem,
-} from "../../sections/ImagesSection/ImagesSection";
+import ImagesSection from "../../sections/ImagesSection/ImagesSection";
+import type {
+  ImageItem,
+  ResolvedFileItem,
+} from "@/features/properties/types/media";
 
 // 레거시 원본 입력 타입 (훅에서 오는 것)
 type Img = { idbKey?: string; url?: string; name?: string; caption?: string };
-
-// 만약 FileItem 타입이 export되지 않는다면, 최소 필수 필드만 맞춘 로컬 타입 정의
-type FileItemLocal = {
-  url: string;
-  name: string;
-  caption?: string;
-  idbKey?: string;
-};
 
 export default function ImagesContainer({
   images,
@@ -52,24 +44,28 @@ export default function ImagesContainer({
     maxFiles: number;
   };
 }) {
-  // 1) 카드 이미지 정규화 (ImagesSection의 ImageFile 요구사항에 맞춤)
-  const imagesByCard: ImageFile[][] = images.imageFolders.map((folder) =>
+  // 1) 카드 이미지 정규화 (ImagesSection의 ImageItem 요구사항에 맞춤)
+  const imagesByCard: ImageItem[][] = images.imageFolders.map((folder) =>
     folder.map((img) => ({
+      // ImageItem에서 필수인 최소 속성만 안전하게 매핑
       url: img.url ?? "",
       name: img.name ?? "",
       caption: img.caption,
+      // 서버에서 내려온 id가 있다면 보존(대표 지정/삭제 등에서 사용 가능)
+      ...((img as any).id ? { id: (img as any).id } : {}),
     }))
   );
 
-  // 2) 파일 아이템 정규화: name/url 은 필수 string이어야 하므로 기본값 부여
-  const fileItemsNormalized /* : FileItem[] */ = images.fileItems.map(
+  // 2) 파일 아이템 정규화: 업로드 대기 목록 → ResolvedFileItem[]
+  const fileItemsNormalized: ResolvedFileItem[] = images.fileItems.map(
     (img) => ({
       url: img.url ?? "",
       name: img.name ?? "",
       caption: img.caption,
-      idbKey: img.idbKey,
+      idbKey: img.idbKey, // 로컬 식별자 유지
+      ...((img as any).id ? { id: (img as any).id } : {}),
     })
-  ) as unknown as FileItemLocal[]; // ← FileItem 타입 export 되면 FileItem[] 로 바꾸세요.
+  );
 
   return (
     <ImagesSection
@@ -82,7 +78,7 @@ export default function ImagesContainer({
       maxPerCard={images.maxPerCard}
       onChangeCaption={images.onChangeImageCaption}
       onRemoveImage={images.handleRemoveImage}
-      fileItems={fileItemsNormalized as any} // FileItem export 시 as any 제거 가능
+      fileItems={fileItemsNormalized}
       onAddFiles={images.onAddFiles}
       onChangeFileItemCaption={images.onChangeFileItemCaption}
       onRemoveFileItem={images.handleRemoveFileItem}

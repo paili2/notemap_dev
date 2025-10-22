@@ -1,4 +1,3 @@
-// src/features/properties/components/.../ImagesSection.tsx
 "use client";
 
 import { FolderPlus } from "lucide-react";
@@ -7,12 +6,7 @@ import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/Imag
 import { ImageItem, ResolvedFileItem } from "@/features/properties/types/media";
 import React, { useEffect, useRef } from "react";
 
-// ✅ 변경: 새 스펙 API
-import {
-  updatePhotos, // ← PATCH /photos
-  deletePhotos, // ← DELETE /photos
-  type PinPhoto,
-} from "@/shared/api/pinPhotos";
+import { updatePhotos, deletePhotos } from "@/shared/api/pinPhotos";
 
 type Props = {
   imagesByCard: ImageItem[][];

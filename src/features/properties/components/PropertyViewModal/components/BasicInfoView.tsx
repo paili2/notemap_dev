@@ -2,7 +2,7 @@
 
 import Field from "@/components/atoms/Field/Field";
 
-export interface BasicInfoViewProps {
+interface BasicInfoViewProps {
   address: string;
   officePhone: string;
   officePhone2?: string;

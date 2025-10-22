@@ -10,7 +10,7 @@ type Options = {
   autoSync?: boolean; // true면 openAtCenter()가 map 중심 사용
 };
 
-export type UseRoadview = {
+type UseRoadview = {
   /** 로드뷰 DOM 컨테이너 ref (필수) */
   roadviewContainerRef: React.RefObject<HTMLDivElement>;
   /** 현재 패널 표시 여부 */

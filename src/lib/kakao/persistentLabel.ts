@@ -1,6 +1,6 @@
 import { KakaoLatLngLiteral } from "./types";
 
-export type PersistentLabelOptions = {
+type PersistentLabelOptions = {
   kakao: any;
   map: any;
   position: KakaoLatLngLiteral;

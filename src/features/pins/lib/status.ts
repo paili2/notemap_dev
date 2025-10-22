@@ -1,9 +1,9 @@
 import type { PinItem } from "@/features/pins/types"; // 현재 올려준 PinItem 경로에 맞게 수정
 
-export type PinStatus = "draft" | "plan" | "listed";
+type PinStatus = "draft" | "plan" | "listed";
 
 /** PinItem + (선택) propertyId 로 draft/plan/listed를 일관되게 계산 */
-export function computeStatus(
+function computeStatus(
   pin?: PinItem | null,
   propertyId?: string | null
 ): PinStatus {

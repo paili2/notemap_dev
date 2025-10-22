@@ -1,8 +1,7 @@
 import { ListItem } from "@/features/sidebar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-// ✅ 타입 정의
-export type UseFavArgs = {
+type UseFavArgs = {
   createGroupAndAdd: (groupId: string, item: ListItem) => void;
   ensureFavoriteGroup: (groupId: string) => void;
   addFavoriteToGroup: (groupId: string, item: ListItem) => void;

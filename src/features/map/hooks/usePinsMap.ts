@@ -7,7 +7,7 @@ import {
   type PinsMapPoint,
 } from "@/shared/api/pinsMap";
 
-export type Bounds = {
+type Bounds = {
   swLat: number;
   swLng: number;
   neLat: number;

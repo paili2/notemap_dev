@@ -24,7 +24,7 @@ import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
 import { PinKind } from "@/features/pins/types";
 
-export const PIN_OPTIONS = [
+const PIN_OPTIONS = [
   { value: "1room", label: "1룸~1.5룸", icon: oneRoom },
   { value: "1room-terrace", label: "1룸~1.5룸 (테라스)", icon: oneRoomTerrace },
   { value: "2room", label: "2룸~2.5룸", icon: twoRoom },

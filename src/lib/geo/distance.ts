@@ -1,6 +1,6 @@
 import type { LatLng } from "./types";
 
-export const EARTH_RADIUS_M = 6_371_000; // m
+const EARTH_RADIUS_M = 6_371_000; // m
 const DEG2RAD = Math.PI / 180;
 
 /** 두 좌표 사이 하버사인 거리(m) */

@@ -8,18 +8,18 @@ import type {
 /* ---------------------------------- */
 
 /** 드래프트(새 위치) 고정 id 상수 */
-export const DRAFT_PIN_ID = "__draft__" as const;
+const DRAFT_PIN_ID = "__draft__" as const;
 
 /** 드래프트 id 또는 실제 매물 id(문자열/숫자 문자열) */
-export type PropertyId = typeof DRAFT_PIN_ID | string;
+type PropertyId = typeof DRAFT_PIN_ID | string;
 
 /** 드래프트 id 판별 가드 */
-export function isDraftId(id: unknown): id is typeof DRAFT_PIN_ID {
+function isDraftId(id: unknown): id is typeof DRAFT_PIN_ID {
   return id === DRAFT_PIN_ID;
 }
 
 /** 빈 문자열/공백을 null로 정규화할 때 유용 */
-export function normalizeNullableString(v?: string | null): string | null {
+function normalizeNullableString(v?: string | null): string | null {
   const s = (v ?? "").trim();
   return s.length ? s : null;
 }
@@ -130,22 +130,22 @@ type BasePanelProps = {
   mapContainer?: HTMLElement | null;
 };
 
-export type ReservedPanelProps = BasePanelProps & {
+type ReservedPanelProps = BasePanelProps & {
   state: "reserved";
   propertyId: Exclude<PropertyId, typeof DRAFT_PIN_ID>;
 };
 
-export type PlannedPanelProps = BasePanelProps & {
+type PlannedPanelProps = BasePanelProps & {
   state: "planned";
   propertyId: Exclude<PropertyId, typeof DRAFT_PIN_ID>;
 };
 
-export type DraftPanelProps = BasePanelProps & {
+type DraftPanelProps = BasePanelProps & {
   state: "draft";
   propertyId: typeof DRAFT_PIN_ID;
 };
 
-export type NormalPanelProps = BasePanelProps & {
+type NormalPanelProps = BasePanelProps & {
   state: "normal";
   /** 정상 매물 id 필요(상세보기 동작 보장) */
   propertyId: Exclude<PropertyId, typeof DRAFT_PIN_ID>;

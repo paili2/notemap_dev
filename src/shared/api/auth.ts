@@ -2,13 +2,13 @@
 import { api } from "./api";
 
 /* ---------- types ---------- */
-export type SignInBody = {
+type SignInBody = {
   username?: string; // 서버 규격에 맞춰 credentialId/username 중 택1
   credentialId?: string;
   password?: string;
 };
 
-export type SignInResp = {
+type SignInResp = {
   success: boolean;
   path: string; // "/auth/signin"
   message?: string;
@@ -20,13 +20,13 @@ export type SignInResp = {
   };
 };
 
-export type MeData = {
+type MeData = {
   accountId: number;
   credentialId: string;
   username: string;
 } | null;
 
-export type MeResponse = {
+type MeResponse = {
   success: boolean;
   path: string; // "/auth/me"
   message?: string;
@@ -52,7 +52,7 @@ export async function signIn(body: SignInBody) {
 }
 
 // 내 정보
-export async function fetchMe() {
+async function fetchMe() {
   const { data } = await api.get<MeResponse>("/auth/me", {
     withCredentials: true,
   });

@@ -53,7 +53,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
 
   const [elevator, setElevator] = useState<"O" | "X">("O");
-  const [registryOne, setRegistryOne] = useState<Registry | undefined>();
+  const [registry, setRegistry] = useState<Registry | undefined>();
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
@@ -152,7 +152,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     });
     setExtraAreaSets([]);
     setElevator("O");
-    setRegistryOne(undefined);
+    setRegistry(undefined);
     setSlopeGrade(undefined);
     setStructureGrade(undefined);
     setTotalBuildings("");
@@ -199,7 +199,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setExtraAreaSets(normalized.extraAreas);
 
     setElevator(normalized.elevator);
-    setRegistryOne(normalized.registryOne);
+    setRegistry(
+      (normalized as any).registry ?? (normalized as any).registryOne
+    );
     setSlopeGrade(normalized.slopeGrade);
     setStructureGrade(normalized.structureGrade);
 
@@ -372,7 +374,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       baseAreaSet,
       extraAreaSets,
       elevator,
-      registryOne,
+      registry,
       slopeGrade,
       structureGrade,
       totalBuildings,
@@ -406,7 +408,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       baseAreaSet,
       extraAreaSets,
       elevator,
-      registryOne,
       slopeGrade,
       structureGrade,
       totalBuildings,
@@ -419,6 +420,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       publicMemo,
       secretMemo,
       unitLines,
+      registry,
     ]
   );
 
@@ -446,7 +448,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       setBaseAreaSet,
       setExtraAreaSets,
       setElevator,
-      setRegistryOne,
+      setRegistry,
       setSlopeGrade,
       setStructureGrade,
       setTotalBuildings,
@@ -482,6 +484,19 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     () => ({ buildOrientation, packAreas }),
     [buildOrientation, packAreas]
   );
+  return {
+    // flat fields (읽기용 상태)
+    ...state,
+    // flat actions (setter/액션)
+    ...actions,
+    // flat derived/헬퍼
+    ...derived,
+    ...helpers,
 
-  return { state, actions, derived, helpers };
+    // 기존 구조도 함께 유지 (혹시 다른 곳에서 쓰고 있을 수 있으니)
+    state,
+    actions,
+    derived,
+    helpers,
+  } as const;
 }

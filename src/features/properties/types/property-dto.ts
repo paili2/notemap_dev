@@ -1,7 +1,9 @@
 import { ImageItem } from "./media";
 import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
 
-// --- Create DTO ---
+/* ------------------------------------------------------------------ */
+/* Create DTO                                                          */
+/* ------------------------------------------------------------------ */
 export type CreatePayload = {
   title: string;
   address?: string;
@@ -15,6 +17,11 @@ export type CreatePayload = {
   roomNo?: string;
   structure?: string;
 
+  // ✅ 추가: 빌딩/등록/주차 타입 (id는 number 권장)
+  buildingType?: string;
+  registrationTypeId?: number;
+  parkingTypeId?: number;
+
   // 향
   aspect?: string;
   aspectNo?: string;
@@ -24,7 +31,7 @@ export type CreatePayload = {
   orientations?: OrientationRow[];
 
   // 가격/평점/주차
-  salePrice?: string; // 매매가
+  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 바꿔도 됨)
   parkingType?: string; // 예: "자주식", "답사지 확인"
   parkingCount?: string | number;
 
@@ -33,19 +40,27 @@ export type CreatePayload = {
   elevator?: "O" | "X";
   slopeGrade?: Grade;
   structureGrade?: Grade;
-  completionDate?: string; // "2024.04.14" 같은 문자열
+  completionDate?: string;
 
-  // 단지 숫자
-  totalBuildings?: string;
-  totalFloors?: string;
-  totalHouseholds?: string;
-  remainingHouseholds?: string;
+  // 단지 숫자 (유연성 위해 number | string 허용)
+  totalBuildings?: number | string;
+  totalFloors?: number | string;
+  totalHouseholds?: number | string;
+  remainingHouseholds?: number | string;
+
+  contactMainLabel?: string;
+  contactMainPhone?: string;
+  contactSubLabel?: string;
+  contactSubPhone?: string;
 
   // 옵션/메모/등기/구조
   options: string[];
   optionEtc?: string;
-  publicMemo?: string;
-  secretMemo?: string;
+  publicMemo?: string | null;
+  secretMemo?: string | null; // ✅ 통일
+  /** @deprecated use secretMemo */
+  privateMemo?: string | null; // 과거 호환
+
   registry?: Registry;
   unitLines?: UnitLine[];
 
@@ -55,13 +70,15 @@ export type CreatePayload = {
   fileItems?: ImageItem[];
 
   // 면적
-  exclusiveArea?: string; // 전용
-  realArea?: string; // 실평
+  exclusiveArea?: string;
+  realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
 };
 
-// --- Update DTO ---
+/* ------------------------------------------------------------------ */
+/* Update DTO                                                          */
+/* ------------------------------------------------------------------ */
 export type UpdatePayload = {
   title?: string;
   address?: string;
@@ -73,6 +90,11 @@ export type UpdatePayload = {
   roomNo?: string;
   structure?: string;
 
+  // ✅ 추가: 빌딩/등록/주차 타입
+  buildingType?: string;
+  registrationTypeId?: number;
+  parkingTypeId?: number;
+
   // 향
   aspect?: string;
   aspectNo?: string;
@@ -83,7 +105,7 @@ export type UpdatePayload = {
 
   // 가격/평점/주차
   salePrice?: string | number | null;
-  listingGrade?: Grade;
+  listingStars?: number | null; // Create와 동일 키
   parkingType?: string;
   parkingCount?: string | number | null;
 
@@ -93,17 +115,17 @@ export type UpdatePayload = {
   structureGrade?: Grade;
   completionDate?: string;
 
-  // 단지 숫자
-  totalBuildings?: string;
-  totalFloors?: string;
-  totalHouseholds?: string;
-  remainingHouseholds?: string;
+  // 단지 숫자 (유연성 위해 number | string 허용)
+  totalBuildings?: number | string;
+  totalFloors?: number | string;
+  totalHouseholds?: number | string;
+  remainingHouseholds?: number | string;
 
   // 옵션/메모/등기/구조
   options?: string[];
   optionEtc?: string;
-  publicMemo?: string;
-  secretMemo?: string;
+  publicMemo?: string | null;
+  secretMemo?: string | null;
   registry?: Registry;
   unitLines?: UnitLine[];
   images?: string[];

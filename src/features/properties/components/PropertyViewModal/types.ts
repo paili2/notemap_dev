@@ -7,7 +7,7 @@ import {
 import { ImageItem } from "../../types/media";
 
 /** 저장 전용 레퍼런스 타입(IndexedDB 키 참조) */
-export type ImageRefLite = {
+type ImageRefLite = {
   idbKey: string;
   name?: string;
   caption?: string;

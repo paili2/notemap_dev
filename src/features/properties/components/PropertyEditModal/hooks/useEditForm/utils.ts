@@ -1,6 +1,6 @@
 import type { OrientationValue } from "./types";
 
-export const asStr = (v: unknown) => (v == null ? "" : String(v));
+const asStr = (v: unknown) => (v == null ? "" : String(v));
 
 export const asYMD = (v: unknown) => {
   if (v instanceof Date) return v.toISOString().slice(0, 10);

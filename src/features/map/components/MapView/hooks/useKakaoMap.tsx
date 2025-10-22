@@ -25,7 +25,7 @@ type Args = {
   }) => void;
 };
 
-export type SearchOptions = {
+type SearchOptions = {
   clearPrev?: boolean;
   recenter?: boolean;
   fitZoom?: boolean;

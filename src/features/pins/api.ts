@@ -1,5 +1,13 @@
 import { getPinsMapOnce } from "@/shared/api/api";
 
+export type PinPoint = {
+  id: string | number;
+  lat: number;
+  lng: number;
+  title?: string | null;
+  propertyId?: string | number | null;
+};
+
 export async function fetchPinsByBBox(params: {
   swLat: number;
   swLng: number;

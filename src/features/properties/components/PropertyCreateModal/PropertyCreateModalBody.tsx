@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef, useState, useCallback } from "react";
+
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import type { PropertyCreateModalProps } from "./types";
 import {
@@ -13,7 +15,7 @@ import { buildCreatePayload } from "./lib/buildCreatePayload";
 import { useCreateForm } from "./hooks/useCreateForm/useCreateForm";
 import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 
-// ⬇️ UI 컨테이너
+// UI 컨테이너
 import HeaderContainer from "./ui/HeaderContainer";
 import ImagesContainer from "./ui/ImagesContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
@@ -25,16 +27,17 @@ import AreaSetsContainer from "./ui/AreaSetsContainer";
 import StructureLinesContainer from "./ui/StructureLinesContainer";
 import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
+import { mapPinKindToBadge } from "../../lib/badge";
 
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
   initialAddress,
 }: Omit<PropertyCreateModalProps, "open">) {
-  // ✅ 모든 상태/액션이 f에 모여 있음 (Edit과 동일한 패턴)
+  // 모든 상태/액션
   const f = useCreateForm({ initialAddress });
 
-  // 이미지 훅은 별도로 유지
+  // 이미지 훅
   const {
     imageFolders,
     fileItems,
@@ -50,12 +53,31 @@ export default function PropertyCreateModalBody({
     handleRemoveFileItem,
   } = usePropertyImages();
 
-  const save = async () => {
-    if (!f.title.trim()) return;
+  // 중복 저장 가드
+  const isSavingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const save = useCallback(async () => {
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsSaving(true);
+
     try {
+      if (!f.title.trim()) return;
+
+      // 배지/날짜 계산 (YYYY-MM-DD)
+      const badgeFromKind = mapPinKindToBadge(f.pinKind);
+      const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
+      const effectiveCompletionDate =
+        typeof f.completionDate === "string" && f.completionDate.trim() !== ""
+          ? f.completionDate
+          : new Date().toISOString().slice(0, 10);
+
+      // 매물 payload (부모로 전달)
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
+        badge: effectiveBadge,
         officeName: f.officeName,
         officePhone: f.officePhone,
         officePhone2: f.officePhone2,
@@ -63,49 +85,55 @@ export default function PropertyCreateModalBody({
         floor: f.floor,
         roomNo: f.roomNo,
         structure: f.structure,
-
         listingStars: f.listingStars,
         parkingType: f.parkingType,
         parkingCount: f.parkingCount,
-        completionDate: f.completionDate,
+        completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
-
         baseAreaSet: f.baseAreaSet,
         extraAreaSets: f.extraAreaSets,
-
         elevator: f.elevator,
         registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
-
         totalBuildings: f.totalBuildings,
         totalFloors: f.totalFloors,
         totalHouseholds: f.totalHouseholds,
         remainingHouseholds: f.remainingHouseholds,
+
+        // 추가 필드
+        buildingType: (f as any).buildingType ?? null,
+        registrationTypeId: (f as any).registrationTypeId ?? null,
+        parkingTypeId: (f as any).parkingTypeId ?? null,
 
         options: f.options,
         etcChecked: f.etcChecked,
         optionEtc: f.optionEtc,
         publicMemo: f.publicMemo,
         secretMemo: f.secretMemo,
-
         aspects: f.aspects,
         unitLines: f.unitLines,
-
         imageFolders,
         fileItems,
-
         pinKind: f.pinKind,
       });
 
+      console.log(
+        "[payload before send] buildingType=",
+        (f as any).buildingType
+      );
+
+      // ✅ 서버 호출 없이 payload만 부모로 전달
       await Promise.resolve(onSubmit?.(payload));
-      onClose();
+      onClose?.();
     } catch (e) {
-      console.error("[PropertyCreate] onSubmit error:", e);
+      console.error("[PropertyCreate] save error:", e);
       alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
-      onClose();
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
-  };
+  }, [f, imageFolders, fileItems, onSubmit, onClose]);
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -156,7 +184,7 @@ export default function PropertyCreateModalBody({
         <FooterButtons
           onClose={onClose}
           onSave={save}
-          canSave={f.isSaveEnabled}
+          canSave={f.isSaveEnabled && !isSaving}
         />
       </div>
     </div>

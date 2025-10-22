@@ -8,7 +8,7 @@ import {
   useResolveAddress,
 } from "@/features/map/hooks/useKakaoTools";
 import { useViewportPost } from "@/features/map/hooks/useViewportPost";
-import { useLocalItems } from "../../hooks/useLocalItems";
+// import { useLocalItems } from "../../hooks/useLocalItems";
 import { useRunSearch } from "../../hooks/useRunSearch";
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
@@ -90,7 +90,7 @@ export function useMapHomeState() {
   // ⭐ POI 선택 상태
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
 
-  const { items, setItems } = useLocalItems({ storageKey: "properties" });
+  const [items, setItems] = useState<PropertyItem[]>([]);
 
   const [addFav, setAddFav] = useState<boolean>(false);
 
