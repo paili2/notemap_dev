@@ -33,6 +33,7 @@ export type BeforeDraft = {
   lng: number;
   addressLine?: string | null;
   createdAt?: string | null;
+  isActive?: boolean;
 };
 
 export type BoundsParams = {
@@ -126,6 +127,7 @@ const normalizeBeforeDraft = (raw: any): BeforeDraft => ({
     toStrOrNull(raw?.jibun_address),
   createdAt:
     toStrOrNull(raw?.createdAt) ?? toStrOrNull(raw?.created_at) ?? null,
+  isActive: typeof raw?.isActive === "boolean" ? raw.isActive : undefined, // 👈 추가
 });
 
 /** Idempotency-Key 생성 */
@@ -142,25 +144,28 @@ const makeIdempotencyKey = () => {
  * API
  * ──────────────────────────────────────────── */
 
-/** 0) 예약 전 임시핀 목록 (뷰포트 경계 선택) GET /survey-reservations/before */
+/** 0) 예약 전 임시핀 목록 GET /survey-reservations/before
+ * 서버 스펙: Query/body 없음, 세션 불필요
+ */
 export async function fetchUnreservedDrafts(
-  bounds?: BoundsParams,
+  _bounds?: BoundsParams,
   signal?: AbortSignal
 ): Promise<BeforeDraft[]> {
   const res = await api.get<ApiWrap<any[]>>("survey-reservations/before", {
-    withCredentials: true,
-    params: bounds,
+    withCredentials: false,
     signal,
   });
+
   const payload = (res.data as any) ?? {};
   const list = Array.isArray(payload.data) ? payload.data : [];
 
-  // 정규화 + 좌표가 유효한 것만 반환
-  return list
-    .map(normalizeBeforeDraft)
-    .filter(
-      (d: BeforeDraft) => Number.isFinite(d.lat) && Number.isFinite(d.lng)
-    );
+  // ✅ map 결과를 BeforeDraft[]로 고정
+  const drafts = list.map(normalizeBeforeDraft) as BeforeDraft[];
+
+  // ✅ 콜백에 타입가드(or 명시 타입)로 any 추론 방지
+  return drafts.filter(
+    (d): d is BeforeDraft => Number.isFinite(d.lat) && Number.isFinite(d.lng)
+  );
 }
 
 /** 1) 예약 생성 POST /survey-reservations (insertAt 지원) */
