@@ -27,6 +27,11 @@ declare namespace kakao {
       contain(latlng: LatLng): boolean;
     }
 
+    interface LatLngBounds {
+      getSouthWest(): kakao.maps.LatLng;
+      getNorthEast(): kakao.maps.LatLng;
+    }
+
     class MarkerImage {
       constructor(src: string, size: Size, opts?: { offset?: Point });
     }

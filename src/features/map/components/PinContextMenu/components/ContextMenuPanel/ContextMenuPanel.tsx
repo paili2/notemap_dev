@@ -1,7 +1,14 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
-import { useCallback, useEffect, useId, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ContextMenuPanelProps } from "./types";
 import { Plus } from "lucide-react";
 import type {
@@ -30,6 +37,9 @@ export default function ContextMenuPanel({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
+  // 생성 중(POST 진행 중) 중복 클릭 방지
+  const [creating, setCreating] = useState(false);
 
   /** 파생 상태: 예약 > 예정 > 드래프트 > 일반 */
   const { draft, reserved, planned, headerTitle } = useMemo(() => {
@@ -86,17 +96,32 @@ export default function ContextMenuPanel({
     e.stopPropagation();
   }, []);
 
-  const handlePlanClick = useCallback(() => {
-    const payload: Partial<PlanRequestPayload> = {
-      roadAddress: roadAddress ?? null,
-      jibunAddress: jibunAddress ?? null,
-      propertyId: propertyId ?? null,
-      propertyTitle: propertyTitle ?? null,
-      dateISO: new Date().toISOString().slice(0, 10),
-    };
-    onPlan?.(payload as PlanRequestPayload);
-    onClose();
-  }, [roadAddress, jibunAddress, propertyId, propertyTitle, onPlan, onClose]);
+  // ✅ 답사예정: 생성(POST) 완료까지 기다린 뒤 패널 닫기
+  const handlePlanClick = useCallback(async () => {
+    if (creating) return; // 중복 클릭 방지
+    setCreating(true);
+    try {
+      const payload: Partial<PlanRequestPayload> = {
+        roadAddress: roadAddress ?? null,
+        jibunAddress: jibunAddress ?? null,
+        propertyId: propertyId ?? null,
+        propertyTitle: propertyTitle ?? null,
+        dateISO: new Date().toISOString().slice(0, 10),
+      };
+      await onPlan?.(payload as PlanRequestPayload); // ※ 상위에서 POST /pins 수행
+      onClose();
+    } finally {
+      setCreating(false);
+    }
+  }, [
+    creating,
+    roadAddress,
+    jibunAddress,
+    propertyId,
+    propertyTitle,
+    onPlan,
+    onClose,
+  ]);
 
   const handleReserveClick = useCallback(() => {
     // 컨테이너에서 실제 예약 로직 처리
@@ -211,8 +236,9 @@ export default function ContextMenuPanel({
             size="lg"
             className="w-full"
             onClick={handlePlanClick}
+            disabled={creating}
           >
-            답사예정
+            {creating ? "생성 중..." : "답사예정"}
           </Button>
 
           <Button

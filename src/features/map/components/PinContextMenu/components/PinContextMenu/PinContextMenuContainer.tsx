@@ -51,6 +51,7 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
   const { refetch: refetchScheduledReservations } = useScheduledReservations();
 
   const { handlePlan, handleReserve } = usePlanReserve({
+    mode: "create",
     position,
     roadAddress,
     jibunAddress,
