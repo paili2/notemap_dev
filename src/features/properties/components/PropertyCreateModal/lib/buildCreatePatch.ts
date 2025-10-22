@@ -44,10 +44,7 @@ function extractMediaInputs(payload: any) {
 }
 
 /** 1) 미디어 처리 전, 베이스 오브젝트 + 미디어 입력만 구성 */
-export function buildCreatePatch(
-  payload: CreatePayload,
-  { id, pos }: BuildOpts
-) {
+function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
   const { orientations, aspect1, aspect2, aspect3 } =
     normalizeOrientations(payload);
   const { cardsInput, filesInput } = extractMediaInputs(payload);

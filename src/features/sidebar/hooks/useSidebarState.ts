@@ -1,15 +1,67 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import type {
   FavorateListItem,
   ListItem,
-  PendingReservation, // ✅ 추가
+  PendingReservation,
 } from "../types/sidebar";
+import { createPinDraft } from "@/shared/api/pins";
+import {
+  fetchUnreservedDrafts,
+  type BoundsParams,
+} from "@/shared/api/surveyReservations";
+import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
-const LS_KEY = "sidebar:favGroups";
-const LS_KEY_SITE = "sidebar:siteReservations";
+// ──────────────────────────────────────────────────────────────
+// 상수/유틸
+// ──────────────────────────────────────────────────────────────
+const LS_KEY = "sidebar:favGroups"; // 즐겨찾기만 로컬 유지
 
+const makePosKey = (lat: number, lng: number) =>
+  `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
+
+const mapReservationToListItem = (r: any): ListItem => {
+  const lat = Number(r?.lat);
+  const lng = Number(r?.lng);
+  const created = String(r?.createdAt ?? new Date().toISOString());
+  const title = String(r?.addressLine ?? "");
+  const reserved = String(r?.reservedDate ?? ""); // "YYYY-MM-DD"
+  return {
+    id: String(r?.id ?? crypto.randomUUID()),
+    title,
+    dateISO: reserved || created.slice(0, 10),
+    createdAt: created,
+    posKey:
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? makePosKey(lat, lng)
+        : undefined,
+  };
+};
+
+const mapBeforeDraftToListItem = (d: any): ListItem => {
+  const lat = Number(d?.lat);
+  const lng = Number(d?.lng);
+  const created = String(d?.createdAt ?? new Date().toISOString());
+  const title = String(d?.addressLine ?? "");
+  return {
+    id: String(d?.id ?? crypto.randomUUID()),
+    title,
+    dateISO: created.slice(0, 10),
+    createdAt: created,
+    posKey:
+      Number.isFinite(lat) && Number.isFinite(lng)
+        ? makePosKey(lat, lng)
+        : undefined,
+  };
+};
+
+// ──────────────────────────────────────────────────────────────
+// 훅 본체
+// ──────────────────────────────────────────────────────────────
 export function useSidebarState() {
-  // 1) 초기값: 하드코딩 + localStorage 복원
+  // 1) 즐겨찾기: 로컬 유지
   const [nestedFavorites, setNestedFavorites] = useState<FavorateListItem[]>(
     () => {
       if (typeof window === "undefined") return DEFAULT_GROUPS;
@@ -24,28 +76,30 @@ export function useSidebarState() {
     }
   );
 
-  // 2) 답사지 예약 섹션
-  const [siteReservations, setSiteReservations] = useState<ListItem[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem(LS_KEY_SITE);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw) as Partial<ListItem>[];
-      return Array.isArray(parsed)
-        ? parsed.map((it) => ({
-            id: String(it.id ?? crypto.randomUUID()),
-            title: String(it.title ?? ""),
-            dateISO: String(it.dateISO ?? ""), // ← 과거 데이터 폴백
-            createdAt: it.createdAt ?? new Date().toISOString(),
-            posKey: it.posKey ?? undefined,
-          }))
-        : [];
-    } catch {
-      return [];
-    }
-  });
+  // 2) 예약 전 임시핀(서버 /survey-reservations/before)
+  const [siteReservations, setSiteReservations] = useState<ListItem[]>([]);
 
-  // ✅ 답사지예약 '초안' 상태 (컨텍스트 메뉴 → 사이드바로 넘길 임시 데이터)
+  // 3) 내 예약 목록(서버 /survey-reservations/scheduled) — 전용 훅 사용
+  const {
+    items: scheduledItems,
+    loading: scheduledLoading,
+    error: scheduledError,
+    refetch: refetchScheduled,
+    setItems: setScheduledItems, // 낙관적 업데이트용
+  } = useScheduledReservations();
+
+  const [scheduledReservations, setScheduledReservations] = useState<
+    ListItem[]
+  >([]);
+
+  // 서버→UI 매핑(예약 목록)
+  useEffect(() => {
+    if (scheduledError) return;
+    const mapped = scheduledItems.map(mapReservationToListItem);
+    setScheduledReservations(mapped);
+  }, [scheduledItems, scheduledError]);
+
+  // 4) 임시 상태/플래그
   const [pendingReservation, setPendingReservation] =
     useState<PendingReservation | null>(null);
   const clearPendingReservation = useCallback(
@@ -53,7 +107,37 @@ export function useSidebarState() {
     []
   );
 
-  // ✅ 현재 순서 -> 배지/지도에 사용하는 맵 (id -> 1-based order)
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // 5) 서버 동기화 — 임시핀 목록 로드
+  const loadSiteReservations = useCallback(async (bounds?: BoundsParams) => {
+    try {
+      const list = await fetchUnreservedDrafts(bounds);
+      setSiteReservations(list.map(mapBeforeDraftToListItem));
+    } catch (e: any) {
+      console.warn("loadSiteReservations failed:", e?.message);
+    }
+  }, []);
+
+  // 초기화 (StrictMode 2회 방지)
+  const didInitRef = useRef(false);
+  useEffect(() => {
+    if (didInitRef.current) return;
+    didInitRef.current = true;
+    void loadSiteReservations(); // 임시핀 서버 로드
+    void refetchScheduled(); // 내 예약 목록 서버 로드
+  }, [loadSiteReservations, refetchScheduled]);
+
+  // 즐겨찾기는 계속 로컬 저장
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(nestedFavorites));
+    } catch {}
+  }, [nestedFavorites]);
+
+  // 예약 순서 배지용 맵(id -> 1-based order) : 임시핀용
   const reservationOrderMap = useMemo(() => {
     const map: Record<string, number> = {};
     siteReservations.forEach((it, idx) => {
@@ -63,25 +147,111 @@ export function useSidebarState() {
     return map;
   }, [siteReservations]);
 
-  // (선택) 헬퍼
   const getReservationOrder = useCallback(
     (pinId: string) => reservationOrderMap[pinId] ?? null,
     [reservationOrderMap]
   );
 
-  const makePosKey = (lat: number, lng: number) =>
-    `${lat.toFixed(6)},${lng.toFixed(6)}`;
+  // 생성: 현재 좌표 기준 임시핀 생성 → 서버 성공 후 목록 새로고침
+  const createVisitPlanAt = useCallback(
+    async (args: {
+      lat: number;
+      lng: number;
+      roadAddress?: string | null;
+      jibunAddress?: string | null;
+      title?: string | null;
+      memo?: string | null;
+    }) => {
+      setLoading(true);
+      setErr(null);
+      try {
+        const addressLine =
+          args.title?.trim() ||
+          args.roadAddress?.trim() ||
+          args.jibunAddress?.trim() ||
+          `${args.lat.toFixed(6)}, ${args.lng.toFixed(6)}`;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(LS_KEY_SITE, JSON.stringify(siteReservations));
-    } catch {}
-  }, [siteReservations]);
+        await createPinDraft({
+          lat: args.lat,
+          lng: args.lng,
+          addressLine,
+        });
 
+        // 서버 재로딩으로 일관성 맞춤
+        await loadSiteReservations();
+      } catch (e: any) {
+        setErr(e?.message ?? "failed to create draft");
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadSiteReservations]
+  );
+
+  // 삭제(임시핀): 서버 엔드포인트 생기면 연결. 지금은 UI만 갱신 후 서버 로딩.
+  const deleteVisitPlan = useCallback(
+    async (id: string) => {
+      setLoading(true);
+      setErr(null);
+      try {
+        setSiteReservations((prev) => prev.filter((x) => x.id !== id));
+        await loadSiteReservations();
+      } catch (e: any) {
+        setErr(e?.message ?? "failed to delete");
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadSiteReservations]
+  );
+
+  // 예약 확정(임시핀→예약 핀): 서버 성공 후 두 목록 모두 새로고침
+  const reserveVisitPlan = useCallback(
+    async (
+      draftId: string | number,
+      opts?: { reservedDate?: string; dateISO?: string }
+    ) => {
+      setLoading(true);
+      setErr(null);
+      // 실제 예약 생성은 컨텍스트 메뉴 쪽에서 처리함(여기선 재로딩만 책임져도 됨).
+      try {
+        // 임시핀 리스트 낙관적 제거
+        setSiteReservations((prev) =>
+          prev.filter((x) => String(x.id) !== String(draftId))
+        );
+        // 서버 동기화
+        await Promise.all([loadSiteReservations(), refetchScheduled()]);
+      } catch (e: any) {
+        setErr(e?.message ?? "failed to reserve");
+        throw e;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadSiteReservations, refetchScheduled]
+  );
+
+  // 정렬(로컬 표시만 변경)
+  const moveVisitPlan = useCallback((id: string, dir: "up" | "down") => {
+    setSiteReservations((prev) => {
+      const idx = prev.findIndex((x) => x.id === id);
+      if (idx < 0) return prev;
+      const j = dir === "up" ? idx - 1 : idx + 1;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      const [a, b] = [next[idx], next[j]];
+      next[idx] = b;
+      next[j] = a;
+      return next;
+    });
+  }, []);
+
+  // 하위 호환: 과거 이름 유지 (내부에서 상태만 갱신)
   const handleAddSiteReservation = useCallback((item: ListItem) => {
     setSiteReservations((prev) => {
-      if (prev.some((x) => x.id === item.id)) return prev; // 중복 방지
+      if (prev.some((x) => x.id === item.id)) return prev;
       const withCreated: ListItem = {
         ...item,
         createdAt: item.createdAt ?? new Date().toISOString(),
@@ -90,33 +260,27 @@ export function useSidebarState() {
     });
   }, []);
 
-  // 3) 로컬스토리지 동기화
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(nestedFavorites));
-    } catch {}
-  }, [nestedFavorites]);
+  const handleDeleteSiteReservation = useCallback(
+    (id: string) => {
+      void deleteVisitPlan(id);
+    },
+    [deleteVisitPlan]
+  );
 
-  // ─────────────────────────────────────────────────────────────
-  // ⭐ 핵심 추가: 그룹 생성/추가/삭제 헬퍼들
-  // ─────────────────────────────────────────────────────────────
-
-  /** 그룹이 없으면 생성하고, 있으면 그대로 반환 */
-  const ensureFavoriteGroup = (groupId: string, label?: string) => {
+  // 즐겨찾기 CRUD
+  const ensureFavoriteGroup = (groupId: string, _label?: string) => {
     setNestedFavorites((prev) => {
       const exists = prev.some((g) => g.title === groupId);
       if (exists) return prev;
       const newGroup: FavorateListItem = {
         id: `fav-${groupId}`,
-        title: groupId, // 고객번호 뒤 4자리 자체를 label로 사용
+        title: groupId,
         subItems: [],
       };
       return [...prev, newGroup];
     });
   };
 
-  /** 특정 그룹에 항목 추가(중복 방지) */
   const addFavoriteToGroup = (groupId: string, item: ListItem) => {
     setNestedFavorites((prev) =>
       prev.map((g) => {
@@ -128,22 +292,15 @@ export function useSidebarState() {
     );
   };
 
-  /** 그룹 만들고 바로 추가 (네이버식: “그룹 선택/생성 → 추가”) */
   const createGroupAndAdd = (groupId: string, item: ListItem) => {
     setNestedFavorites((prev) => {
       const idx = prev.findIndex((g) => g.title === groupId);
       if (idx === -1) {
-        // 새 그룹 생성 후 추가
         return [
           ...prev,
-          {
-            id: `fav-${groupId}`,
-            title: groupId,
-            subItems: [item],
-          },
+          { id: `fav-${groupId}`, title: groupId, subItems: [item] },
         ];
       }
-      // 기존 그룹에 중복 체크 후 추가
       const group = prev[idx];
       const exists = group.subItems.some((s) => s.id === item.id);
       if (exists) return prev;
@@ -153,12 +310,10 @@ export function useSidebarState() {
     });
   };
 
-  /** 그룹 전체 삭제 */
   const deleteFavoriteGroup = (groupId: string) => {
     setNestedFavorites((prev) => prev.filter((g) => g.title !== groupId));
   };
 
-  /** 그룹 내 항목 삭제 */
   const handleDeleteSubFavorite = (parentId: string, subId: string) => {
     setNestedFavorites((prev) =>
       prev.map((item) =>
@@ -172,12 +327,8 @@ export function useSidebarState() {
     );
   };
 
-  // 기존 삭제 핸들러들 유지 (그룹 id로 삭제)
   const handleDeleteNestedFavorite = (id: string) => {
     setNestedFavorites((prev) => prev.filter((item) => item.id !== id));
-  };
-  const handleDeleteSiteReservation = (id: string) => {
-    setSiteReservations((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleContractRecordsClick = () => {
@@ -187,38 +338,52 @@ export function useSidebarState() {
   return {
     // state
     nestedFavorites,
-    siteReservations,
-    pendingReservation, // ✅ 추가
+    siteReservations, // 임시핀(예약 전) — 서버 소스
+    scheduledReservations, // 내 예약 목록 — 서버 소스
+    pendingReservation,
+    reservationOrderMap,
+    loading,
+    err,
 
-    // setters (필요 시)
+    // setters
     setNestedFavorites,
     setSiteReservations,
+    setScheduledReservations, // 필요 시 외부에서 직접 주입
+    setScheduledItems, // (낙관적 업데이트용)
 
-    reservationOrderMap,
+    // getters
     getReservationOrder,
+
+    // actions - 예약(임시핀/예약)
+    loadSiteReservations, // GET /survey-reservations/before
+    refetchScheduled, // GET /survey-reservations/scheduled
+    createVisitPlanAt,
+    deleteVisitPlan,
+    reserveVisitPlan,
+    moveVisitPlan,
+
+    // 하위 호환(기존 이름 유지)
+    handleAddSiteReservation,
+    handleDeleteSiteReservation,
 
     // actions - 즐겨찾기 그룹
     ensureFavoriteGroup,
     addFavoriteToGroup,
     createGroupAndAdd,
     deleteFavoriteGroup,
-
-    // actions - 답사지예약
-    handleAddSiteReservation,
-    handleDeleteSiteReservation,
-    setPendingReservation, // ✅ 추가
-    clearPendingReservation, // ✅ 추가
-
-    // actions - 삭제류
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
+
+    // pending flags
+    setPendingReservation,
+    clearPendingReservation,
 
     // misc
     handleContractRecordsClick,
   };
 }
 
-// 초기 하드코딩 데이터
+/* 초기 하드코딩 데이터 (즐겨찾기) */
 const DEFAULT_GROUPS: FavorateListItem[] = [
   {
     id: "fav1",

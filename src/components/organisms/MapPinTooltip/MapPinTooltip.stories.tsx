@@ -28,7 +28,7 @@ const DemoTrigger = ({ label = "핀" }) => (
   </Button>
 );
 
-export const HoverBasic: Story = {
+const HoverBasic: Story = {
   args: {
     mode: "hover",
     trigger: <DemoTrigger />,

@@ -1,6 +1,6 @@
 "use client";
 import AspectsSection from "../../sections/AspectsSection/AspectsSection";
-import type { EditFormAPI } from "../hooks/useEditForm";
+import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function AspectsContainer({ form }: { form: EditFormAPI }) {
   return (

@@ -12,6 +12,14 @@ import { CompletionRegistrySectionProps } from "./types";
 
 const GRADES: ReadonlyArray<Grade> = ["상", "중", "하"];
 
+// ✅ 백엔드 enum과 동일 문자열
+const BUILDING_TYPES = ["APT", "OP", "주택", "근생"] as const;
+type BuildingType = (typeof BUILDING_TYPES)[number];
+
+function isBuildingType(v: unknown): v is BuildingType {
+  return (BUILDING_TYPES as readonly string[]).includes(v as string);
+}
+
 export default function CompletionRegistrySection({
   completionDate,
   setCompletionDate,
@@ -24,9 +32,12 @@ export default function CompletionRegistrySection({
   setSlopeGrade,
   structureGrade,
   setStructureGrade,
+  buildingType,
+  setBuildingType,
 }: CompletionRegistrySectionProps) {
   return (
     <div className="space-y-4">
+      {/* 1행: 경사도/구조 */}
       <div className="grid grid-cols-2 items-center gap-20 md:flex">
         <Field label="경사도" align="center">
           <PillRadioGroup
@@ -47,8 +58,8 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
-      {/* 2행: 준공일 + 등기 */}
-      <div className="flex items-center gap-8">
+      {/* 2행: 준공일/등기/건물유형 */}
+      <div className="grid grid-cols-3 items-center gap-8">
         <Field label="준공일" align="center">
           <Input
             value={completionDate}
@@ -61,10 +72,13 @@ export default function CompletionRegistrySection({
 
         <Field label="등기" align="center">
           <PillRadioGroup
-            name="registry"
-            options={REGISTRY_LIST}
-            value={registry}
-            onChange={setRegistry}
+            name="buildingType"
+            options={BUILDING_TYPES as unknown as string[]}
+            value={buildingType ?? undefined}
+            onChange={(v) => {
+              if (!v) return setBuildingType(null);
+              setBuildingType(isBuildingType(v) ? v : null);
+            }}
             allowUnset
           />
         </Field>

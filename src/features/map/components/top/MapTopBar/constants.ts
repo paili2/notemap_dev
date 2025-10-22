@@ -1,6 +1,6 @@
 import { FILTER_KEYS, type FilterKey } from "./types";
 
-export const FILTER_LABELS: Record<FilterKey, string> = {
+const FILTER_LABELS: Record<FilterKey, string> = {
   all: "전체",
   new: "신축",
   old: "구옥",

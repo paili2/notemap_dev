@@ -21,6 +21,8 @@ export default function BasicInfoSection({
           onChange={(e) => setAddress(e.target.value)}
           placeholder="예: 서울 성동구 성수동1가 ..."
           className="h-9"
+          readOnly={true}
+          aria-readonly="true"
         />
       </Field>
 

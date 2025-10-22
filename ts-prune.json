@@ -1,0 +1,13 @@
+{
+  "tsConfig": "tsconfig.json",
+  "skipFiles": ["\\.d\\.ts$"],
+  "ignore": [
+    "^app/.*page\\.tsx:.*\\bdefault$",
+    "^app/.*layout\\.tsx:.*\\bdefault$",
+    "^app/api/.+route\\.ts:.*\\b(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|runtime)\\b",
+    "^\\.next/",
+    "^.+\\.stories\\.tsx:",
+    "^tailwind\\.config\\.ts:",
+    "^vitest\\.config\\.ts:"
+  ]
+}

@@ -2,7 +2,7 @@ import type { ContractData } from "../types";
 import type { SalesContractData } from "@/features/contract-records/types/contract-records";
 
 // API 엔드포인트 상수
-export const API_ENDPOINTS = {
+const API_ENDPOINTS = {
   CONTRACTS: "/api/contracts",
   CONTRACT_BY_ID: (id: string) => `/api/contracts/${id}`,
   UPDATE_STATUS: (id: string) => `/api/contracts/${id}/status`,

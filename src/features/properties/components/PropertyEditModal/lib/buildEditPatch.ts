@@ -1,7 +1,7 @@
 import { hydrateRefsToMedia, materializeToRefs } from "@/lib/media/refs";
 import { PropertyViewDetails } from "../../PropertyViewModal/types";
 
-export function buildEditPatch(payload: any, selectedId?: string) {
+function buildEditPatch(payload: any, selectedId?: string) {
   const patch: Partial<PropertyViewDetails> & { pinKind?: string } = {
     id: payload.id ?? selectedId,
     title: payload.title,

@@ -13,7 +13,7 @@ export default function ImageCarouselUpload({
   onRemoveImage,
   useLocalCaptionFallback = true,
   onOpenPicker,
-  registerInputRef,
+  inputRef,
   onChangeFiles,
   maxCount,
   layout = "wide",
@@ -229,7 +229,7 @@ export default function ImageCarouselUpload({
         <div className="shrink-0">
           <input
             id={id}
-            ref={registerInputRef}
+            ref={inputRef ?? null}
             type="file"
             accept="image/*"
             multiple

@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/cn";
 
-export interface PropertyPageLayoutProps {
+interface PropertyPageLayoutProps {
   /** 지도 영역 */
   map: React.ReactNode;
   /** 리스트 영역 */

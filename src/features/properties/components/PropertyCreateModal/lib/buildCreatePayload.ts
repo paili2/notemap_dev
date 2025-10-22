@@ -12,15 +12,36 @@ import type {
 } from "@/features/properties/types/property-domain";
 
 import type {
-  ImageItem, // UI(입력/미리보기)용: url/idbKey 모두 선택적
-  StoredMediaItem, // 서버 전송/저장용 최소 스키마
+  ImageItem,
+  StoredMediaItem,
 } from "@/features/properties/types/media";
 
 import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/pins/types";
 
+/** 안전 숫자 변환 (숫자 아니면 undefined) */
+const toNum = (v: unknown) => {
+  if (v === null || v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/** YYYY-MM-DD (KST) */
+function todayKST(): string {
+  const now = new Date();
+  const kst = new Date(
+    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
+  );
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+/** 간단 문자열 sanitize */
+const s = (v: unknown) => String(v ?? "").trim();
+
 type BuildArgs = {
-  // 기본
   title: string;
   address: string;
   officeName: string;
@@ -30,38 +51,45 @@ type BuildArgs = {
   floor: string;
   roomNo: string;
   structure: string;
-  // 매물평점/주차/준공/매매가
+
+  badge?: string | null;
+
   listingStars: number;
-  parkingType: string;
-  parkingCount: string;
-  completionDate: string;
+  parkingType: string | null;
+  parkingCount: string | number | null;
+  completionDate?: string; // ✅ optional
   salePrice: string;
-  // 면적
+
   baseAreaSet: AreaSet;
   extraAreaSets: AreaSet[];
-  // 등기/등급
+
   elevator: "O" | "X";
   registryOne?: Registry;
   slopeGrade?: Grade;
   structureGrade?: Grade;
-  // 숫자
+
   totalBuildings: string;
   totalFloors: string;
   totalHouseholds: string;
   remainingHouseholds: string;
-  // 옵션/메모
+
+  /** ✅ 새 필드들 */
+  buildingType?: string | null;
+  registrationTypeId?: number | string | null;
+  parkingTypeId?: number | string | null;
+
   options: string[];
   etcChecked: boolean;
   optionEtc: string;
   publicMemo: string;
   secretMemo: string;
-  // 향/유닛
+
   aspects: AspectRowLite[];
   unitLines: UnitLine[];
-  // 이미지
-  imageFolders: ImageItem[][]; // 카드별 이미지(2차원)
-  fileItems: ImageItem[]; // 세로형/추가 파일 리스트(선택 사용)
-  // 기타
+
+  imageFolders: ImageItem[][];
+  fileItems: ImageItem[];
+
   pinKind: PinKind;
 };
 
@@ -76,6 +104,9 @@ export function buildCreatePayload(args: BuildArgs) {
     floor,
     roomNo,
     structure,
+
+    badge,
+
     listingStars,
     parkingType,
     parkingCount,
@@ -91,6 +122,11 @@ export function buildCreatePayload(args: BuildArgs) {
     totalFloors,
     totalHouseholds,
     remainingHouseholds,
+
+    buildingType,
+    registrationTypeId,
+    parkingTypeId,
+
     options,
     etcChecked,
     optionEtc,
@@ -103,11 +139,17 @@ export function buildCreatePayload(args: BuildArgs) {
     pinKind,
   } = args;
 
-  // 1) 향/방향 필드
+  // ✅ name 누락 방지: title → name 으로 동기화
+  const safeName = s(title);
+
+  // ✅ completionDate fallback — 비어있으면 KST YYYY-MM-DD로 고정
+  const effectiveCompletionDate = s(completionDate) || todayKST();
+
+  /* 1) 향/방향 필드 */
   const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
     buildOrientationFields(aspects);
 
-  // 2) 면적 패킹
+  /* 2) 면적 패킹 */
   const exclusiveArea = setPack(
     baseAreaSet.exMinM2,
     baseAreaSet.exMaxM2,
@@ -120,18 +162,22 @@ export function buildCreatePayload(args: BuildArgs) {
     baseAreaSet.realMinPy,
     baseAreaSet.realMaxPy
   );
-  const extraExclusiveAreas = extraAreaSets.map((s) =>
-    setPack(s.exMinM2, s.exMaxM2, s.exMinPy, s.exMaxPy)
+  const extraExclusiveAreas = extraAreaSets.map((s0) =>
+    setPack(s0.exMinM2, s0.exMaxM2, s0.exMinPy, s0.exMaxPy)
   );
-  const extraRealAreas = extraAreaSets.map((s) =>
-    setPack(s.realMinM2, s.realMaxM2, s.realMinPy, s.realMaxPy)
+  const extraRealAreas = extraAreaSets.map((s0) =>
+    setPack(s0.realMinM2, s0.realMaxM2, s0.realMinPy, s0.realMaxPy)
   );
 
   const baseAreaTitle = (baseAreaSet.title ?? "").trim();
-  const extraAreaTitles = extraAreaSets.map((s) => (s.title ?? "").trim());
+  const extraAreaTitles = extraAreaSets.map((s0) => (s0.title ?? "").trim());
 
-  // 3) 이미지 포맷
-  // ▶ 레거시 UI용: url이 있는 것만 포함 (타입상 url: string이어야 함)
+  /* 3) 이미지 포맷 */
+  const imageFoldersRaw: ImageItem[][] = imageFolders.map((card) =>
+    card.map((i) => ({ ...i }))
+  );
+  const fileItemsRaw: ImageItem[] = fileItems.map((i) => ({ ...i }));
+
   const imageCardsUI: { url: string; name: string; caption?: string }[][] =
     imageFolders.map((card) =>
       card
@@ -143,7 +189,6 @@ export function buildCreatePayload(args: BuildArgs) {
         }))
     );
 
-  // ▶ 서버 전송용: url 또는 idbKey가 있어도 모두 포함(신규 누락 방지)
   const imageFoldersStored: StoredMediaItem[][] = imageFolders.map((card) =>
     card.map(({ idbKey, url, name, caption }) => ({
       ...(idbKey ? { idbKey } : {}),
@@ -167,7 +212,6 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(f.caption ? { caption: f.caption } : {}),
   }));
 
-  // ▶ 레거시 UI용 fileItems: url 있는 것만
   const verticalImagesUI: {
     url: string;
     name: string;
@@ -182,10 +226,11 @@ export function buildCreatePayload(args: BuildArgs) {
       ...(f.idbKey ? { idbKey: f.idbKey } : {}),
     }));
 
-  // 4) 최종 payload
+  /* 4) 최종 payload */
+  const safeBadge = s(badge);
+
   const payload: CreatePayload & {
     imageFolders: StoredMediaItem[][];
-    imagesByCard: Array<Array<{ url: string; name: string; caption?: string }>>;
     imageCards: Array<Array<{ url: string; name: string; caption?: string }>>;
     imageCardCounts: number[];
     verticalImages: StoredMediaItem[];
@@ -203,9 +248,12 @@ export function buildCreatePayload(args: BuildArgs) {
     areaSetTitle?: string;
     areaSetTitles?: string[];
     pinKind?: PinKind;
+    imageFoldersRaw: ImageItem[][];
+    fileItemsRaw: ImageItem[];
   } = {
-    // 기본
+    /* 기본 */
     title,
+
     address,
     officeName,
     officePhone,
@@ -215,7 +263,17 @@ export function buildCreatePayload(args: BuildArgs) {
     roomNo,
     structure,
 
-    // 향/방향
+    contactMainLabel: officeName?.trim() || "문의",
+    contactMainPhone: officePhone,
+    ...(officePhone2 && officePhone2.trim() !== ""
+      ? {
+          contactSubLabel: officeName?.trim() || "사무실",
+          contactSubPhone: officePhone2,
+        }
+      : {}),
+
+    ...(safeBadge ? { badge: safeBadge.slice(0, 30) } : {}),
+
     aspect,
     aspectNo,
     ...(aspect1 ? { aspect1 } : {}),
@@ -223,57 +281,73 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(aspect3 ? { aspect3 } : {}),
     orientations,
 
-    // 가격/주차/준공
     salePrice,
-    parkingType,
-    parkingCount,
-    completionDate,
+    ...(parkingType != null && String(parkingType).trim() !== ""
+      ? { parkingType: String(parkingType) }
+      : {}),
+    ...(parkingCount != null && String(parkingCount).trim() !== ""
+      ? { parkingCount: String(parkingCount) }
+      : {}),
 
-    // 면적/평점/엘리베이터/통계
+    // ✅ 확실히 전달 (YYYY-MM-DD, KST)
+    completionDate: effectiveCompletionDate,
+
     exclusiveArea,
     realArea,
     listingStars,
     elevator,
-    totalBuildings,
-    totalFloors,
-    totalHouseholds,
-    remainingHouseholds,
 
-    // 등급/등기/옵션/메모
+    // ✅ 숫자 변환 적용
+    ...(toNum(totalBuildings) !== undefined
+      ? { totalBuildings: toNum(totalBuildings)! }
+      : {}),
+    ...(toNum(totalFloors) !== undefined
+      ? { totalFloors: toNum(totalFloors)! }
+      : {}),
+    ...(toNum(totalHouseholds) !== undefined
+      ? { totalHouseholds: toNum(totalHouseholds)! }
+      : {}),
+    ...(toNum(remainingHouseholds) !== undefined
+      ? { remainingHouseholds: toNum(remainingHouseholds)! }
+      : {}),
+
     slopeGrade,
     structureGrade,
     options,
-    optionEtc: etcChecked ? optionEtc.trim() : "",
+    optionEtc: etcChecked ? s(optionEtc) : "",
     publicMemo,
-    secretMemo,
+    privateMemo: secretMemo,
     registry: registryOne,
 
-    // 유닛
     unitLines,
 
-    // 이미지
-    imageFolders: imageFoldersStored, // ✅ 서버 전송용(전체 포함)
-    imagesByCard: imageCardsUI, // (레거시 UI)
-    imageCards: imageCardsUI, // (레거시 UI)
+    imageFolders: imageFoldersStored,
+    imageCards: imageCardsUI,
     imageCardCounts,
-    verticalImages: verticalImagesStored, // ✅ 서버 전송용(전체 포함)
-    images: imagesFlatStrings, // (레거시 UI)
-    fileItems: verticalImagesUI, // (레거시 UI)
+    verticalImages: verticalImagesStored,
+    images: imagesFlatStrings,
+    fileItems: verticalImagesUI,
+    imageFoldersRaw,
+    fileItemsRaw,
 
-    // 추가 면적
     extraExclusiveAreas,
     extraRealAreas,
-
-    // 핀 속성
     pinKind,
 
-    // AreaSet 제목들
     baseAreaTitle,
     extraAreaTitles,
-
-    // (레거시 호환 키)
     areaSetTitle: baseAreaTitle,
     areaSetTitles: extraAreaTitles,
+
+    ...(s(buildingType) ? { buildingType: s(buildingType) } : {}),
+
+    ...(toNum(registrationTypeId) !== undefined
+      ? { registrationTypeId: toNum(registrationTypeId)! }
+      : {}),
+
+    ...(toNum(parkingTypeId) !== undefined
+      ? { parkingTypeId: toNum(parkingTypeId)! }
+      : {}),
   };
 
   return payload;

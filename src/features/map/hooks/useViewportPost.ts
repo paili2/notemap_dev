@@ -1,63 +1,91 @@
+"use client";
+
+import { useCallback, useEffect, useRef } from "react";
 import { LatLng } from "@/lib/geo/types";
-import { useCallback, useRef, useEffect } from "react";
 
 export function useViewportPost() {
-  const inFlightRef = useRef<AbortController | null>(null);
   const lastKeyRef = useRef<string | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const round = (n: number, p = 5) => {
-    const f = Math.pow(10, p);
+  const round = (n: number, p = 6) => {
+    const f = 10 ** p;
     return Math.round(n * f) / f;
   };
 
-  const sendViewportQuery = useCallback(
-    async (q: {
+  const _notify = useCallback(
+    (q: {
       leftTop: LatLng;
       leftBottom: LatLng;
       rightTop: LatLng;
       rightBottom: LatLng;
       zoomLevel: number;
     }) => {
-      const key = JSON.stringify({
-        lt: { lat: round(q.leftTop.lat), lng: round(q.leftTop.lng) },
-        lb: { lat: round(q.leftBottom.lat), lng: round(q.leftBottom.lng) },
-        rt: { lat: round(q.rightTop.lat), lng: round(q.rightTop.lng) },
-        rb: { lat: round(q.rightBottom.lat), lng: round(q.rightBottom.lng) },
-        z: q.zoomLevel,
-      });
-      if (lastKeyRef.current === key) return;
+      const lats = [
+        q.leftTop.lat,
+        q.leftBottom.lat,
+        q.rightTop.lat,
+        q.rightBottom.lat,
+      ];
+      const lngs = [
+        q.leftTop.lng,
+        q.leftBottom.lng,
+        q.rightTop.lng,
+        q.rightBottom.lng,
+      ];
+
+      let swLat = round(Math.min(...lats));
+      let swLng = round(Math.min(...lngs));
+      let neLat = round(Math.max(...lats));
+      let neLng = round(Math.max(...lngs));
+
+      const EPS = 1e-6;
+      if (neLat - swLat < EPS) {
+        swLat = round(swLat - EPS);
+        neLat = round(neLat + EPS);
+      }
+      if (neLng - swLng < EPS) {
+        swLng = round(swLng - EPS);
+        neLng = round(neLng + EPS);
+      }
+
+      const key = `${swLat},${swLng},${neLat},${neLng},z${q.zoomLevel}`;
+      if (lastKeyRef.current === key) return; // 동일 파라미터 재호출 차단
       lastKeyRef.current = key;
 
-      if (inFlightRef.current) {
-        inFlightRef.current.abort();
-        inFlightRef.current = null;
-      }
-      const ac = new AbortController();
-      inFlightRef.current = ac;
-
-      try {
-        const res = await fetch("/api/pins", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(q),
-          signal: ac.signal,
+      // 여기서는 오직 “보고/전달”만 수행 (예: 상태 저장, 분석 이벤트 등)
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[viewport]", {
+          swLat,
+          swLng,
+          neLat,
+          neLng,
+          zoom: q.zoomLevel,
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      } catch (err: any) {
-        if (err?.name !== "AbortError")
-          console.error("[/api/pins] viewport fetch failed:", err);
-      } finally {
-        if (inFlightRef.current === ac) inFlightRef.current = null;
       }
     },
     []
   );
 
-  useEffect(() => {
-    return () => {
-      if (inFlightRef.current) inFlightRef.current.abort();
-    };
-  }, []);
+  const sendViewportQuery = useCallback(
+    (q: {
+      leftTop: LatLng;
+      leftBottom: LatLng;
+      rightTop: LatLng;
+      rightBottom: LatLng;
+      zoomLevel: number;
+    }) => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      debounceTimer.current = setTimeout(() => _notify(q), 120);
+    },
+    [_notify]
+  );
+
+  useEffect(
+    () => () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    },
+    []
+  );
 
   return { sendViewportQuery };
 }

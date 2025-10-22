@@ -7,7 +7,7 @@ import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 // onCheckedChange 타입 반영
-export interface CheckboxProps
+interface CheckboxProps
   extends React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root> {
   onCheckedChange?: (checked: boolean) => void;
 }

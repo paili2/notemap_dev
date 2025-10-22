@@ -1,6 +1,6 @@
 "use client";
+import { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
 import AreaSetsSection from "../../sections/AreaSetsSection/AreaSetsSection";
-import type { EditFormAPI } from "../hooks/useEditForm";
 
 export default function AreaSetsContainer({ form }: { form: EditFormAPI }) {
   return (

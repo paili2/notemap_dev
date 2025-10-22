@@ -8,18 +8,19 @@ import {
   useResolveAddress,
 } from "@/features/map/hooks/useKakaoTools";
 import { useViewportPost } from "@/features/map/hooks/useViewportPost";
-import { useLocalItems } from "../../hooks/useLocalItems";
+// import { useLocalItems } from "../../hooks/useLocalItems";
 import { useRunSearch } from "../../hooks/useRunSearch";
-import { getMapMarkers } from "../../lib/markers";
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
-import { PoiKind } from "../../lib/poiOverlays";
+import { PoiKind } from "../../components/overlays/poiOverlays";
+
+// ✅ 서버에서 핀을 가져오는 훅
+import { usePinsMap } from "@/features/map/hooks/usePinsMap";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
-const VISIT_PINS_STORAGE_KEY = "maphome:visitPins";
 
 /** 부동소수점 비교 오차 보정 */
 const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
@@ -71,8 +72,7 @@ export function useMapHomeState() {
   // Modals
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
 
-  /* ✅ 핀 관련 상태 (답사예정 & 임시핀) S*/
-  // 생성용 단일 draft (신규 등록 모달용)
+  /* ✅ 생성용 드래프트 핀만 로컬 복원 (임시 UI용) */
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
   const setDraftPin = useCallback((pin: LatLng | null) => {
     _setDraftPin(pin);
@@ -83,11 +83,6 @@ export function useMapHomeState() {
   }, []);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
 
-  // “답사예정” 전용 배열 (여러 개 유지)
-  const [visitPins, setVisitPins] = useState<LatLng[]>([]);
-  const restoredVisitPinsRef = useRef<LatLng[] | null>(null);
-  /* 핀 관련 상태 (답사예정 & 임시핀) E*/
-
   // Toggles
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
@@ -95,7 +90,7 @@ export function useMapHomeState() {
   // ⭐ POI 선택 상태
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
 
-  const { items, setItems } = useLocalItems({ storageKey: "properties" });
+  const [items, setItems] = useState<PropertyItem[]>([]);
 
   const [addFav, setAddFav] = useState<boolean>(false);
 
@@ -108,35 +103,57 @@ export function useMapHomeState() {
   );
   const [q, setQ] = useState("");
 
+  // === UI prop 호환용 alias들 ===
+  const onChangeQ = useCallback((v: string) => setQ(v), []);
+  const onChangeFilter = useCallback((v: any) => setFilter(v), []);
+  const onChangePoiKinds = useCallback(
+    (next: PoiKind[]) => setPoiKinds(next),
+    []
+  );
+
   // ─ Viewport post (기존 훅 래핑해서 force 옵션 추가)
-  const postViewport = useViewportPost(); // 기존 훅(프로젝트 구현에 맞춤)
+  const postViewport = useViewportPost(); // 기존 훅
   const lastViewportRef = useRef<Viewport | null>(null);
+
+  // ✅ 서버 핀 훅: /pins/map
+  //    points: 실제 핀, drafts: 임시/답사예정
+  const { points, drafts, setBounds, refetch } = usePinsMap();
 
   const sendViewportQuery = useCallback(
     (vp: Viewport, opts?: { force?: boolean }) => {
-      // 변경 없고 force도 아니면 스킵
       if (!opts?.force && sameViewport(vp, lastViewportRef.current)) return;
       lastViewportRef.current = vp;
 
-      // 기존 훅 호출
       postViewport.sendViewportQuery
         ? postViewport.sendViewportQuery(vp)
         : (postViewport as any)(vp);
 
-      // 즉시 렌더 동기화를 위해 idle 한 번 더
+      // 카카오 idle 트리거
       if (kakaoSDK && mapInstance) {
         kakaoSDK.maps.event.trigger(mapInstance, "idle");
         requestAnimationFrame(() =>
           kakaoSDK.maps.event.trigger(mapInstance, "idle")
         );
       }
+
+      // ✅ /pins/map 훅에도 bounds 전달 (남서, 북동)
+      try {
+        const sw = vp.leftBottom;
+        const ne = vp.rightTop;
+        setBounds({
+          swLat: sw.lat,
+          swLng: sw.lng,
+          neLat: ne.lat,
+          neLng: ne.lng,
+        });
+      } catch {}
     },
-    [postViewport, kakaoSDK, mapInstance]
+    [postViewport, kakaoSDK, mapInstance, setBounds]
   );
 
   const lastViewport = lastViewportRef.current;
 
-  // ▸ 초기 복원 (draftPin)
+  // ▸ 초기 복원 (draftPin) — 지도 열릴 때만
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_PIN_STORAGE_KEY);
@@ -145,23 +162,6 @@ export function useMapHomeState() {
         if (v && typeof v.lat === "number" && typeof v.lng === "number") {
           _setDraftPin(v);
           restoredDraftPinRef.current = v;
-        }
-      }
-    } catch {}
-  }, []);
-
-  // ▸ 초기 복원 (visitPins)
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(VISIT_PINS_STORAGE_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) {
-          const pins = arr.filter(
-            (p) => p && typeof p.lat === "number" && typeof p.lng === "number"
-          );
-          setVisitPins(pins);
-          restoredVisitPinsRef.current = pins;
         }
       }
     } catch {}
@@ -192,10 +192,60 @@ export function useMapHomeState() {
   const resolveAddress = useResolveAddress(kakaoSDK);
   const panToWithOffset = usePanToWithOffset(kakaoSDK, mapInstance);
 
+  const openMenuAt = useCallback(
+    async (
+      position: LatLng,
+      propertyId: "__draft__" | string,
+      opts?: { roadAddress?: string | null; jibunAddress?: string | null }
+    ) => {
+      const isDraft = propertyId === "__draft__";
+      setSelectedId(isDraft ? null : String(propertyId));
+      setMenuTargetId(isDraft ? "__draft__" : String(propertyId));
+      setDraftPin(isDraft ? position : null);
+      setFitAllOnce(false);
+
+      setMenuAnchor(position);
+
+      if (opts?.roadAddress || opts?.jibunAddress) {
+        setMenuRoadAddr(opts.roadAddress ?? null);
+        setMenuJibunAddr(opts.jibunAddress ?? null);
+      } else {
+        const { road, jibun } = await resolveAddress(position);
+        setMenuRoadAddr(road ?? null);
+        setMenuJibunAddr(jibun ?? null);
+      }
+
+      panToWithOffset(position, 180);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setMenuOpen(true));
+      });
+    },
+    [resolveAddress, panToWithOffset, setDraftPin]
+  );
+
+  const geocodeAddress = useCallback(
+    async (q: string): Promise<LatLng | null> => {
+      if (!kakaoSDK?.maps?.services || !q?.trim()) return null;
+      const geocoder = new kakaoSDK.maps.services.Geocoder();
+      return await new Promise<LatLng | null>((resolve) => {
+        geocoder.addressSearch(q.trim(), (result: any[], status: string) => {
+          if (status !== kakaoSDK.maps.services.Status.OK || !result?.length) {
+            resolve(null);
+            return;
+          }
+          const { x, y } = result[0];
+          resolve({ lat: Number(y), lng: Number(x) });
+        });
+      });
+    },
+    [kakaoSDK]
+  );
+
   // 기존 핀 말주머니 열기
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
-      setDraftPin(null); // 생성용 draft는 해제
+      setDraftPin(null);
       const sid = String(p.id);
       setSelectedId(sid);
       setMenuTargetId(sid);
@@ -220,30 +270,49 @@ export function useMapHomeState() {
     [resolveAddress, panToWithOffset, setDraftPin]
   );
 
-  // 검색 훅 원본 (keyword: string)
+  // 검색 훅 원본
   const runSearchRaw = useRunSearch({
     kakaoSDK,
     mapInstance,
     items,
     onMatchedPin: (p: PropertyItem) => openMenuForExistingPin(p),
-    onNoMatch: (coords: LatLng) => setDraftPin(coords),
+    onNoMatch: (coords: LatLng) => openMenuAt(coords, "__draft__"),
     panToWithOffset,
-    // useRunSearch 내부 queryKey에서 poiKinds를 쓰는 경우를 대비해 전달
     poiKinds,
   } as any);
 
-  // 선택형 래퍼: 인자 없으면 현재 q를 사용
   const runSearch = useCallback(
     (keyword?: string) => runSearchRaw(keyword ?? q),
     [runSearchRaw, q]
   );
 
-  // ▸ draftPin 세팅 시(생성용) — 말주머니 처리(복원 시 자동 오픈 금지)
+  const handleSearchSubmit = useCallback(
+    async (kw?: string) => {
+      const keyword = kw ?? q;
+
+      // 1) 기존 핀/장소 검색
+      await runSearch(keyword);
+
+      // 2) 주소 지오코딩 → 성공 시 해당 좌표에 메뉴 오픈(__draft__)
+      const pos = await geocodeAddress(keyword);
+      if (pos) {
+        await openMenuAt(pos, "__draft__");
+      }
+    },
+    [q, runSearch, geocodeAddress, openMenuAt]
+  );
+
+  const onSubmitSearch = useCallback(
+    (v?: string) => handleSearchSubmit(v),
+    [handleSearchSubmit]
+  );
+
+  // ▸ draftPin 세팅 시(생성용) — 말주머니 처리
   useEffect(() => {
     if (!draftPin) return;
 
     setSelectedId(null);
-    setMenuTargetId(null);
+    setMenuTargetId("__draft__");
     setMenuAnchor(draftPin);
     setFitAllOnce(false);
 
@@ -297,51 +366,34 @@ export function useMapHomeState() {
     [items, resolveAddress, panToWithOffset, setDraftPin]
   );
 
-  const openMenuAt = useCallback(
-    async (
-      position: LatLng,
-      propertyId: "__draft__" | string,
-      opts?: { roadAddress?: string | null; jibunAddress?: string | null }
-    ) => {
-      // 기존 선택/드래프트 정리
-      const isDraft = propertyId === "__draft__";
-      setSelectedId(isDraft ? null : String(propertyId));
-      setMenuTargetId(isDraft ? null : String(propertyId));
-      setDraftPin(isDraft ? position : null);
-      setFitAllOnce(false);
-
-      setMenuAnchor(position);
-
-      // 주소 세팅 (옵션 우선, 없으면 역지오코딩)
-      if (opts?.roadAddress || opts?.jibunAddress) {
-        setMenuRoadAddr(opts.roadAddress ?? null);
-        setMenuJibunAddr(opts.jibunAddress ?? null);
-      } else {
-        const { road, jibun } = await resolveAddress(position);
-        setMenuRoadAddr(road ?? null);
-        setMenuJibunAddr(jibun ?? null);
-      }
-
-      panToWithOffset(position, 180);
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setMenuOpen(true));
-      });
-    },
-    [resolveAddress, panToWithOffset, setDraftPin]
-  );
-
   // Map ready
-  const onMapReady = useCallback(({ kakao, map }: any) => {
-    setKakaoSDK(kakao);
-    setMapInstance(map);
-    requestAnimationFrame(() => setFitAllOnce(false));
-    setTimeout(() => {
-      map.relayout?.();
-      kakao.maps.event.trigger(map, "resize");
-      kakao.maps.event.trigger(map, "idle");
-    }, 0);
-  }, []);
+  const onMapReady = useCallback(
+    ({ kakao, map }: any) => {
+      setKakaoSDK(kakao);
+      setMapInstance(map);
+      requestAnimationFrame(() => setFitAllOnce(false));
+      setTimeout(() => {
+        map.relayout?.();
+        kakao.maps.event.trigger(map, "resize");
+        kakao.maps.event.trigger(map, "idle");
+      }, 0);
+
+      // ✅ 초기 bounds 설정 → /pins/map 최초 로드
+      try {
+        const b = map.getBounds();
+        const sw = b.getSouthWest();
+        const ne = b.getNorthEast();
+        setBounds({
+          swLat: sw.getLat(),
+          swLng: sw.getLng(),
+          neLat: ne.getLat(),
+          neLng: ne.getLng(),
+        });
+        refetch();
+      } catch {}
+    },
+    [refetch, setBounds]
+  );
 
   // View modal
   const onSaveViewPatch = useCallback(
@@ -375,7 +427,7 @@ export function useMapHomeState() {
     [selectedId, setItems, setEditOpen]
   );
 
-  // 메뉴 닫기 (답사예정 핀은 유지)
+  // 메뉴 닫기 (드래프트 핀은 상황 따라 유지/해제)
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
     setMenuTargetId(null);
@@ -383,7 +435,6 @@ export function useMapHomeState() {
     setMenuRoadAddr(null);
     setMenuJibunAddr(null);
 
-    // 말주머니가 특정 핀 대상이 아닌(= 신규 좌표 기반) 경우, 남아있는 draftPin 제거
     if (!menuTargetId && draftPin) {
       setDraftPin(null);
     }
@@ -401,47 +452,60 @@ export function useMapHomeState() {
     setCreateOpen(true);
   }, [menuRoadAddr, menuJibunAddr]);
 
-  // ✅ 답사예정 핀 추가/삭제 (+ 영속화)
-  const persistVisitPins = (pins: LatLng[]) => {
-    try {
-      localStorage.setItem(VISIT_PINS_STORAGE_KEY, JSON.stringify(pins));
-    } catch {}
-  };
+  // === 메뉴/액션 alias
+  const onCloseMenu = closeMenu;
+  const onViewFromMenu = useCallback(
+    (id: string | number) => openViewFromMenu(String(id)),
+    [openViewFromMenu]
+  );
+  const onCreateFromMenu = openCreateFromMenu;
 
-  const addVisitPin = useCallback((pos: LatLng) => {
-    setVisitPins((prev) => {
-      if (prev.some((p) => sameCoord(p, pos))) return prev; // 중복 방지
-      const next = [...prev, pos];
-      persistVisitPins(next);
-      return next;
-    });
-  }, []);
-
-  const removeVisitPin = useCallback((pos: LatLng) => {
-    setVisitPins((prev) => {
-      const next = prev.filter((p) => !sameCoord(p, pos));
-      persistVisitPins(next);
-      return next;
-    });
-  }, []);
-
-  // ✅ 메뉴에서 “답사예정” 선택 시 호출할 핸들러(좌표 받음)
+  // ✅ 메뉴에서 “답사예정” 선택 시: 로컬 추가 제거, UI만 정리
   const onPlanFromMenu = useCallback(
     (pos: LatLng) => {
-      addVisitPin(pos);
       if (draftPin && sameCoord(draftPin, pos)) {
         setDraftPin(null);
       }
       closeMenu();
+      // 실제 생성/예약은 컨텍스트 메뉴의 onReserve 흐름에서 처리되며,
+      // 성공 후 refetch({ draftState: "all" })로 서버 결과 갱신하세요.
     },
-    [addVisitPin, closeMenu, draftPin, setDraftPin]
+    [closeMenu, draftPin, setDraftPin]
   );
 
-  // ✅ 마커 목록: 기존 + 방문예정(여러개) + 생성용 드래프트(있을 때만)
-  const markers = useMemo(
-    () => getMapMarkers(filtered, visitPins, draftPin),
-    [filtered, visitPins, draftPin]
-  );
+  // ✅ 마커 목록: 서버 points(실핀) + drafts(임시/답사예정) + 생성용 draftPin
+  const markers = useMemo(() => {
+    // 실제 핀(points)
+    const pointMarkers = (points ?? []).map((p) => ({
+      id: String(p.id),
+      position: { lat: p.lat, lng: p.lng },
+      kind: "1room" as const, // 프로젝트 핀 종류에 맞게
+      title: p.badge ?? "",
+      isFav: false,
+    }));
+
+    // 임시/답사예정(drafts)
+    const draftMarkers = (drafts ?? []).map((d) => ({
+      id: `__visit__${d.id}`, // 컨텍스트 메뉴에서 패턴으로 식별
+      position: { lat: d.lat, lng: d.lng },
+      kind: "question" as const,
+      isFav: false,
+    }));
+
+    // 생성용 드래프트(있을 때만)
+    const draftPinMarker = draftPin
+      ? [
+          {
+            id: "__draft__",
+            position: draftPin,
+            kind: "question" as const,
+            isFav: false,
+          },
+        ]
+      : [];
+
+    return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
+  }, [points, drafts, draftPin]);
 
   // Create host
   const createHostHandlers = useMemo(
@@ -490,8 +554,8 @@ export function useMapHomeState() {
   useEffect(() => {
     if (lastViewportRef.current) {
       sendViewportQuery(lastViewportRef.current, { force: true });
+      refetch();
     } else {
-      // 초기엔 검색 훅으로도 보조
       runSearch();
       if (kakaoSDK && mapInstance) {
         kakaoSDK.maps.event.trigger(mapInstance, "idle");
@@ -502,6 +566,61 @@ export function useMapHomeState() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poiKinds]);
+
+  /** ───────────── 추가 파생/alias: MapHomeUI 호환 세트 ───────────── */
+
+  // 뷰포트 체인지 alias
+  const onViewportChange = useCallback(
+    (vp: any, opts?: { force?: boolean }) => sendViewportQuery(vp, opts),
+    [sendViewportQuery]
+  );
+
+  // 선택된 아이템을 ViewDetails로 변환
+  const selectedViewItem = useMemo(
+    () => (selected ? toViewDetails(selected) : null),
+    [selected]
+  );
+
+  // 선택 좌표(메뉴앵커 > 드래프트 > 선택항목 순)
+  const selectedPos = useMemo<LatLng | null>(() => {
+    if (menuAnchor) return menuAnchor;
+    if (draftPin) return draftPin;
+    if (selected) return selected.position;
+    return null;
+  }, [menuAnchor, draftPin, selected]);
+
+  // 뷰/에디트 닫기 & 전환
+  const closeView = useCallback(() => setViewOpen(false), []);
+  const closeEdit = useCallback(() => setEditOpen(false), []);
+  const onEditFromView = useCallback(() => {
+    setViewOpen(false);
+    setEditOpen(true);
+  }, []);
+
+  // 라벨 숨김 상태
+  const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
+  const onChangeHideLabelForId = useCallback((id: string | null) => {
+    setHideLabelForId(id);
+  }, []);
+
+  // 메뉴 열기 어댑터
+  const onOpenMenu = useCallback(
+    (p: {
+      position: { lat: number; lng: number };
+      propertyId?: "__draft__" | string | number;
+      propertyTitle?: string | null;
+      pin?: { kind?: string; isFav?: boolean };
+    }) => {
+      openMenuAt(
+        p.position,
+        (p.propertyId ?? "__draft__") as "__draft__" | string
+      );
+    },
+    [openMenuAt]
+  );
+
+  // 마커 클릭 alias
+  const onMarkerClick = handleMarkerClick;
 
   return {
     // sdk/map
@@ -526,12 +645,16 @@ export function useMapHomeState() {
     setSelectedId,
     selected,
 
-    // search/filter
+    // search/filter (원본 + alias)
     q,
     setQ,
     filter,
     setFilter,
     runSearch,
+    handleSearchSubmit,
+    onChangeQ,
+    onChangeFilter,
+    onSubmitSearch,
 
     // toggles
     useSidebar,
@@ -542,6 +665,7 @@ export function useMapHomeState() {
     // ⭐ POI
     poiKinds,
     setPoiKinds,
+    onChangePoiKinds,
 
     // menu
     menuOpen,
@@ -552,19 +676,20 @@ export function useMapHomeState() {
     closeMenu,
     openViewFromMenu,
     openCreateFromMenu,
+    onCloseMenu,
+    onViewFromMenu,
+    onCreateFromMenu,
+    onOpenMenu,
+    onPlanFromMenu,
 
-    openMenuAt,
-
-    // draft & visit
-    draftPin, // 생성용 단일
+    // draft
+    draftPin,
     setDraftPin,
-    visitPins, // ✅ 답사예정(여러개)
-    addVisitPin,
-    removeVisitPin,
-    onPlanFromMenu, // ✅ PinContextMenu -> MapHomeUI -> 여기로 전달해 호출
 
-    // marker click
+    // marker click / viewport
     handleMarkerClick,
+    onMarkerClick,
+    onViewportChange,
 
     // modals
     addFav,
@@ -576,17 +701,22 @@ export function useMapHomeState() {
     setCreateOpen,
     prefillAddress,
     closeCreate,
+    closeView,
+    closeEdit,
+    onEditFromView,
 
     // view handlers
     onSaveViewPatch,
     onDeleteFromView,
+    selectedViewItem,
 
     // host bridges
     createHostHandlers,
     editHostHandlers,
 
-    // utils
-    panToWithOffset,
-    toViewDetails,
+    // misc
+    selectedPos,
+    hideLabelForId,
+    onChangeHideLabelForId,
   } as const;
 }

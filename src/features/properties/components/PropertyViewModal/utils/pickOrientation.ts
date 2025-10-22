@@ -1,4 +1,4 @@
-export type OrientationLike = {
+type OrientationLike = {
   dir?: string;
   direction?: string;
   value?: string;

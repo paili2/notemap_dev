@@ -2,10 +2,9 @@ import type { ImageItem } from "@/features/properties/types/media";
 import type { ImageRef } from "@/lib/imageStore";
 import { isHttpLike, isDataLike, isBlobLike } from "@/lib/media/utils";
 
-export const okUrl = (u: string) =>
-  isHttpLike(u) || isDataLike(u) || isBlobLike(u);
+const okUrl = (u: string) => isHttpLike(u) || isDataLike(u) || isBlobLike(u);
 
-export const isImageRefLike = (x: any): x is ImageRef =>
+const isImageRefLike = (x: any): x is ImageRef =>
   !!x && typeof x === "object" && typeof x.idbKey === "string";
 
 export function normalizeOneImage(it: any): ImageItem | null {

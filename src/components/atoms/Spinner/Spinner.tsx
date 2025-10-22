@@ -34,7 +34,7 @@ export const spinnerVariants = cva(
   }
 );
 
-export interface SpinnerProps
+interface SpinnerProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "color">,
     VariantProps<typeof spinnerVariants> {
   label?: string;

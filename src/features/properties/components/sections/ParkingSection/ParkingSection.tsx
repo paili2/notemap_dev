@@ -13,12 +13,31 @@ import { useEffect, useState } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
 
+/**
+ * 변경된 Props (하위호환):
+ * - parkingTypeId?: number | null
+ * - setParkingTypeId?: (v: number | null) => void
+ * - parkingTypeNameToId?: Record<string, number>   // 라벨→ID 매핑
+ *
+ * 주의) 매핑 딕셔너리는 부모에서 주입해주는 게 가장 안전함.
+ */
+type Props = ParkingSectionProps & {
+  parkingTypeId?: number | null;
+  setParkingTypeId?: (v: number | null) => void;
+  parkingTypeNameToId?: Record<string, number>;
+};
+
 export default function ParkingSection({
   parkingType,
   setParkingType,
   parkingCount,
   setParkingCount,
-}: ParkingSectionProps) {
+
+  // ⬇️ 추가
+  parkingTypeId,
+  setParkingTypeId,
+  parkingTypeNameToId = {}, // 라벨→ID 매핑 (예: { "기계식": 1, "자주식": 2, ... })
+}: Props) {
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 
@@ -29,41 +48,62 @@ export default function ParkingSection({
   useEffect(() => {
     if (!parkingType) {
       setSelectValue("");
-      // 사용자 입력은 초기화
       setCustom("");
+      // 타입을 지운 경우 id도 null로 동기화
+      setParkingTypeId?.(null);
       return;
     }
     if (isPreset(parkingType)) {
       setSelectValue(parkingType);
-      // 프리셋이면 커스텀 지움
       setCustom("");
+      // 프리셋 라벨 → id 매핑
+      const id = parkingTypeNameToId[parkingType];
+      setParkingTypeId?.(Number.isFinite(id as any) ? id : null);
       return;
     }
     if (parkingType === "custom") {
-      // 커스텀 모드만 켜고, 사용자가 입력해 둔 값은 보존
       setSelectValue("custom");
+      // custom에서는 id 없음
+      setParkingTypeId?.(null);
       return;
     }
-    // 임의 문자열(예: "지상 병렬 1대")이면 커스텀 모드 + 값 채움
+    // 임의 문자열(예: "지상 병렬 1대") → custom 모드 + id 없음
     setSelectValue("custom");
     setCustom(parkingType);
-  }, [parkingType]);
+    setParkingTypeId?.(null);
+  }, [parkingType, parkingTypeNameToId, setParkingTypeId]);
 
   /** 내부 상태 → 상위 값 반영 */
   useEffect(() => {
     if (selectValue === "custom") {
       const trimmed = custom.trim();
-      // 비어 있으면 'custom' 센티넬만 보냄(초기화 방지)
+      // 비어 있으면 sentinel 'custom' 유지(입력창 유지용)
       setParkingType(trimmed === "" ? "custom" : trimmed);
+      // 커스텀은 id 없음
+      setParkingTypeId?.(null);
     } else {
-      setParkingType(selectValue);
+      // 프리셋 라벨 선택/미선택 처리
+      const nextType = selectValue === "" ? null : selectValue;
+      setParkingType(nextType);
+      // 프리셋 라벨 → id 매핑(없으면 null)
+      const id =
+        nextType && parkingTypeNameToId[nextType]
+          ? parkingTypeNameToId[nextType]
+          : null;
+      setParkingTypeId?.(id);
     }
-  }, [selectValue, custom, setParkingType]);
+  }, [
+    selectValue,
+    custom,
+    setParkingType,
+    setParkingTypeId,
+    parkingTypeNameToId,
+  ]);
 
-  // 숫자만 허용(붙여넣기 포함)
+  // 숫자만 허용(붙여넣기 포함) + 빈값이면 null
   const onChangeCount = (raw: string) => {
     const onlyDigits = raw.replace(/\D+/g, "");
-    setParkingCount(onlyDigits);
+    setParkingCount(onlyDigits === "" ? null : Number(onlyDigits));
   };
 
   return (
@@ -74,9 +114,7 @@ export default function ParkingSection({
             value={selectValue || undefined}
             onValueChange={(val) => {
               setSelectValue(val);
-              if (val === "custom") {
-                setCustom("");
-              }
+              if (val === "custom") setCustom("");
             }}
           >
             <SelectTrigger className="w-28 h-9">
@@ -108,7 +146,7 @@ export default function ParkingSection({
       <Field label="총 주차대수">
         <div className="flex items-center gap-3">
           <Input
-            value={parkingCount}
+            value={String(parkingCount ?? "")}
             onChange={(e) => onChangeCount(e.target.value)}
             className="w-16 h-9"
             inputMode="numeric"

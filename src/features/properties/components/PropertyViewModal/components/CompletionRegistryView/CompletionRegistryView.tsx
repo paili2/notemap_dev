@@ -13,7 +13,7 @@ import Pill from "./components/Pill";
 const show = (v: any) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;
 
-export interface CompletionRegistryView {
+interface CompletionRegistryView {
   completionDate?: string | null;
   salePrice?: string | number | null;
   registry?: Registry;

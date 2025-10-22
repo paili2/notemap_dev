@@ -1,12 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { ComponentProps, useMemo } from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 
 import type { PropertyEditModalProps } from "./types";
 
 import { useEditImages } from "./hooks/useEditImages";
-import { useEditForm } from "./hooks/useEditForm";
+import { useEditForm } from "./hooks/useEditForm/useEditForm";
 import { buildEditPayload } from "./lib/buildEditPayload";
 
 import HeaderContainer from "./ui/HeaderContainer";
@@ -20,6 +20,8 @@ import StructureLinesContainer from "./ui/StructureLinesContainer";
 import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import ImagesContainer from "./ui/ImagesContainer";
+
+type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
 export default function PropertyEditModalBody({
   onClose,
@@ -66,6 +68,18 @@ export default function PropertyEditModalBody({
 
   // 폼 훅
   const f = useEditForm({ initialData });
+
+  const parkingForm: ParkingFormSlice = {
+    parkingType: f.parkingType || null,
+    setParkingType: (v) => f.setParkingType(v ?? ""),
+
+    // ParkingContainer가 string|null만 기대하므로 number는 string으로 강제
+    parkingCount: f.parkingCount === "" ? null : String(f.parkingCount),
+    setParkingCount: (v) => f.setParkingCount(v ?? ""),
+  };
+
+  // --- 어댑터 끝 ---
+
   const isSaveEnabled = f.isSaveEnabled;
 
   const save = async () => {
@@ -110,7 +124,9 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
 
       elevator: f.elevator,
-      registryOne: f.registryOne,
+      // 서버 DTO가 registryOne을 요구하면 값만 f.registry로 전달
+      registryOne: f.registry,
+      // (만약 서버/DTO가 registry로 바뀌었다면 registry: f.registry 사용)
       slopeGrade: f.slopeGrade,
       structureGrade: f.structureGrade,
 
@@ -143,7 +159,7 @@ export default function PropertyEditModalBody({
     onClose();
   };
 
-  // ✅ embedded 모드: 오버레이/포지셔닝 없이 “바디만” 렌더 (ViewModal 내부에서 스왑용)
+  // ✅ embedded 모드: 오버레이/포지셔닝 없이 “바디만” 렌더
   if (embedded) {
     return (
       <div className="flex flex-col h-full">
@@ -170,7 +186,8 @@ export default function PropertyEditModalBody({
           <div className="space-y-4 md:space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            <ParkingContainer form={f} />
+            {/* ⬇️ 어댑터로 전달 */}
+            <ParkingContainer form={parkingForm} />
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />
@@ -190,7 +207,7 @@ export default function PropertyEditModalBody({
     );
   }
 
-  // 기본(standalone) 모달 렌더: 기존과 동일
+  // 기본(standalone) 모달 렌더
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -198,7 +215,7 @@ export default function PropertyEditModalBody({
         onClick={onClose}
         aria-hidden
       />
-      <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
+      <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] maxHeight-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
@@ -222,7 +239,8 @@ export default function PropertyEditModalBody({
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            <ParkingContainer form={f} />
+            {/* ⬇️ 어댑터로 전달 */}
+            <ParkingContainer form={parkingForm} />
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />

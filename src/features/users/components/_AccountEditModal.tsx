@@ -45,6 +45,7 @@ export default function AccountEditModal(props: {
   onSave: (patch: Patch) => void;
   uploadEndpoint?: string;
   maxUploadBytes?: number;
+  addressLocked?: boolean;
 }) {
   if (!props.open) return null;
   return <AccountEditModalBody {...props} />;
@@ -57,6 +58,7 @@ function AccountEditModalBody({
   onSave,
   uploadEndpoint = "/api/upload",
   maxUploadBytes = 5 * 1024 * 1024,
+  addressLocked = false,
 }: {
   open: boolean; // 래퍼에서만 사용하지만 props 스프레드로 들어오므로 타입 유지
   user: UserRow;
@@ -64,6 +66,7 @@ function AccountEditModalBody({
   onSave: (patch: Patch) => void;
   uploadEndpoint?: string;
   maxUploadBytes?: number;
+  addressLocked?: boolean;
 }) {
   // 기본 필드
   const [name, setName] = useState(user.name);
@@ -357,6 +360,7 @@ function AccountEditModalBody({
                 <Input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
+                  readOnly={addressLocked}
                 />
               </Field>
               <Field label="급여계좌">

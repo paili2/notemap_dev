@@ -1,5 +1,5 @@
 /** 1평 = 3.305785㎡ */
-export const PYEONG = 3.305785 as const;
+const PYEONG = 3.305785 as const;
 
 /** 내부 유틸: 숫자/문자 입력을 안전하게 숫자로 정규화 */
 function sanitizeNum(input: unknown): number | null {
@@ -49,9 +49,7 @@ export const packRange = (a: string, b: string): string => {
 };
 
 /** "a~b" → { min, max } 로 풀기 (없으면 빈문자열) */
-export const unpackRange = (
-  range?: string | null
-): { min: string; max: string } => {
+const unpackRange = (range?: string | null): { min: string; max: string } => {
   const raw = String(range ?? "").trim();
   if (!raw) return { min: "", max: "" };
   const [min, max] = raw.split("~", 2);

@@ -1,7 +1,7 @@
 "use client";
 import { STRUCTURE_PRESETS } from "../../constants";
 import StructureLinesSection from "../../sections/StructureLinesSection/StructureLinesSection";
-import type { EditFormAPI } from "../hooks/useEditForm";
+import type { EditFormAPI } from "../hooks/useEditForm/useEditForm";
 
 export default function StructureLinesContainer({
   form,

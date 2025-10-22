@@ -26,7 +26,7 @@ type NavSection = {
   items: NavItem[];
 };
 
-export type DashboardLayoutProps = {
+type DashboardLayoutProps = {
   /** 좌측 사이드바 섹션(그룹) */
   nav?: NavSection[];
   /** 상단 헤더 중앙 영역(보통 검색바) */

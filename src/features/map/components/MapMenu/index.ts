@@ -1,13 +1,8 @@
 // 메인 컴포넌트
 export { default as MapMenu } from "./MapMenu";
 
-// 타입
+// 타입 (type-only)
 export type { MapMenuKey, MapMenuProps } from "./types/types";
-
-// 컴포넌트들
-export { FilterSection } from "./components/FilterSection";
-export { DistrictSection } from "./components/DistrictSection";
-export { ExpandedMenu } from "./components/ExpandedMenu";
 
 // Hooks
 export { useMapMenuState } from "./hooks/useMapMenuState";

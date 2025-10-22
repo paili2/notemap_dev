@@ -5,7 +5,7 @@ import { Input } from "@/components/atoms/Input/Input";
 import { X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 
-export type OptionCellProps = {
+type OptionCellProps = {
   value?: string;
   index: number;
   placeholder: string;
@@ -66,7 +66,7 @@ function OptionCellImpl({
   );
 }
 
-export const OptionCell = React.memo(
+const OptionCell = React.memo(
   OptionCellImpl,
   (prev, next) =>
     prev.value === next.value &&

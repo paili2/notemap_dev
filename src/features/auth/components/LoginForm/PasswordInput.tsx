@@ -17,7 +17,7 @@ const PasswordInput = forwardRef<HTMLInputElement, Props>(
           type={show ? "text" : "password"}
           className={["pr-9", className].filter(Boolean).join(" ")}
           autoComplete="current-password"
-          placeholder="123456"
+          placeholder="12345678"
           {...props} // ← id, disabled, name, onChange, value 등 전부 허용
         />
         <button
