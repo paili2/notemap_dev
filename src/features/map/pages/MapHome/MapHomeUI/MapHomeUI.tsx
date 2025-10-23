@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import { FilterSearch } from "../../../FilterSearch";
 import { MapMenuKey } from "../../../components/MapMenu";
 import { useRoadview } from "../../../hooks/useRoadview";
@@ -18,6 +17,8 @@ import ModalsHost from "../components/ModalsHost";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useBounds } from "../hooks/useBounds";
 import { useBoundsRaw } from "./hooks/useBoundsRaw";
+import { cn } from "@/lib/cn";
+import SearchForm from "@/features/map/components/top/SearchForm/SearchForm";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -189,16 +190,28 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onChangeHideLabelForId={onChangeHideLabelForId}
       />
 
-      {/* 상단 검색바 */}
-      <MapTopBar
-        value={q}
-        onChangeSearch={onChangeQ}
-        onSubmitSearch={(text) => {
-          const query = text.trim();
-          if (!query) return;
-          onSubmitSearch?.(query);
-        }}
-      />
+      <div
+        className={cn(
+          "flex flex-wrap md:flex-nowrap",
+          "pointer-events-none absolute left-3 top-3 z-[70] items-center gap-2"
+        )}
+        role="region"
+        aria-label="지도 상단 검색"
+      >
+        <div className="pointer-events-auto">
+          <SearchForm
+            value={q}
+            onChange={onChangeQ}
+            onSubmit={(text) => {
+              const query = text.trim();
+              if (!query) return;
+              onSubmitSearch?.(query);
+            }} // 지오코딩 → setCenter → idle/요청
+            placeholder="장소, 주소, 버스 검색"
+            className="flex-1 min-w-[200px] md:min-w-[260px] max-w-[420px]"
+          />
+        </div>
+      </div>
 
       {/* 우상단 컨트롤 */}
       <TopRightControls
