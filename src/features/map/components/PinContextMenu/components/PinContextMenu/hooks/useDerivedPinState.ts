@@ -2,7 +2,12 @@ import { useMemo } from "react";
 
 export function useDerivedPinState(args: {
   propertyId?: string | null;
-  pin?: { kind?: string; isFav?: boolean } | null;
+  pin?: {
+    id?: string | number;
+    kind?: string;
+    isFav?: boolean;
+    [k: string]: any;
+  } | null;
   isPlanPinFromParent?: boolean;
   isVisitReservedFromParent?: boolean;
 }) {
@@ -10,18 +15,40 @@ export function useDerivedPinState(args: {
     args;
 
   return useMemo(() => {
-    const legacyDraft = !propertyId || propertyId === "__draft__";
-    const planned =
-      (typeof isPlanPinFromParent === "boolean"
-        ? isPlanPinFromParent
-        : pin?.kind === "question" || (pin as any)?.visit?.planned === true) ||
-      false;
+    const hasId =
+      typeof propertyId === "string" && propertyId.trim().length > 0;
+    const legacyDraft = !hasId || propertyId === "__draft__";
 
-    const reservedRaw = Boolean(isVisitReservedFromParent);
-    const reserved = !planned && reservedRaw;
+    const visit = (pin as any)?.visit;
 
-    const draft = !planned && !reserved && legacyDraft;
-    const listed = !draft && !planned && !reserved && !!propertyId;
+    // ✅ 예약 핀 판정
+    const reservedRaw =
+      isVisitReservedFromParent === true ||
+      // id 패턴이 "__visit_" 으로 시작하는 경우 예약핀으로 판단
+      (typeof pin?.id === "string" && pin.id.startsWith("__visit_")) ||
+      visit?.reserved === true ||
+      (pin as any)?.reserved === true ||
+      (pin as any)?.reservationId ||
+      (pin as any)?.surveyReservationId ||
+      pin?.kind === "reserved" ||
+      pin?.kind === "reservation" ||
+      (pin as any)?.badge === "reserved";
+
+    // ✅ 답사예정(임시 draft) 핀 판정
+    const plannedRaw =
+      isPlanPinFromParent === true ||
+      (!reservedRaw &&
+        (visit?.planned === true ||
+          pin?.kind === "question" ||
+          pin?.kind === "planned" ||
+          (pin as any)?.planned === true));
+
+    // ✅ 최종 우선순위: 예약 > 예정 > 드래프트 > 등록됨
+    const reserved = Boolean(reservedRaw);
+    const planned = !reserved && Boolean(plannedRaw);
+    const draft = !reserved && !planned && legacyDraft;
+    const listed = !reserved && !planned && !draft && hasId;
+
     const favActive = listed ? !!pin?.isFav : false;
 
     return { reserved, planned, draft, listed, favActive };

@@ -15,6 +15,9 @@ import type {
   PlanRequestPayload,
   ReserveRequestPayload,
 } from "../PinContextMenu/types";
+import { getPin } from "@/shared/api/getPin";
+import { pinKeys } from "@/features/pins/hooks/usePin";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function ContextMenuPanel({
   roadAddress,
@@ -33,6 +36,7 @@ export default function ContextMenuPanel({
 }: ContextMenuPanelProps) {
   const headingId = useId();
   const descId = useId();
+  const qc = useQueryClient();
 
   const panelRef = useRef<HTMLDivElement | null>(null);
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
@@ -43,15 +47,25 @@ export default function ContextMenuPanel({
 
   /** 파생 상태: 예약 > 예정 > 드래프트 > 일반 */
   const { draft, reserved, planned, headerTitle } = useMemo(() => {
-    const draft = propertyId === "__draft__";
     const reserved = isVisitReservedPin === true;
-    const planned =
-      !reserved && isPlanPin === true && propertyId !== "__draft__";
-    const headerTitle = draft
+    // ✅ 예정 여부는 propertyId와 무관해야 함
+    const planned = !reserved && isPlanPin === true;
+    // ✅ 둘 다 아니면 그때 드래프트 판정
+    const isLegacyDraft = !propertyId || propertyId === "__draft__";
+    const draft = !reserved && !planned && isLegacyDraft;
+    const headerTitle = isLegacyDraft
       ? "선택 위치"
       : (propertyTitle ?? "").trim() || "선택된 매물";
     return { draft, reserved, planned, headerTitle };
   }, [propertyId, isVisitReservedPin, isPlanPin, propertyTitle]);
+
+  // 상세보기 가능 여부: id가 있고 드래프트가 아닐 때만
+  const canView = useMemo(() => {
+    if (!propertyId) return false;
+    if (propertyId === "__draft__") return false;
+    const s = String(propertyId).trim();
+    return s.length > 0;
+  }, [propertyId]);
 
   /** 초기 포커스/복귀 */
   useEffect(() => {
@@ -131,9 +145,9 @@ export default function ContextMenuPanel({
   }, [onReserve, onClose]);
 
   const handleViewClick = useCallback(() => {
-    if (!propertyId) return;
+    if (!canView) return;
     onView?.(String(propertyId));
-  }, [onView, propertyId]);
+  }, [onView, propertyId, canView]);
 
   return (
     <div
@@ -258,7 +272,17 @@ export default function ContextMenuPanel({
             variant="default"
             size="lg"
             onClick={handleViewClick}
+            onMouseEnter={() => {
+              if (!canView) return;
+              const idStr = String(propertyId);
+              qc.prefetchQuery({
+                queryKey: pinKeys.detail(idStr),
+                queryFn: () => getPin(idStr),
+                staleTime: 60_000,
+              });
+            }}
             className="w-full"
+            disabled={!canView}
           >
             상세 보기
           </Button>

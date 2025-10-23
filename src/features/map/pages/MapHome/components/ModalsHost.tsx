@@ -3,13 +3,13 @@
 import PropertyViewModal from "@/features/properties/components/PropertyViewModal/PropertyViewModal";
 import MapCreateModalHost from "../../../components/MapCreateModalHost/MapCreateModalHost";
 import RoadviewHost from "../../../components/Roadview/RoadviewHost";
-import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
 export default function ModalsHost(props: {
   viewOpen: boolean;
   selectedViewItem: PropertyViewDetails | null;
   onCloseView: () => void;
-  onSaveViewPatch: (p: any) => void | Promise<void>;
+  onSaveViewPatch: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDeleteFromView: (id: string) => void | Promise<void>;
 
   createOpen: boolean;
@@ -49,9 +49,8 @@ export default function ModalsHost(props: {
         <PropertyViewModal
           open
           onClose={onCloseView}
-          data={selectedViewItem as any}
+          data={selectedViewItem}
           onSave={onSaveViewPatch}
-          // ✅ 무인자 래퍼로 맞춰 전달
           onDelete={() => onDeleteFromView(String(selectedViewItem.id))}
         />
       )}

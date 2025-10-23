@@ -16,6 +16,8 @@ import {
   createSurveyReservation,
   fetchUnreservedDrafts,
 } from "@/shared/api/surveyReservations";
+import { useRouter } from "next/navigation";
+import { usePropertyViewModal } from "@/features/properties/hooks/useEditForm/usePropertyViewModal";
 
 /* 오늘(한국표준시) "YYYY-MM-DD" */
 function todayKST(): string {
@@ -103,6 +105,30 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     isVisitReservedPin: isVisitReservedFromParent,
   } = props;
 
+  const router = useRouter();
+
+  const viewModal = usePropertyViewModal();
+
+  const handleView = () => {
+    viewModal.openWithPin({
+      pin,
+      propertyId,
+      roadAddress,
+      jibunAddress,
+      propertyTitle,
+    });
+    onClose?.(); // 컨텍스트 메뉴 닫기
+  };
+
+  // 안전한 openDetail 헬퍼 (string|number 모두 허용)
+  const openDetail = React.useCallback(
+    (id?: string | number | null) => {
+      if (id == null) return;
+      router.push(`/pins/${id}`);
+    },
+    [router]
+  );
+
   if (!kakao || !map || !target) return null;
 
   const position = React.useMemo<kakao.maps.LatLng>(
@@ -116,6 +142,17 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     isPlanPinFromParent,
     isVisitReservedFromParent,
   });
+
+  React.useEffect(() => {
+    console.log("[derived]", {
+      id: propertyId,
+      kind: pin?.kind,
+      visit: (pin as any)?.visit,
+      reserved,
+      planned,
+      listed,
+    });
+  }, [propertyId, pin, reserved, planned, listed]);
 
   const { createVisitPlanAt, reserveVisitPlan } = useSidebar();
   const { refetch: refetchScheduledReservations } = useScheduledReservations();
@@ -220,10 +257,9 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
               propertyId={propertyId ?? null}
               propertyTitle={propertyTitle ?? null}
               onClose={onClose}
-              onView={(id) => onView?.(id)}
+              onView={handleView}
               onCreate={onCreate}
               onPlan={handlePlan}
-              // 🔴 여기서만 분기된 핸들러 사용
               onReserve={reserving ? () => {} : handleReserveClick}
               isPlanPin={planned}
               isVisitReservedPin={reserved}
