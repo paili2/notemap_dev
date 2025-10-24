@@ -2,21 +2,26 @@
 
 import { useRef } from "react";
 import PropertyCreateModal from "@/features/properties/components/PropertyCreateModal/PropertyCreateModal";
-import type { CreatePayload } from "@/features/properties/types/property-dto";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { DEFAULT_CENTER } from "@/features/map/lib/constants";
 import { buildCreatePatchWithMedia } from "@/features/properties/components/PropertyCreateModal/lib/buildCreatePatch";
 import { LatLng } from "@/lib/geo/types";
-import { createPin } from "@/shared/api/pins";
 import { toastBus } from "@/shared/toast/toastBus";
-import { buildCreateDto } from "./buildCreateDto";
-import { pickErrorMessage } from "./dtoUtils";
 import { ensureAuthed } from "@/shared/api/auth";
 
 // 업로드 & URL 변환
 import { uploadPhotos, metaToUrl } from "@/shared/api/photos";
 // 새 스펙: 그룹 등록
 import { createGroupPhotos } from "@/shared/api/pinPhotos";
+
+// ✅ 결과 타입 (types.ts의 것과 동일하게)
+type PropertyCreateResult = {
+  pinId: string;
+  matchedDraftId: number | null;
+  lat: number;
+  lng: number;
+  payload?: any;
+};
 
 type MapCreateModalHostProps = {
   open: boolean;
@@ -48,11 +53,19 @@ export default function MapCreateModalHost({
       key={prefillAddress ?? "blank"}
       initialAddress={prefillAddress}
       onClose={onClose}
-      onSubmit={async (payload: CreatePayload) => {
+      // ✅ 자식이 넘겨준 결과만 사용. 여기서 createPin 다시 호출 금지!
+      onSubmit={async ({
+        pinId,
+        matchedDraftId,
+        payload,
+        lat,
+        lng,
+      }: PropertyCreateResult) => {
         if (submittingRef.current) return;
         submittingRef.current = true;
 
         try {
+          // 업로드/그룹등록도 인증 필요할 수 있으므로 체크
           const ok = await ensureAuthed();
           if (!ok) {
             toastBus?.error?.("로그인이 필요합니다. 먼저 로그인해 주세요.");
@@ -60,22 +73,14 @@ export default function MapCreateModalHost({
             return;
           }
 
-          const pos = resolvePos();
-          const safeDto = buildCreateDto(payload, pos, prefillAddress);
-          console.log(
-            "[safeDto] buildingType=",
-            safeDto.buildingType,
-            "parkingTypeId=",
-            safeDto.parkingTypeId
-          );
+          const serverId = pinId;
+          const pos: LatLng =
+            Number.isFinite(lat) && Number.isFinite(lng)
+              ? { lat, lng }
+              : resolvePos();
 
-          // 1) 매물 생성
-          const { id: serverId, matchedDraftId } = await createPin(safeDto);
-
-          resetAfterCreate();
-
-          // ✅ 타입캐스팅 + 키 폴백(프로젝트에 따라 imageFolders/imagesByCard, fileItems/verticalImages 등)
-          const _p = payload as any;
+          // ✅ raw 미디어 배열 꺼내기 (프로젝트별 키 폴백)
+          const _p = (payload ?? {}) as any;
           const fileItemsRaw =
             _p.fileItemsRaw ?? _p.fileItems ?? _p.verticalImages ?? [];
           const imageFoldersRaw =
@@ -85,16 +90,7 @@ export default function MapCreateModalHost({
             _p.imageCards ??
             [];
 
-          // 디버그: 파일이 실제로 들어오는지 확인
-          console.log(
-            "files?",
-            fileItemsRaw.map((x: any) => !!x?.file),
-            (imageFoldersRaw as any[]).flatMap((c: any[]) =>
-              c.map((i: any) => !!i?.file)
-            )
-          );
-
-          // 2) 그룹 구성
+          // 1) 그룹 구성
           const fileGroup = {
             groupId: `${serverId}:files`,
             files: (fileItemsRaw as any[])
@@ -115,20 +111,7 @@ export default function MapCreateModalHost({
             (g) => (g.files?.length ?? 0) > 0
           );
 
-          // 디버그
-          console.debug("[Create] files debug", {
-            fileItemsLen: (fileItemsRaw as any[]).length,
-            imageFoldersLen: (imageFoldersRaw as any[]).length,
-            fileItemsHasFile: (fileItemsRaw as any[]).map(
-              (x: any) => !!x?.file
-            ),
-            folderHasFile: (imageFoldersRaw as any[]).flatMap((c: any[]) =>
-              c.map((i: any) => !!i?.file)
-            ),
-            groupsCount: groups.length,
-          });
-
-          // 3) 업로드 → 4) 그룹 등록
+          // 2) 업로드 → 3) 그룹 등록
           for (let gi = 0; gi < groups.length; gi++) {
             const g = groups[gi];
             const metas = await uploadPhotos(g.files, { domain: "map" });
@@ -140,7 +123,7 @@ export default function MapCreateModalHost({
             });
           }
 
-          // 5) 클라 상태 갱신
+          // 4) 클라 상태 갱신
           const next = await buildCreatePatchWithMedia(payload, {
             id: String(serverId),
             pos,
@@ -164,7 +147,7 @@ export default function MapCreateModalHost({
             console.log("messages:", messages);
             toastBus?.error?.(messages.join("\n"));
           } else {
-            const msg = pickErrorMessage(e) || "매물 등록에 실패했습니다.";
+            const msg = e?.message || "매물 등록에 실패했습니다.";
             toastBus?.error?.(msg);
           }
         } finally {

@@ -19,12 +19,36 @@ import OptionsBadgesContainer from "./ui/OptionsBadgesContainer";
 import MemosContainer from "./ui/MemosContainer";
 
 import PropertyEditModalBody from "@/features/properties/components/PropertyEditModal/PropertyEditModalBody";
+import { CreatePayload, UpdatePayload } from "../../types/property-dto";
+
+/* ───────── null → undefined 보정 ───────── */
+const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
+
+/* ───────── EditPayload → ViewPatch 어댑터 ─────────
+   - Edit 모달이 주는 페이로드를 View가 쓰기 좋은 패치 형태로 변환
+   - nullability 차이만 최소 보정 (필요 시 계속 보강)
+*/
+function toViewPatchFromEdit(
+  p: UpdatePayload & Partial<CreatePayload>
+): Partial<PropertyViewDetails> {
+  const anyP = p as any;
+  return {
+    ...(p as any),
+
+    // nullability 보정
+    publicMemo: toUndef(anyP.publicMemo),
+    secretMemo: toUndef(anyP.secretMemo),
+    salePrice: toUndef(anyP.salePrice),
+    completionDate: toUndef(anyP.completionDate),
+    parkingType: toUndef(anyP.parkingType),
+  };
+}
 
 export default function PropertyViewModal({
   open,
   onClose,
   data,
-  onSave, // ← 저장 콜백을 받아서 edit 모드에서 사용
+  onSave, // 저장 콜백(뷰 관점 패치)
   onDelete,
 }: {
   open: boolean;
@@ -38,7 +62,6 @@ export default function PropertyViewModal({
   const [mode, setMode] = useState<"view" | "edit">("view");
   const f = useViewForm({ open, data });
 
-  // 뷰 모달 공통 껍데기
   return (
     <div className="fixed inset-0 z-[100]">
       {/* Dim */}
@@ -61,7 +84,7 @@ export default function PropertyViewModal({
       >
         {mode === "view" ? (
           <>
-            {/* 헤더: 모바일에서 sticky */}
+            {/* 헤더 */}
             <div className="sticky top-0 z-10 bg-white border-b">
               <HeaderViewContainer
                 title={f.title}
@@ -72,7 +95,7 @@ export default function PropertyViewModal({
               />
             </div>
 
-            {/* 본문: 모바일 1열, 데스크탑 2열 */}
+            {/* 본문 */}
             <div
               className={[
                 "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
@@ -81,7 +104,7 @@ export default function PropertyViewModal({
                 "grid-cols-1 md:grid-cols-[300px_1fr]",
               ].join(" ")}
             >
-              {/* 좌측(모바일 상단): 이미지 */}
+              {/* 좌측(이미지) */}
               <div className="space-y-4">
                 <DisplayImagesContainer
                   cards={f.cardsHydrated}
@@ -90,7 +113,7 @@ export default function PropertyViewModal({
                 />
               </div>
 
-              {/* 우측(모바일 하단): 정보 섹션들 */}
+              {/* 우측(정보 섹션들) */}
               <div className="space-y-4 md:space-y-6">
                 <BasicInfoViewContainer
                   address={f.address}
@@ -136,7 +159,7 @@ export default function PropertyViewModal({
               </div>
             </div>
 
-            {/* 하단 액션: 모바일 고정 바 / 데스크탑은 내부 바 */}
+            {/* 하단 액션 */}
             <div className="md:static">
               <div
                 className={[
@@ -149,7 +172,6 @@ export default function PropertyViewModal({
                 ].join(" ")}
               >
                 <div className="flex gap-2">
-                  {/* ✅ onEdit 여부와 무관하게 항상 표시, 내부 모드 토글 */}
                   <button
                     type="button"
                     onClick={() => setMode("edit")}
@@ -168,7 +190,7 @@ export default function PropertyViewModal({
                         if (!confirm("정말 삭제할까요?")) return;
                         await onDelete();
                       }}
-                      className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex "
+                      className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex"
                       aria-label="삭제"
                       title="삭제"
                     >
@@ -191,16 +213,21 @@ export default function PropertyViewModal({
             </div>
           </>
         ) : (
-          /* ✅ 편집 모드: 같은 모달 프레임 안에서 내용만 교체 */
+          /* 편집 모드: 같은 모달 프레임 안에서 내용만 교체 */
           <PropertyEditModalBody
+            key={String(data.id ?? "edit")} // 폼 초기화 보장
             embedded
             initialData={data}
-            onClose={() => setMode("view")} // 취소/닫기 → 보기 모드 복귀
-            onSubmit={async (payload) => {
+            onClose={() => setMode("view")}
+            // ✅ 기대 타입으로 받고 → 어댑터로 변환 → onSave 호출
+            onSubmit={async (
+              payload: UpdatePayload & Partial<CreatePayload>
+            ) => {
               try {
-                await onSave?.(payload as any);
+                const viewPatch = toViewPatchFromEdit(payload);
+                await onSave?.(viewPatch);
               } finally {
-                setMode("view"); // 저장 후 보기 모드 복귀
+                setMode("view");
               }
             }}
           />

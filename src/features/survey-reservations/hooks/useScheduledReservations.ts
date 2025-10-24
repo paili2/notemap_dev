@@ -1,142 +1,241 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   fetchMySurveyReservations,
-  MyReservation,
+  type MyReservation,
 } from "@/shared/api/surveyReservations";
 
-/** 안전 정렬: sortOrder가 있으면 우선, 없으면 뒤로 */
-function sortByOrderSafe<T extends { sortOrder?: number }>(arr: T[]) {
+/* ───────── 정렬/보정 유틸 (기존과 동일) ───────── */
+function sortByServerRuleLocal<
+  T extends { sortOrder?: number; reservedDate?: string | null; id: string }
+>(arr: T[]) {
   return [...arr].sort((a, b) => {
-    const ai = typeof a.sortOrder === "number";
-    const bi = typeof b.sortOrder === "number";
-    if (ai && bi) return (a.sortOrder as number) - (b.sortOrder as number);
-    if (ai && !bi) return -1;
-    if (!ai && bi) return 1;
-    return 0;
+    const ao =
+      typeof a.sortOrder === "number" ? a.sortOrder : Number.POSITIVE_INFINITY;
+    const bo =
+      typeof b.sortOrder === "number" ? b.sortOrder : Number.POSITIVE_INFINITY;
+    if (ao !== bo) return ao - bo;
+    const ad = a.reservedDate ?? "";
+    const bd = b.reservedDate ?? "";
+    if (ad !== bd) return ad < bd ? -1 : 1;
+    return a.id.localeCompare(b.id);
   });
 }
+function normalizeZeroBase<T extends { sortOrder?: number }>(arr: T[]) {
+  return arr.map((it, idx) => ({ ...it, sortOrder: idx }));
+}
+function toPosKey(lat?: number | null, lng?: number | null) {
+  if (typeof lat !== "number" || typeof lng !== "number") return undefined;
+  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
+}
 
-/**
- * 내 예약 목록 훅
- * - 서버 로드 시 sortOrder 기준으로 정렬
- * - reservationOrderMap 파생 제공 (pinDraftId -> sortOrder)
- * - refetch()로 새로고침
- * - AbortController로 중복요청 취소
- */
+/* ───────── 모듈 스코프 싱글톤 스토어 ───────── */
+type StoreState = {
+  items: MyReservation[];
+  loading: boolean;
+  error: Error | null;
+};
+type Listener = () => void;
+
+const store: {
+  state: StoreState;
+  listeners: Set<Listener>;
+  abort?: AbortController | null;
+} = {
+  state: { items: [], loading: false, error: null },
+  listeners: new Set(),
+  abort: null,
+};
+
+function emit() {
+  for (const l of store.listeners) l();
+}
+
+async function refetchInternal(signal?: AbortSignal) {
+  store.state = { ...store.state, loading: true, error: null };
+  emit();
+  try {
+    const next = await fetchMySurveyReservations(signal);
+    const sorted = sortByServerRuleLocal(next);
+    store.state = {
+      items: normalizeZeroBase(sorted),
+      loading: false,
+      error: null,
+    };
+  } catch (e: any) {
+    if (e?.name === "AbortError") return;
+    store.state = {
+      ...store.state,
+      loading: false,
+      error: e ?? new Error("failed"),
+    };
+  } finally {
+    emit();
+  }
+}
+
+/* 최초 1회 로드 트리거 (모듈 로드 시점) */
+void refetchInternal();
+
+/* ───────── 외부에서 호출할 액션 ───────── */
+function refetch() {
+  store.abort?.abort();
+  const ctrl = new AbortController();
+  store.abort = ctrl;
+  return refetchInternal(ctrl.signal);
+}
+
+function setItems(
+  updater: MyReservation[] | ((prev: MyReservation[]) => MyReservation[])
+) {
+  const nextItems =
+    typeof updater === "function"
+      ? (updater as any)(store.state.items)
+      : updater;
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(sortByServerRuleLocal(nextItems)),
+  };
+  emit();
+}
+
+function insertOptimistic(
+  draft: Omit<MyReservation, "id"> & { id?: string },
+  insertAt?: number
+) {
+  const tempId =
+    draft.id ??
+    `temp_${
+      globalThis.crypto?.randomUUID?.() ?? Math.random().toString(16).slice(2)
+    }`;
+
+  const at =
+    Number.isInteger(insertAt) && (insertAt as number) >= 0
+      ? Math.min(insertAt as number, store.state.items.length)
+      : store.state.items.length;
+
+  const optimistic: MyReservation = {
+    ...draft,
+    id: tempId,
+    sortOrder: at,
+  } as any;
+
+  const shifted = store.state.items.map((it) =>
+    typeof it.sortOrder === "number" && it.sortOrder >= at
+      ? { ...it, sortOrder: (it.sortOrder as number) + 1 }
+      : it
+  );
+
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(sortByServerRuleLocal([...shifted, optimistic])),
+  };
+  emit();
+  return tempId;
+}
+
+function reconcileOptimistic(
+  tempId: string,
+  realId: string,
+  sortOrder?: number
+) {
+  const idx = store.state.items.findIndex((x) => x.id === tempId);
+  if (idx < 0) return;
+  const next = [...store.state.items];
+  const cur = next[idx];
+  next[idx] = {
+    ...cur,
+    id: realId,
+    sortOrder: typeof sortOrder === "number" ? sortOrder : cur.sortOrder,
+  };
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(sortByServerRuleLocal(next)),
+  };
+  emit();
+}
+
+/* ───────── Hook: useSyncExternalStore로 구독 ───────── */
 export function useScheduledReservations() {
-  const [items, setItems] = useState<MyReservation[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const snapshot = useSyncExternalStore(
+    (l) => {
+      store.listeners.add(l);
+      return () => store.listeners.delete(l);
+    },
+    () => store.state,
+    () => store.state // SSR fallback
+  );
 
-  const load = useCallback(async () => {
-    // 이전 요청 취소
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const next = await fetchMySurveyReservations(ctrl.signal);
-      // ✅ 서버가 내려준 sortOrder로 보정 정렬
-      setItems(sortByOrderSafe(next));
-    } catch (e: any) {
-      if (e?.name !== "AbortError") setError(e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    return () => abortRef.current?.abort();
-  }, [load]);
-
-  /** ✅ pinDraftId -> sortOrder 매핑 (맵 라벨 순번에 사용) */
+  // 파생 맵들/유틸은 memoize
   const reservationOrderMap = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const r of items) {
+    for (const r of snapshot.items) {
       if (r.pinDraftId != null && typeof r.sortOrder === "number") {
         m[String(r.pinDraftId)] = r.sortOrder;
       }
     }
     return m;
-  }, [items]);
+  }, [snapshot.items]);
 
-  /**
-   * (선택) 옵티미스틱 삽입 헬퍼
-   * - insertAt 위치로 임시 아이템 넣고 sortOrder 재부여
-   * - 서버 성공 시 id/sortOrder로 교체 권장
-   */
-  const insertOptimistic = useCallback(
-    (draft: Omit<MyReservation, "id"> & { id?: string }, insertAt?: number) => {
-      const tempId =
-        draft.id ??
-        `temp_${
-          globalThis.crypto?.randomUUID?.() ??
-          Math.random().toString(16).slice(2)
-        }`;
+  const reservationOrderByPosKey = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const r of snapshot.items) {
+      if (typeof r.sortOrder !== "number") continue;
+      const key = r.posKey ?? toPosKey(r.lat ?? undefined, r.lng ?? undefined);
+      if (key) m[key] = r.sortOrder;
+    }
+    return m;
+  }, [snapshot.items]);
 
-      setItems((prev) => {
-        const at =
-          Number.isInteger(insertAt) && (insertAt as number) >= 0
-            ? Math.min(insertAt as number, prev.length)
-            : prev.length;
-
-        const optimistic: MyReservation = {
-          ...draft,
-          id: tempId,
-          sortOrder: at,
-        };
-
-        const next = [...prev];
-        next.splice(at, 0, optimistic);
-        // 0..N 재부여
-        next.forEach((r, i) => (r.sortOrder = i));
-        return next;
-      });
-
-      return tempId; // 성공 시 교체에 사용
+  const getOrderIndex = useCallback(
+    (marker: {
+      source?: "draft" | "point";
+      id?: string | number;
+      pinDraftId?: string | number;
+      posKey?: string;
+      lat?: number;
+      lng?: number;
+    }) => {
+      if (marker.source === "draft") {
+        const draftId = marker.pinDraftId ?? marker.id;
+        if (draftId != null) {
+          const hit = reservationOrderMap[String(draftId)];
+          if (typeof hit === "number") return hit;
+        }
+      }
+      const key = marker.posKey ?? toPosKey(marker.lat, marker.lng);
+      if (key && typeof reservationOrderByPosKey[key] === "number") {
+        return reservationOrderByPosKey[key];
+      }
+      return undefined;
     },
-    []
+    [reservationOrderMap, reservationOrderByPosKey]
   );
 
-  /**
-   * (선택) 옵티미스틱 교체 헬퍼
-   * - 서버 응답의 id/sortOrder로 temp 아이템 교체 후 정렬 보정
-   */
-  const reconcileOptimistic = useCallback(
-    (tempId: string, realId: string, sortOrder?: number) => {
-      setItems((prev) => {
-        const idx = prev.findIndex((x) => x.id === tempId);
-        if (idx < 0) return prev;
-        const next = [...prev];
-        next[idx] = {
-          ...next[idx],
-          id: realId,
-          sortOrder:
-            typeof sortOrder === "number" ? sortOrder : next[idx].sortOrder,
-        };
-        // 서버 기준으로 재정렬 + 0..N 보정
-        const sorted = sortByOrderSafe(next);
-        sorted.forEach((r, i) => (r.sortOrder = i));
-        return sorted;
-      });
-    },
-    []
-  );
+  // refetch 같은 액션은 stable ref로 노출
+  const abortRef = useRef<AbortController | null>(null);
+  const doRefetch = useCallback(() => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    return refetchInternal(ctrl.signal);
+  }, []);
+
+  const doSetItems = useCallback(setItems, []);
+  const doInsertOptimistic = useCallback(insertOptimistic, []);
+  const doReconcileOptimistic = useCallback(reconcileOptimistic, []);
 
   return {
-    items,
-    loading,
-    error,
-    refetch: load,
-    setItems, // 필요 시 외부에서 직접 수정
+    items: snapshot.items,
+    loading: snapshot.loading,
+    error: snapshot.error,
+    refetch: doRefetch,
+    setItems: doSetItems,
     reservationOrderMap,
-    insertOptimistic, // (선택) 낙관적 삽입
-    reconcileOptimistic, // (선택) 서버 성공 후 교체
+    reservationOrderByPosKey,
+    getOrderIndex,
+    insertOptimistic: doInsertOptimistic,
+    reconcileOptimistic: doReconcileOptimistic,
   } as const;
 }

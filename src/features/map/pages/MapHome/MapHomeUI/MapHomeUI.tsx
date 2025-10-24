@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import MapTopBar from "@/features/map/components/top/MapTopBar/MapTopBar";
 import { FilterSearch } from "../../../FilterSearch";
 import { MapMenuKey } from "../../../components/MapMenu";
 import { useRoadview } from "../../../hooks/useRoadview";
@@ -18,6 +17,10 @@ import ModalsHost from "../components/ModalsHost";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useBounds } from "../hooks/useBounds";
 import { useBoundsRaw } from "./hooks/useBoundsRaw";
+import { cn } from "@/lib/cn";
+import SearchForm from "@/features/map/components/top/SearchForm/SearchForm";
+import type { MapMarker } from "../../../types/map";
+import type { PinKind } from "@/features/pins/types";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -66,8 +69,71 @@ export function MapHomeUI(props: MapHomeUIProps) {
     favById = {},
   } = props;
 
-  const getBoundsLLB = useBounds(kakaoSDK, mapInstance); // kakao.maps.LatLngBounds 반환
-  const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance); // {swLat, swLng, neLat, neLng} 반환
+  const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
+  const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
+
+  /** ✅ 로컬 임시 draft 마커 상태 (신규 등록 직후 즉시 표시용) */
+  const [localDraftMarkers, setLocalDraftMarkers] = useState<MapMarker[]>([]);
+
+  /** ✅ 임시 마커 주입/치환/초기화 유틸 */
+  const upsertDraftMarker = useCallback(
+    (m: {
+      id: string | number;
+      lat: number;
+      lng: number;
+      address?: string | null;
+      source?: "geocode" | "search" | "draft";
+      kind?: PinKind;
+    }) => {
+      setLocalDraftMarkers((prev) => {
+        const list = prev.slice();
+        const id = String(m.id);
+        const idx = list.findIndex((x) => String(x.id) === id);
+
+        const next: MapMarker = {
+          id,
+          // ✅ 예약 전 임시핀은 절대 "답사예정" 사용하지 않음
+          title: m.address ?? "선택 위치",
+          position: { lat: m.lat, lng: m.lng },
+          // ✅ source/kind 보존 → 아래 단계에서 isPlan 제외 로직에 필요
+          ...(m.source ? ({ source: m.source } as any) : {}),
+          kind: (m.kind ?? "question") as PinKind,
+        };
+
+        if (idx >= 0) list[idx] = { ...list[idx], ...next };
+        else list.push(next);
+        return list;
+      });
+    },
+    []
+  );
+
+  const replaceTempByRealId = useCallback(
+    (tempId: string | number, realId: string | number) => {
+      setLocalDraftMarkers((prev) =>
+        prev.map((x) =>
+          String(x.id) === String(tempId)
+            ? { ...x, id: `__visit__${realId}` }
+            : x
+        )
+      );
+    },
+    []
+  );
+
+  const clearLocalDrafts = useCallback(() => setLocalDraftMarkers([]), []);
+
+  // ✅ 필터 → draftState 매핑
+  const draftStateForQuery = useMemo<
+    undefined | "before" | "scheduled" | "all"
+  >(() => {
+    switch (filter as MapMenuKey) {
+      case "plannedOnly":
+        return "before";
+      default:
+        return undefined;
+    }
+  }, [filter]);
 
   // ===== 서버 핀 로딩 =====
   const {
@@ -75,7 +141,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
     drafts: serverDrafts,
     loading: pinsLoading,
     error: pinsError,
-  } = usePinsFromViewport({ map: mapInstance, debounceMs: 300 });
+  } = usePinsFromViewport({
+    map: mapInstance,
+    debounceMs: 300,
+    draftState: draftStateForQuery,
+  });
 
   // title의 null → undefined 정규화
   const normServerPoints = useMemo(
@@ -88,8 +158,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
   );
 
   // ===== 마커 병합 =====
-  const { mergedMarkers, mergedWithTempDraft } = useMergedMarkers({
-    localMarkers: markers,
+  const { mergedMarkers, mergedWithTempDraft, mergedMeta } = useMergedMarkers({
+    /** ⬅️ 기존 props.markers + 로컬 임시 마커 함께 전달 */
+    localMarkers: useMemo(
+      () => [...(markers ?? []), ...localDraftMarkers],
+      [markers, localDraftMarkers]
+    ),
     serverPoints: normServerPoints,
     serverDrafts: normServerDrafts,
     menuOpen,
@@ -97,19 +171,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
   });
 
   // ===== planned only =====
-  const {
-    plannedDrafts,
-    plannedMarkersOnly,
-    reloadPlanned,
-    state: plannedState,
-  } = usePlannedDrafts({ filter, getBounds: getBoundsRaw });
+  const { plannedDrafts, plannedMarkersOnly } = usePlannedDrafts({
+    filter,
+    getBounds: getBoundsRaw,
+  });
 
   // ===== roadview =====
   const {
     roadviewContainerRef,
     visible: roadviewVisible,
     openAtCenter,
-    openAt,
     close,
   } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
 
@@ -143,9 +214,46 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // 사이드바 컨텍스트
   const { siteReservations } = useSidebarCtx();
 
+  // ✅ 뷰포트 핀 재패치 트리거 (훅이 idle 이벤트를 듣는 경우를 고려해 안전한 no-op 움직임)
+  const refreshViewportPins = useCallback(
+    async (_box?: {
+      sw: { lat: number; lng: number };
+      ne: { lat: number; lng: number };
+    }) => {
+      if (!kakaoSDK || !mapInstance) return;
+      try {
+        const c = mapInstance.getCenter();
+        // 같은 센터로 setCenter가 idle을 안 쏘면, level 토글로 강제 발생
+        const level = mapInstance.getLevel();
+        mapInstance.setLevel(level + 1, { animate: false });
+        mapInstance.setLevel(level, { animate: false });
+        mapInstance.setCenter(c);
+      } catch {}
+    },
+    [kakaoSDK, mapInstance]
+  );
+
+  // 🔎 주소/키워드 검색 → 지도 이동만 (idle은 훅이 듣는다)
+  const handleSubmitSearch = useCallback(
+    (text: string) => {
+      const query = text.trim();
+      if (!query || !kakaoSDK || !mapInstance) return;
+
+      onSubmitSearch?.(query);
+
+      const geocoder = new kakaoSDK.maps.services.Geocoder();
+      geocoder.addressSearch(query, (res: any[], status: string) => {
+        if (status !== kakaoSDK.maps.services.Status.OK || !res?.[0]) return;
+        const { x, y } = res[0]; // x: lng, y: lat
+        const target = new kakaoSDK.maps.LatLng(+y, +x);
+        mapInstance.setCenter(target); // idle 자동 발생 → usePinsFromViewport가 처리
+      });
+    },
+    [kakaoSDK, mapInstance, onSubmitSearch]
+  );
+
   return (
     <div className="fixed inset-0">
-      {/* 지도/오버레이 */}
       <MapCanvas
         appKey={appKey}
         kakaoSDK={kakaoSDK}
@@ -166,7 +274,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         isDistrictOn={isDistrictOn}
       />
 
-      {/* 컨텍스트 메뉴 */}
       <ContextMenuHost
         open={menuOpen}
         kakaoSDK={kakaoSDK}
@@ -177,6 +284,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         menuRoadAddr={menuRoadAddr}
         menuJibunAddr={menuJibunAddr}
         visibleMarkers={visibleMarkers}
+        mergedMeta={mergedMeta}
         favById={favById}
         siteReservations={siteReservations}
         onCloseMenu={onCloseMenu}
@@ -187,20 +295,44 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onAddFav={onAddFav}
         onOpenMenu={onOpenMenu}
         onChangeHideLabelForId={onChangeHideLabelForId}
+        /** ✅ 등록 직후 즉시 지도에 꽂을 임시 마커 주입
+         *    - source/kind를 그대로 보존해서 isPlan 제외 로직이 정확히 동작하도록
+         */
+        upsertDraftMarker={(m) =>
+          upsertDraftMarker({
+            id: m.id,
+            lat: m.lat,
+            lng: m.lng,
+            address: m.address ?? null,
+            // ⬇⬇⬇ 그대로 전달
+            source: (m as any).source,
+            kind: (m as any).kind as PinKind | undefined,
+          })
+        }
+        /** ✅ 가능한 경우 뷰포트 재패치 */
+        refreshViewportPins={refreshViewportPins}
       />
 
       {/* 상단 검색바 */}
-      <MapTopBar
-        value={q}
-        onChangeSearch={onChangeQ}
-        onSubmitSearch={(text) => {
-          const query = text.trim();
-          if (!query) return;
-          onSubmitSearch?.(query);
-        }}
-      />
+      <div
+        className={cn(
+          "flex flex-wrap md:flex-nowrap",
+          "pointer-events-none absolute left-3 top-3 z-[70] items-center gap-2"
+        )}
+        role="region"
+        aria-label="지도 상단 검색"
+      >
+        <div className="pointer-events-auto">
+          <SearchForm
+            value={q}
+            onChange={onChangeQ}
+            onSubmit={handleSubmitSearch}
+            placeholder="장소, 주소, 버스 검색"
+            className="flex-1 min-w-[200px] md:min-w-[260px] max-w-[420px]"
+          />
+        </div>
+      </div>
 
-      {/* 우상단 컨트롤 */}
       <TopRightControls
         activeMenu={activeMenu}
         onChangeFilter={(next) => {
@@ -226,10 +358,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         getBounds={getBoundsLLB}
       />
 
-      {/* 좌하단 필터 버튼 */}
       <FilterFab onOpen={() => setFilterSearchOpen(true)} />
-
-      {/* 사이드바 & 필터 모달 */}
       <Sidebar
         isSidebarOn={useSidebar}
         onToggleSidebar={() => setUseSidebar(!useSidebar)}
@@ -239,7 +368,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onClose={() => setFilterSearchOpen(false)}
       />
 
-      {/* 모달 호스트 */}
       <ModalsHost
         viewOpen={viewOpen}
         selectedViewItem={selectedViewItem}

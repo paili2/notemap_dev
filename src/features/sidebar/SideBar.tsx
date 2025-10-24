@@ -16,24 +16,24 @@ import type { MyReservation } from "@/shared/api/surveyReservations";
 import { useCancelReservation } from "../survey-reservations/hooks/useCancelReservation";
 
 export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
-  // 0) 안전 기본값 먼저 확정
+  // 0) 안전 기본값
   const {
     nestedFavorites = [],
     favoritesLoading,
     setNestedFavorites,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
-    // handleDeleteSiteReservation, // ❌ 예약취소 훅으로 대체
     handleContractRecordsClick,
   } = useSidebar();
 
-  // 1) 모든 훅은 무조건 호출(조건문/반복문 밖)
+  // 1) 훅 호출(조건문 밖)
   const { items, setItems, refetch } = useScheduledReservations();
 
   const { onReorder } = useReorderReservations({
-    items: items ?? [], // ✅ 내부 분기 최소화
+    items: items ?? [],
     setItems,
-    onSuccess: () => refetch(),
+    onSuccess: () => refetch(), // 서버 적용 후 동기화
+    onAfterSuccessRefetch: () => refetch(), // 보수적 동기화(선택)
   });
 
   // ✅ 예약 취소 훅(옵티미스틱 삭제 + 실패 롤백 + 성공 후 refetch)
@@ -41,7 +41,7 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
     refetch()
   );
 
-  // 2) 파생 값/콜백: 훅 내부에서 조건 가드
+  // 2) 파생 리스트
   const listItems: ListItem[] = useMemo(
     () =>
       (items ?? []).map((r) => ({
@@ -52,32 +52,17 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
     [items]
   );
 
-  const handleListItemsChange = useCallback(
-    (nextList: ListItem[]) => {
-      const orderedIds = nextList.map((li) => String(li.id));
+  // ⚠️ 이중 옵티미스틱 방지: onItemsChange는 미리보기/로컬 재정렬을 하지 않음
+  // (SidebarSection이 자체적으로 드래그 프리뷰를 처리하지 않는다면,
+  //  UI 프리뷰가 꼭 필요할 때만 별도의 "로컬 전용 상태"를 만들어 쓰고,
+  //  최종 확정은 onReorderIds로만 처리하세요.)
+  const handleListItemsChange = useCallback((_nextList: ListItem[]) => {
+    // no-op: 최종 확정은 onReorderIds에서 처리
+    // 만약 드래그 중 프리뷰가 꼭 필요하면,
+    // 여기서 별도의 previewItems 상태를 관리하세요(본 items는 건드리지 않기).
+  }, []);
 
-      setItems((prev: MyReservation[] = []) => {
-        const map = new Map(prev.map((p) => [String(p.id), p]));
-        const next: MyReservation[] = [];
-
-        // 1) 드롭 순서대로 재배치
-        for (const id of orderedIds) {
-          const found = map.get(id);
-          if (found) next.push({ ...found });
-        }
-        // 2) 누락분 뒤에 유지
-        for (const p of prev) {
-          if (!orderedIds.includes(String(p.id))) next.push({ ...p });
-        }
-        // 3) 0..N sortOrder 재부여
-        next.forEach((r, i) => (r.sortOrder = i));
-        return next;
-      });
-    },
-    [setItems]
-  );
-
-  // 3) 훅 호출 ‘후’에 조기 리턴
+  // 3) 조기 리턴
   if (!isSidebarOn) return null;
 
   return (
@@ -93,9 +78,9 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
         <SidebarSection
           title="답사지 예약"
           items={listItems}
-          onItemsChange={handleListItemsChange}
+          onItemsChange={handleListItemsChange} // 프리뷰 필요없으면 no-op 유지
           onDeleteItem={(id) => onCancel(id)}
-          onReorderIds={onReorder}
+          onReorderIds={onReorder} // 최종 확정은 이쪽만
         />
 
         {/* 즐겨찾기 */}

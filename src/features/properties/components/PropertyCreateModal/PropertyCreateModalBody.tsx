@@ -29,6 +29,35 @@ import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import { mapPinKindToBadge } from "../../lib/badge";
 
+// ✅ /pins 호출 유틸과 api 클라이언트 임포트
+import { api } from "@/shared/api/api"; // 예약 삭제용
+import { createPin, CreatePinDto } from "@/shared/api/pins";
+
+/** 주소 → 카카오 지오코딩 */
+function geocodeKakao(
+  address: string
+): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    try {
+      const { kakao } = window as any;
+      if (!kakao?.maps?.services?.Geocoder) return resolve(null);
+      const geocoder = new kakao.maps.services.Geocoder();
+      geocoder.addressSearch(address, (results: any[], status: any) => {
+        if (status !== kakao.maps.services.Status.OK || !results?.length) {
+          return resolve(null);
+        }
+        const r = results[0];
+        const lat = Number(r.y);
+        const lng = Number(r.x);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) resolve({ lat, lng });
+        else resolve(null);
+      });
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -65,6 +94,49 @@ export default function PropertyCreateModalBody({
     try {
       if (!f.title.trim()) return;
 
+      // ✅ 좌표 확보 (여러 후보에서 숫자로 파싱)
+      const candidatesLat = [
+        (f as any).lat,
+        (f as any).position?.lat,
+        (f as any).mapCenter?.lat,
+        (f as any).geo?.lat,
+        (f as any).address?.lat,
+      ];
+      const candidatesLng = [
+        (f as any).lng,
+        (f as any).position?.lng,
+        (f as any).mapCenter?.lng,
+        (f as any).geo?.lng,
+        (f as any).address?.lng,
+      ];
+
+      let latCandidate = candidatesLat.map(Number).find(Number.isFinite);
+      let lngCandidate = candidatesLng.map(Number).find(Number.isFinite);
+
+      // 🔁 후보에서 못 찾았으면 주소로 카카오 지오코딩 시도
+      if (
+        (!Number.isFinite(latCandidate!) || !Number.isFinite(lngCandidate!)) &&
+        f.address
+      ) {
+        const geo = await geocodeKakao(String(f.address));
+        if (geo) {
+          latCandidate = geo.lat;
+          lngCandidate = geo.lng;
+        }
+      }
+
+      // 최종 검증
+      if (!Number.isFinite(latCandidate!) || !Number.isFinite(lngCandidate!)) {
+        alert(
+          "좌표가 없습니다. 지도에서 위치를 선택하거나 주소를 더 정확히 입력해 주세요."
+        );
+        return;
+      }
+
+      // ✅ 확정 숫자
+      const latNum = Number(latCandidate);
+      const lngNum = Number(lngCandidate);
+
       // 배지/날짜 계산 (YYYY-MM-DD)
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
@@ -73,7 +145,7 @@ export default function PropertyCreateModalBody({
           ? f.completionDate
           : new Date().toISOString().slice(0, 10);
 
-      // 매물 payload (부모로 전달)
+      // 매물 payload (내부 가공용)
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -116,19 +188,86 @@ export default function PropertyCreateModalBody({
         imageFolders,
         fileItems,
         pinKind: f.pinKind,
+
+        // 좌표 전달
+        lat: latNum,
+        lng: lngNum,
       });
 
-      console.log(
-        "[payload before send] buildingType=",
-        (f as any).buildingType
+      // ✅ /pins DTO로 매핑 (서버가 허용하는 필드만)
+      const toNum = (v: any) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : undefined;
+      };
+
+      const pinDto: CreatePinDto = {
+        lat: latNum,
+        lng: lngNum,
+        addressLine: f.address ?? "",
+        name: f.title ?? "임시 매물",
+        contactMainLabel: (f.officeName ?? "").trim() || "대표",
+        contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
+
+        // 선택 (서버 허용 범위에서만)
+        completionDate: effectiveCompletionDate, // YYYY-MM-DD
+        buildingType: (f as any).buildingType ?? null,
+        totalHouseholds: toNum(f.totalHouseholds) ?? null,
+        registrationTypeId: toNum((f as any).registrationTypeId) ?? null,
+        parkingTypeId: toNum((f as any).parkingTypeId) ?? null,
+        slopeGrade: f.slopeGrade ?? null,
+        structureGrade: f.structureGrade ?? null,
+        badge: effectiveBadge ?? null,
+        publicMemo: f.publicMemo ?? null,
+        privateMemo: f.secretMemo ?? null,
+        hasElevator: f.elevator === "O",
+      };
+
+      // ✅ 핀 생성 (/pins)
+      const { id: pinId, matchedDraftId } = await createPin(pinDto);
+
+      // ✅ 예약 삭제 (있으면 id로, 없으면 draft 기준으로 탐색 후 삭제)
+      const reservationId = (f as any).reservationId;
+      const pinDraftId = (f as any).pinDraftId ?? matchedDraftId;
+      try {
+        if (reservationId != null) {
+          await api.delete(`/survey-reservations/${reservationId}`);
+        } else if (pinDraftId != null) {
+          const listRes = await api.get("/survey-reservations/scheduled");
+          const target = (listRes.data ?? []).find(
+            (r: any) =>
+              String(r?.pin_draft_id) === String(pinDraftId) ||
+              String(r?.pin?.draftId) === String(pinDraftId)
+          );
+          if (target?.id != null) {
+            await api.delete(`/survey-reservations/${target.id}`);
+          }
+        }
+      } catch (err: any) {
+        const st = err?.response?.status;
+        if (st !== 404 && st !== 403) {
+          console.warn("reservation cleanup failed:", err);
+        }
+      }
+
+      // ✅ 부모에 결과만 전달 (부모에서 API 재호출 금지)
+      await Promise.resolve(
+        onSubmit?.({
+          pinId: String(pinId),
+          matchedDraftId,
+          lat: latNum,
+          lng: lngNum,
+          payload, // 필요 없으면 types에서 제거해도 됨
+        } as any)
       );
 
-      // ✅ 서버 호출 없이 payload만 부모로 전달
-      await Promise.resolve(onSubmit?.(payload));
       onClose?.();
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
-      alert("저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.");
+      const msg =
+        (e as any)?.responseData?.messages?.join("\n") ||
+        (e as any)?.message ||
+        "저장 중 오류가 발생했습니다. 콘솔 로그를 확인하세요.";
+      alert(msg);
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);

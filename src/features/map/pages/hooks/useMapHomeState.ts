@@ -54,6 +54,12 @@ export function useMapHomeState() {
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
 
+  // 라벨 숨김 상태
+  const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
+  const onChangeHideLabelForId = useCallback((id: string | null) => {
+    setHideLabelForId(id);
+  }, []);
+
   // UI 모달 & 메뉴 상태
   const [menuOpen, setMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
@@ -204,6 +210,10 @@ export function useMapHomeState() {
       setDraftPin(isDraft ? position : null);
       setFitAllOnce(false);
 
+      onChangeHideLabelForId("__draft__");
+
+      onChangeHideLabelForId(isDraft ? "__draft__" : String(propertyId));
+
       setMenuAnchor(position);
 
       if (opts?.roadAddress || opts?.jibunAddress) {
@@ -221,7 +231,7 @@ export function useMapHomeState() {
         requestAnimationFrame(() => setMenuOpen(true));
       });
     },
-    [resolveAddress, panToWithOffset, setDraftPin]
+    [resolveAddress, panToWithOffset, setDraftPin, onChangeHideLabelForId]
   );
 
   const geocodeAddress = useCallback(
@@ -251,6 +261,7 @@ export function useMapHomeState() {
       setMenuTargetId(sid);
       setMenuAnchor(p.position);
       setFitAllOnce(false);
+      onChangeHideLabelForId(sid);
 
       panToWithOffset(p.position, 180);
 
@@ -267,7 +278,7 @@ export function useMapHomeState() {
         requestAnimationFrame(() => setMenuOpen(true));
       });
     },
-    [resolveAddress, panToWithOffset, setDraftPin]
+    [resolveAddress, panToWithOffset, setDraftPin, onChangeHideLabelForId]
   );
 
   // 검색 훅 원본
@@ -329,7 +340,7 @@ export function useMapHomeState() {
     } else {
       setMenuOpen(false);
     }
-  }, [draftPin, resolveAddress]);
+  }, [draftPin, resolveAddress, onChangeHideLabelForId]);
 
   // 지도 이동(idle 트리거)
   useEffect(() => {
@@ -353,6 +364,7 @@ export function useMapHomeState() {
       setDraftPin(null);
       setFitAllOnce(false);
       setMenuAnchor(item.position);
+      onChangeHideLabelForId(sid);
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
@@ -363,7 +375,13 @@ export function useMapHomeState() {
       setMenuRoadAddr(road ?? null);
       setMenuJibunAddr(jibun ?? null);
     },
-    [items, resolveAddress, panToWithOffset, setDraftPin]
+    [
+      items,
+      resolveAddress,
+      panToWithOffset,
+      setDraftPin,
+      onChangeHideLabelForId,
+    ]
   );
 
   // Map ready
@@ -434,23 +452,27 @@ export function useMapHomeState() {
     setMenuAnchor(null);
     setMenuRoadAddr(null);
     setMenuJibunAddr(null);
+    onChangeHideLabelForId(null);
 
     if (!menuTargetId && draftPin) {
       setDraftPin(null);
     }
-  }, [menuTargetId, draftPin, setDraftPin]);
+  }, [menuTargetId, draftPin, setDraftPin, onChangeHideLabelForId]);
 
-  const openViewFromMenu = useCallback((id: string) => {
-    setSelectedId(id);
-    setMenuOpen(false);
-    setViewOpen(true);
-  }, []);
+  const openViewFromMenu = useCallback(
+    (id: string) => {
+      setSelectedId(id);
+      closeMenu(); // ★ 메뉴 닫으면서 라벨 복구까지
+      setViewOpen(true);
+    },
+    [closeMenu]
+  );
 
   const openCreateFromMenu = useCallback(() => {
-    setMenuOpen(false);
+    closeMenu(); // ★ 메뉴 닫으면서 라벨 복구까지
     setPrefillAddress(menuRoadAddr ?? menuJibunAddr ?? undefined);
     setCreateOpen(true);
-  }, [menuRoadAddr, menuJibunAddr]);
+  }, [menuRoadAddr, menuJibunAddr, closeMenu]);
 
   // === 메뉴/액션 alias
   const onCloseMenu = closeMenu;
@@ -595,12 +617,6 @@ export function useMapHomeState() {
   const onEditFromView = useCallback(() => {
     setViewOpen(false);
     setEditOpen(true);
-  }, []);
-
-  // 라벨 숨김 상태
-  const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
-  const onChangeHideLabelForId = useCallback((id: string | null) => {
-    setHideLabelForId(id);
   }, []);
 
   // 메뉴 열기 어댑터

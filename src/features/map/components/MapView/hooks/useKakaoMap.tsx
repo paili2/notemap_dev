@@ -78,86 +78,62 @@ const useKakaoMap = ({
   const idleListenerRef = useRef<((...a: any[]) => void) | null>(null);
   const idleTimerRef = useRef<number | null>(null);
 
-  // ===== 지도 생성 =====
+  // ───────────────────────────────────────────────────────────
+  // 1) 지도 초기화: 최초 1회만 생성 (빈 deps)
+  // ───────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     if (!containerRef.current) return;
 
-    loadKakaoOnce(appKey, { autoload: false, libs: ["services", "clusterer"] })
-      .then((kakao) => {
+    (async () => {
+      try {
+        const kakao = await loadKakaoOnce(appKey, {
+          autoload: false,
+          libs: ["services", "clusterer"],
+        });
         if (cancelled || !containerRef.current) return;
 
         kakaoRef.current = kakao;
 
-        const map = new kakao.maps.Map(containerRef.current, {
-          center: new kakao.maps.LatLng(center.lat, center.lng),
-          level,
-        });
+        if (!mapRef.current) {
+          const map = new kakao.maps.Map(containerRef.current, {
+            center: new kakao.maps.LatLng(center.lat, center.lng),
+            level,
+          });
+          mapRef.current = map;
 
-        // services 준비
-        geocoderRef.current = new kakao.maps.services.Geocoder();
-        placesRef.current = new kakao.maps.services.Places();
+          // services 준비 (전역 재사용)
+          geocoderRef.current = new kakao.maps.services.Geocoder();
+          placesRef.current = new kakao.maps.services.Places();
 
-        // 축소 상한
-        maxLevelRef.current = maxLevel;
-        map.setMaxLevel(maxLevelRef.current);
+          // 축소 상한
+          maxLevelRef.current = maxLevel;
+          map.setMaxLevel(maxLevelRef.current);
 
-        // 전국 보기 옵션
-        if (fitKoreaBounds) {
-          const bounds = new kakao.maps.LatLngBounds(
-            new kakao.maps.LatLng(KOREA_BOUNDS.sw.lat, KOREA_BOUNDS.sw.lng),
-            new kakao.maps.LatLng(KOREA_BOUNDS.ne.lat, KOREA_BOUNDS.ne.lng)
-          );
-          map.setBounds(bounds);
-          const lv = map.getLevel();
-          maxLevelRef.current = lv;
-          map.setMaxLevel(lv);
+          // 전국 보기 옵션 (초기 1회)
+          if (fitKoreaBounds) {
+            const bounds = new kakao.maps.LatLngBounds(
+              new kakao.maps.LatLng(KOREA_BOUNDS.sw.lat, KOREA_BOUNDS.sw.lng),
+              new kakao.maps.LatLng(KOREA_BOUNDS.ne.lat, KOREA_BOUNDS.ne.lng)
+            );
+            map.setBounds(bounds);
+            const lv = map.getLevel();
+            maxLevelRef.current = lv;
+            map.setMaxLevel(lv);
+          }
         }
 
-        // 최대 확대 제한 강제
-        const onZoomChanged = () => {
-          const lv = map.getLevel();
-          if (lv > maxLevelRef.current) map.setLevel(maxLevelRef.current);
-        };
-        kakao.maps.event.addListener(map, "zoom_changed", onZoomChanged);
-        zoomListenerRef.current = onZoomChanged;
-
-        // idle 시 디바운스된 뷰포트 변경 콜백
-        const onIdle = () => {
-          if (!onViewportChangeRef.current) return;
-
-          // 디바운스
-          if (idleTimerRef.current) {
-            window.clearTimeout(idleTimerRef.current);
-          }
-          idleTimerRef.current = window.setTimeout(() => {
-            if (!mapRef.current) return;
-            const b = mapRef.current.getBounds();
-            const sw = b.getSouthWest(); // 좌하
-            const ne = b.getNorthEast(); // 우상
-            onViewportChangeRef.current?.({
-              leftTop: { lat: ne.getLat(), lng: sw.getLng() },
-              leftBottom: { lat: sw.getLat(), lng: sw.getLng() },
-              rightTop: { lat: ne.getLat(), lng: ne.getLng() },
-              rightBottom: { lat: sw.getLat(), lng: ne.getLng() },
-              zoomLevel: mapRef.current.getLevel(),
-            });
-          }, viewportDebounceMs);
-        };
-        kakao.maps.event.addListener(map, "idle", onIdle);
-        idleListenerRef.current = onIdle;
-
-        mapRef.current = map;
         setReady(true);
-        onMapReady?.({ kakao, map });
-      })
-      .catch((e) => {
+        onMapReady?.({ kakao, map: mapRef.current });
+      } catch (e) {
         console.error("Kakao SDK load failed:", e);
-      });
+      }
+    })();
 
-    // cleanup
     return () => {
       cancelled = true;
+
+      // 정리(언마운트 시)
       const kakao = kakaoRef.current;
       const map = mapRef.current;
 
@@ -186,21 +162,62 @@ const useKakaoMap = ({
         lastSearchMarkerRef.current = null;
       }
 
+      // mapRef는 언마운트 시에만 null
       mapRef.current = null;
       // kakaoRef는 SDK 전역이므로 유지
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    appKey,
-    fitKoreaBounds,
-    maxLevel,
-    level,
-    center.lat,
-    center.lng,
-    viewportDebounceMs,
-  ]);
+  }, []); // ← 중요: 최초 1회만 생성
 
-  // center 변경 시 부드럽게 이동 (옵션으로 끌 수 있음)
+  // ───────────────────────────────────────────────────────────
+  // 2) 이벤트 리스너 등록: 1회만 등록하고 콜백은 ref로 최신 유지
+  // ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const kakao = kakaoRef.current;
+    const map = mapRef.current;
+    if (!ready || !kakao || !map) return;
+
+    // 최대 확대 제한 강제
+    if (!zoomListenerRef.current) {
+      const onZoomChanged = () => {
+        const lv = map.getLevel();
+        if (lv > maxLevelRef.current) map.setLevel(maxLevelRef.current);
+      };
+      kakao.maps.event.addListener(map, "zoom_changed", onZoomChanged);
+      zoomListenerRef.current = onZoomChanged;
+    }
+
+    // idle 시 디바운스된 뷰포트 변경 콜백
+    if (!idleListenerRef.current) {
+      const onIdle = () => {
+        if (!onViewportChangeRef.current) return;
+
+        // 디바운스
+        if (idleTimerRef.current) {
+          window.clearTimeout(idleTimerRef.current);
+        }
+        idleTimerRef.current = window.setTimeout(() => {
+          if (!mapRef.current) return;
+          const b = mapRef.current.getBounds();
+          const sw = b.getSouthWest(); // 좌하
+          const ne = b.getNorthEast(); // 우상
+          onViewportChangeRef.current?.({
+            leftTop: { lat: ne.getLat(), lng: sw.getLng() },
+            leftBottom: { lat: sw.getLat(), lng: sw.getLng() },
+            rightTop: { lat: ne.getLat(), lng: ne.getLng() },
+            rightBottom: { lat: sw.getLat(), lng: ne.getLng() },
+            zoomLevel: mapRef.current.getLevel(),
+          });
+        }, viewportDebounceMs);
+      };
+      kakao.maps.event.addListener(map, "idle", onIdle);
+      idleListenerRef.current = onIdle;
+    }
+  }, [ready, viewportDebounceMs, onViewportChangeRef]);
+
+  // ───────────────────────────────────────────────────────────
+  // 3) center/level 변경은 "조작"으로만 반영 (재생성 금지)
+  // ───────────────────────────────────────────────────────────
   useEffect(() => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
@@ -224,7 +241,6 @@ const useKakaoMap = ({
     return () => cancelAnimationFrame(raf);
   }, [center.lat, center.lng, disableAutoPan, ready]);
 
-  // level 변경 시 상한 적용 (동일 level이면 skip)
   useEffect(() => {
     const map = mapRef.current;
     if (!ready || !map) return;
@@ -234,7 +250,9 @@ const useKakaoMap = ({
     }
   }, [level, ready]);
 
-  // ===== 유틸 =====
+  // ───────────────────────────────────────────────────────────
+  // 4) 유틸
+  // ───────────────────────────────────────────────────────────
   const clearLastMarker = useCallback(() => {
     if (lastSearchMarkerRef.current) {
       lastSearchMarkerRef.current.setMap(null);

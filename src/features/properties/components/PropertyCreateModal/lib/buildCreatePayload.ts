@@ -57,7 +57,7 @@ type BuildArgs = {
   listingStars: number;
   parkingType: string | null;
   parkingCount: string | number | null;
-  completionDate?: string; // ✅ optional
+  completionDate?: string; // optional
   salePrice: string;
 
   baseAreaSet: AreaSet;
@@ -73,7 +73,7 @@ type BuildArgs = {
   totalHouseholds: string;
   remainingHouseholds: string;
 
-  /** ✅ 새 필드들 */
+  /** 새 필드들 */
   buildingType?: string | null;
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
@@ -91,6 +91,13 @@ type BuildArgs = {
   fileItems: ImageItem[];
 
   pinKind: PinKind;
+
+  /** ✅ 좌표 */
+  lat?: number | null;
+  lng?: number | null;
+
+  /** draft */
+  pinDraftId?: number | string | null;
 };
 
 export function buildCreatePayload(args: BuildArgs) {
@@ -136,13 +143,18 @@ export function buildCreatePayload(args: BuildArgs) {
     unitLines,
     imageFolders,
     fileItems,
+
+    /** ✅ 좌표 */
+    lat,
+    lng,
+
     pinKind,
   } = args;
 
-  // ✅ name 누락 방지: title → name 으로 동기화
+  // name 동기화(현재는 title만 사용하지만 향후 name 필드 필요 시 대비)
   const safeName = s(title);
 
-  // ✅ completionDate fallback — 비어있으면 KST YYYY-MM-DD로 고정
+  // completionDate fallback — 비어있으면 KST YYYY-MM-DD
   const effectiveCompletionDate = s(completionDate) || todayKST();
 
   /* 1) 향/방향 필드 */
@@ -250,6 +262,11 @@ export function buildCreatePayload(args: BuildArgs) {
     pinKind?: PinKind;
     imageFoldersRaw: ImageItem[][];
     fileItemsRaw: ImageItem[];
+    pinDraftId?: number | string | null;
+
+    /** ✅ 좌표 pass-through (필요 시 /pins 매핑에서 사용) */
+    lat?: number;
+    lng?: number;
   } = {
     /* 기본 */
     title,
@@ -289,7 +306,7 @@ export function buildCreatePayload(args: BuildArgs) {
       ? { parkingCount: String(parkingCount) }
       : {}),
 
-    // ✅ 확실히 전달 (YYYY-MM-DD, KST)
+    // YYYY-MM-DD, KST
     completionDate: effectiveCompletionDate,
 
     exclusiveArea,
@@ -297,7 +314,7 @@ export function buildCreatePayload(args: BuildArgs) {
     listingStars,
     elevator,
 
-    // ✅ 숫자 변환 적용
+    // 숫자 변환 적용
     ...(toNum(totalBuildings) !== undefined
       ? { totalBuildings: toNum(totalBuildings)! }
       : {}),
@@ -348,6 +365,12 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(toNum(parkingTypeId) !== undefined
       ? { parkingTypeId: toNum(parkingTypeId)! }
       : {}),
+
+    /** ✅ 좌표 전달 (숫자인 경우에만 포함) */
+    ...(typeof lat === "number" ? { lat } : {}),
+    ...(typeof lng === "number" ? { lng } : {}),
+
+    pinDraftId: args.pinDraftId ?? null,
   };
 
   return payload;
