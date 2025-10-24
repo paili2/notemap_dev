@@ -319,7 +319,6 @@ export function useRebuildScene(args: Args) {
           labelGapPx,
           typeof order === "number" ? order : undefined
         );
-
         try {
           const el = labelOv.getContent?.() as HTMLDivElement | null;
           if (el) {
@@ -329,8 +328,21 @@ export function useRebuildScene(args: Args) {
             (el as any).dataset.posLat = String(m.position?.lat ?? "");
             (el as any).dataset.posLng = String(m.position?.lng ?? "");
             (el as any).dataset.labelType = isPlan ? "plan" : "address";
-            if (!el.textContent || el.textContent !== labelText)
-              el.textContent = labelText;
+
+            // ✅ 배지는 보존하고 제목만 업데이트
+            // 1) 구조 있는 경우: data-role="label-title"만 변경
+            const titleEl = (el as any).querySelector?.(
+              '[data-role="label-title"]'
+            );
+            if (titleEl) {
+              if (titleEl.textContent !== labelText)
+                titleEl.textContent = labelText;
+            } else if (!el.childElementCount) {
+              // 2) 매우 옛날(텍스트만 있던) 라벨과의 호환: 내용이 없을 때만 전체 텍스트 설정
+              if (!el.textContent || el.textContent !== labelText) {
+                el.textContent = labelText;
+              }
+            }
           }
         } catch {}
 

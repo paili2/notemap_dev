@@ -1,3 +1,4 @@
+// src/features/map/lib/overlays/style.ts
 import { LABEL, HITBOX } from "@/features/map/lib/constants";
 
 // 공통 색/상수
@@ -46,19 +47,37 @@ export const applyHitboxStyles = (
   } as CSSStyleDeclaration);
 };
 
-/** 순번 배지 + 텍스트 라벨 구성 (XSS 방지 위해 textContent 사용) */
+/**
+ * 순번 배지 + 텍스트 라벨 구성 (초기 1회 전체 구조 생성)
+ * - 배지 엘리먼트: [data-role="order-badge"]
+ * - 타이틀 엘리먼트: [data-role="label-title"]
+ * - order는 0도 유효(0-based → 1-based로 표기)
+ */
 export const applyOrderBadgeToLabel = (
   el: HTMLDivElement,
   text: string,
   order?: number | null
 ) => {
-  el.textContent = "";
+  // 초기 구성: 기존 내용을 싹 비우고 역할이 분리된 DOM을 만든다
+  el.innerHTML = "";
 
-  console.debug("[badge] before", { text, order, elText: el.textContent });
+  // 래퍼
+  const wrapper = document.createElement("div");
+  wrapper.className = "nm-label";
+  Object.assign(wrapper.style, {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "6px",
+  } as CSSStyleDeclaration);
+  el.appendChild(wrapper);
 
-  // ✅ order === 0도 표시되도록 number 체크
-  if (typeof order === "number" && Number.isFinite(order)) {
+  // ✅ order === 0도 표시되도록 엄격 체크
+  const hasOrder = typeof order === "number" && Number.isFinite(order);
+
+  if (hasOrder) {
     const badge = document.createElement("span");
+    badge.className = "nm-badge";
+    badge.setAttribute("data-role", "order-badge");
     Object.assign(badge.style, {
       display: "inline-flex",
       alignItems: "center",
@@ -69,24 +88,24 @@ export const applyOrderBadgeToLabel = (
       borderRadius: "9999px",
       fontSize: "10px",
       fontWeight: "800",
-      background: "#fff",
-      color: "#000",
-      marginRight: "6px",
+      background: "#ffffff",
+      color: "#000000",
+      marginRight: "0", // gap으로 간격 관리
       boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
+      lineHeight: "18px",
+      textAlign: "center",
     } as CSSStyleDeclaration);
 
-    // ✅ 0-based → 1-based로 표기
+    // 0-based → 1-based로 표기
     badge.textContent = String(order + 1);
     badge.setAttribute("aria-label", `예약 순서 ${order + 1}`);
-    el.appendChild(badge);
-
-    console.debug("[badge] after", {
-      elText: el.textContent,
-      html: el.innerHTML,
-    });
+    wrapper.appendChild(badge);
   }
 
-  const textSpan = document.createElement("span");
-  textSpan.textContent = text ?? "";
-  el.appendChild(textSpan);
+  // 타이틀(텍스트)
+  const titleSpan = document.createElement("span");
+  titleSpan.className = "nm-title";
+  titleSpan.setAttribute("data-role", "label-title");
+  titleSpan.textContent = text ?? "";
+  wrapper.appendChild(titleSpan);
 };
