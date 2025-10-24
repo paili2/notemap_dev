@@ -4,6 +4,17 @@ import { PlanRequestPayload, ReserveRequestPayload } from "../types";
 
 type Mode = "view" | "create"; // view: 보기(토글 전용), create: 생성/예약 플로우
 
+function todayKST(): string {
+  const now = new Date();
+  const kst = new Date(
+    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
+  );
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export function usePlanReserve(params: {
   mode?: Mode;
   position: kakao.maps.LatLng;
@@ -48,9 +59,15 @@ export function usePlanReserve(params: {
 
   // ────────────────────────────────────────────
   // 1) 계획(임시핀 생성) - view 모드면 생성 없이 onPlan만 호출
+  // 반환: { draftId?, payload }
   // ────────────────────────────────────────────
   const handlePlan = useCallback(
-    async (opts: Partial<PlanRequestPayload> = {}) => {
+    async (
+      opts: Partial<PlanRequestPayload> = {}
+    ): Promise<{
+      draftId?: string | number;
+      payload: PlanRequestPayload;
+    } | void> => {
       const lat = typeof opts.lat === "number" ? opts.lat : position.getLat();
       const lng = typeof opts.lng === "number" ? opts.lng : position.getLng();
 
@@ -66,26 +83,40 @@ export function usePlanReserve(params: {
         jibunAddress: opts.jibunAddress ?? jibunAddress ?? null,
         propertyId: opts.propertyId ?? propertyId ?? null,
         propertyTitle: opts.propertyTitle ?? propertyTitle ?? null,
-        dateISO: opts.dateISO ?? new Date().toISOString().slice(0, 10),
+        dateISO: opts.dateISO ?? todayKST(),
       };
+
+      let createdId: string | number | undefined;
 
       if (mode === "create") {
         try {
-          await createVisitPlanAt({
+          const draft = await createVisitPlanAt({
             lat: payload.lat,
             lng: payload.lng,
             roadAddress: payload.roadAddress ?? null,
             jibunAddress: payload.jibunAddress ?? null,
             title: payload.address,
           });
-          console.log("[usePlanReserve] createVisitPlanAt ✅");
+
+          createdId =
+            draft?.id ??
+            draft?.draftId ??
+            draft?.data?.id ??
+            draft?.data?.draftId ??
+            undefined;
         } catch (e) {
           console.error("[plan] createVisitPlanAt failed:", e);
-          return; // 앱 크래시 방지
+          return; // 생성 실패 시 이후 콜백은 호출하지 않음
         }
       }
 
-      await onPlan?.(payload);
+      try {
+        await onPlan?.(payload);
+      } catch (e) {
+        console.error("[plan] onPlan callback failed:", e);
+      }
+
+      return { draftId: createdId, payload };
     },
     [
       mode,
@@ -101,16 +132,19 @@ export function usePlanReserve(params: {
 
   // ────────────────────────────────────────────
   // 2) 예약 - view 모드에선 visitId 없으면 생성하지 않음
+  // 반환: { success, visitId? }
   // ────────────────────────────────────────────
   const handleReserve = useCallback(
-    async (payload?: ReserveRequestPayload) => {
+    async (
+      payload?: ReserveRequestPayload
+    ): Promise<{ success: boolean; visitId?: string | number }> => {
       let visitId: string | number | undefined =
         payload && "visitId" in payload ? payload.visitId : undefined;
 
       // 보기 모드: 새 draft 만들지 않음
       if (!visitId && mode === "view") {
-        console.debug("[reserve] view mode: no visitId → skip");
-        return;
+        // skip silently
+        return { success: false };
       }
 
       // 생성 모드: visitId 없으면 draft 만들어서 진행
@@ -145,7 +179,7 @@ export function usePlanReserve(params: {
           });
         } catch (e) {
           console.error("[reserve] createVisitPlanAt failed:", e);
-          return;
+          return { success: false };
         }
 
         // 다양한 응답 형태 대응
@@ -158,14 +192,13 @@ export function usePlanReserve(params: {
 
         if (draftId == null) {
           console.warn("[reserve] create returned without id/draftId:", draft);
-          return;
+          return { success: false };
         }
         visitId = String(draftId);
       }
 
       if (!visitId) {
-        console.debug("[reserve] no visitId, nothing to do");
-        return;
+        return { success: false };
       }
 
       try {
@@ -176,18 +209,22 @@ export function usePlanReserve(params: {
           "[reserve] reserveVisitPlan/loadScheduledReservations failed:",
           e
         );
-        return;
+        return { success: false };
       }
 
-      await onReserve?.({
-        kind: "visit",
-        visitId,
-        dateISO:
-          (payload && "dateISO" in payload && payload.dateISO) ||
-          new Date().toISOString().slice(0, 10),
-      });
+      try {
+        await onReserve?.({
+          kind: "visit",
+          visitId,
+          dateISO:
+            (payload && "dateISO" in payload && payload.dateISO) || todayKST(),
+        });
+      } catch (e) {
+        console.error("[reserve] onReserve callback failed:", e);
+      }
 
       onClose?.();
+      return { success: true, visitId };
     },
     [
       mode,

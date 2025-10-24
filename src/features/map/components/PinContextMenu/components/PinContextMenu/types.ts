@@ -1,5 +1,6 @@
 import { LatLng } from "@/lib/geo/types";
 import type { PinItem } from "@/features/pins/types";
+import { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
 
 /** 컨텍스트 메뉴가 붙을 수 있는 대상(마커, LatLng 객체, 리터럴 좌표) */
 export type PinTarget = kakao.maps.Marker | kakao.maps.LatLng | LatLng;
@@ -38,6 +39,17 @@ export type ReserveRequestPayload =
       dateISO?: string;
     } & { kind: "coords" });
 
+/** ✅ 신규 등록(onCreate) 시 컨텍스트 메뉴에서 폼으로 전달할 페이로드 */
+export type CreateFromPinArgs = {
+  /** 클릭 지점(또는 선택 핀)의 좌표 */
+  latFromPin: number;
+  lngFromPin: number;
+  /** 드래프트에서 유도된 경우 사용 */
+  fromPinDraftId?: number;
+  /** 초기 주소 힌트(도로명/지번 중 하나) */
+  address?: string | null;
+};
+
 /** PinContextMenu 컴포넌트 props */
 export type PinContextMenuProps = {
   /** Kakao SDK 객체 (맵 준비 전까지 null) */
@@ -70,7 +82,9 @@ export type PinContextMenuProps = {
   /** 닫기 / 상세 보기 / 신규 등록 동작 */
   onClose: () => void;
   onView: (id: string) => void;
-  onCreate: () => void;
+
+  /** ✅ 신규 등록: 좌표/드래프트/주소 힌트를 함께 전달 */
+  onCreate?: (args: CreateFromPinArgs) => void;
 
   /**
    * ✅ '답사예약지 등록' 액션
@@ -90,6 +104,9 @@ export type PinContextMenuProps = {
   /** ⬇⬇⬇ 상태 플래그 (예약 > 예정 우선순위 판단용) */
   isVisitReservedPin?: boolean; // 답사지예약(추가 완료)인지
   isPlanPin?: boolean; // 답사예정(추가 전)인지 (예약이면 자동 무시)
+
+  /** 합쳐진 마커 메타(근처 판정/override용) */
+  mergedMeta?: MergedMarker[];
 };
 
 /** 커스텀 오버레이 위치 계산 결과 */

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import type { MapMarker } from "@/features/map/types/map";
 import type { PinKind } from "@/features/pins/types";
 import { LABEL, HITBOX } from "@/features/map/lib/constants";
 import { useSidebar } from "@/features/sidebar";
-import type { ClustererWithLabelsOptions, KakaoDeps, RefsBag } from "./types";
+import type { ClustererWithLabelsOptions, RefsBag } from "./types";
 import { usePreloadIcons } from "./effects/usePreloadIcons";
 import { useInitClusterer } from "./effects/useInitClusterer";
 import { useRebuildScene } from "./effects/useRebuildScene";
@@ -30,21 +30,22 @@ export function useClustererWithLabels(
     hideLabelForId = null,
   }: ClustererWithLabelsOptions = {}
 ) {
-  const { reservationOrderMap } = useSidebar();
+  const { reservationOrderMap = {}, reservationOrderByPosKey = {} } =
+    useSidebar();
 
   const isClient = typeof window !== "undefined";
   const isReady = isClient && !!kakao?.maps && !!map;
 
-  const [rerenderTick] = useState(0);
+  const [rerenderTick, setRerenderTick] = useState(0);
 
   const markersKey = useMemo(() => {
     return [...markers]
-      .map(
-        (m) =>
-          `${String(m.id)}:${m.position.lat.toFixed(
-            6
-          )},${m.position.lng.toFixed(6)}`
-      )
+      .map((m) => {
+        const label = (m as any).name ?? m.title ?? "";
+        return `${String(m.id)}:${m.position.lat.toFixed(
+          6
+        )},${m.position.lng.toFixed(6)}:${label}`;
+      })
       .sort()
       .join("|");
   }, [markers]);
@@ -53,6 +54,7 @@ export function useClustererWithLabels(
     () => `${markersKey}_${rerenderTick}`,
     [markersKey, rerenderTick]
   );
+
   const selectedKey = useMemo(
     () => (hideLabelForId == null ? null : String(hideLabelForId)),
     [hideLabelForId]
@@ -65,23 +67,34 @@ export function useClustererWithLabels(
   const labelOvRef = useRef<Record<string, any>>({});
   const hitboxOvRef = useRef<Record<string, any>>({});
   const clustererRef = useRef<any>(null);
+
   const onMarkerClickRef = useRef<typeof onMarkerClick>();
-  useEffect(
-    () => void (onMarkerClickRef.current = onMarkerClick),
-    [onMarkerClick]
+  useEffect(() => {
+    onMarkerClickRef.current = onMarkerClick;
+  }, [onMarkerClick]);
+
+  const safeLabelMax = Math.max(
+    0,
+    Math.min(labelMaxLevel, clusterMinLevel - 1)
   );
 
-  const safeLabelMax = Math.min(labelMaxLevel, clusterMinLevel - 1);
+  useEffect(() => {
+    if (!markerObjsRef.current) markerObjsRef.current = {};
+    if (!markerClickHandlersRef.current) markerClickHandlersRef.current = {};
+    if (!labelOvRef.current) labelOvRef.current = {};
+    if (!hitboxOvRef.current) hitboxOvRef.current = {};
+  }, [isReady, realMarkersKey]);
 
-  // ── 분리된 효과들 호출 ─────────────────────────────────────────────
   usePreloadIcons(isReady, markers, defaultPinKind as PinKind, realMarkersKey);
   useInitClusterer(isReady, kakao, map, clustererRef, clusterMinLevel);
+
   useRebuildScene({
     isReady,
     kakao,
     map,
     markers,
     reservationOrderMap,
+    reservationOrderByPosKey,
     defaultPinKind: defaultPinKind as PinKind,
     labelGapPx,
     hitboxSizePx,
@@ -96,6 +109,7 @@ export function useClustererWithLabels(
     clustererRef,
     onMarkerClickRef,
   });
+
   useFitBounds(isReady, kakao, map, markers, fitToMarkers, realMarkersKey);
 
   const refs: RefsBag = {
@@ -106,6 +120,7 @@ export function useClustererWithLabels(
     clustererRef,
     onMarkerClickRef,
   };
+
   useZoomModeSwitch(
     isReady,
     kakao,
@@ -135,6 +150,7 @@ export function useClustererWithLabels(
     labelOvRef,
     hitboxOvRef
   );
+
   useUpdateZIndexAndLabels(
     isReady,
     reservationOrderMap,
@@ -149,6 +165,11 @@ export function useClustererWithLabels(
     forceRemount: () => {
       clustererRef.current?.clear?.();
       clustererRef.current?.redraw?.();
+      markerObjsRef.current = {};
+      markerClickHandlersRef.current = {};
+      labelOvRef.current = {};
+      hitboxOvRef.current = {};
+      setRerenderTick((t) => t + 1);
     },
   };
 }

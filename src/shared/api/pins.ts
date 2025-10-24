@@ -1,3 +1,4 @@
+// src/shared/api/pins.ts
 import { api } from "./api";
 
 /* ───────────── 유틸 ───────────── */
@@ -23,8 +24,8 @@ function makeIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-/* ───────────── DTO ───────────── */
-type CreatePinDto = {
+/* ───────────── DTO (export!) ───────────── */
+export type CreatePinDto = {
   lat: number | string;
   lng: number | string;
   addressLine: string | null | undefined;

@@ -19,6 +19,18 @@ import { getPin } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
 
+/** KST 기준 YYYY-MM-DD */
+function todayKST(): string {
+  const now = new Date();
+  const kst = new Date(
+    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
+  );
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(kst.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function ContextMenuPanel({
   roadAddress,
   jibunAddress,
@@ -48,9 +60,9 @@ export default function ContextMenuPanel({
   /** 파생 상태: 예약 > 예정 > 드래프트 > 일반 */
   const { draft, reserved, planned, headerTitle } = useMemo(() => {
     const reserved = isVisitReservedPin === true;
-    // ✅ 예정 여부는 propertyId와 무관해야 함
+    // 예정 여부는 propertyId와 무관
     const planned = !reserved && isPlanPin === true;
-    // ✅ 둘 다 아니면 그때 드래프트 판정
+    // 둘 다 아니면 드래프트
     const isLegacyDraft = !propertyId || propertyId === "__draft__";
     const draft = !reserved && !planned && isLegacyDraft;
     const headerTitle = isLegacyDraft
@@ -71,7 +83,7 @@ export default function ContextMenuPanel({
   useEffect(() => {
     previouslyFocusedRef.current =
       (document.activeElement as HTMLElement) ?? null;
-    // 패널이 먼저 포커스되면 스크린리더가 제목을 즉시 읽음
+    // 패널 포커스 → 스크린리더 접근성
     panelRef.current?.focus();
     // 첫 인터랙션 요소로 자연 포커스 이동
     firstFocusableRef.current?.focus?.();
@@ -85,7 +97,7 @@ export default function ContextMenuPanel({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    window.addEventListener("keydown", onKey, { passive: true });
+    window.addEventListener("keydown", onKey); // passive 불필요
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
@@ -96,13 +108,11 @@ export default function ContextMenuPanel({
       if (!panelRef.current || !target) return;
       if (!panelRef.current.contains(target)) onClose();
     };
-    document.addEventListener("pointerdown", onDocPointerDown, {
-      capture: true,
-    });
+    // capture: true 로 등록
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    // 제거 시에도 동일한 capture 불리언을 전달해야 함
     return () =>
-      document.removeEventListener("pointerdown", onDocPointerDown, {
-        capture: true,
-      } as any);
+      document.removeEventListener("pointerdown", onDocPointerDown, true);
   }, [onClose]);
 
   /** 패널 내부 포인터 이벤트는 바깥 클릭 닫기 방지 */
@@ -120,9 +130,10 @@ export default function ContextMenuPanel({
         jibunAddress: jibunAddress ?? null,
         propertyId: propertyId ?? null,
         propertyTitle: propertyTitle ?? null,
-        dateISO: new Date().toISOString().slice(0, 10),
+        // 날짜는 KST 기준으로 잘라서 사용
+        dateISO: todayKST(),
       };
-      await onPlan?.(payload as PlanRequestPayload); // ※ 상위에서 POST /pins 수행
+      await onPlan?.(payload as PlanRequestPayload); // 상위에서 POST /pins 수행
       onClose();
     } finally {
       setCreating(false);
@@ -138,7 +149,7 @@ export default function ContextMenuPanel({
   ]);
 
   const handleReserveClick = useCallback(() => {
-    // 컨테이너에서 실제 예약 로직 처리
+    // 컨테이너에서 실제 예약 로직 처리 (insertAt/날짜 선택 등)
     const payload: ReserveRequestPayload | undefined = undefined;
     onReserve?.(payload);
     onClose();
@@ -195,7 +206,7 @@ export default function ContextMenuPanel({
         </div>
       </div>
 
-      {/* 주소 */}
+      {/* 주소(스크린리더 설명) */}
       <div id={descId} className="sr-only">
         {roadAddress || jibunAddress
           ? "선택된 위치의 주소가 표시됩니다."

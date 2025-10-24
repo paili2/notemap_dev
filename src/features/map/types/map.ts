@@ -1,12 +1,18 @@
+// features/map/types/map.ts
 import { PinKind } from "@/features/pins/types";
 import { LatLng } from "@/lib/geo/types";
 
 export type MapMarker = {
   id: string;
   position: LatLng;
+  name?: string;
   title?: string;
-  isNew?: boolean;
+  address?: string;
   kind?: PinKind;
+  isNew?: boolean;
+  source?: "pin" | "draft";
+  pinDraftId?: number | string;
+  posKey?: string;
 };
 
 export type MapMarkerTagged = MapMarker & {

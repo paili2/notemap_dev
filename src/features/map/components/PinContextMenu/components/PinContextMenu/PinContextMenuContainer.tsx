@@ -18,6 +18,7 @@ import {
 } from "@/shared/api/surveyReservations";
 import { useRouter } from "next/navigation";
 import { usePropertyViewModal } from "@/features/properties/hooks/useEditForm/usePropertyViewModal";
+import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
 
 /* 오늘(한국표준시) "YYYY-MM-DD" */
 function todayKST(): string {
@@ -42,7 +43,6 @@ function extractDraftIdFromPin(pin: any): number | undefined {
     pin?.pinDraftId ??
     pin?.draftId ??
     pin?.draft?.id ??
-    // 일부 구현에서 question 핀의 id가 draft pk일 수 있음
     (typeof pin?.id === "number" ? pin.id : undefined);
 
   if (raw == null) return undefined;
@@ -74,7 +74,7 @@ function findDraftIdByHeuristics(args: {
     }
   }
 
-  // 3) 근사 좌표(아주 작은 오차 허용, 약 1e-5 ≈ 1m 급)
+  // 3) 근사 좌표(약 1m 허용)
   const EPS = 1e-5;
   const byNear = before.find(
     (d) => Math.abs(d.lat - lat) < EPS && Math.abs(d.lng - lng) < EPS
@@ -84,7 +84,27 @@ function findDraftIdByHeuristics(args: {
   return undefined;
 }
 
-export default function PinContextMenuContainer(props: PinContextMenuProps) {
+/** ⭐ 낙관적 "답사예정" 표식을 좌표 기준으로 저장 (페이지 생명주기 동안 유지) */
+const optimisticPlannedPosSet = new Set<string>();
+
+type Props = PinContextMenuProps & {
+  /** useMergedMarkers에서 전달되는 판정용 메타 */
+  mergedMeta?: MergedMarker[];
+  /** ✅ 뷰포트 마커 갱신용 선택 콜백(있으면 즉시 재패치) */
+  refreshViewportPins?: (bounds: {
+    sw: { lat: number; lng: number };
+    ne: { lat: number; lng: number };
+  }) => Promise<void> | void;
+  /** ✅ 등록 직후 임시 draft 마커를 로컬에 주입 (새로고침 없이 지도에 즉시 표시) */
+  upsertDraftMarker?: (m: {
+    id: string | number;
+    lat: number;
+    lng: number;
+    address?: string | null;
+  }) => void;
+};
+
+export default function PinContextMenuContainer(props: Props) {
   const {
     kakao,
     map,
@@ -103,10 +123,12 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     zIndex = 10000,
     isPlanPin: isPlanPinFromParent,
     isVisitReservedPin: isVisitReservedFromParent,
+    mergedMeta,
+    refreshViewportPins, // ✅ 선택 콜백
+    upsertDraftMarker, // ✅ 임시 마커 주입 콜백
   } = props;
 
   const router = useRouter();
-
   const viewModal = usePropertyViewModal();
 
   const handleView = () => {
@@ -117,17 +139,8 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
       jibunAddress,
       propertyTitle,
     });
-    onClose?.(); // 컨텍스트 메뉴 닫기
+    onClose?.();
   };
-
-  // 안전한 openDetail 헬퍼 (string|number 모두 허용)
-  const openDetail = React.useCallback(
-    (id?: string | number | null) => {
-      if (id == null) return;
-      router.push(`/pins/${id}`);
-    },
-    [router]
-  );
 
   if (!kakao || !map || !target) return null;
 
@@ -136,23 +149,77 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     [kakao, target]
   );
 
-  const { reserved, planned, listed, favActive } = useDerivedPinState({
+  const handleCreateClick = React.useCallback(() => {
+    const lat = position.getLat();
+    const lng = position.getLng();
+    const fromPinDraftId = extractDraftIdFromPin(pin);
+
+    onCreate?.({
+      // 폼/저장에서 반드시 이 값을 우선 사용하도록!
+      latFromPin: lat,
+      lngFromPin: lng,
+      fromPinDraftId,
+      // 선택: 주소도 같이 넘기면 폼 초기값에 좋음
+      address: (roadAddress ?? jibunAddress ?? null) as string | null,
+    });
+
+    // 메뉴 닫기
+    onClose?.();
+  }, [onCreate, onClose, position, pin, roadAddress, jibunAddress]);
+
+  /** 강제 리렌더용 tick (등록 직후 새로고침 없이 반영) */
+  const [tick, setTick] = React.useState(0);
+
+  /** 기본 판정 */
+  const base = useDerivedPinState({
     propertyId,
     pin,
     isPlanPinFromParent,
     isVisitReservedFromParent,
   });
+  let { reserved, planned, listed, favActive } = base;
 
-  React.useEffect(() => {
-    console.log("[derived]", {
-      id: propertyId,
-      kind: pin?.kind,
-      visit: (pin as any)?.visit,
-      reserved,
-      planned,
-      listed,
-    });
-  }, [propertyId, pin, reserved, planned, listed]);
+  /** 신규 클릭 가드: '__draft__' 는 항상 신규로 취급 */
+  const isNewClick = propertyId === "__draft__";
+  if (isNewClick) {
+    reserved = false;
+    planned = false;
+    listed = false;
+  }
+
+  /** 현재 위치 근처 메타 */
+  const metaAtPos = React.useMemo(() => {
+    if (!mergedMeta) return undefined;
+    const lat = position.getLat();
+    const lng = position.getLng();
+    const EPS = 1e-5;
+    return mergedMeta.find(
+      (m) => Math.abs(m.lat - lat) < EPS && Math.abs(m.lng - lng) < EPS
+    );
+  }, [mergedMeta, position]);
+
+  /** ⭐ 낙관적 planned 반영 */
+  const posK = React.useMemo(
+    () => posKey(position.getLat(), position.getLng()),
+    [position]
+  );
+  if (!isNewClick && optimisticPlannedPosSet.has(posK)) {
+    planned = true;
+    reserved = false;
+    listed = false;
+  }
+
+  /** 메타 override (신규 클릭일 땐 override 하지 않음) */
+  if (!isNewClick && metaAtPos) {
+    if (metaAtPos.source === "draft") {
+      reserved = metaAtPos.draftState === "SCHEDULED";
+      planned = metaAtPos.draftState !== "SCHEDULED" || planned; // 낙관적 planned 유지
+      listed = false;
+    } else if (metaAtPos.source === "point") {
+      listed = true;
+      planned = false;
+    }
+  }
 
   const { createVisitPlanAt, reserveVisitPlan } = useSidebar();
   const { refetch: refetchScheduledReservations } = useScheduledReservations();
@@ -172,26 +239,89 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
     loadScheduledReservations: refetchScheduledReservations,
   });
 
-  /** 컨텍스트 메뉴 삼각형 y 오프셋 */
+  /** ✅ 현재 지도 bounds를 {sw, ne}로 추출 */
+  const getBoundsBox = React.useCallback(() => {
+    try {
+      const b = map.getBounds();
+      const sw = b.getSouthWest();
+      const ne = b.getNorthEast();
+      return {
+        sw: { lat: sw.getLat(), lng: sw.getLng() },
+        ne: { lat: ne.getLat(), lng: ne.getLng() },
+      };
+    } catch {
+      return undefined;
+    }
+  }, [map]);
+
+  /** ⭐ onPlan 클릭 시: 서버 생성 → 임시 마커 주입 → 서버 동기화 → 뷰포트 재패치/폴백 → 리렌더 */
+  const handlePlanClick = React.useCallback(async () => {
+    // 1) 서버에 draft 생성 (usePlanReserve가 draftId/payload 반환)
+    const result = (await handlePlan()) as {
+      draftId?: string | number;
+      payload: { lat: number; lng: number; address?: string | null };
+    } | void;
+
+    // 2) 즉시 예정으로 보이도록 낙관적 전환
+    optimisticPlannedPosSet.add(posK);
+
+    // 2.5) 지도에 "임시 마커" 즉시 주입 (새로고침 없이 바로 보이게)
+    if (result && result.payload && upsertDraftMarker) {
+      const id = (result.draftId ?? `__temp_${Date.now()}`) as string | number;
+      upsertDraftMarker({
+        id,
+        lat: result.payload.lat,
+        lng: result.payload.lng,
+        address: result.payload.address ?? null,
+      });
+    }
+
+    // 3) 서버 동기화(목록 재조회)
+    try {
+      await fetchUnreservedDrafts();
+    } catch {}
+
+    // 4) 뷰포트 핀 재패치가 제공되면 사용, 아니면 router.refresh()
+    const box = getBoundsBox();
+    let refreshed = false;
+    try {
+      if (refreshViewportPins && box) {
+        await refreshViewportPins(box);
+        refreshed = true;
+      }
+    } catch (e) {
+      console.warn("[PinContextMenu] refreshViewportPins failed:", e);
+    }
+
+    // 5) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
+    setTick((t) => t + 1);
+
+    if (!refreshed) {
+      router.refresh();
+    }
+  }, [
+    handlePlan,
+    posK,
+    upsertDraftMarker,
+    refreshViewportPins,
+    getBoundsBox,
+    router,
+  ]);
+
   const xAnchor = 0.5;
   const yAnchor = 1;
   const offsetPx = 57;
 
-  /* -------------------------- */
-  /*  답사예약 버튼 분기 처리    */
-  /* -------------------------- */
   const [reserving, setReserving] = React.useState(false);
 
   const handleReserveClick = async () => {
-    // ✅ “답사예정 핀”이라면 반드시 /survey-reservations 로 POST
+    // “답사예정 핀” → /survey-reservations POST
     if (planned) {
       try {
         setReserving(true);
 
-        // 1) 직접 추출 시도
         let draftId = extractDraftIdFromPin(pin);
 
-        // 2) 실패하면 before 목록에서 좌표/주소로 찾기
         if (draftId == null) {
           const lat = position.getLat();
           const lng = position.getLng();
@@ -213,33 +343,34 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
             jibunAddress,
             pos: [position.getLat(), position.getLng()],
           });
-          // TODO: toast.error("임시핀 ID를 찾지 못했어요. 목록 동기화 후 다시 시도해 주세요.");
           return;
         }
 
         await createSurveyReservation({
           pinDraftId: draftId,
-          reservedDate: todayKST(), // TODO: 이후 데이트피커로 교체
+          reservedDate: todayKST(),
         });
 
-        // TODO: toast.success("답사 예약이 생성되었습니다.");
+        // 예약 완료 → 스케줄 재패치 후 닫기
         await refetchScheduledReservations();
         onClose?.();
       } catch (e) {
         console.error(e);
-        // TODO: toast.error("예약 생성 중 오류가 발생했어요.");
       } finally {
         setReserving(false);
       }
       return;
     }
 
-    // ✳️ “신규 주소핀/일반 핀”은 기존 로직 유지 → (onReserve or pin-drafts 흐름)
+    // 신규/일반 핀 → 기존 로직
     return handleReserve();
   };
 
   return (
     <CustomOverlay
+      key={`ctx-${position.getLat().toFixed(5)},${position
+        .getLng()
+        .toFixed(5)}-${tick}`} // ✅ 등록 직후 강제 리마운트로 반영
       kakao={kakao}
       map={map}
       position={position}
@@ -258,8 +389,8 @@ export default function PinContextMenuContainer(props: PinContextMenuProps) {
               propertyTitle={propertyTitle ?? null}
               onClose={onClose}
               onView={handleView}
-              onCreate={onCreate}
-              onPlan={handlePlan}
+              onCreate={handleCreateClick}
+              onPlan={handlePlanClick}
               onReserve={reserving ? () => {} : handleReserveClick}
               isPlanPin={planned}
               isVisitReservedPin={reserved}

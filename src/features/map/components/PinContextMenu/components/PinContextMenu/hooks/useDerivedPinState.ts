@@ -1,13 +1,27 @@
 import { useMemo } from "react";
 
+type AnyPin = {
+  id?: string | number;
+  kind?: string;
+  isFav?: boolean;
+  badge?: string;
+  visit?: {
+    planned?: boolean;
+    reserved?: boolean;
+    status?: string; // "before" | "scheduled" 등
+    [k: string]: any;
+  };
+  // 다양한 백엔드/호환 필드들
+  planned?: boolean;
+  reserved?: boolean;
+  reservationId?: string | number;
+  surveyReservationId?: string | number;
+  [k: string]: any;
+};
+
 export function useDerivedPinState(args: {
   propertyId?: string | null;
-  pin?: {
-    id?: string | number;
-    kind?: string;
-    isFav?: boolean;
-    [k: string]: any;
-  } | null;
+  pin?: AnyPin | null;
   isPlanPinFromParent?: boolean;
   isVisitReservedFromParent?: boolean;
 }) {
@@ -15,40 +29,51 @@ export function useDerivedPinState(args: {
     args;
 
   return useMemo(() => {
+    // ── 기본 식별 ─────────────────────────────────────────────
     const hasId =
       typeof propertyId === "string" && propertyId.trim().length > 0;
-    const legacyDraft = !hasId || propertyId === "__draft__";
+    const isDraftClick = propertyId === "__draft__"; // 컨테이너의 신규 클릭 가드와 일관
+    const legacyDraft = isDraftClick || !hasId;
 
-    const visit = (pin as any)?.visit;
+    const visit = (pin as AnyPin | undefined)?.visit;
 
-    // ✅ 예약 핀 판정
+    // ── 예약 판단(강한 신호부터) ─────────────────────────────
     const reservedRaw =
-      isVisitReservedFromParent === true ||
-      // id 패턴이 "__visit_" 으로 시작하는 경우 예약핀으로 판단
+      isVisitReservedFromParent === true || // 부모가 확정적으로 알려주면 최우선
+      // id 패턴이 "__visit_" 으로 시작하면 예약핀으로 판단
       (typeof pin?.id === "string" && pin.id.startsWith("__visit_")) ||
+      // visit.status가 scheduled면 예약
+      (typeof visit?.status === "string" &&
+        visit.status.toLowerCase() === "scheduled") ||
       visit?.reserved === true ||
-      (pin as any)?.reserved === true ||
-      (pin as any)?.reservationId ||
-      (pin as any)?.surveyReservationId ||
+      pin?.reserved === true ||
+      pin?.reservationId != null ||
+      pin?.surveyReservationId != null ||
       pin?.kind === "reserved" ||
       pin?.kind === "reservation" ||
-      (pin as any)?.badge === "reserved";
+      pin?.badge === "reserved";
 
-    // ✅ 답사예정(임시 draft) 핀 판정
+    // ── 예정 판단(예약이 아닌 경우만) ────────────────────────
     const plannedRaw =
-      isPlanPinFromParent === true ||
-      (!reservedRaw &&
-        (visit?.planned === true ||
-          pin?.kind === "question" ||
-          pin?.kind === "planned" ||
-          (pin as any)?.planned === true));
+      !reservedRaw &&
+      (isPlanPinFromParent === true || // 부모 플래그
+        // visit.status가 before면 예정
+        (typeof visit?.status === "string" &&
+          visit.status.toLowerCase() === "before") ||
+        visit?.planned === true ||
+        pin?.planned === true ||
+        // 기존 kind / 배지 표기 호환
+        pin?.kind === "question" ||
+        pin?.kind === "planned" ||
+        pin?.badge === "planned");
 
-    // ✅ 최종 우선순위: 예약 > 예정 > 드래프트 > 등록됨
+    // ── 최종 우선순위: 예약 > 예정 > 드래프트 > 등록됨 ───────
     const reserved = Boolean(reservedRaw);
     const planned = !reserved && Boolean(plannedRaw);
     const draft = !reserved && !planned && legacyDraft;
     const listed = !reserved && !planned && !draft && hasId;
 
+    // 등록된 매물에서만 즐겨찾기 활성 의미가 있음
     const favActive = listed ? !!pin?.isFav : false;
 
     return { reserved, planned, draft, listed, favActive };

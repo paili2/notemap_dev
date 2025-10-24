@@ -8,7 +8,7 @@ export const SELECTED_Z = 2000;
 /** 말풍선 라벨 스타일 적용 */
 export const applyLabelStyles = (
   el: HTMLDivElement,
-  gapPx: number = LABEL.GAP_PX // ← number로 명시
+  gapPx: number = LABEL.GAP_PX
 ) => {
   Object.assign(el.style, {
     transform: `translateY(calc(-150% - ${gapPx}px))`,
@@ -24,13 +24,15 @@ export const applyLabelStyles = (
     whiteSpace: "nowrap",
     pointerEvents: "none",
     userSelect: "none",
+    display: "inline-flex",
+    alignItems: "center",
   } as CSSStyleDeclaration);
 };
 
 /** 히트박스 스타일 적용 */
 export const applyHitboxStyles = (
   el: HTMLDivElement,
-  sizePx: number = HITBOX.DIAMETER_PX // ← number로 명시
+  sizePx: number = HITBOX.DIAMETER_PX
 ) => {
   const size = `${sizePx}px`;
   Object.assign(el.style, {
@@ -52,7 +54,10 @@ export const applyOrderBadgeToLabel = (
 ) => {
   el.textContent = "";
 
-  if (order) {
+  console.debug("[badge] before", { text, order, elText: el.textContent });
+
+  // ✅ order === 0도 표시되도록 number 체크
+  if (typeof order === "number" && Number.isFinite(order)) {
     const badge = document.createElement("span");
     Object.assign(badge.style, {
       display: "inline-flex",
@@ -69,8 +74,16 @@ export const applyOrderBadgeToLabel = (
       marginRight: "6px",
       boxShadow: "0 1px 2px rgba(0,0,0,0.25)",
     } as CSSStyleDeclaration);
-    badge.textContent = String(order);
+
+    // ✅ 0-based → 1-based로 표기
+    badge.textContent = String(order + 1);
+    badge.setAttribute("aria-label", `예약 순서 ${order + 1}`);
     el.appendChild(badge);
+
+    console.debug("[badge] after", {
+      elText: el.textContent,
+      html: el.innerHTML,
+    });
   }
 
   const textSpan = document.createElement("span");

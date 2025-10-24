@@ -8,7 +8,7 @@ import axios, {
 const DEV_FAKE_MODE = process.env.NEXT_PUBLIC_DEV_FAKE_MODE === "true";
 
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3050",
+  baseURL: process.env.NEXT_PUBLIC_API_BASE ?? "/api",
   withCredentials: true,
 });
 

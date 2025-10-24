@@ -1,4 +1,4 @@
-import { DRAFT_ID, SELECTED_Z } from "./style";
+import { DRAFT_ID, SELECTED_Z, applyOrderBadgeToLabel } from "./style";
 import type { SelectionState, KakaoDeps, RefsBag } from "./types";
 
 export function mountClusterMode(
@@ -62,13 +62,39 @@ export function applyMode(
     any
   ][];
 
+  // ✅ 라벨 원문 복원 유틸(라벨을 화면에 붙이기 직전에 호출)
+  const restoreLabel = (id: string, ov: any) => {
+    const el = ov?.getContent?.() as HTMLDivElement | null;
+    if (!el) return;
+    const ds = (el as any).dataset ?? ((el as any).dataset = {});
+    // rawLabel이 없다면 현재 텍스트를 원문으로 승격
+    if (!ds.rawLabel || ds.rawLabel.trim() === "") {
+      ds.rawLabel = el.textContent ?? "";
+    }
+    const raw = ds.rawLabel ?? "";
+    const currentText = el.textContent ?? "";
+    if (currentText !== raw) {
+      el.textContent = "";
+      // 예약 순번 배지까지 포함해서 재합성
+      applyOrderBadgeToLabel(el, raw, null);
+    }
+  };
+
   if (level <= safeLabelMax) {
     refs.clustererRef.current?.clear?.();
     mkList.forEach((mk) => mk.setMap(map));
     const cleared = selectedKey == null;
-    labelEntries.forEach(([id, ov]) =>
-      ov.setMap(!cleared && id === selectedKey ? null : map)
-    );
+
+    // ✅ 라벨을 보이게 하기 직전에 항상 원문으로 복구
+    labelEntries.forEach(([id, ov]) => {
+      if (!cleared && id === selectedKey) {
+        ov.setMap(null);
+      } else {
+        restoreLabel(id, ov);
+        ov.setMap(map);
+      }
+    });
+
     hitEntries.forEach(([id, ov]) =>
       ov.setMap(!cleared && id === selectedKey ? null : map)
     );
@@ -82,6 +108,7 @@ export function applyMode(
     return;
   }
 
+  // 중간 줌 레벨: 라벨 숨김, 마커/히트박스만 표시
   labelEntries.forEach(([, ov]) => ov.setMap(null));
   refs.clustererRef.current?.clear?.();
   mkList.forEach((mk) => mk.setMap(map));
