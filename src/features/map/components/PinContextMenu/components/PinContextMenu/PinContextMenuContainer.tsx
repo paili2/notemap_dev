@@ -50,14 +50,16 @@ function extractDraftIdFromPin(pin: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** before 목록에서 좌표/주소로 draft 찾기 */
-function findDraftIdByHeuristics(args: {
+type FindDraftArgs = {
   before: BeforeDraft[];
   lat: number;
   lng: number;
   roadAddress?: string | null;
   jibunAddress?: string | null;
-}): number | undefined {
+};
+
+/** before 목록에서 좌표/주소로 draft 찾기 */
+function findDraftIdByHeuristics(args: FindDraftArgs): number | undefined {
   const { before, lat, lng, roadAddress, jibunAddress } = args;
   const targetKey = posKey(lat, lng);
 
@@ -254,8 +256,35 @@ export default function PinContextMenuContainer(props: Props) {
     }
   }, [map]);
 
-  /** ⭐ onPlan 클릭 시: 서버 생성 → 임시 마커 주입 → 서버 동기화 → 뷰포트 재패치/폴백 → 리렌더 */
+  /** ─────────────────────────────────────────
+   *  공용: 동일 좌표 오버레이/라벨 정리 훅
+   *  - 전역 함수나 커스텀 이벤트가 연결돼 있으면 호출
+   *  - 없다면 그냥 지나가도 무해
+   *  ───────────────────────────────────────── */
+  const cleanupOverlaysAt = React.useCallback((lat: number, lng: number) => {
+    try {
+      // (A) 전역 훅을 제공하는 경우
+      // window.__cleanupOverlaysAtPos?.(lat, lng)
+      const anyWin = globalThis as any;
+      if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
+        anyWin.__cleanupOverlaysAtPos(lat, lng);
+      }
+      // (B) 이벤트로 브로드캐스트 (클러스터/오버레이 모듈에서 수신)
+      if (typeof window !== "undefined" && "dispatchEvent" in window) {
+        window.dispatchEvent(
+          new CustomEvent("map:cleanup-overlays-at", { detail: { lat, lng } })
+        );
+      }
+    } catch (e) {
+      console.warn("[PinContextMenu] cleanupOverlaysAt failed:", e);
+    }
+  }, []);
+
+  /** ⭐ onPlan 클릭 시: 서버 생성 → (중복 방지) 주입 or 리패치 중 하나 → 동기화 → 오버레이 정리 → 리렌더 */
   const handlePlanClick = React.useCallback(async () => {
+    const lat = position.getLat();
+    const lng = position.getLng();
+
     // 1) 서버에 draft 생성 (usePlanReserve가 draftId/payload 반환)
     const result = (await handlePlan()) as {
       draftId?: string | number;
@@ -265,8 +294,20 @@ export default function PinContextMenuContainer(props: Props) {
     // 2) 즉시 예정으로 보이도록 낙관적 전환
     optimisticPlannedPosSet.add(posK);
 
-    // 2.5) 지도에 "임시 마커" 즉시 주입 (새로고침 없이 바로 보이게)
-    if (result && result.payload && upsertDraftMarker) {
+    // 3) "둘 다" 하지 말고 하나만!
+    // FIX: refreshViewportPins가 있으면 임시 주입을 생략 → 겹라벨 예방
+    let refreshed = false;
+    const box = getBoundsBox();
+    if (refreshViewportPins && box) {
+      try {
+        await refreshViewportPins(box);
+        refreshed = true;
+      } catch (e) {
+        console.warn("[PinContextMenu] refreshViewportPins failed:", e);
+      }
+    }
+    if (!refreshed && result?.payload && upsertDraftMarker) {
+      // 리패치가 실패했을 때만 임시 주입
       const id = (result.draftId ?? `__temp_${Date.now()}`) as string | number;
       upsertDraftMarker({
         id,
@@ -276,24 +317,16 @@ export default function PinContextMenuContainer(props: Props) {
       });
     }
 
-    // 3) 서버 동기화(목록 재조회)
+    // 4) 서버 동기화(목록 재조회) — before 목록/상태 갱신
     try {
       await fetchUnreservedDrafts();
     } catch {}
 
-    // 4) 뷰포트 핀 재패치가 제공되면 사용, 아니면 router.refresh()
-    const box = getBoundsBox();
-    let refreshed = false;
-    try {
-      if (refreshViewportPins && box) {
-        await refreshViewportPins(box);
-        refreshed = true;
-      }
-    } catch (e) {
-      console.warn("[PinContextMenu] refreshViewportPins failed:", e);
-    }
+    // 5) 동일 좌표에 남은 오버레이 청소 (임시 + 신규 중복 제거)
+    // FIX: 겹라벨 방지 핵심
+    cleanupOverlaysAt(lat, lng);
 
-    // 5) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
+    // 6) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
     setTick((t) => t + 1);
 
     if (!refreshed) {
@@ -306,6 +339,8 @@ export default function PinContextMenuContainer(props: Props) {
     refreshViewportPins,
     getBoundsBox,
     router,
+    position,
+    cleanupOverlaysAt,
   ]);
 
   const xAnchor = 0.5;
@@ -351,8 +386,12 @@ export default function PinContextMenuContainer(props: Props) {
           reservedDate: todayKST(),
         });
 
-        // 예약 완료 → 스케줄 재패치 후 닫기
+        // 예약 완료 → 스케줄 재패치
         await refetchScheduledReservations();
+
+        // FIX: 예약으로 상태 전환 시에도 좌표 중복 오버레이 정리
+        cleanupOverlaysAt(position.getLat(), position.getLng());
+
         onClose?.();
       } catch (e) {
         console.error(e);

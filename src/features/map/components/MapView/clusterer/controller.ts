@@ -10,6 +10,80 @@ export function mountClusterMode(
   const entries = Object.entries(refs.markerObjsRef.current) as [string, any][];
   const mkList = entries.map(([, mk]) => mk);
 
+  // ─────────────────────────────────────────────
+  // ✅ 겹라벨/겹마커 정리 리스너: 좌표가 동일한 오버레이 제거
+  //   - mountClusterMode가 여러 번 호출돼도 1회만 등록
+  // ─────────────────────────────────────────────
+  if (
+    typeof window !== "undefined" &&
+    !(window as any).__cleanupOverlaysAt_installed
+  ) {
+    (window as any).__cleanupOverlaysAt_installed = true;
+
+    window.addEventListener("map:cleanup-overlays-at", (e: any) => {
+      const { lat, lng } = (e?.detail ?? {}) as { lat?: number; lng?: number };
+      if (typeof lat !== "number" || typeof lng !== "number") return;
+
+      const EPS = 1e-5;
+
+      // 라벨 오버레이 정리
+      Object.entries(refs.labelOvRef.current).forEach(
+        ([key, ov]: [string, any]) => {
+          const pos = ov?.getPosition?.();
+          if (!pos) return;
+          const same =
+            Math.abs(pos.getLat() - lat) < EPS &&
+            Math.abs(pos.getLng() - lng) < EPS;
+          if (same) {
+            ov.setMap?.(null);
+            delete refs.labelOvRef.current[key];
+          }
+        }
+      );
+
+      // 히트박스 오버레이도 쓰면 함께 정리
+      Object.entries(refs.hitboxOvRef.current).forEach(
+        ([key, ov]: [string, any]) => {
+          const pos = ov?.getPosition?.();
+          if (!pos) return;
+          const same =
+            Math.abs(pos.getLat() - lat) < EPS &&
+            Math.abs(pos.getLng() - lng) < EPS;
+          if (same) {
+            ov.setMap?.(null);
+            delete refs.hitboxOvRef.current[key];
+          }
+        }
+      );
+
+      // 마커 정리
+      Object.entries(refs.markerObjsRef.current).forEach(
+        ([key, mk]: [string, any]) => {
+          const pos = mk?.getPosition?.();
+          if (!pos) return;
+          const same =
+            Math.abs(pos.getLat() - lat) < EPS &&
+            Math.abs(pos.getLng() - lng) < EPS;
+          if (same) {
+            try {
+              refs.clustererRef.current?.removeMarker?.(mk);
+            } catch {}
+            mk.setMap?.(null);
+            delete refs.markerObjsRef.current[key];
+          }
+        }
+      );
+
+      console.log(
+        "[cleanup-overlays-at]",
+        lat,
+        lng,
+        "→ 중복 오버레이/마커 정리 완료"
+      );
+    });
+  }
+
+  // ↓↓↓ 기존 코드 그대로 유지
   Object.values(refs.labelOvRef.current).forEach((ov: any) => ov.setMap(null));
   Object.values(refs.hitboxOvRef.current).forEach((ov: any) => ov.setMap(null));
   refs.clustererRef.current?.clear?.();
