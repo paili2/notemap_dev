@@ -1,3 +1,5 @@
+import { PinSearchParams } from "@/features/pins/types/pin-search";
+
 export interface FilterState {
   rooms: string[];
   deposit: string;
@@ -12,6 +14,9 @@ export interface FilterState {
 export interface FilterSearchProps {
   isOpen: boolean;
   onClose: () => void;
+  onApply?: (params: PinSearchParams) => void;
+  onClear?: () => void;
+  initial?: Partial<FilterState>;
 }
 
 export interface FilterSectionProps {

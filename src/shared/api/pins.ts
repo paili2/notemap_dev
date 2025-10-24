@@ -1,5 +1,11 @@
 // src/shared/api/pins.ts
+import {
+  PinSearchParams,
+  PinSearchResult,
+} from "@/features/pins/types/pin-search";
 import { api } from "./api";
+import { ApiEnvelope } from "@/features/pins/pin";
+import { buildSearchQuery } from "./utils/query";
 
 /* ───────────── 유틸 ───────────── */
 function todayKST(): string {
@@ -221,4 +227,23 @@ export async function createPinDraft(
     throw e;
   }
   return { id: String(draftId) };
+}
+
+/* ───────────── 핀 검색 (/pins/search) ───────────── */
+export async function searchPins(
+  params: PinSearchParams
+): Promise<PinSearchResult> {
+  const qs = buildSearchQuery(params);
+  const { data } = await api.get<ApiEnvelope<PinSearchResult>>(
+    `/pins/search${qs ? `?${qs}` : ""}`,
+    { withCredentials: true, headers: { "x-no-retry": "1" } }
+  );
+
+  if (!data?.success || !data?.data) {
+    const msg = data?.messages?.join("\n") || "핀 검색 실패";
+    const e = new Error(msg) as any;
+    e.responseData = data;
+    throw e;
+  }
+  return data.data;
 }
