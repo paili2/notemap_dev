@@ -1,4 +1,3 @@
-// src/features/map/lib/overlays/style.ts
 import { LABEL, HITBOX } from "@/features/map/lib/constants";
 
 // 공통 색/상수
@@ -12,7 +11,9 @@ export const applyLabelStyles = (
   gapPx: number = LABEL.GAP_PX
 ) => {
   Object.assign(el.style, {
-    transform: `translateY(calc(-150% - ${gapPx}px))`,
+    position: "relative",
+    left: "50%",
+    transform: `translate(-50%, -${gapPx + 35}px)`,
     padding: "6px 10px",
     borderRadius: "8px",
     background: ACCENT,
