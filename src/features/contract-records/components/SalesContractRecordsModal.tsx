@@ -18,6 +18,9 @@ import type {
 import { formatCurrency, calculateVAT } from "../utils/utils";
 import { StaffAllocationSection } from "./StaffAllocationSection";
 import { ContractImageSection } from "./ContractImageSection";
+import { createContract } from "../api/contracts";
+import { transformSalesContractToCreateRequest } from "../utils/contractTransformers";
+import { useToast } from "@/hooks/use-toast";
 
 // 기본 데이터
 const defaultData: SalesContractData = {
@@ -69,6 +72,8 @@ export function SalesContractRecordsModal({
   const [data, setData] = useState<SalesContractData>(
     initialData || defaultData
   );
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   // 초기 데이터가 변경되면 상태 업데이트
   useEffect(() => {
@@ -135,42 +140,89 @@ export function SalesContractRecordsModal({
   };
 
   // 저장 핸들러
-  const handleSave = () => {
+  const handleSave = async () => {
     // 필수 데이터 검증
     if (!data.customerInfo.name.trim()) {
-      alert("고객명을 입력해주세요.");
+      toast({
+        title: "입력 오류",
+        description: "고객명을 입력해주세요.",
+        variant: "destructive",
+      });
       return;
     }
     if (!data.salesPerson.name.trim()) {
-      alert("담당자를 선택해주세요.");
+      toast({
+        title: "입력 오류",
+        description: "담당자를 선택해주세요.",
+        variant: "destructive",
+      });
       return;
     }
     if (data.totalCalculation <= 0) {
-      alert("계약금액을 확인해주세요.");
+      toast({
+        title: "입력 오류",
+        description: "계약금액을 확인해주세요.",
+        variant: "destructive",
+      });
       return;
     }
 
-    // 계약 데이터에 메타데이터 추가
-    const now = new Date();
-    const contractData = {
-      ...data,
-      contractDate: data.contractDate || now.toISOString().split("T")[0],
-      status: data.status || "completed",
-      createdAt: data.createdAt || now.toISOString(),
-      updatedAt: now.toISOString(),
-    };
+    setIsLoading(true);
+    try {
+      // 백엔드 API 형식으로 변환
+      const requestData = transformSalesContractToCreateRequest(data);
+      console.log("변환된 요청 데이터:", requestData);
 
-    // TODO: 백엔드 API 호출
-    // await saveContract(contractData);
+      // 필수 필드 검증
+      if (
+        typeof requestData.brokerageFee !== "number" ||
+        typeof requestData.vat !== "number" ||
+        typeof requestData.brokerageTotal !== "number" ||
+        typeof requestData.rebateTotal !== "number" ||
+        typeof requestData.supportAmount !== "number" ||
+        typeof requestData.grandTotal !== "number" ||
+        typeof requestData.isTaxed !== "boolean"
+      ) {
+        throw new Error("필수 필드의 데이터 타입이 올바르지 않습니다.");
+      }
 
-    console.log("저장된 계약 데이터:", contractData);
+      // 백엔드 API 호출
+      const result = await createContract(requestData);
+      console.log("API 응답:", result);
 
-    // 계약관리 리스트 업데이트를 위한 콜백
-    if (onDataChange) {
-      onDataChange(contractData);
+      // 계약 데이터에 메타데이터 추가
+      const now = new Date();
+      const contractData = {
+        ...data,
+        id: result.id.toString(),
+        contractNumber: `CONTRACT-${result.id}`,
+        contractDate: data.contractDate || now.toISOString().split("T")[0],
+        status: data.status || "completed",
+        createdAt: data.createdAt || now.toISOString(),
+        updatedAt: now.toISOString(),
+      };
+
+      toast({
+        title: "계약 생성 완료",
+        description: `계약 #${result.id}이 성공적으로 생성되었습니다.`,
+      });
+
+      // 계약관리 리스트 업데이트를 위한 콜백
+      if (onDataChange) {
+        onDataChange(contractData);
+      }
+
+      onClose();
+    } catch (error) {
+      console.error("계약 생성 실패:", error);
+      toast({
+        title: "계약 생성 실패",
+        description: "계약 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
-
-    onClose();
   };
 
   return (
@@ -217,11 +269,19 @@ export function SalesContractRecordsModal({
         <div className="flex-shrink-0 border-t p-4">
           <Separator className="mb-3" />
           <div className="flex justify-end space-x-2">
-            <Button onClick={onClose} className="h-7 text-xs">
+            <Button
+              onClick={onClose}
+              className="h-7 text-xs"
+              disabled={isLoading}
+            >
               닫기
             </Button>
-            <Button onClick={handleSave} className="h-7 text-xs">
-              저장
+            <Button
+              onClick={handleSave}
+              className="h-7 text-xs"
+              disabled={isLoading}
+            >
+              {isLoading ? "저장 중..." : "저장"}
             </Button>
           </div>
         </div>

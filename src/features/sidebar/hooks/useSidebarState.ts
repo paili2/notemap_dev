@@ -9,6 +9,17 @@ import type {
 } from "../types/sidebar";
 import { createPinDraft } from "@/shared/api/pins";
 import {
+  getFavoriteGroups,
+  upsertFavoriteItem,
+  deleteFavoriteItem,
+  updateGroupTitle,
+  reorderGroups,
+  reorderItems,
+  type FavoriteGroup,
+  type FavoriteItem,
+} from "@/features/favorites/api/favorites";
+import { useToast } from "@/hooks/use-toast";
+import {
   fetchUnreservedDrafts,
   type BoundsParams,
 } from "@/shared/api/surveyReservations";
@@ -61,20 +72,46 @@ const mapBeforeDraftToListItem = (d: any): ListItem => {
 // 훅 본체
 // ──────────────────────────────────────────────────────────────
 export function useSidebarState() {
-  // 1) 즐겨찾기: 로컬 유지
+  // 1) 즐겨찾기: 백엔드 API 기반
   const [nestedFavorites, setNestedFavorites] = useState<FavorateListItem[]>(
-    () => {
-      if (typeof window === "undefined") return DEFAULT_GROUPS;
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) return DEFAULT_GROUPS;
-        const parsed = JSON.parse(raw) as FavorateListItem[];
-        return Array.isArray(parsed) ? parsed : DEFAULT_GROUPS;
-      } catch {
-        return DEFAULT_GROUPS;
-      }
-    }
+    []
   );
+  const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const { toast } = useToast();
+
+  // 즐겨찾기 그룹 로드
+  const loadFavorites = useCallback(async () => {
+    try {
+      setFavoritesLoading(true);
+      const groups = await getFavoriteGroups(true); // 아이템 포함해서 로드
+
+      // 백엔드 데이터를 프론트엔드 형식으로 변환
+      const convertedGroups: FavorateListItem[] = groups.map((group) => ({
+        id: group.id,
+        title: group.title,
+        subItems: (group.items || []).map((item) => ({
+          id: item.itemId,
+          title: `Pin ${item.pinId}`, // 실제로는 핀 정보를 가져와야 함
+        })),
+      }));
+
+      setNestedFavorites(convertedGroups);
+    } catch (error) {
+      console.error("즐겨찾기 로드 실패:", error);
+      toast({
+        title: "즐겨찾기 로드 실패",
+        description: "즐겨찾기 목록을 불러오는데 실패했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setFavoritesLoading(false);
+    }
+  }, [toast]);
+
+  // 컴포넌트 마운트 시 즐겨찾기 로드
+  useEffect(() => {
+    loadFavorites();
+  }, [loadFavorites]);
 
   // 2) 예약 전 임시핀(서버 /survey-reservations/before)
   const [siteReservations, setSiteReservations] = useState<ListItem[]>([]);
@@ -267,69 +304,120 @@ export function useSidebarState() {
     [deleteVisitPlan]
   );
 
-  // 즐겨찾기 CRUD
-  const ensureFavoriteGroup = (groupId: string, _label?: string) => {
-    setNestedFavorites((prev) => {
-      const exists = prev.some((g) => g.title === groupId);
-      if (exists) return prev;
-      const newGroup: FavorateListItem = {
-        id: `fav-${groupId}`,
-        title: groupId,
-        subItems: [],
-      };
-      return [...prev, newGroup];
-    });
-  };
+  // 즐겨찾기 CRUD - 백엔드 API 연동
+  const ensureFavoriteGroup = useCallback(
+    async (groupId: string, _label?: string) => {
+      // 그룹이 이미 존재하는지 확인
+      const existingGroup = nestedFavorites.find((g) => g.title === groupId);
+      if (existingGroup) return;
 
-  const addFavoriteToGroup = (groupId: string, item: ListItem) => {
-    setNestedFavorites((prev) =>
-      prev.map((g) => {
-        if (g.title !== groupId) return g;
-        const already = g.subItems.some((s) => s.id === item.id);
-        if (already) return g;
-        return { ...g, subItems: [...g.subItems, item] };
-      })
-    );
-  };
-
-  const createGroupAndAdd = (groupId: string, item: ListItem) => {
-    setNestedFavorites((prev) => {
-      const idx = prev.findIndex((g) => g.title === groupId);
-      if (idx === -1) {
-        return [
-          ...prev,
-          { id: `fav-${groupId}`, title: groupId, subItems: [item] },
-        ];
+      // 새 그룹 생성 (실제로는 upsertFavoriteItem에서 자동 생성됨)
+      try {
+        await loadFavorites(); // 그룹 목록 새로고침
+      } catch (error) {
+        console.error("즐겨찾기 그룹 확인 실패:", error);
       }
-      const group = prev[idx];
-      const exists = group.subItems.some((s) => s.id === item.id);
-      if (exists) return prev;
-      const updated = [...prev];
-      updated[idx] = { ...group, subItems: [...group.subItems, item] };
-      return updated;
-    });
-  };
+    },
+    [nestedFavorites, loadFavorites]
+  );
 
-  const deleteFavoriteGroup = (groupId: string) => {
+  const addFavoriteToGroup = useCallback(
+    async (groupId: string, item: ListItem) => {
+      try {
+        // pinId 추출 (ListItem에서 pinId를 가져와야 함)
+        const pinId = item.id; // 임시로 id를 pinId로 사용
+
+        await upsertFavoriteItem({
+          groupId: groupId,
+          pinId: pinId,
+        });
+
+        // 성공 시 로컬 상태 업데이트
+        await loadFavorites();
+
+        toast({
+          title: "즐겨찾기 추가 완료",
+          description: `${item.title}이(가) 즐겨찾기에 추가되었습니다.`,
+        });
+      } catch (error) {
+        console.error("즐겨찾기 추가 실패:", error);
+        toast({
+          title: "즐겨찾기 추가 실패",
+          description: "즐겨찾기 추가 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
+    },
+    [loadFavorites, toast]
+  );
+
+  const createGroupAndAdd = useCallback(
+    async (groupId: string, item: ListItem) => {
+      try {
+        // pinId 추출
+        const pinId = item.id; // 임시로 id를 pinId로 사용
+
+        await upsertFavoriteItem({
+          title: groupId, // 새 그룹 생성
+          pinId: pinId,
+        });
+
+        // 성공 시 로컬 상태 업데이트
+        await loadFavorites();
+
+        toast({
+          title: "즐겨찾기 그룹 생성 및 추가 완료",
+          description: `새 그룹 '${groupId}'에 ${item.title}이(가) 추가되었습니다.`,
+        });
+      } catch (error) {
+        console.error("즐겨찾기 그룹 생성 및 추가 실패:", error);
+        toast({
+          title: "즐겨찾기 그룹 생성 실패",
+          description: "즐겨찾기 그룹 생성 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
+    },
+    [loadFavorites, toast]
+  );
+
+  const deleteFavoriteGroup = useCallback(async (groupId: string) => {
+    // 백엔드에서는 그룹 삭제 API가 없으므로 로컬에서만 처리
     setNestedFavorites((prev) => prev.filter((g) => g.title !== groupId));
-  };
+  }, []);
 
-  const handleDeleteSubFavorite = (parentId: string, subId: string) => {
-    setNestedFavorites((prev) =>
-      prev.map((item) =>
-        item.id === parentId
-          ? {
-              ...item,
-              subItems: item.subItems.filter((sub) => sub.id !== subId),
-            }
-          : item
-      )
-    );
-  };
+  const handleDeleteSubFavorite = useCallback(
+    async (parentId: string, subId: string) => {
+      try {
+        // 그룹 ID 찾기
+        const group = nestedFavorites.find((g) => g.id === parentId);
+        if (!group) return;
 
-  const handleDeleteNestedFavorite = (id: string) => {
+        await deleteFavoriteItem(group.id, subId);
+
+        // 성공 시 로컬 상태 업데이트
+        await loadFavorites();
+
+        toast({
+          title: "즐겨찾기 삭제 완료",
+          description: "즐겨찾기에서 삭제되었습니다.",
+        });
+      } catch (error) {
+        console.error("즐겨찾기 삭제 실패:", error);
+        toast({
+          title: "즐겨찾기 삭제 실패",
+          description: "즐겨찾기 삭제 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
+    },
+    [nestedFavorites, loadFavorites, toast]
+  );
+
+  const handleDeleteNestedFavorite = useCallback(async (id: string) => {
+    // 그룹 삭제는 로컬에서만 처리 (백엔드 API 없음)
     setNestedFavorites((prev) => prev.filter((item) => item.id !== id));
-  };
+  }, []);
 
   const handleContractRecordsClick = () => {
     console.log("영업자 계약기록 버튼 클릭됨");
@@ -338,6 +426,7 @@ export function useSidebarState() {
   return {
     // state
     nestedFavorites,
+    favoritesLoading,
     siteReservations, // 임시핀(예약 전) — 서버 소스
     scheduledReservations, // 내 예약 목록 — 서버 소스
     pendingReservation,
@@ -367,6 +456,7 @@ export function useSidebarState() {
     handleDeleteSiteReservation,
 
     // actions - 즐겨찾기 그룹
+    loadFavorites, // 즐겨찾기 새로고침
     ensureFavoriteGroup,
     addFavoriteToGroup,
     createGroupAndAdd,

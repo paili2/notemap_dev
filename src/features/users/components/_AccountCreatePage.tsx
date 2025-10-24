@@ -26,9 +26,21 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/atoms/Form/Form";
-import { Plus } from "lucide-react";
-import BirthdayPicker from "@/components/organisms/BirthdayPicker/BirthdayPicker";
-import { useState } from "react";
+import { Plus, Calendar as CalendarIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getTeams } from "@/features/teams/api";
+import {
+  createAccount,
+  createEmployeeInfo,
+} from "@/features/users/api/account";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/atoms/Popover/Popover";
+import { Calendar } from "@/components/atoms/Calendar/Calendar";
+import { format } from "date-fns";
 
 /** ========== 타입 ========== */
 export type CreateAccountPayload = {
@@ -36,18 +48,26 @@ export type CreateAccountPayload = {
   email: string;
   password: string;
   name: string;
-  role:
-    | "manager"
-    | "team_leader"
-    | "deputy_manager"
-    | "general_manager"
-    | "department_head"
-    | "staff";
+  role: "manager" | "staff";
+  positionRank:
+    | "STAFF"
+    | "ASSISTANT_MANAGER"
+    | "MANAGER"
+    | "DEPUTY_GENERAL"
+    | "GENERAL_MANAGER"
+    | "DIRECTOR";
   phone: string;
   birthday: string; // YYYY-MM-DD (빈값 허용 시 "")
   emergency_contact: string;
   address: string;
   salary_account: string;
+
+  // 팀 정보 (필수)
+  team: {
+    teamId: string;
+    isPrimary?: boolean;
+    joinedAt?: string; // YYYY-MM-DD
+  };
 
   // 추가정보(선택)
   photo_url?: string;
@@ -73,17 +93,20 @@ const CreateUserSchema = z
       .string()
       .min(8, "비밀번호 확인도 8자 이상이어야 합니다."),
     name: z.string().min(1, "이름을 입력하세요.").max(100),
-    role: z.enum(
+    role: z.enum(["manager", "staff"], {
+      required_error: "권한을 선택하세요.",
+    }),
+    positionRank: z.enum(
       [
-        "manager",
-        "team_leader",
-        "deputy_manager",
-        "general_manager",
-        "department_head",
-        "staff",
+        "STAFF",
+        "ASSISTANT_MANAGER",
+        "MANAGER",
+        "DEPUTY_GENERAL",
+        "GENERAL_MANAGER",
+        "DIRECTOR",
       ],
       {
-        required_error: "역할을 선택하세요.",
+        required_error: "직급을 선택하세요.",
       }
     ),
     phone: z
@@ -99,6 +122,11 @@ const CreateUserSchema = z
       .max(20),
     address: z.string().min(1, "주소를 입력하세요.").max(200),
     salary_account: z.string().min(1, "급여계좌를 입력하세요.").max(50),
+    team: z.object({
+      teamId: z.string().min(1, "팀을 선택하세요."),
+      isPrimary: z.boolean().optional(),
+      joinedAt: z.string().optional(),
+    }),
     photo_url: z
       .string()
       .url("URL 형식이 올바르지 않습니다.")
@@ -155,11 +183,17 @@ export default function AccountCreatePage({
       password_confirm: "",
       name: "",
       role: "staff",
+      positionRank: "STAFF",
       phone: "",
       birthday: "",
       emergency_contact: "",
       address: "",
       salary_account: "",
+      team: {
+        teamId: "",
+        isPrimary: true,
+        joinedAt: "",
+      },
       photo_url: "",
       id_photo_url: "",
       resident_register_url: "",
@@ -175,50 +209,101 @@ export default function AccountCreatePage({
     Partial<Record<UploadField, string>>
   >({});
 
+  /** 팀 목록 관리 */
+  const [teams, setTeams] = useState<Array<{ id: number; name: string }>>([]);
+  const [teamsLoading, setTeamsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const loadTeams = async () => {
+      try {
+        const teamData = await getTeams();
+        setTeams(teamData.map((team) => ({ id: team.id, name: team.name })));
+      } catch (error) {
+        console.error("팀 목록 로드 실패:", error);
+        setTeams([]);
+      } finally {
+        setTeamsLoading(false);
+      }
+    };
+    loadTeams();
+  }, []);
+
   const setFieldError = (field: UploadField, msg: string | null) =>
     setUploadErrors((prev) => ({ ...prev, [field]: msg || undefined }));
 
   /** 제출 */
   const handleSubmit = async (v: CreateUserValues) => {
-    if (uploading) return;
+    if (uploading || isSubmitting) return;
 
-    const payload: CreateAccountPayload = {
-      email: v.email,
-      password: v.password,
-      name: v.name,
-      role: v.role,
-      phone: v.phone,
-      birthday: v.birthday ?? "",
-      emergency_contact: v.emergency_contact,
-      address: v.address,
-      salary_account: v.salary_account,
-      photo_url: v.photo_url,
-      id_photo_url: v.id_photo_url,
-      resident_register_url: v.resident_register_url,
-      resident_extract_url: v.resident_extract_url,
-      family_relation_url: v.family_relation_url,
-    };
+    setIsSubmitting(true);
 
-    await onCreate(payload);
+    try {
+      // 1단계: 계정 생성 (credentials)
+      const accountData = {
+        email: v.email,
+        password: v.password,
+        role: v.role,
+        team: {
+          teamId: v.team.teamId,
+          isPrimary: v.team.isPrimary ?? true,
+          joinedAt: v.team.joinedAt,
+        },
+        isDisabled: false,
+      };
 
-    form.reset({
-      email: "",
-      password: "",
-      name: "",
-      role: "staff",
-      phone: "",
-      birthday: "",
-      emergency_contact: "",
-      address: "",
-      salary_account: "",
-      photo_url: "",
-      id_photo_url: "",
-      resident_register_url: "",
-      resident_extract_url: "",
-      family_relation_url: "",
-    });
-    setUploadErrors({});
-    setUploading(null);
+      console.log("1단계: 계정 생성 시작", accountData);
+      const accountResult = await createAccount(accountData);
+      console.log("1단계: 계정 생성 완료", accountResult);
+
+      // 2단계: 직원 정보 생성
+      const employeeData = {
+        name: v.name,
+        phone: v.phone,
+        emergencyContact: v.emergency_contact,
+        addressLine: v.address,
+        salaryAccount: v.salary_account,
+        positionRank: v.positionRank,
+        profileUrl: v.photo_url,
+        docUrlIdCard: v.id_photo_url,
+        docUrlResidentRegistration: v.resident_register_url,
+        docUrlResidentAbstract: v.resident_extract_url,
+        docUrlFamilyRelation: v.family_relation_url,
+      };
+
+      console.log("2단계: 직원 정보 생성 시작", {
+        credentialId: accountResult.id,
+        employeeData,
+      });
+      const employeeResult = await createEmployeeInfo(
+        accountResult.id.toString(),
+        employeeData
+      );
+      console.log("2단계: 직원 정보 생성 완료", employeeResult);
+
+      // 성공 토스트
+      toast({
+        title: "계정 생성 완료",
+        description: `${v.name}님의 계정이 성공적으로 생성되었습니다.`,
+      });
+
+      // 폼 리셋
+      form.reset();
+      setUploadErrors({});
+      setUploading(null);
+    } catch (error) {
+      console.error("계정 생성 실패:", error);
+
+      // 에러 토스트
+      toast({
+        title: "계정 생성 실패",
+        description: "계정 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   /** 공용 업로드 핸들러: 성공 시 해당 필드에 url 세팅 */
@@ -321,12 +406,33 @@ export default function AccountCreatePage({
                         onChange={(e) => field.onChange(e.target.value)}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="manager">관리자</option>
-                        <option value="team_leader">팀장</option>
-                        <option value="deputy_manager">과장</option>
-                        <option value="general_manager">실장</option>
-                        <option value="department_head">부장</option>
-                        <option value="staff">사원</option>
+                        <option value="staff">일반 사용자</option>
+                        <option value="manager">팀장</option>
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* 직급 */}
+              <FormField
+                control={form.control}
+                name="positionRank"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>직급 *</FormLabel>
+                    <FormControl>
+                      <select
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="STAFF">사원</option>
+                        <option value="ASSISTANT_MANAGER">대리</option>
+                        <option value="MANAGER">과장</option>
+                        <option value="DEPUTY_GENERAL">차장</option>
+                        <option value="GENERAL_MANAGER">부장</option>
+                        <option value="DIRECTOR">실장</option>
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -359,15 +465,39 @@ export default function AccountCreatePage({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>생년월일</FormLabel>
-                    <FormControl className="flex-1">
-                      <BirthdayPicker
-                        value={field.value ?? ""}
-                        onChange={(v) =>
-                          field.onChange(v === "" ? undefined : v)
-                        }
-                        fromYear={1960}
-                        toYear={new Date().getFullYear()}
-                      />
+                    <FormControl>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full justify-start text-left font-normal"
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {field.value ? (
+                              format(new Date(field.value), "PPP")
+                            ) : (
+                              <span>생년월일을 선택하세요</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={
+                              field.value ? new Date(field.value) : undefined
+                            }
+                            onSelect={(date) => {
+                              if (date) {
+                                field.onChange(format(date, "yyyy-MM-dd"));
+                              }
+                            }}
+                            disabled={(date) =>
+                              date > new Date() || date < new Date("1900-01-01")
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -469,6 +599,36 @@ export default function AccountCreatePage({
                   </FormItem>
                 )}
               />
+              {/* 팀 선택 */}
+              <FormField
+                control={form.control}
+                name="team.teamId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>팀 *</FormLabel>
+                    <FormControl>
+                      <select
+                        value={field.value}
+                        onChange={(e) => field.onChange(e.target.value)}
+                        disabled={teamsLoading}
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="">
+                          {teamsLoading
+                            ? "팀 목록 로딩 중..."
+                            : "팀을 선택하세요"}
+                        </option>
+                        {teams.map((team) => (
+                          <option key={team.id} value={team.id.toString()}>
+                            {team.name}
+                          </option>
+                        ))}
+                      </select>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             {/* ===== 추가 정보 (파일 업로드) ===== */}
@@ -562,8 +722,12 @@ export default function AccountCreatePage({
               >
                 초기화
               </Button>
-              <Button type="submit" disabled={!!uploading}>
-                {uploading ? "업로드 대기…" : "계정 생성"}
+              <Button type="submit" disabled={!!uploading || isSubmitting}>
+                {isSubmitting
+                  ? "계정 생성 중..."
+                  : uploading
+                  ? "업로드 대기…"
+                  : "계정 생성"}
               </Button>
             </div>
           </form>
