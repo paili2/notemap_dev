@@ -151,6 +151,18 @@ export function applyMode(
       el.textContent = "";
       // 예약 순번 배지까지 포함해서 재합성
       applyOrderBadgeToLabel(el, raw, null);
+      el.style.transition =
+        el.style.transition || "opacity 120ms ease, transform 120ms ease";
+      el.style.willChange = "opacity, transform";
+      if (!el.dataset._fadedIn) {
+        el.style.opacity = "0";
+        el.style.transform = "translateY(2px)";
+        requestAnimationFrame(() => {
+          el.style.opacity = "1";
+          el.style.transform = "translateY(0)";
+          el.dataset._fadedIn = "1";
+        });
+      }
     }
   };
 
@@ -159,13 +171,20 @@ export function applyMode(
     mkList.forEach((mk) => mk.setMap(map));
     const cleared = selectedKey == null;
 
+    const showOv = (ov: any, map: any) => {
+      if (ov.getMap?.() !== map) ov.setMap?.(map);
+    };
+    const hideOv = (ov: any) => {
+      if (ov.getMap?.()) ov.setMap?.(null);
+    };
+
     // ✅ 라벨을 보이게 하기 직전에 항상 원문으로 복구
     labelEntries.forEach(([id, ov]) => {
       if (!cleared && id === selectedKey) {
-        ov.setMap(null);
+        hideOv(ov);
       } else {
         restoreLabel(id, ov);
-        ov.setMap(map);
+        showOv(ov, map);
       }
     });
 

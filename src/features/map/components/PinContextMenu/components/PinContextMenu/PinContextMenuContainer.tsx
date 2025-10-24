@@ -324,14 +324,14 @@ export default function PinContextMenuContainer(props: Props) {
 
     // 5) 동일 좌표에 남은 오버레이 청소 (임시 + 신규 중복 제거)
     // FIX: 겹라벨 방지 핵심
-    cleanupOverlaysAt(lat, lng);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cleanupOverlaysAt(lat, lng);
+      });
+    });
 
     // 6) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
     setTick((t) => t + 1);
-
-    if (!refreshed) {
-      router.refresh();
-    }
   }, [
     handlePlan,
     posK,

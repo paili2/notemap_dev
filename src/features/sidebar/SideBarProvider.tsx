@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useMemo } from "react";
 import { useSidebarState } from "./hooks/useSidebarState";
-import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
+import { useScheduledReservations } from "../survey-reservations/hooks/useScheduledReservations";
 
 const SidebarCtx = createContext<
   | (ReturnType<typeof useSidebarState> & {
