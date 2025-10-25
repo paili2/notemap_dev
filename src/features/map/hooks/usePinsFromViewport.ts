@@ -1,4 +1,3 @@
-// features/map/hooks/usePinsFromViewport.ts
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchPinsByBBox, type PinPoint } from "@/features/pins/api";

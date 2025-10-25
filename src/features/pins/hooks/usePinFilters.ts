@@ -1,4 +1,3 @@
-// src/features/pins/hooks/usePinFilters.ts
 import { useMemo, useState, useCallback } from "react";
 import type { PinSearchParams } from "../types/pin-search";
 

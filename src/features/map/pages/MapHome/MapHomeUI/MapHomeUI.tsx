@@ -1,4 +1,3 @@
-// src/features/map/pages/MapHome/MapHomeUI/MapHomeUI.tsx
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";

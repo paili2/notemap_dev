@@ -81,8 +81,5 @@ export function useReserveFromMenu({
   );
 }
 
-// ──────────────────────────────────────────────────────────────
-// File: src/features/map/pages/MapHomePage/utils/ids.ts
 // 안전한 ID 비교 유틸 (중복 사용 방지)
-// ──────────────────────────────────────────────────────────────
 export const eqId = (a: unknown, b: unknown) => String(a) === String(b);

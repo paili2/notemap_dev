@@ -47,7 +47,6 @@ export function createMarker(
  * @param order 0-based 예약 순번(라벨 배지로 1-based로 표기). number가 아닐 경우 배지 미표시
  */
 
-// src/features/map/lib/overlays/create.ts (createLabelOverlay 부분만 발췌)
 export function createLabelOverlay(
   kakao: any,
   pos: any,
