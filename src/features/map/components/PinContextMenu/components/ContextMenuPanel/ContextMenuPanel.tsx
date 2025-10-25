@@ -18,6 +18,7 @@ import type {
 import { getPin } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
+import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 
 /** KST 기준 YYYY-MM-DD */
 function todayKST(): string {
@@ -49,6 +50,7 @@ export default function ContextMenuPanel({
   const headingId = useId();
   const descId = useId();
   const qc = useQueryClient();
+  const bump = useReservationVersion((s) => s.bump);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
@@ -134,6 +136,7 @@ export default function ContextMenuPanel({
         dateISO: todayKST(),
       };
       await onPlan?.(payload as PlanRequestPayload); // 상위에서 POST /pins 수행
+      bump();
       onClose();
     } finally {
       setCreating(false);
@@ -146,6 +149,8 @@ export default function ContextMenuPanel({
     propertyTitle,
     onPlan,
     onClose,
+    ,
+    bump,
   ]);
 
   const handleReserveClick = useCallback(() => {

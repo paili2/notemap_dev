@@ -19,6 +19,7 @@ import {
 import { useRouter } from "next/navigation";
 import { usePropertyViewModal } from "@/features/properties/hooks/useEditForm/usePropertyViewModal";
 import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
+import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 
 /* 오늘(한국표준시) "YYYY-MM-DD" */
 function todayKST(): string {
@@ -130,6 +131,9 @@ export default function PinContextMenuContainer(props: Props) {
     upsertDraftMarker, // ✅ 임시 마커 주입 콜백
   } = props;
 
+  const version = useReservationVersion((s) => s.version);
+  const bump = useReservationVersion((s) => s.bump);
+
   const router = useRouter();
   const viewModal = usePropertyViewModal();
 
@@ -168,9 +172,6 @@ export default function PinContextMenuContainer(props: Props) {
     // 메뉴 닫기
     onClose?.();
   }, [onCreate, onClose, position, pin, roadAddress, jibunAddress]);
-
-  /** 강제 리렌더용 tick (등록 직후 새로고침 없이 반영) */
-  const [tick, setTick] = React.useState(0);
 
   /** 기본 판정 */
   const base = useDerivedPinState({
@@ -331,7 +332,7 @@ export default function PinContextMenuContainer(props: Props) {
     });
 
     // 6) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
-    setTick((t) => t + 1);
+    bump();
   }, [
     handlePlan,
     posK,
@@ -341,6 +342,7 @@ export default function PinContextMenuContainer(props: Props) {
     router,
     position,
     cleanupOverlaysAt,
+    bump,
   ]);
 
   const xAnchor = 0.5;
@@ -392,6 +394,8 @@ export default function PinContextMenuContainer(props: Props) {
         // FIX: 예약으로 상태 전환 시에도 좌표 중복 오버레이 정리
         cleanupOverlaysAt(position.getLat(), position.getLng());
 
+        bump();
+
         onClose?.();
       } catch (e) {
         console.error(e);
@@ -407,9 +411,9 @@ export default function PinContextMenuContainer(props: Props) {
 
   return (
     <CustomOverlay
-      key={`ctx-${position.getLat().toFixed(5)},${position
+      key={`ctx:${version}:${position.getLat().toFixed(5)},${position
         .getLng()
-        .toFixed(5)}-${tick}`} // ✅ 등록 직후 강제 리마운트로 반영
+        .toFixed(5)}`} // ✅ 등록 직후 강제 리마운트로 반영
       kakao={kakao}
       map={map}
       position={position}

@@ -33,35 +33,12 @@ import { mapPinKindToBadge } from "../../lib/badge";
 import { api } from "@/shared/api/api"; // 예약 삭제용
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 
-/** 주소 → 카카오 지오코딩 */
-function geocodeKakao(
-  address: string
-): Promise<{ lat: number; lng: number } | null> {
-  return new Promise((resolve) => {
-    try {
-      const { kakao } = window as any;
-      if (!kakao?.maps?.services?.Geocoder) return resolve(null);
-      const geocoder = new kakao.maps.services.Geocoder();
-      geocoder.addressSearch(address, (results: any[], status: any) => {
-        if (status !== kakao.maps.services.Status.OK || !results?.length) {
-          return resolve(null);
-        }
-        const r = results[0];
-        const lat = Number(r.y);
-        const lng = Number(r.x);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) resolve({ lat, lng });
-        else resolve(null);
-      });
-    } catch {
-      resolve(null);
-    }
-  });
-}
-
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
   initialAddress,
+  initialLat,
+  initialLng,
 }: Omit<PropertyCreateModalProps, "open">) {
   // 모든 상태/액션
   const f = useCreateForm({ initialAddress });
@@ -94,48 +71,13 @@ export default function PropertyCreateModalBody({
     try {
       if (!f.title.trim()) return;
 
-      // ✅ 좌표 확보 (여러 후보에서 숫자로 파싱)
-      const candidatesLat = [
-        (f as any).lat,
-        (f as any).position?.lat,
-        (f as any).mapCenter?.lat,
-        (f as any).geo?.lat,
-        (f as any).address?.lat,
-      ];
-      const candidatesLng = [
-        (f as any).lng,
-        (f as any).position?.lng,
-        (f as any).mapCenter?.lng,
-        (f as any).geo?.lng,
-        (f as any).address?.lng,
-      ];
-
-      let latCandidate = candidatesLat.map(Number).find(Number.isFinite);
-      let lngCandidate = candidatesLng.map(Number).find(Number.isFinite);
-
-      // 🔁 후보에서 못 찾았으면 주소로 카카오 지오코딩 시도
-      if (
-        (!Number.isFinite(latCandidate!) || !Number.isFinite(lngCandidate!)) &&
-        f.address
-      ) {
-        const geo = await geocodeKakao(String(f.address));
-        if (geo) {
-          latCandidate = geo.lat;
-          lngCandidate = geo.lng;
-        }
-      }
-
-      // 최종 검증
-      if (!Number.isFinite(latCandidate!) || !Number.isFinite(lngCandidate!)) {
-        alert(
-          "좌표가 없습니다. 지도에서 위치를 선택하거나 주소를 더 정확히 입력해 주세요."
-        );
+      // ✅ 좌표는 반드시 외부에서 고정 주입된 값만 사용
+      const latNum = Number(initialLat);
+      const lngNum = Number(initialLng);
+      if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+        alert("좌표가 유효하지 않습니다. (initialLat/initialLng 미전달)");
         return;
       }
-
-      // ✅ 확정 숫자
-      const latNum = Number(latCandidate);
-      const lngNum = Number(lngCandidate);
 
       // 배지/날짜 계산 (YYYY-MM-DD)
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
@@ -189,7 +131,7 @@ export default function PropertyCreateModalBody({
         fileItems,
         pinKind: f.pinKind,
 
-        // 좌표 전달
+        // 좌표 전달(고정)
         lat: latNum,
         lng: lngNum,
       });
@@ -256,7 +198,7 @@ export default function PropertyCreateModalBody({
           matchedDraftId,
           lat: latNum,
           lng: lngNum,
-          payload, // 필요 없으면 types에서 제거해도 됨
+          payload, // 필요 없으면 types에서 제거 가능
         } as any)
       );
 
@@ -272,7 +214,7 @@ export default function PropertyCreateModalBody({
       isSavingRef.current = false;
       setIsSaving(false);
     }
-  }, [f, imageFolders, fileItems, onSubmit, onClose]);
+  }, [f, imageFolders, fileItems, onSubmit, onClose, initialLat, initialLng]);
 
   return (
     <div className="fixed inset-0 z-[100]">

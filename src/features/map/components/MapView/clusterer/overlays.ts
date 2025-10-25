@@ -46,6 +46,7 @@ export function createMarker(
  * @param labelGapPx 라벨-핀 간격(px)
  * @param order 0-based 예약 순번(라벨 배지로 1-based로 표기). number가 아닐 경우 배지 미표시
  */
+
 export function createLabelOverlay(
   kakao: any,
   pos: any,
@@ -55,43 +56,27 @@ export function createLabelOverlay(
 ) {
   const labelEl = document.createElement("div");
   labelEl.className = "kakao-label";
-  // 원문 라벨을 dataset에 보관(접근성/디버그용)
-  (labelEl as any).dataset.rawLabel = String(text ?? "");
+  (labelEl as any).dataset.rawTitle = String(text ?? "");
 
-  // 스타일 적용
   applyLabelStyles(labelEl as HTMLDivElement, labelGapPx);
   (labelEl as HTMLDivElement).style.color = "#FFFFFF";
 
-  // ✅ 순번 배지 적용 (0도 표시되도록 number 체크)
   const orderNum =
     typeof order === "number" && Number.isFinite(order) ? order : undefined;
   applyOrderBadgeToLabel(labelEl as HTMLDivElement, text, orderNum);
 
+  // ✅ 제목 span만 복원 (외부 래퍼/배지는 건드리지 않음)
   try {
-    const mo = new MutationObserver((muts) => {
-      for (const m of muts) {
-        if (m.type === "childList" || m.type === "characterData") {
-          const want = (labelEl as any).dataset?.rawLabel ?? "";
-          const now = labelEl.textContent ?? "";
-          if (now !== want && want) {
-            console.warn("[LABEL CHANGED → RESTORE]", {
-              now,
-              want,
-              html: labelEl.innerHTML,
-              stack: new Error().stack,
-            });
-            // 원문으로 되돌림
-            labelEl.textContent = "";
-            applyOrderBadgeToLabel(labelEl as HTMLDivElement, want, orderNum);
-          }
-        }
-      }
+    const mo = new MutationObserver(() => {
+      const want = (labelEl as any).dataset?.rawTitle ?? "";
+      const titleEl = labelEl.querySelector(
+        '[data-role="label-title"]'
+      ) as HTMLSpanElement | null;
+      if (!titleEl) return;
+      const now = titleEl.textContent ?? "";
+      if (now !== want) titleEl.textContent = want; // ✨ 전체 비우지 않음
     });
-    mo.observe(labelEl, {
-      childList: true,
-      characterData: true,
-      subtree: true,
-    });
+    mo.observe(labelEl, { characterData: true, subtree: true });
   } catch {}
 
   return new kakao.maps.CustomOverlay({

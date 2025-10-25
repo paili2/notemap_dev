@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
@@ -18,8 +18,88 @@ import { PriceInput } from "./PriceInput";
 import { AreaInput } from "./AreaInput";
 import { FilterActions } from "./FilterActions";
 
-export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
+// ⬇️ /pins/search 타입 불러오기
+import type { PinSearchParams } from "@/features/pins/types/pin-search";
+
+// ⬇️ 기존 FilterSearchProps를 확장 (타입 파일을 지금 당장 안 고쳐도 되게)
+type Props = FilterSearchProps & {
+  onApply?: (params: PinSearchParams) => void; // ✅ 상위로 검색 파라미터 전달
+  initial?: Partial<FilterState>; // ✅ 이전 값 복구 (옵션)
+};
+
+// 평 → ㎡
+const PYEONG_TO_M2 = 3.305785;
+const toM2 = (s: string) => {
+  const n = Number((s ?? "").replaceAll(",", "").trim());
+  return Number.isFinite(n) && n >= 0
+    ? Math.round(n * PYEONG_TO_M2)
+    : undefined;
+};
+
+// "있음/없음/전체" → boolean | undefined
+const toElevator = (label: string): boolean | undefined => {
+  if (!label) return undefined;
+  if (label === "있음") return true;
+  if (label === "없음") return false;
+  return undefined; // "전체" 등
+};
+
+// ["1","2","3"] → [1,2,3] (정수/중복/정렬)
+const toRooms = (arr: string[]) =>
+  Array.from(
+    new Set(
+      (arr ?? [])
+        .map((x) => Number(x))
+        .filter((n) => Number.isInteger(n) && n >= 0)
+    )
+  ).sort((a, b) => a - b);
+
+// 문자열 금액 → number | undefined (0 허용)
+const toPrice = (s: string) => {
+  const v = convertPriceToWon(s);
+  return Number.isFinite(v) ? v : undefined;
+};
+
+function buildPinSearchParams(ui: FilterState): PinSearchParams {
+  const params: PinSearchParams = {};
+
+  const rooms = ui.rooms.map((r) => Number(r)).filter((n) => !isNaN(n));
+  if (rooms.length) params.rooms = rooms;
+
+  // 문자열 → 숫자 변환 (Number())
+  const priceMin = Number(ui.priceMin);
+  const priceMax = Number(ui.priceMax);
+  if (!isNaN(priceMin) && priceMin > 0) params.salePriceMin = priceMin;
+  if (!isNaN(priceMax) && priceMax > 0) params.salePriceMax = priceMax;
+
+  const areaMin = Number(ui.areaMin);
+  const areaMax = Number(ui.areaMax);
+  if (!isNaN(areaMin) && areaMin > 0)
+    params.areaMinM2 = Math.round(areaMin * 3.305785);
+  if (!isNaN(areaMax) && areaMax > 0)
+    params.areaMaxM2 = Math.round(areaMax * 3.305785);
+
+  const elev =
+    ui.elevator === "있음" ? true : ui.elevator === "없음" ? false : undefined;
+  if (elev !== undefined) params.hasElevator = elev;
+
+  return params;
+}
+
+export default function FilterSearch({
+  isOpen,
+  onClose,
+  onApply,
+  initial,
+}: Props) {
   const [filters, setFilters] = useState<FilterState>(initialFilterState);
+
+  // 모달 열릴 때 초기값 복구(옵션)
+  useEffect(() => {
+    if (isOpen && initial) {
+      setFilters((prev) => ({ ...prev, ...initial }));
+    }
+  }, [isOpen, initial]);
 
   const toggleSelection = (category: keyof FilterState, value: string) => {
     if (category === "rooms") {
@@ -38,9 +118,9 @@ export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
   };
 
   const applyFilters = () => {
-    console.log("Applying filters:", filters);
-    onClose();
-    // 필터 적용 로직 구현
+    const params = buildPinSearchParams(filters); // ✅ 변환
+    onApply?.(params); // ✅ 상위로 전달
+    onClose(); // 닫기
   };
 
   if (!isOpen) return null;
@@ -103,7 +183,7 @@ export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
                 onChange={(value) =>
                   setFilters((prev) => ({ ...prev, areaMin: value }))
                 }
-                placeholder="최소 면적"
+                placeholder="최소 면적(평)"
               />
             </div>
             <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
@@ -115,13 +195,13 @@ export default function FilterSearch({ isOpen, onClose }: FilterSearchProps) {
                 onChange={(value) =>
                   setFilters((prev) => ({ ...prev, areaMax: value }))
                 }
-                placeholder="최대 면적"
+                placeholder="최대 면적(평)"
               />
             </div>
           </div>
         </FilterSection>
 
-        {/* 등기 */}
+        {/* 등기(건물 유형) */}
         <FilterSection title="등기">
           <div className="flex flex-wrap gap-2">
             {FILTER_OPTIONS.buildingType.map((building) => (

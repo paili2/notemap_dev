@@ -1,4 +1,3 @@
-// features/map/types/map.ts
 import { PinKind } from "@/features/pins/types";
 import { LatLng } from "@/lib/geo/types";
 
