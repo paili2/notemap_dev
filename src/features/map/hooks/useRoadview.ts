@@ -87,10 +87,13 @@ export function useRoadview(opts: Options = {}): UseRoadview {
       setLoading(true);
       lastPosRef.current = pos;
 
-      const rvClient = new kakao.maps.RoadviewClient();
-      const target = new kakao.maps.LatLng(pos.lat, pos.lng);
+      const searchPoint = face ?? pos;
+      const target = new kakao.maps.LatLng(searchPoint.lat, searchPoint.lng);
 
-      const radii = [50, 100, 200, 400]; // 반경 확장
+      const radii = [30, 60, 120, 240];
+
+      const rvClient = new kakao.maps.RoadviewClient();
+
       let found = false;
 
       // init 리스너 중복 방지

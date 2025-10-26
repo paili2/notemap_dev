@@ -1,3 +1,4 @@
+// src/shared/api/pins.ts
 import {
   PinSearchParams,
   PinSearchResult,
@@ -5,21 +6,12 @@ import {
 import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
 import { buildSearchQuery } from "./utils/query";
+import { todayYmdKST } from "../date/todayYmdKST";
 
 /* ───────────── 유틸 ───────────── */
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 function resolveCompletionDate(input?: string | null): string {
   if (typeof input === "string" && input.trim() !== "") return input;
-  return todayKST();
+  return todayYmdKST();
 }
 function makeIdempotencyKey() {
   try {
@@ -28,6 +20,7 @@ function makeIdempotencyKey() {
   } catch {}
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
+const round6 = (n: number | string) => Number(Number(n).toFixed(6));
 
 /* ───────────── DTO (export!) ───────────── */
 export type CreatePinDto = {
@@ -39,6 +32,9 @@ export type CreatePinDto = {
   contactMainPhone?: string | null;
   contactSubLabel?: string | null;
   contactSubPhone?: string | null;
+
+  // 🔹 임시핀과의 명시적 매칭용 (선택)
+  pinDraftId?: number | string | null;
 
   completionDate?: string | null;
   buildingType?: string | null;
@@ -84,10 +80,14 @@ export async function createPin(
 ): Promise<{ id: string; matchedDraftId: number | null }> {
   // 동일 입력 빠른 연속 호출 흡수
   const preview = {
-    lat: Number(dto.lat),
-    lng: Number(dto.lng),
+    lat: round6(dto.lat),
+    lng: round6(dto.lng),
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
+    pinDraftId:
+      dto.pinDraftId == null || String(dto.pinDraftId) === ""
+        ? undefined
+        : Number(dto.pinDraftId),
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -95,8 +95,9 @@ export async function createPin(
   const effectiveCompletionDate = resolveCompletionDate(dto.completionDate);
 
   const payload = {
-    lat: Number(dto.lat),
-    lng: Number(dto.lng),
+    // 🔹 좌표는 6자리 고정으로 전송(백 매칭 규칙과 정합)
+    lat: round6(dto.lat),
+    lng: round6(dto.lng),
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
 
@@ -111,8 +112,13 @@ export async function createPin(
       ? { contactSubPhone: String(dto.contactSubPhone).trim() }
       : {}),
 
+    // 🔹 임시핀-매물 명시 매칭
+    ...(dto.pinDraftId != null && String(dto.pinDraftId) !== ""
+      ? { pinDraftId: Number(dto.pinDraftId) }
+      : {}),
+
     // 선택 필드
-    completionDate: effectiveCompletionDate,
+    completionDate: effectiveCompletionDate, // "YYYY-MM-DD"
     ...(dto.buildingType ? { buildingType: dto.buildingType } : {}),
     ...(dto.totalHouseholds != null
       ? { totalHouseholds: Number(dto.totalHouseholds) }
@@ -191,8 +197,9 @@ export async function createPinDraft(
   signal?: AbortSignal
 ): Promise<{ id: string }> {
   const payload = {
-    lat: Number(dto.lat),
-    lng: Number(dto.lng),
+    // 프론트에서 생성하는 임시핀도 동일하게 6자리 반올림(정합성)
+    lat: round6(dto.lat),
+    lng: round6(dto.lng),
     addressLine: String(dto.addressLine ?? ""),
   };
   const { data, headers } = await api.post<CreatePinDraftResponse>(

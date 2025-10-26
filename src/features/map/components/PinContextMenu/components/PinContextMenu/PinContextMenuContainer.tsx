@@ -20,18 +20,7 @@ import { useRouter } from "next/navigation";
 import { usePropertyViewModal } from "@/features/properties/hooks/useEditForm/usePropertyViewModal";
 import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-
-/* 오늘(한국표준시) "YYYY-MM-DD" */
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 /** 소수점 5자리 posKey */
 function posKey(lat: number, lng: number) {
@@ -385,7 +374,7 @@ export default function PinContextMenuContainer(props: Props) {
 
         await createSurveyReservation({
           pinDraftId: draftId,
-          reservedDate: todayKST(),
+          reservedDate: todayYmdKST(),
         });
 
         // 예약 완료 → 스케줄 재패치

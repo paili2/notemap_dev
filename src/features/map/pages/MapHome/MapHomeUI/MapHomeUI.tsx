@@ -27,6 +27,183 @@ import type {
 } from "@/features/pins/types/pin-search";
 import { searchPins } from "@/shared/api/pins";
 
+/* ------------------------- 검색 유틸 ------------------------- */
+function parseStationAndExit(qRaw: string) {
+  const q = qRaw.trim().replace(/\s+/g, " ");
+  const exitMatch = q.match(/(\d+)\s*번\s*출구/);
+  const exitNo = exitMatch ? Number(exitMatch[1]) : null;
+  const station = q
+    .replace(/(\d+)\s*번\s*출구/g, "")
+    .replace(/역/g, "")
+    .trim();
+  return { stationName: station, exitNo, hasExit: exitNo !== null, raw: q };
+}
+const norm = (s: string) => (s || "").replace(/\s+/g, "");
+
+function pickBestStation(data: any[], stationName: string) {
+  const s = norm(stationName);
+  const stations = data.filter((d) => d.category_group_code === "SW8");
+  const cand = stations.length ? stations : data;
+  return (
+    cand.find((d) => norm(d.place_name) === norm(`${stationName}역`)) ||
+    cand.find((d) => norm(d.place_name).includes(s)) ||
+    cand[0]
+  );
+}
+
+// 출구 번호 추출
+function extractExitNo(name: string): number | null {
+  const n1 = name.match(/(\d+)\s*번\s*출구/);
+  const n2 = name.match(/(\d+)\s*번출구/);
+  const n3 = name.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
+  if (n1) return Number(n1[1]);
+  if (n2) return Number(n2[1]);
+  if (n3) return "①②③④⑤⑥⑦⑧⑨⑩".indexOf(n3[0]) + 1;
+  return null;
+}
+
+// 출구 선별(강화)
+function pickBestExitStrict(
+  data: any[],
+  stationName: string,
+  want?: number | null,
+  stationLL?: kakao.maps.LatLng
+) {
+  if (!data?.length) return null;
+  const n = (s: string) => (s || "").replace(/\s+/g, "");
+  const sNorm = n(`${stationName}역`);
+
+  const withStation = data.filter(
+    (d) => /출구/.test(d.place_name) && n(d.place_name).includes(n(stationName))
+  );
+  const pool = withStation.length
+    ? withStation
+    : data.filter((d) => /출구/.test(d.place_name)) || data;
+
+  const scored = pool.map((d) => {
+    const no = extractExitNo(d.place_name);
+    let score = 0;
+    if (want != null && no === want) score += 1000;
+    if (n(d.place_name).includes(sNorm)) score += 50;
+
+    let dist = Number(d.distance ?? 999999);
+    if (isNaN(dist) && stationLL) {
+      const dy = Math.abs(Number(d.y) - stationLL.getLat());
+      const dx = Math.abs(Number(d.x) - stationLL.getLng());
+      dist = Math.sqrt(dx * dx + dy * dy) * 111000;
+    }
+    score += Math.max(0, 500 - Math.min(dist, 500));
+    return { d, score, dist };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored[0]?.d ?? data[0];
+}
+
+/* ------ 일반 장소(학교 가중) ------ */
+function scorePlaceForSchool(item: any, keywordNorm: string) {
+  const nameN = norm(item.place_name);
+  const cat = (item.category_name || "").replace(/\s+/g, "");
+  let s = 0;
+
+  // 정확/시작 일치 가중
+  if (nameN === keywordNorm) s += 1000;
+  if (nameN.startsWith(keywordNorm)) s += 400;
+  if (nameN.includes(keywordNorm)) s += 150;
+
+  // 학교/캠퍼스 가중
+  if (/학교|대학교|캠퍼스|정문|본관/.test(item.place_name)) s += 300;
+  if (/학교|대학교/.test(cat)) s += 250;
+
+  // 잡음(숲/등산/로/길/야외) 페널티
+  if (/숲|산|등산|둘레길|산책로|야외|야영/.test(item.place_name)) s -= 500;
+  if (/[로|길]$/.test(item.place_name)) s -= 300;
+
+  // 위치 가중(카카오가 주는 distance m)
+  const dist = Number(item.distance ?? 999999);
+  if (!isNaN(dist)) s += Math.max(0, 400 - Math.min(dist, 400));
+  return s;
+}
+
+function pickBestPlace(
+  data: any[],
+  keyword: string,
+  center?: kakao.maps.LatLng | null
+) {
+  if (!data?.length) return null;
+  const kw = norm(keyword);
+
+  // 일반 스텝: 정확 → 부분 → 거리
+  const exact = data.find((d) => norm(d.place_name) === kw);
+  if (exact) return exact;
+  const starts = data.find((d) => norm(d.place_name).startsWith(kw));
+  if (starts) return starts;
+  const partial = data.find((d) => norm(d.place_name).includes(kw));
+  if (partial) return partial;
+
+  if (center) {
+    const withDist = data
+      .map((d) => ({ d, dist: Number(d.distance ?? Infinity) }))
+      .sort((a, b) => a.dist - b.dist);
+    if (withDist[0]?.d) return withDist[0].d;
+  }
+  return data[0];
+}
+
+// 학교 쿼리 감지
+const isSchoolQuery = (q: string) =>
+  /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(q);
+
+// 중복 제거용
+const uniqById = (arr: any[]) => {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const it of arr || []) {
+    if (!seen.has(it.id)) {
+      seen.add(it.id);
+      out.push(it);
+    }
+  }
+  return out;
+};
+
+// 학교 전용 스코어러 (카테·키워드 가중↑, 야외/도로 페널티↓↓)
+function scorePlaceForSchoolHard(item: any, keywordNorm: string) {
+  const name = item.place_name || "";
+  const nameN = norm(name);
+  const catName = (item.category_name || "").replace(/\s+/g, "");
+  const group = item.category_group_code || "";
+
+  let s = 0;
+
+  // 이름 일치도
+  if (nameN === keywordNorm) s += 1200;
+  if (nameN.startsWith(keywordNorm)) s += 500;
+  if (nameN.includes(keywordNorm)) s += 180;
+
+  // 학교/캠퍼스 가중
+  if (/학교|대학교|캠퍼스/.test(name)) s += 450;
+  if (/정문|본관/.test(name)) s += 220;
+  if (/학교|대학교/.test(catName)) s += 320;
+
+  // 카테고리 그룹 가중 (SC4 = 학교)
+  if (group === "SC4") s += 800;
+
+  // 노이즈 큰 페널티
+  if (/숲|산|둘레길|산책로|야외/.test(name)) s -= 800;
+  if (/주차장/.test(name)) s -= 500;
+  if (/버스정류장|정류장/.test(name)) s -= 400;
+  if (/[로|길]$/.test(name)) s -= 350;
+
+  // 거리 가중(최대 +400)
+  const dist = Number(item.distance ?? 999999);
+  if (!isNaN(dist)) s += Math.max(0, 400 - Math.min(dist, 400));
+
+  return s;
+}
+
+/* ----------------------------------------------------------- */
+
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -77,10 +254,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
   const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
 
-  /** 로컬 임시 draft 마커 상태 (신규 등록 직후 즉시 표시용) */
   const [localDraftMarkers, setLocalDraftMarkers] = useState<MapMarker[]>([]);
-
-  // ── 검색 상태 ─────────────────────────────────────
   const [filterParams, setFilterParams] = useState<PinSearchParams | null>(
     null
   );
@@ -88,7 +262,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // 검색 결과 bounds 맞추기(선택)
   const fitToSearch = useCallback(
     (res: PinSearchResult) => {
       if (!kakaoSDK || !mapInstance) return;
@@ -108,7 +281,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [kakaoSDK, mapInstance]
   );
 
-  // PinSearchResult → useMergedMarkers용 평면 좌표 배열
   const toServerPointsFromPins = useCallback(
     (pins: NonNullable<PinSearchResult["pins"]>) =>
       pins.map((p) => ({
@@ -119,7 +291,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
       })),
     []
   );
-
   const toServerDraftsFromDrafts = useCallback(
     (drafts: NonNullable<PinSearchResult["drafts"]>) =>
       drafts.map((d) => ({
@@ -127,12 +298,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
         title: d.addressLine ?? undefined,
         lat: d.lat,
         lng: d.lng,
-        draftState: (d as any).draftState, // 있을 경우만
+        draftState: (d as any).draftState,
       })),
     []
   );
 
-  // 필터 적용 시 /pins/search 호출
   const handleApplyFilters = useCallback(
     async (params: PinSearchParams) => {
       setFilterParams(params);
@@ -141,8 +311,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
       setSearchError(null);
       try {
         const res = await searchPins(params);
-        setSearchRes(res); // 결과가 있는 동안은 뷰포트 데이터 대신 이걸 사용
-        fitToSearch(res); // 선택: 결과 영역으로 이동
+        setSearchRes(res);
+        fitToSearch(res);
       } catch (e: any) {
         setSearchError(e?.message ?? "검색 실패");
         setSearchRes(null);
@@ -153,14 +323,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [fitToSearch]
   );
 
-  // 검색 해제(선택): viewport 기반으로 복귀
   const clearSearch = useCallback(() => {
     setFilterParams(null);
     setSearchRes(null);
     setSearchError(null);
   }, []);
 
-  /** 임시 마커 주입/치환/초기화 유틸 */
   const upsertDraftMarker = useCallback(
     (m: {
       id: string | number;
@@ -174,7 +342,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         const list = prev.slice();
         const id = String(m.id);
         const idx = list.findIndex((x) => String(x.id) === id);
-
         const next: MapMarker = {
           id,
           title: m.address ?? "선택 위치",
@@ -182,7 +349,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           ...(m.source ? ({ source: m.source } as any) : {}),
           kind: (m.kind ?? "question") as PinKind,
         };
-
         if (idx >= 0) list[idx] = { ...list[idx], ...next };
         else list.push(next);
         return list;
@@ -203,10 +369,32 @@ export function MapHomeUI(props: MapHomeUIProps) {
     },
     []
   );
+  const clearLocalDrafts = useCallback(() => setLocalDrafts([]), []);
+  function setLocalDrafts(v: MapMarker[] | ((p: MapMarker[]) => MapMarker[])) {
+    setLocalDraftMarkers(v as any);
+  }
 
-  const clearLocalDrafts = useCallback(() => setLocalDraftMarkers([]), []);
+  const handleAfterCreate = useCallback(
+    (args: {
+      pinId: string;
+      matchedDraftId?: string | number | null;
+      lat: number;
+      lng: number;
+    }) => {
+      const { pinId, matchedDraftId, lat, lng } = args;
+      if (matchedDraftId != null) replaceTempByRealId(matchedDraftId, pinId);
+      else
+        upsertDraftMarker({
+          id: `__visit__${pinId}`,
+          lat,
+          lng,
+          address: null,
+          source: "draft",
+        });
+    },
+    [replaceTempByRealId, upsertDraftMarker]
+  );
 
-  // 필터 → draftState 매핑
   const draftStateForQuery = useMemo<
     undefined | "before" | "scheduled" | "all"
   >(() => {
@@ -218,7 +406,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [filter]);
 
-  // ===== 서버 핀 로딩(뷰포트 기반) =====
   const {
     points: serverPoints,
     drafts: serverDrafts,
@@ -230,7 +417,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     draftState: draftStateForQuery,
   });
 
-  // title의 null → undefined 정규화
   const normServerPoints = useMemo(
     () => serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })),
     [serverPoints]
@@ -240,7 +426,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [serverDrafts]
   );
 
-  // 검색 결과가 있으면 그걸 사용, 없으면 기존 뷰포트 데이터 사용
   const effectiveServerPoints = useMemo(
     () =>
       searchRes?.pins
@@ -248,7 +433,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         : normServerPoints,
     [searchRes?.pins, normServerPoints, toServerPointsFromPins]
   );
-
   const effectiveServerDrafts = useMemo(
     () =>
       searchRes?.drafts
@@ -257,7 +441,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [searchRes?.drafts, normServerDrafts, toServerDraftsFromDrafts]
   );
 
-  // ===== 마커 병합 =====
   const { mergedMarkers, mergedWithTempDraft, mergedMeta } = useMergedMarkers({
     localMarkers: useMemo(
       () => [...(markers ?? []), ...localDraftMarkers],
@@ -269,29 +452,54 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuAnchor,
   });
 
-  // ===== planned only =====
   const { plannedDrafts, plannedMarkersOnly } = usePlannedDrafts({
     filter,
     getBounds: getBoundsRaw,
   });
 
-  // ===== roadview =====
   const {
     roadviewContainerRef,
     visible: roadviewVisible,
     openAtCenter,
+    openAt,
     close,
-  } = useRoadview({
-    kakaoSDK,
-    map: mapInstance,
-    autoSync: true,
-  });
+  } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
 
   const toggleRoadview = useCallback(() => {
-    roadviewVisible ? close() : openAtCenter();
-  }, [roadviewVisible, close, openAtCenter]);
+    if (roadviewVisible) {
+      close();
+      return;
+    }
+    // ✅ 우선순위: 선택 좌표 → 메뉴앵커 → 드래프트 → 지도중심
+    const anchor =
+      selectedPos ??
+      menuAnchor ??
+      draftPin ??
+      (mapInstance?.getCenter
+        ? {
+            lat: mapInstance.getCenter().getLat(),
+            lng: mapInstance.getCenter().getLng(),
+          }
+        : null);
 
-  // ===== MapView 초기화 =====
+    if (anchor) {
+      console.log("[rv-toggle] openAt", anchor);
+      openAt(anchor, { face: anchor }); // ✅ 탐색/고정은 pos, 시선은 face
+    } else {
+      console.log("[rv-toggle] openAtCenter (fallback)");
+      openAtCenter();
+    }
+  }, [
+    roadviewVisible,
+    close,
+    openAt,
+    openAtCenter,
+    selectedPos,
+    menuAnchor,
+    draftPin,
+    mapInstance,
+  ]);
+
   const mapViewRef = useRef<MapViewHandle>(null);
   const [didInit, setDidInit] = useState(false);
   const handleMapReady = useCallback(
@@ -302,27 +510,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [onMapReady]
   );
 
-  // ===== 보이는 마커 결정 =====
   const activeMenu = (filter as MapMenuKey) ?? "all";
   const visibleMarkers = useMemo(() => {
     if (activeMenu === "plannedOnly") return plannedMarkersOnly;
     return mergedWithTempDraft;
   }, [activeMenu, plannedMarkersOnly, mergedWithTempDraft]);
 
-  // ===== 우상단 컨트롤 상태 =====
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
   const [isDistrictOn, setIsDistrictOn] = useState(false);
 
-  // 사이드바 컨텍스트
   const { siteReservations } = useSidebarCtx();
 
-  // 뷰포트 핀 재패치 트리거 (훅이 idle 이벤트를 듣는 경우 대비)
   const refreshViewportPins = useCallback(
-    async (_box?: {
-      sw: { lat: number; lng: number };
-      ne: { lat: number; lng: number };
-    }) => {
+    async (_box?: any) => {
       if (!kakaoSDK || !mapInstance) return;
       try {
         const c = mapInstance.getCenter();
@@ -335,7 +536,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [kakaoSDK, mapInstance]
   );
 
-  // 주소/키워드 검색 → 지도 이동(뷰포트 훅이 idle 이벤트를 통해 데이터 갱신)
+  // ===== 검색핸들러 =====
   const handleSubmitSearch = useCallback(
     (text: string) => {
       const query = text.trim();
@@ -343,13 +544,188 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       onSubmitSearch?.(query);
 
-      const geocoder = new kakaoSDK.maps.services.Geocoder();
-      geocoder.addressSearch(query, (res: any[], status: string) => {
-        if (status !== kakaoSDK.maps.services.Status.OK || !res?.[0]) return;
-        const { x, y } = res[0]; // x: lng, y: lat
-        const target = new kakaoSDK.maps.LatLng(+y, +x);
-        mapInstance.setCenter(target);
-      });
+      // 지도만 이동
+      const setCenterOnly = (lat: number, lng: number) => {
+        mapInstance.setCenter(new kakaoSDK.maps.LatLng(lat, lng));
+        mapInstance.setLevel(3);
+      };
+
+      // 주소처럼 보이면 지오코딩
+      const looksLikeAddress =
+        /(\d|\b동\b|\b구\b|\b로\b|\b길\b|\b번지\b|\b리\b)/.test(query);
+      if (looksLikeAddress) {
+        const geocoder = new kakaoSDK.maps.services.Geocoder();
+        geocoder.addressSearch(query, (res: any[], status: string) => {
+          if (status !== kakaoSDK.maps.services.Status.OK || !res?.[0]) return;
+          setCenterOnly(+res[0].y, +res[0].x);
+        });
+        return;
+      }
+
+      const places = new kakaoSDK.maps.services.Places();
+      const biasCenter = mapInstance.getCenter?.();
+      const biasOpt: any = biasCenter
+        ? {
+            location: biasCenter,
+            radius: 20000,
+            sort: kakaoSDK.maps.services.SortBy.DISTANCE,
+          }
+        : {};
+
+      // 역/출구 분기
+      const isStationQuery = /역|출구/.test(query);
+      if (!isStationQuery) {
+        // ===== 일반 장소 =====
+        const isSchoolQuery =
+          /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(query);
+
+        places.keywordSearch(
+          query,
+          (res: any[], status: string) => {
+            if (status !== kakaoSDK.maps.services.Status.OK || !res?.length)
+              return;
+
+            if (isSchoolQuery) {
+              const kwN = norm(query);
+              const ranked = res
+                .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
+                .sort((a, b) => b.s - a.s);
+              const best = ranked[0]?.d ?? res[0];
+              setCenterOnly(Number(best.y), Number(best.x));
+              return;
+            }
+
+            const best = pickBestPlace(res, query, biasCenter);
+            setCenterOnly(Number(best.y), Number(best.x));
+          },
+          biasOpt
+        );
+        return;
+      }
+
+      // ===== 역/출구 =====
+      const { stationName, hasExit, exitNo, raw } = parseStationAndExit(query);
+      const stationKeyword = (stationName ? `${stationName}역` : raw).trim();
+      const koreaRect = "124.0,33.0,132.0,39.0" as const;
+
+      places.categorySearch(
+        "SW8",
+        (catRes: any[], catStatus: string) => {
+          const exact =
+            catStatus === kakaoSDK.maps.services.Status.OK
+              ? catRes.find(
+                  (d) =>
+                    d.place_name.replace(/\s+/g, "") ===
+                    stationKeyword.replace(/\s+/g, "")
+                )
+              : null;
+
+          const afterStationFound = (st: any) => {
+            const sLat = +st.y;
+            const sLng = +st.x;
+            const stationLL = new kakaoSDK.maps.LatLng(sLat, sLng);
+
+            if (hasExit) {
+              const queries = [
+                `${stationName}역 ${exitNo}번 출구`,
+                `${stationName}역 ${exitNo}번출구`,
+                `${stationName} ${exitNo}번 출구`,
+                `${exitNo}번 출구 ${stationName}역`,
+              ];
+              const opts = {
+                location: stationLL,
+                radius: 350,
+                sort: kakaoSDK.maps.services.SortBy.DISTANCE,
+              } as const;
+
+              const doneOnce = new Set<string>();
+              let acc: any[] = [];
+              const run = (i = 0) => {
+                if (i >= queries.length) {
+                  if (!acc.length) return setCenterOnly(sLat, sLng);
+                  const best = pickBestExitStrict(
+                    acc,
+                    stationName,
+                    exitNo,
+                    stationLL
+                  );
+                  const MAX_EXIT_DIST = 300;
+                  const dist = Number(best?.distance ?? Infinity);
+                  if (!isNaN(dist) && dist > MAX_EXIT_DIST)
+                    return setCenterOnly(sLat, sLng);
+                  return setCenterOnly(Number(best.y), Number(best.x));
+                }
+                places.keywordSearch(
+                  queries[i],
+                  (exRes: any[], exStatus: string) => {
+                    if (
+                      exStatus === kakaoSDK.maps.services.Status.OK &&
+                      exRes?.length
+                    ) {
+                      for (const r of exRes) {
+                        if (!doneOnce.has(r.id)) {
+                          doneOnce.add(r.id);
+                          acc.push(r);
+                        }
+                      }
+                    }
+                    run(i + 1);
+                  },
+                  opts
+                );
+              };
+              run();
+              return;
+            }
+
+            const display =
+              stationName || String(st.place_name).replace(/역$/, "");
+            places.keywordSearch(
+              `${display}역 출구`,
+              (exRes: any[], exStatus: string) => {
+                if (
+                  exStatus === kakaoSDK.maps.services.Status.OK &&
+                  exRes?.length
+                ) {
+                  const bestExit = pickBestExitStrict(
+                    exRes,
+                    stationName || display,
+                    null,
+                    stationLL
+                  );
+                  const MAX_EXIT_DIST = 300;
+                  const dist = Number(bestExit?.distance ?? Infinity);
+                  if (!isNaN(dist) && dist > MAX_EXIT_DIST)
+                    return setCenterOnly(sLat, sLng);
+                  return setCenterOnly(+bestExit.y, +bestExit.x);
+                }
+                return setCenterOnly(sLat, sLng);
+              },
+              { location: stationLL, radius: 600 }
+            );
+          };
+
+          if (exact) return afterStationFound(exact);
+
+          places.keywordSearch(
+            stationKeyword,
+            (stRes: any[], stStatus: string) => {
+              if (
+                stStatus !== kakaoSDK.maps.services.Status.OK ||
+                !stRes?.length
+              )
+                return;
+              const bestStation = pickBestStation(
+                stRes,
+                stationKeyword.replace(/역$/, "")
+              );
+              afterStationFound(bestStation);
+            },
+            { rect: koreaRect }
+          );
+        },
+        { rect: koreaRect }
+      );
     },
     [kakaoSDK, mapInstance, onSubmitSearch]
   );
@@ -363,15 +739,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
         markers={visibleMarkers}
         fitAllOnce={didInit ? fitAllOnce : undefined}
         poiKinds={poiKinds}
-        pinsLoading={pinsLoading || searchLoading} // 로딩 합산
-        pinsError={pinsError || searchError} // 에러 합산
+        pinsLoading={pinsLoading || searchLoading}
+        pinsError={pinsError || searchError}
         menuOpen={menuOpen}
         menuAnchor={menuAnchor}
         hideLabelForId={hideLabelForId}
         onMarkerClick={onMarkerClick}
         onOpenMenu={onOpenMenu}
         onChangeHideLabelForId={onChangeHideLabelForId}
-        onMapReady={handleMapReady}
+        onMapReady={(api) => {
+          onMapReady?.(api);
+          requestAnimationFrame(() => setDidInit(true));
+        }}
         onViewportChange={onViewportChange}
         isDistrictOn={isDistrictOn}
       />
@@ -465,8 +844,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         isOpen={filterSearchOpen}
         onClose={() => setFilterSearchOpen(false)}
         onApply={handleApplyFilters}
-        onClear={clearSearch} // 선택: 검색 해제(필터 초기화 시 호출)
-        // initial={...}                 // 선택: 이전 필터 복구를 원하면 FilterState 형태로 넣으면됨
+        onClear={clearSearch}
       />
 
       <ModalsHost
@@ -479,7 +857,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
         prefillAddress={prefillAddress}
         draftPin={draftPin}
         selectedPos={selectedPos}
-        createHostHandlers={createHostHandlers}
+        createHostHandlers={{
+          ...createHostHandlers,
+          onAfterCreate: handleAfterCreate,
+        }}
         roadviewVisible={roadviewVisible}
         roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}

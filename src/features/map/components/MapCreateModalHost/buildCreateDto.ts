@@ -30,17 +30,11 @@ const toIsoDate = (v: any): string | null => {
   return Number.isNaN(t) ? null : iso;
 };
 
-// ✅ KST 오늘 날짜 (YYYY-MM-DD)
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+/** 숫자 캐스팅 후 유한수면 반환, 아니면 undefined */
+const toFinite = (v: any) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 const resolveAddressLine = (
   payload: CreatePayload,
@@ -95,7 +89,6 @@ export function buildCreateDto(
   }
 
   // ── UI → DTO 키 보강 매핑 ────────────────────────────────────────────
-  // ── UI → DTO 키 보강 매핑 ────────────────────────────────────────────
   const registryRaw = (payload as any)?.registryOne; // (구버전) 선택값/ID
   const parkingTypeIdRaw = (payload as any)?.parkingTypeId; // ✅ 신버전: 주차 유형 ID
   const parkingTypeRaw = (payload as any)?.parkingType; // (구버전) 라벨/ID 혼재
@@ -130,13 +123,9 @@ export function buildCreateDto(
   }
 
   // 주차 대수
-  if (
-    parkingCountRaw !== undefined &&
-    parkingCountRaw !== null &&
-    `${parkingCountRaw}`.trim() !== ""
-  ) {
-    const n = Number(parkingCountRaw);
-    if (Number.isFinite(n)) dto.totalParkingSlots = n;
+  {
+    const n = toFinite(parkingCountRaw);
+    if (n !== undefined) dto.totalParkingSlots = n;
   }
 
   // ─────────────────────────────────────────────────────────────────────
@@ -149,9 +138,8 @@ export function buildCreateDto(
     dto.name = clip(rawName, 100);
   }
 
-  // ✅ completionDate: 실패/빈값이면 오늘(KST)로 보정해서 항상 포함
-  const normalizedDate =
-    toIsoDate((payload as any)?.completionDate) ?? todayKST();
+  // ✅ completionDate: 유효할 때만 포함(미입력/무효면 전송 생략)
+  const normalizedDate = toIsoDate((payload as any)?.completionDate);
 
   Object.assign(
     dto,
@@ -159,20 +147,22 @@ export function buildCreateDto(
     toStr((payload as any)?.badge).trim()
       ? { badge: toStr((payload as any)?.badge).trim() }
       : {},
-    { completionDate: normalizedDate }, // ✅ 항상 포함
+    normalizedDate ? { completionDate: normalizedDate } : {},
     (payload as any)?.buildingType
       ? { buildingType: (payload as any).buildingType }
       : {},
-    Number.isFinite((payload as any)?.totalHouseholds)
-      ? { totalHouseholds: Number((payload as any).totalHouseholds) }
-      : {},
-    // 아래 3개는 위 보강 블록에서도 다루지만, 직접 값을 넣어 호출하는 경우도 커버
-    Number.isFinite((payload as any)?.totalParkingSlots)
-      ? { totalParkingSlots: Number((payload as any).totalParkingSlots) }
-      : {},
-    Number.isFinite((payload as any)?.registrationTypeId)
-      ? { registrationTypeId: Number((payload as any).registrationTypeId) }
-      : {},
+    (() => {
+      const n = toFinite((payload as any)?.totalHouseholds);
+      return n !== undefined ? { totalHouseholds: n } : {};
+    })(),
+    (() => {
+      const n = toFinite((payload as any)?.totalParkingSlots);
+      return n !== undefined ? { totalParkingSlots: n } : {};
+    })(),
+    (() => {
+      const n = toFinite((payload as any)?.registrationTypeId);
+      return n !== undefined ? { registrationTypeId: n } : {};
+    })(),
     (payload as any)?.parkingGrade
       ? { parkingGrade: (payload as any).parkingGrade }
       : {},
@@ -213,12 +203,12 @@ export function buildCreateDto(
   if (Array.isArray((payload as any)?.units) && (payload as any).units.length) {
     const units = (payload as any).units
       .map((u: any) => ({
-        rooms: Number.isFinite(u?.rooms) ? Number(u.rooms) : 0,
-        baths: Number.isFinite(u?.baths) ? Number(u.baths) : 0,
+        rooms: toFinite(u?.rooms) ?? 0,
+        baths: toFinite(u?.baths) ?? 0,
         hasLoft: !!u?.hasLoft,
         hasTerrace: !!u?.hasTerrace,
-        minPrice: Number.isFinite(u?.minPrice) ? Number(u.minPrice) : 0,
-        maxPrice: Number.isFinite(u?.maxPrice) ? Number(u.maxPrice) : 0,
+        minPrice: toFinite(u?.minPrice) ?? 0,
+        maxPrice: toFinite(u?.maxPrice) ?? 0,
         ...(toStr(u?.note).trim() ? { note: sanitizeText(u.note) } : {}),
       }))
       .filter(

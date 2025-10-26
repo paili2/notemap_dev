@@ -8,8 +8,6 @@ import type {
 } from "@/features/properties/types/property-domain";
 import Pill from "./components/Pill";
 
-// ↑ 실제 경로에 맞게 수정 (formatDate 정의한 곳)
-
 const show = (v: any) =>
   v === null || v === undefined || `${v}`.trim?.() === "" ? "-" : `${v}`;
 

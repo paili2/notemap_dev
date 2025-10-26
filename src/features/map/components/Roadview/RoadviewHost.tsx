@@ -15,10 +15,10 @@ type Props = {
 };
 
 /**
- * 맵 위에 오버레이로 붙는 Roadview 컨테이너 (모달형)
- * - 포털로 body에 렌더
- * - 열릴 때 애니메이션 및 크기 변화 이후 onResize() 호출
- * - Escape/백드롭 클릭/닫기 버튼으로 닫힘
+ * 전체화면 로드뷰 오버레이
+ * - body 포털
+ * - 열릴 때/리사이즈 시 relayout() 트리거
+ * - ESC/닫기/딤 클릭으로 닫힘
  */
 export default function RoadviewHost({
   open,
@@ -35,39 +35,34 @@ export default function RoadviewHost({
   // 바디 스크롤 잠금
   useBodyScrollLock(open);
 
-  // 열릴 때 포커스/닫힐 때 포커스 복귀
+  // 열릴 때 포커스 / 닫힐 때 포커스 복귀
   useEffect(() => {
     if (open) {
       lastActiveElRef.current = document.activeElement ?? null;
-      // 약간의 지연 뒤 패널에 포커스
-      const t = requestAnimationFrame(() => {
-        panelRef.current?.focus();
-      });
+      const t = requestAnimationFrame(() => panelRef.current?.focus());
       return () => cancelAnimationFrame(t);
     } else if (lastActiveElRef.current instanceof HTMLElement) {
       lastActiveElRef.current.focus();
     }
   }, [open]);
 
-  // 안전한 relayout 트리거: ① 애니메이션 끝 ② ResizeObserver ③ rAF 2프레임
+  // 안전한 relayout 트리거
   const triggerRelayout = useCallback(() => {
     if (!onResize) return;
-    // rAF 두 번으로 레이아웃 안정화 후 호출
     requestAnimationFrame(() => {
       requestAnimationFrame(() => onResize());
     });
   }, [onResize]);
 
-  // transitionend로 패널 이동/페이드 완료 시 relayout
+  // transition 끝나면 relayout
   useEffect(() => {
     if (!open || !panelRef.current) return;
     const el = panelRef.current;
 
     const onEnd = (e: TransitionEvent) => {
-      // transform 또는 opacity 변화가 끝난 경우만
       if (
-        e.propertyName === "transform" ||
         e.propertyName === "opacity" ||
+        e.propertyName === "transform" ||
         e.propertyName === "height" ||
         e.propertyName === "width"
       ) {
@@ -76,22 +71,19 @@ export default function RoadviewHost({
     };
 
     el.addEventListener("transitionend", onEnd);
-    // 처음 열릴 때도 한 번 보정
     triggerRelayout();
-
     return () => el.removeEventListener("transitionend", onEnd);
   }, [open, triggerRelayout]);
 
-  // 패널 내부 컨테이너의 크기 변화를 감지
+  // 로드뷰 div 크기 변화 감지
   useEffect(() => {
     if (!open || !containerRef.current || !onResize) return;
-
     const ro = new ResizeObserver(() => triggerRelayout());
     ro.observe(containerRef.current);
     return () => ro.disconnect();
   }, [open, containerRef, onResize, triggerRelayout]);
 
-  // 백드롭 클릭으로 닫기 (패널 내부 클릭은 무시)
+  // 딤 클릭 닫기
   const onBackdropClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) onClose();
@@ -99,18 +91,17 @@ export default function RoadviewHost({
     [onClose]
   );
 
-  // 포털 루트 (없으면 body 사용)
+  // 포털 루트
   const portalRoot =
     (typeof window !== "undefined" &&
       (document.getElementById("portal-root") || document.body)) ||
     null;
-
   if (!portalRoot) return null;
 
   return createPortal(
     <div
       className={[
-        "pointer-events-none fixed inset-0 z-[25000] flex items-end justify-center p-4",
+        "pointer-events-none fixed inset-0 z-[120000]",
         open ? "visible" : "invisible",
       ].join(" ")}
       aria-hidden={!open}
@@ -118,20 +109,20 @@ export default function RoadviewHost({
       {/* Backdrop */}
       <div
         className={[
-          "absolute inset-0 bg-black/40 transition-opacity",
+          "absolute inset-0 bg-black/60 transition-opacity",
           open ? "opacity-100" : "opacity-0",
         ].join(" ")}
         onClick={onBackdropClick}
         role="presentation"
       />
 
-      {/* Panel */}
+      {/* Panel: 전체화면 */}
       <div
         ref={panelRef}
         className={[
-          "pointer-events-auto relative w-full max-w-6xl h-[60vh] rounded-2xl bg-white shadow-xl overflow-hidden transition-transform outline-none",
-          open ? "translate-y-0" : "translate-y-8",
-          // 사용자가 'reduce motion' 선호 시 애니메이션 최소화
+          "pointer-events-auto fixed inset-0 outline-none",
+          "transition-opacity",
+          open ? "opacity-100" : "opacity-0",
           "motion-reduce:transition-none",
         ].join(" ")}
         role="dialog"
@@ -143,14 +134,15 @@ export default function RoadviewHost({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/80 shadow"
+          className="absolute right-4 top-4 z-[120010] inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 focus:outline-none focus:ring-2 focus:ring-white/60"
           aria-label="닫기"
+          title="닫기 (Esc)"
         >
           <X className="h-5 w-5" />
         </button>
 
-        {/* Kakao Roadview 컨테이너 */}
-        <div ref={containerRef} className="h-full w-full" />
+        {/* Kakao Roadview 컨테이너: 화면 꽉 채움 */}
+        <div ref={containerRef} className="h-screen w-screen bg-black" />
       </div>
     </div>,
     portalRoot

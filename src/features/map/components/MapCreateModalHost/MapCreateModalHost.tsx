@@ -24,6 +24,12 @@ type MapCreateModalHostProps = {
   appendItem: (item: PropertyItem) => void;
   selectAndOpenView: (id: string) => void;
   resetAfterCreate: () => void;
+  onAfterCreate?: (args: {
+    pinId: string;
+    matchedDraftId?: string | number | null;
+    lat: number;
+    lng: number;
+  }) => void;
 };
 
 export default function MapCreateModalHost({
@@ -35,6 +41,7 @@ export default function MapCreateModalHost({
   appendItem,
   selectAndOpenView,
   resetAfterCreate,
+  onAfterCreate,
 }: MapCreateModalHostProps) {
   const submittingRef = useRef(false);
   const resolvePos = (): LatLng => draftPin ?? selectedPos ?? DEFAULT_CENTER;
@@ -126,8 +133,15 @@ export default function MapCreateModalHost({
           selectAndOpenView(serverId);
           resetAfterCreate();
 
+          onAfterCreate?.({
+            pinId: serverId,
+            matchedDraftId,
+            lat: pos.lat,
+            lng: pos.lng,
+          });
+
           toastBus?.success?.(
-            typeof matchedDraftId === "number"
+            matchedDraftId != null
               ? "임시핀과 매칭되어 등록되었습니다."
               : "매물이 등록되고 이미지가 연결되었습니다."
           );

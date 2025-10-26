@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyCreateModal/lib/buildCreatePayload.ts
 "use client";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
@@ -10,7 +11,6 @@ import type {
   Registry,
   UnitLine,
 } from "@/features/properties/types/property-domain";
-
 import type {
   ImageItem,
   StoredMediaItem,
@@ -18,6 +18,7 @@ import type {
 
 import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/pins/types";
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 /** 안전 숫자 변환 (숫자 아니면 undefined) */
 const toNum = (v: unknown) => {
@@ -26,17 +27,12 @@ const toNum = (v: unknown) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-/** YYYY-MM-DD (KST) */
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+/** 정수 or null ("" | null | undefined → null, 숫자 문자열 허용, 정수화) */
+const toIntOrNull = (v: unknown) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
 
 /** 간단 문자열 sanitize */
 const s = (v: unknown) => String(v ?? "").trim();
@@ -56,7 +52,12 @@ type BuildArgs = {
 
   listingStars: number;
   parkingType: string | null;
-  parkingCount: string | number | null;
+
+  /** ✅ 신설: 총 주차 대수 (권장) */
+  totalParkingSlots?: number | string | null;
+  /** @deprecated 구버전 호환 입력만 받음. 페이로드에는 포함하지 않음. */
+  parkingCount?: string | number | null;
+
   completionDate?: string; // optional
   salePrice: string;
 
@@ -116,7 +117,8 @@ export function buildCreatePayload(args: BuildArgs) {
 
     listingStars,
     parkingType,
-    parkingCount,
+    totalParkingSlots,
+    parkingCount, // deprecated in, but we’ll absorb into totalParkingSlots
     completionDate,
     salePrice,
     baseAreaSet,
@@ -151,11 +153,8 @@ export function buildCreatePayload(args: BuildArgs) {
     pinKind,
   } = args;
 
-  // name 동기화(현재는 title만 사용하지만 향후 name 필드 필요 시 대비)
-  const safeName = s(title);
-
   // completionDate fallback — 비어있으면 KST YYYY-MM-DD
-  const effectiveCompletionDate = s(completionDate) || todayKST();
+  const effectiveCompletionDate = s(completionDate) || todayYmdKST();
 
   /* 1) 향/방향 필드 */
   const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
@@ -241,6 +240,11 @@ export function buildCreatePayload(args: BuildArgs) {
   /* 4) 최종 payload */
   const safeBadge = s(badge);
 
+  // ✅ parkingCount(구버전)과 totalParkingSlots(신규) 중 유효한 값을 정수/nullable로 정규화
+  const normalizedTotalParkingSlots = toIntOrNull(
+    totalParkingSlots ?? parkingCount
+  );
+
   const payload: CreatePayload & {
     imageFolders: StoredMediaItem[][];
     imageCards: Array<Array<{ url: string; name: string; caption?: string }>>;
@@ -302,9 +306,9 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(parkingType != null && String(parkingType).trim() !== ""
       ? { parkingType: String(parkingType) }
       : {}),
-    ...(parkingCount != null && String(parkingCount).trim() !== ""
-      ? { parkingCount: String(parkingCount) }
-      : {}),
+
+    /** ✅ 백엔드 스펙에 맞춰 총 주차 대수만 전송 */
+    totalParkingSlots: normalizedTotalParkingSlots,
 
     // YYYY-MM-DD, KST
     completionDate: effectiveCompletionDate,
@@ -357,11 +361,9 @@ export function buildCreatePayload(args: BuildArgs) {
     areaSetTitles: extraAreaTitles,
 
     ...(s(buildingType) ? { buildingType: s(buildingType) } : {}),
-
     ...(toNum(registrationTypeId) !== undefined
       ? { registrationTypeId: toNum(registrationTypeId)! }
       : {}),
-
     ...(toNum(parkingTypeId) !== undefined
       ? { parkingTypeId: toNum(parkingTypeId)! }
       : {}),

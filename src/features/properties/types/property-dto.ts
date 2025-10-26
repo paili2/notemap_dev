@@ -17,7 +17,7 @@ export type CreatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 추가: 빌딩/등록/주차 타입 (id는 number 권장)
+  // ✅ 빌딩/등록/주차 타입 (id는 number 권장)
   buildingType?: string;
   registrationTypeId?: number;
   parkingTypeId?: number;
@@ -31,8 +31,12 @@ export type CreatePayload = {
   orientations?: OrientationRow[];
 
   // 가격/평점/주차
-  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 바꿔도 됨)
+  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
   parkingType?: string; // 예: "자주식", "답사지 확인"
+  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  totalParkingSlots?: number | null;
+
+  /** @deprecated 백엔드 스펙상 totalParkingSlots 사용 */
   parkingCount?: string | number;
 
   // 설비/등급/날짜
@@ -90,7 +94,7 @@ export type UpdatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 추가: 빌딩/등록/주차 타입
+  // ✅ 빌딩/등록/주차 타입
   buildingType?: string;
   registrationTypeId?: number;
   parkingTypeId?: number;
@@ -107,6 +111,10 @@ export type UpdatePayload = {
   salePrice?: string | number | null;
   listingStars?: number | null; // Create와 동일 키
   parkingType?: string;
+  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  totalParkingSlots?: number | null;
+
+  /** @deprecated totalParkingSlots 사용 */
   parkingCount?: string | number | null;
 
   // 설비/등급/날짜
