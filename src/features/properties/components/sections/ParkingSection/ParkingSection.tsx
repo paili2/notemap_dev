@@ -9,19 +9,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/atoms/Select/Select";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
 
 /**
  * 변경된 Props (하위호환):
+ * - totalParkingSlots?: number | null
+ * - setTotalParkingSlots?: (v: number | null) => void
+ * - (기존) parkingCount?: number | null
+ * - (기존) setParkingCount?: (v: number | null) => void
  * - parkingTypeId?: number | null
  * - setParkingTypeId?: (v: number | null) => void
  * - parkingTypeNameToId?: Record<string, number>   // 라벨→ID 매핑
- *
- * 주의) 매핑 딕셔너리는 부모에서 주입해주는 게 가장 안전함.
  */
-type Props = ParkingSectionProps & {
+type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
+  /** ✅ 신규 */
+  totalParkingSlots?: number | null;
+  setTotalParkingSlots?: (v: number | null) => void;
+  /** ⬇ 하위호환(부모가 아직 parkingCount를 쓰면 같이 동기화) */
+  parkingCount?: number | null;
+  setParkingCount?: (v: number | null) => void;
+
   parkingTypeId?: number | null;
   setParkingTypeId?: (v: number | null) => void;
   parkingTypeNameToId?: Record<string, number>;
@@ -30,13 +39,17 @@ type Props = ParkingSectionProps & {
 export default function ParkingSection({
   parkingType,
   setParkingType,
+
+  // 신규/구버전 값 모두 받되, 표시는 totalParkingSlots 우선
+  totalParkingSlots,
+  setTotalParkingSlots,
   parkingCount,
   setParkingCount,
 
-  // ⬇️ 추가
+  // 타입 id 관련
   parkingTypeId,
   setParkingTypeId,
-  parkingTypeNameToId = {}, // 라벨→ID 매핑 (예: { "기계식": 1, "자주식": 2, ... })
+  parkingTypeNameToId = {},
 }: Props) {
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
@@ -44,26 +57,34 @@ export default function ParkingSection({
   const [selectValue, setSelectValue] = useState<string>("");
   const [custom, setCustom] = useState<string>("");
 
+  /** 주차대수 현재값 (표시용) */
+  const displayCount = useMemo(
+    () =>
+      typeof totalParkingSlots === "number"
+        ? totalParkingSlots
+        : typeof parkingCount === "number"
+        ? parkingCount
+        : null,
+    [totalParkingSlots, parkingCount]
+  );
+
   /** prop → 내부 상태 동기화 */
   useEffect(() => {
     if (!parkingType) {
       setSelectValue("");
       setCustom("");
-      // 타입을 지운 경우 id도 null로 동기화
       setParkingTypeId?.(null);
       return;
     }
     if (isPreset(parkingType)) {
       setSelectValue(parkingType);
       setCustom("");
-      // 프리셋 라벨 → id 매핑
       const id = parkingTypeNameToId[parkingType];
       setParkingTypeId?.(Number.isFinite(id as any) ? id : null);
       return;
     }
     if (parkingType === "custom") {
       setSelectValue("custom");
-      // custom에서는 id 없음
       setParkingTypeId?.(null);
       return;
     }
@@ -77,15 +98,11 @@ export default function ParkingSection({
   useEffect(() => {
     if (selectValue === "custom") {
       const trimmed = custom.trim();
-      // 비어 있으면 sentinel 'custom' 유지(입력창 유지용)
       setParkingType(trimmed === "" ? "custom" : trimmed);
-      // 커스텀은 id 없음
       setParkingTypeId?.(null);
     } else {
-      // 프리셋 라벨 선택/미선택 처리
       const nextType = selectValue === "" ? null : selectValue;
       setParkingType(nextType);
-      // 프리셋 라벨 → id 매핑(없으면 null)
       const id =
         nextType && parkingTypeNameToId[nextType]
           ? parkingTypeNameToId[nextType]
@@ -100,10 +117,13 @@ export default function ParkingSection({
     parkingTypeNameToId,
   ]);
 
-  // 숫자만 허용(붙여넣기 포함) + 빈값이면 null
+  // 입력값을 숫자만 허용(붙여넣기 포함) + 빈값이면 null.
+  // 두 세터를 모두 불러서 신/구 prop이 함께 동기화되도록 처리
   const onChangeCount = (raw: string) => {
     const onlyDigits = raw.replace(/\D+/g, "");
-    setParkingCount(onlyDigits === "" ? null : Number(onlyDigits));
+    const next = onlyDigits === "" ? null : Number(onlyDigits);
+    setTotalParkingSlots?.(next);
+    setParkingCount?.(next);
   };
 
   return (
@@ -146,7 +166,7 @@ export default function ParkingSection({
       <Field label="총 주차대수">
         <div className="flex items-center gap-3">
           <Input
-            value={String(parkingCount ?? "")}
+            value={displayCount ?? ""} // null → 빈칸
             onChange={(e) => onChangeCount(e.target.value)}
             className="w-16 h-9"
             inputMode="numeric"

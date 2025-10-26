@@ -8,7 +8,6 @@ import {
   useResolveAddress,
 } from "@/features/map/hooks/useKakaoTools";
 import { useViewportPost } from "@/features/map/hooks/useViewportPost";
-// import { useLocalItems } from "../../hooks/useLocalItems";
 import { useRunSearch } from "../../hooks/useRunSearch";
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
@@ -125,13 +124,38 @@ export function useMapHomeState() {
   //    points: 실제 핀, drafts: 임시/답사예정
   const { points, drafts, setBounds, refetch } = usePinsMap();
 
+  // 🔥 매물 등록 직후 드래프트 마커를 즉시 숨기기 위한 로컬 상태
+  const [hiddenDraftIds, setHiddenDraftIds] = useState<Set<string>>(new Set());
+  const hideDraft = useCallback(
+    (draftId: string | number | null | undefined) => {
+      if (draftId == null) return;
+      const key = String(draftId);
+      setHiddenDraftIds((prev) => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+    },
+    []
+  );
+  const clearHiddenDraft = useCallback((draftId: string | number) => {
+    const key = String(draftId);
+    setHiddenDraftIds((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
+  }, []);
+
   const sendViewportQuery = useCallback(
     (vp: Viewport, opts?: { force?: boolean }) => {
       if (!opts?.force && sameViewport(vp, lastViewportRef.current)) return;
       lastViewportRef.current = vp;
 
-      postViewport.sendViewportQuery
-        ? postViewport.sendViewportQuery(vp)
+      (postViewport as any)?.sendViewportQuery
+        ? (postViewport as any).sendViewportQuery(vp)
         : (postViewport as any)(vp);
 
       // 카카오 idle 트리거
@@ -211,7 +235,6 @@ export function useMapHomeState() {
       setFitAllOnce(false);
 
       onChangeHideLabelForId("__draft__");
-
       onChangeHideLabelForId(isDraft ? "__draft__" : String(propertyId));
 
       setMenuAnchor(position);
@@ -506,13 +529,15 @@ export function useMapHomeState() {
       isFav: false,
     }));
 
-    // 임시/답사예정(drafts)
-    const draftMarkers = (drafts ?? []).map((d) => ({
-      id: `__visit__${d.id}`, // 컨텍스트 메뉴에서 패턴으로 식별
-      position: { lat: d.lat, lng: d.lng },
-      kind: "question" as const,
-      isFav: false,
-    }));
+    // 임시/답사예정(drafts) — 🔥 숨김 목록 제외
+    const draftMarkers = (drafts ?? [])
+      .filter((d) => !hiddenDraftIds.has(String(d.id)))
+      .map((d) => ({
+        id: `__visit__${d.id}`, // 컨텍스트 메뉴에서 패턴으로 식별
+        position: { lat: d.lat, lng: d.lng },
+        kind: "question" as const,
+        isFav: false,
+      }));
 
     // 생성용 드래프트(있을 때만)
     const draftPinMarker = draftPin
@@ -527,7 +552,7 @@ export function useMapHomeState() {
       : [];
 
     return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
-  }, [points, drafts, draftPin]);
+  }, [points, drafts, draftPin, hiddenDraftIds]);
 
   // Create host
   const createHostHandlers = useMemo(
@@ -550,8 +575,15 @@ export function useMapHomeState() {
         setPrefillAddress(undefined);
         setCreateOpen(false);
       },
+      // 🔥 매물 등록 직후 부모가 호출할 콜백 (PropertyCreateModalBody → onSubmit에서 호출)
+      onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
+        if (res?.matchedDraftId != null) {
+          hideDraft(res.matchedDraftId); // 즉시 숨김(로컬)
+        }
+        refetch(); // 서버 재조회로 확정 반영
+      },
     }),
-    [setItems, setDraftPin]
+    [setItems, setDraftPin, hideDraft, refetch]
   );
 
   const editHostHandlers = useMemo(
@@ -734,5 +766,9 @@ export function useMapHomeState() {
     selectedPos,
     hideLabelForId,
     onChangeHideLabelForId,
+
+    // 🔥 숨김 제어 API
+    hideDraft,
+    clearHiddenDraft,
   } as const;
 }

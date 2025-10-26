@@ -6,7 +6,7 @@ import {
   type MyReservation,
 } from "@/shared/api/surveyReservations";
 
-/* ───────── 정렬/보정 유틸 (기존과 동일) ───────── */
+/* ───────── 정렬/보정 유틸 ───────── */
 function sortByServerRuleLocal<
   T extends { sortOrder?: number; reservedDate?: string | null; id: string }
 >(arr: T[]) {
@@ -35,6 +35,7 @@ type StoreState = {
   items: MyReservation[];
   loading: boolean;
   error: Error | null;
+  version: number; // 상태 변경 트리거 카운터
 };
 type Listener = () => void;
 
@@ -43,7 +44,7 @@ const store: {
   listeners: Set<Listener>;
   abort?: AbortController | null;
 } = {
-  state: { items: [], loading: false, error: null },
+  state: { items: [], loading: false, error: null, version: 0 },
   listeners: new Set(),
   abort: null,
 };
@@ -62,6 +63,7 @@ async function refetchInternal(signal?: AbortSignal) {
       items: normalizeZeroBase(sorted),
       loading: false,
       error: null,
+      version: store.state.version + 1, // ✅ bump
     };
   } catch (e: any) {
     if (e?.name === "AbortError") return;
@@ -69,6 +71,7 @@ async function refetchInternal(signal?: AbortSignal) {
       ...store.state,
       loading: false,
       error: e ?? new Error("failed"),
+      version: store.state.version + 1, // ✅ bump
     };
   } finally {
     emit();
@@ -96,6 +99,51 @@ function setItems(
   store.state = {
     ...store.state,
     items: normalizeZeroBase(sortByServerRuleLocal(nextItems)),
+    version: store.state.version + 1, // ✅ bump
+  };
+  emit();
+}
+
+function removeByReservationId(reservationId: string) {
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(
+      sortByServerRuleLocal(
+        store.state.items.filter((it) => it.id !== reservationId)
+      )
+    ),
+    version: store.state.version + 1, // ✅ bump
+  };
+  emit();
+}
+
+function removeByPinDraftId(draftId: string | number) {
+  const key = String(draftId);
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(
+      sortByServerRuleLocal(
+        store.state.items.filter((it) => String(it.pinDraftId) !== key)
+      )
+    ),
+    version: store.state.version + 1, // ✅ bump
+  };
+  emit();
+}
+
+function removeByPosKey(posKey: string) {
+  store.state = {
+    ...store.state,
+    items: normalizeZeroBase(
+      sortByServerRuleLocal(
+        store.state.items.filter((it) => {
+          const k =
+            it.posKey ?? toPosKey(it.lat ?? undefined, it.lng ?? undefined);
+          return k !== posKey;
+        })
+      )
+    ),
+    version: store.state.version + 1, // ✅ bump
   };
   emit();
 }
@@ -130,6 +178,7 @@ function insertOptimistic(
   store.state = {
     ...store.state,
     items: normalizeZeroBase(sortByServerRuleLocal([...shifted, optimistic])),
+    version: store.state.version + 1, // ✅ bump
   };
   emit();
   return tempId;
@@ -152,6 +201,7 @@ function reconcileOptimistic(
   store.state = {
     ...store.state,
     items: normalizeZeroBase(sortByServerRuleLocal(next)),
+    version: store.state.version + 1, // ✅ bump
   };
   emit();
 }
@@ -176,7 +226,7 @@ export function useScheduledReservations() {
       }
     }
     return m;
-  }, [snapshot.items]);
+  }, [snapshot.items, snapshot.version]); // 🔸 version 의존성 추가
 
   const reservationOrderByPosKey = useMemo(() => {
     const m: Record<string, number> = {};
@@ -186,7 +236,7 @@ export function useScheduledReservations() {
       if (key) m[key] = r.sortOrder;
     }
     return m;
-  }, [snapshot.items]);
+  }, [snapshot.items, snapshot.version]); // 🔸 version 의존성 추가
 
   const getOrderIndex = useCallback(
     (marker: {
@@ -230,6 +280,7 @@ export function useScheduledReservations() {
     items: snapshot.items,
     loading: snapshot.loading,
     error: snapshot.error,
+    version: snapshot.version,
     refetch: doRefetch,
     setItems: doSetItems,
     reservationOrderMap,
@@ -237,5 +288,8 @@ export function useScheduledReservations() {
     getOrderIndex,
     insertOptimistic: doInsertOptimistic,
     reconcileOptimistic: doReconcileOptimistic,
+    removeByReservationId,
+    removeByPinDraftId,
+    removeByPosKey,
   } as const;
 }

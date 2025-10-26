@@ -1,18 +1,7 @@
 "use client";
 
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import { useEffect, useMemo, useState } from "react";
-
-// KST 기준 YYYY-MM-DD
-const todayKST = () => {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-};
 
 export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
   const [address, setAddress] = useState("");
@@ -32,7 +21,7 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
   const [buildingType, setBuildingType] = useState<string | null>(null);
 
   // ✅ 매물등록일 기본값: 오늘(KST, YYYY-MM-DD)
-  const [completionDate, setCompletionDate] = useState<string>(todayKST());
+  const [completionDate, setCompletionDate] = useState<string>(todayYmdKST());
 
   const state = useMemo(
     () => ({

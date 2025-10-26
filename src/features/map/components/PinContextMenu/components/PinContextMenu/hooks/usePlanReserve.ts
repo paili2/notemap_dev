@@ -1,19 +1,9 @@
 import { useCallback } from "react";
 import { buildAddressLine } from "../utils/geo";
 import { PlanRequestPayload, ReserveRequestPayload } from "../types";
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 type Mode = "view" | "create"; // view: 보기(토글 전용), create: 생성/예약 플로우
-
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 export function usePlanReserve(params: {
   mode?: Mode;
@@ -83,7 +73,7 @@ export function usePlanReserve(params: {
         jibunAddress: opts.jibunAddress ?? jibunAddress ?? null,
         propertyId: opts.propertyId ?? propertyId ?? null,
         propertyTitle: opts.propertyTitle ?? propertyTitle ?? null,
-        dateISO: opts.dateISO ?? todayKST(),
+        dateISO: opts.dateISO ?? todayYmdKST(),
       };
 
       let createdId: string | number | undefined;
@@ -217,7 +207,8 @@ export function usePlanReserve(params: {
           kind: "visit",
           visitId,
           dateISO:
-            (payload && "dateISO" in payload && payload.dateISO) || todayKST(),
+            (payload && "dateISO" in payload && payload.dateISO) ||
+            todayYmdKST(),
         });
       } catch (e) {
         console.error("[reserve] onReserve callback failed:", e);
