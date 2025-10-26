@@ -1,70 +1,29 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import * as React from "react";
+import type { Meta, StoryObj } from "@storybook/react";
+import { SafeImg } from "@/components/common/SafeImg";
 import {
   HoverCard,
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/atoms/HoverCard/HoverCard";
-import { Button } from "@/components/atoms/Button/Button";
+import { Button } from "../Button/Button";
 
-// HoverCardContent의 props를 기준으로 스토리 args 타입을 잡아야
-// side / align / sideOffset 등의 컨트롤이 타입 에러 없이 동작합니다.
-
-type HoverCardContentProps = React.ComponentProps<typeof HoverCardContent>;
-
-const HoverCardDemo = (props: HoverCardContentProps) => (
-  <HoverCard>
-    <HoverCardTrigger asChild>
-      <Button variant="outline">마우스를 올려보세요</Button>
-    </HoverCardTrigger>
-    <HoverCardContent {...props}>
-      <div className="space-y-2">
-        <div className="text-sm font-medium">HoverCard 제목</div>
-        <p className="text-xs text-muted-foreground">
-          마우스를 트리거에 올리면 표시됩니다. 위치/여백은 컨트롤에서
-          바꿔보세요.
-        </p>
-      </div>
-    </HoverCardContent>
-  </HoverCard>
-);
-
-const meta: Meta<typeof HoverCardDemo> = {
+const meta = {
   title: "Atoms/HoverCard",
-  component: HoverCardDemo,
+  component: HoverCardContent,
   parameters: { layout: "centered" },
-  argTypes: {
-    side: {
-      control: { type: "radio" },
-      options: ["top", "right", "bottom", "left"],
-    },
-    align: { control: { type: "radio" }, options: ["start", "center", "end"] },
-    sideOffset: { control: { type: "number", min: 0, max: 20, step: 1 } },
-    className: { control: "text" },
-  },
-  args: {
-    side: "top",
-    align: "center",
-    sideOffset: 8,
-  },
-};
+} satisfies Meta<typeof HoverCardContent>;
+
 export default meta;
 
-type Story = StoryObj<typeof HoverCardDemo>;
-
-export const Basic: Story = {};
-
-export const Positioned: Story = {
-  args: {
-    side: "right",
-    align: "start",
-    sideOffset: 12,
-  },
-};
+type Story = StoryObj<typeof HoverCardContent>;
 
 export const WithImage: Story = {
   args: {
     className: "w-80",
+    side: "right",
+    align: "start",
+    sideOffset: 12,
   },
   render: (args) => (
     <HoverCard>
@@ -74,11 +33,11 @@ export const WithImage: Story = {
       <HoverCardContent {...args}>
         <div className="flex items-start gap-3">
           <div className="h-12 w-12 overflow-hidden rounded-full border bg-muted">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <SafeImg
               src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=160"
               alt="avatar"
               className="h-full w-full object-cover"
+              fallbackClassName="h-full w-full rounded-full bg-gray-200"
             />
           </div>
           <div className="min-w-0">

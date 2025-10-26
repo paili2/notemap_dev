@@ -337,7 +337,8 @@ export function buildCreatePayload(args: BuildArgs) {
     options,
     optionEtc: etcChecked ? s(optionEtc) : "",
     publicMemo,
-    privateMemo: secretMemo,
+    secretMemo, // ✅ 메인 키
+    privateMemo: secretMemo, // ✅ 레거시 호환도 함께 전송
     registry: registryOne,
 
     unitLines,

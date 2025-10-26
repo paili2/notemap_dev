@@ -7,7 +7,6 @@ import type { PropertyEditModalProps } from "./types";
 
 import { useEditImages } from "./hooks/useEditImages";
 import { useEditForm } from "./hooks/useEditForm/useEditForm";
-import { buildEditPayload } from "./lib/buildEditPayload";
 
 import HeaderContainer from "./ui/HeaderContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
@@ -20,6 +19,7 @@ import StructureLinesContainer from "./ui/StructureLinesContainer";
 import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import ImagesContainer from "./ui/ImagesContainer";
+import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
@@ -96,7 +96,7 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
-    const payload = buildEditPayload({
+    const payload = buildUpdatePayload({
       id: propertyId,
       title: f.title,
       address: f.address,

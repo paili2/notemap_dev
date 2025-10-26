@@ -14,12 +14,6 @@ import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 
 import { createPinDraft } from "@/shared/api/pins";
 import { buildAddressLine } from "../../components/PinContextMenu/components/PinContextMenu/utils/geo";
-import {
-  PinSearchParams,
-  PinSearchResult,
-} from "@/features/pins/types/pin-search";
-import { ApiEnvelope } from "@/features/pins/pin";
-import { buildSearchQuery } from "@/shared/api/utils/query";
 
 const eqId = (
   a: string | number | null | undefined,

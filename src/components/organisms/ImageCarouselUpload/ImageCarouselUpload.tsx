@@ -3,9 +3,9 @@
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import { ImageItem } from "@/features/properties/types/media";
 import { useEffect, useId, useRef, useState } from "react";
-import { ImageCarouselUploadProps } from "./types";
+import type { ImageItem } from "@/features/properties/types/media";
+import type { ImageCarouselUploadProps } from "./types";
 
 export default function ImageCarouselUpload({
   items,
@@ -25,7 +25,9 @@ export default function ImageCarouselUpload({
   const count = items?.length ?? 0;
 
   const [current, setCurrent] = useState(0);
+  const [imgError, setImgError] = useState(false);
 
+  // 캡션 로컬 폴백
   const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
   );
@@ -35,10 +37,11 @@ export default function ImageCarouselUpload({
     );
   }, [items]);
 
-  // 현재 인덱스가 범위를 벗어나면 보정
+  // 현재 인덱스 보정 + 이미지/인덱스 바뀔 때 에러 상태 초기화
   useEffect(() => {
     if (current > 0 && current >= count) setCurrent(count - 1);
-  }, [count, current]);
+    setImgError(false);
+  }, [count, current, items]);
 
   const goPrev = () => count > 0 && setCurrent((c) => (c - 1 + count) % count);
   const goNext = () => count > 0 && setCurrent((c) => (c + 1) % count);
@@ -60,7 +63,7 @@ export default function ImageCarouselUpload({
     dragX.current = null;
   };
 
-  // 키보드(좌/우) 내비게이션
+  // 키보드(좌/우)
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowLeft") {
@@ -90,7 +93,7 @@ export default function ImageCarouselUpload({
       });
   };
 
-  // 파일 선택 처리 후 value 초기화(같은 파일 재선택 허용)
+  // 파일 선택 후 value 초기화(같은 파일 재선택 허용)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChangeFiles?.(e);
     e.currentTarget.value = "";
@@ -101,12 +104,19 @@ export default function ImageCarouselUpload({
     if (!onRemoveImage) return;
 
     setLocalCaptions((prev) => prev.filter((_, i) => i !== current));
-
     setCurrent((c) => Math.max(0, Math.min(c, count - 2)));
-
-    // 부모(실제 items) 삭제 호출
+    setImgError(false);
     onRemoveImage(current);
   };
+
+  // 안전한 src 판정
+  const toSafeSrc = (raw?: string | null) => {
+    const s = (raw ?? "").trim();
+    return s.length > 0 ? s : undefined;
+  };
+
+  const safeSrc = cur ? toSafeSrc(cur.dataUrl ?? cur.url) : undefined;
+  const showFallback = count === 0 || !safeSrc || imgError;
 
   return (
     <div
@@ -134,12 +144,18 @@ export default function ImageCarouselUpload({
             이미지를 업로드하세요
             {typeof maxCount === "number" ? ` (최대 ${maxCount}장)` : ""}
           </div>
+        ) : showFallback ? (
+          <div className="absolute inset-0 grid place-items-center bg-muted text-xs text-gray-500">
+            이미지 로드 실패
+          </div>
         ) : (
           <>
+            {/* 메인 이미지 */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              key={`${cur!.url}-${current}`}
-              src={cur!.dataUrl ?? cur!.url}
-              alt={cur!.name ?? `image-${current + 1}`}
+              key={`img-${current}`}
+              src={safeSrc}
+              alt={cur?.name ?? `image-${current + 1}`}
               className={cn(
                 "w-full h-full",
                 fit === "cover" ? "object-cover" : "object-contain"
@@ -147,9 +163,7 @@ export default function ImageCarouselUpload({
               draggable={false}
               loading="lazy"
               decoding="async"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.opacity = "0.2";
-              }}
+              onError={() => setImgError(true)}
             />
 
             {/* 우상단 삭제 버튼 */}
@@ -165,7 +179,7 @@ export default function ImageCarouselUpload({
               </button>
             )}
 
-            {/* 좌/우 버튼 (이미지 1장 이하일 땐 숨김) */}
+            {/* 좌/우 버튼 (이미지 1장 이하이면 숨김) */}
             {count > 1 && (
               <>
                 <button
@@ -196,7 +210,10 @@ export default function ImageCarouselUpload({
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setCurrent(i)}
+                  onClick={() => {
+                    setCurrent(i);
+                    setImgError(false);
+                  }}
                   className={cn(
                     "h-1.5 w-1.5 rounded-full",
                     i === current ? "bg-white" : "bg-white/50 hover:bg-white/80"

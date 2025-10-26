@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import clsx from "clsx";
 import { Button } from "@/components/atoms/Button/Button"; // shadcn/ui
@@ -8,6 +10,7 @@ import {
   File as FileIcon,
   Image as ImageIcon,
 } from "lucide-react";
+import { SafeImg } from "@/components/common/SafeImg";
 
 /**
  * FileUploader (shadcn 스타일)
@@ -68,15 +71,24 @@ export function FileUploader({
   const [internalFiles, setInternalFiles] = React.useState<FileLike[]>([]);
   const files = value ?? internalFiles;
 
+  // 언마운트 시 남아있는 previewUrl 모두 revoke
   React.useEffect(() => {
-    // 정리: 컴포넌트 unmount 시 objectURL revoke
     return () => {
       files.forEach((f) => f.previewUrl && URL.revokeObjectURL(f.previewUrl));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // files를 교체할 때, 제거되는 항목들의 previewUrl만 골라 revoke
   const setFiles = (next: FileLike[]) => {
+    const prev = files;
+    const nextSet = new Set(next.map((f) => f.previewUrl).filter(Boolean));
+    prev.forEach((f) => {
+      if (f.previewUrl && !nextSet.has(f.previewUrl)) {
+        URL.revokeObjectURL(f.previewUrl);
+      }
+    });
+
     if (onChange) onChange(next);
     else setInternalFiles(next);
   };
@@ -197,11 +209,11 @@ export function FileUploader({
               {/* 썸네일 */}
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border bg-muted">
                 {isImage(f) && f.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <SafeImg
                     src={f.previewUrl}
                     alt={f.name}
                     className="h-full w-full object-cover"
+                    fallbackClassName="h-full w-full bg-gray-200"
                   />
                 ) : (
                   <div className="flex items-center gap-1 text-muted-foreground">

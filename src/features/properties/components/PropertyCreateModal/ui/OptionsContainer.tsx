@@ -13,13 +13,11 @@ export default function OptionsContainer({
     optionEtc: string;
     setOptionEtc: (v: string) => void;
   };
-  // ✅ readonly 로 받기
   PRESET_OPTIONS: readonly string[];
 }) {
   return (
     <OptionsSection
-      // ✅ 섹션이 가변 배열(string[])을 기대할 수 있으니 복제해서 전달
-      PRESET_OPTIONS={[...PRESET_OPTIONS]}
+      PRESET_OPTIONS={PRESET_OPTIONS}
       options={form.options}
       setOptions={form.setOptions}
       etcChecked={form.etcChecked}

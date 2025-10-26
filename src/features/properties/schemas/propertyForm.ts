@@ -1,9 +1,4 @@
-// src/features/properties/schemas/propertyForm.ts
 import { z } from "zod";
-import type {
-  CreatePayload,
-  UpdatePayload,
-} from "@/features/properties/types/property-dto";
 
 /* ────────────────────────────────────────────────────────────
  * Zod helpers
@@ -47,7 +42,7 @@ export const propertyFormSchema = z.object({
   options: z.array(z.string()).default([]),
 
   publicMemo: z.string().optional(),
-  privateMemo: z.string().optional(), // (향후 secretMemo로 마이그레이션 예정시 유지)
+  privateMemo: z.string().optional(), // (secretMemo로 마이그레이션 중이면 폼에는 유지)
 });
 
 export type PropertyStatus = z.infer<typeof propertyFormSchema>["status"];
@@ -59,7 +54,7 @@ export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
 export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   isPublished: true,
   totalParkingSlots: null,
-  options: [], // ← 추가
+  options: [],
 };
 
 /* ────────────────────────────────────────────────────────────
@@ -72,30 +67,8 @@ export const toIntOrNull = (v: unknown) => {
 };
 
 /* ────────────────────────────────────────────────────────────
- * Build Create / Update Payload
+ * Build Create / Update Payload (단일 소스: lib/* 로 위임)
  * ──────────────────────────────────────────────────────────── */
-export function buildCreatePayload(f: PropertyFormValues): CreatePayload {
-  const payload: CreatePayload = {
-    title: f.title,
-    address: f.address,
-    totalParkingSlots: toIntOrNull(f.totalParkingSlots),
-    options: f.options ?? [], // ✅ 필수 충족
-    publicMemo: f.publicMemo,
-    privateMemo: f.privateMemo,
-    // 필요 시 추가 매핑들...
-  };
-  return payload;
-}
-
-export function buildUpdatePayload(f: PropertyFormValues): UpdatePayload {
-  const payload: UpdatePayload = {
-    title: f.title,
-    address: f.address,
-    totalParkingSlots: toIntOrNull(f.totalParkingSlots),
-    options: f.options ?? [], // ← 서버가 부분 업데이트에도 배열 기대 시 포함
-    publicMemo: f.publicMemo ?? null,
-    secretMemo: f.privateMemo ?? null, // (secretMemo로 전환 중이라면 이렇게 매핑)
-    // 필요 시 추가 매핑들...
-  };
-  return payload;
-}
+// 👉 이 파일엔 스키마/헬퍼만 남기고, 빌더는 lib/* 의 단일 구현을 사용합니다.
+export { buildCreatePayload } from "@/features/properties/components/PropertyCreateModal/lib/buildCreatePayload";
+export { buildUpdatePayload } from "@/features/properties/components/PropertyEditModal/lib/buildUpdatePayload";

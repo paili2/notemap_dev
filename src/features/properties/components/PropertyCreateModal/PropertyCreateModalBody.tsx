@@ -93,6 +93,12 @@ export default function PropertyCreateModalBody({
           ? f.completionDate
           : new Date().toISOString().slice(0, 10);
 
+      const toIntNullable = (v: any) => {
+        if (v === "" || v === null || v === undefined) return undefined;
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.trunc(n) : undefined;
+      };
+
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -107,6 +113,9 @@ export default function PropertyCreateModalBody({
         listingStars: f.listingStars,
         parkingType: f.parkingType,
         parkingCount: f.parkingCount,
+        totalParkingSlots: toIntNullable(
+          (f as any).totalParkingSlots ?? f.parkingCount
+        ),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
         baseAreaSet: f.baseAreaSet,
