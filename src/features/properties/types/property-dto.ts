@@ -36,9 +36,6 @@ export type CreatePayload = {
   /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
 
-  /** @deprecated 백엔드 스펙상 totalParkingSlots 사용 */
-  parkingCount?: string | number;
-
   // 설비/등급/날짜
   listingStars?: number;
   elevator?: "O" | "X";
@@ -113,9 +110,6 @@ export type UpdatePayload = {
   parkingType?: string;
   /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
-
-  /** @deprecated totalParkingSlots 사용 */
-  parkingCount?: string | number | null;
 
   // 설비/등급/날짜
   elevator?: "O" | "X";

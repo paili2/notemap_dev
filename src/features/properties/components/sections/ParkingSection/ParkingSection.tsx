@@ -13,23 +13,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
 
-/**
- * 변경된 Props (하위호환):
- * - totalParkingSlots?: number | null
- * - setTotalParkingSlots?: (v: number | null) => void
- * - (기존) parkingCount?: number | null
- * - (기존) setParkingCount?: (v: number | null) => void
- * - parkingTypeId?: number | null
- * - setParkingTypeId?: (v: number | null) => void
- * - parkingTypeNameToId?: Record<string, number>   // 라벨→ID 매핑
- */
 type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
-  /** ✅ 신규 */
   totalParkingSlots?: number | null;
   setTotalParkingSlots?: (v: number | null) => void;
-  /** ⬇ 하위호환(부모가 아직 parkingCount를 쓰면 같이 동기화) */
-  parkingCount?: number | null;
-  setParkingCount?: (v: number | null) => void;
 
   parkingTypeId?: number | null;
   setParkingTypeId?: (v: number | null) => void;
@@ -40,11 +26,9 @@ export default function ParkingSection({
   parkingType,
   setParkingType,
 
-  // 신규/구버전 값 모두 받되, 표시는 totalParkingSlots 우선
+  // ✅ 신규 필드만 사용
   totalParkingSlots,
   setTotalParkingSlots,
-  parkingCount,
-  setParkingCount,
 
   // 타입 id 관련
   parkingTypeId,
@@ -59,13 +43,8 @@ export default function ParkingSection({
 
   /** 주차대수 현재값 (표시용) */
   const displayCount = useMemo(
-    () =>
-      typeof totalParkingSlots === "number"
-        ? totalParkingSlots
-        : typeof parkingCount === "number"
-        ? parkingCount
-        : null,
-    [totalParkingSlots, parkingCount]
+    () => (typeof totalParkingSlots === "number" ? totalParkingSlots : null),
+    [totalParkingSlots]
   );
 
   /** prop → 내부 상태 동기화 */
@@ -117,17 +96,15 @@ export default function ParkingSection({
     parkingTypeNameToId,
   ]);
 
-  // 입력값을 숫자만 허용(붙여넣기 포함) + 빈값이면 null.
-  // 두 세터를 모두 불러서 신/구 prop이 함께 동기화되도록 처리
+  // 숫자만 허용(붙여넣기 포함) + 빈값이면 null.
   const onChangeCount = (raw: string) => {
     const onlyDigits = raw.replace(/\D+/g, "");
     const next = onlyDigits === "" ? null : Number(onlyDigits);
     setTotalParkingSlots?.(next);
-    setParkingCount?.(next);
   };
 
   return (
-    <div className="grid grid-cols-2 items-center md:grid-cols-3 ">
+    <div className="grid grid-cols-2 items-center md:grid-cols-3">
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
           <Select

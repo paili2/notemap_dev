@@ -37,7 +37,7 @@ export default function OptionsSection({
     .map((s) => s.trim())
     .filter(Boolean);
 
-  /** 프리셋에서 '직접입력/기타/etc' 제거 (A안) */
+  /** 프리셋에서 '직접입력/기타/etc' 제거 */
   const PRESETS_NO_ETC = useMemo(
     () => PRESET_OPTIONS.filter((op) => !isEtcLabel(op)),
     [PRESET_OPTIONS]
@@ -106,6 +106,7 @@ export default function OptionsSection({
         });
         return merged;
       });
+      // 레거시 텍스트를 로컬로 흡수했으니 비워둠
       safeSetOptionEtc("");
       absorbedRef.current = true;
     }
@@ -118,7 +119,9 @@ export default function OptionsSection({
     }
   }, [etcOn]);
 
-  /** options 동기화(프리셋 유지 + 커스텀 유니크) */
+  /** options 동기화(프리셋 유지 + 커스텀 유니크)
+   *  + 백엔드 extraOptionsText용 optionEtc도 동기화
+   */
   const syncOptions = (nextCustomInputs: string[]) => {
     const seen = new Set<string>();
     const uniqCustoms: string[] = [];
@@ -133,8 +136,13 @@ export default function OptionsSection({
     const customsNotPreset = uniqCustoms.filter(
       (t) => !presetSet.has(t.toLowerCase())
     );
+
+    // 🔹 options(string[]) 갱신
     echoGuardRef.current = true;
     safeSetOptions([...presetSelected, ...customsNotPreset]);
+
+    // 🔹 extraOptionsText로 보낼 문자열 동기화
+    safeSetOptionEtc(customsNotPreset.join(", "));
   };
 
   /** 프리셋 토글 */
@@ -163,13 +171,15 @@ export default function OptionsSection({
     setEtcOn(next);
     safeSetEtcChecked(next);
     if (!next) {
-      // 끄면 커스텀 비우고 프리셋만 남김
-      setCustomInputs([""]); // 최소 1칸은 다음에 켰을 때 바로 보이게 준비
+      // 끄면 커스텀 비우고 프리셋만 남김 + extraOptionsText 비움
+      setCustomInputs([""]); // 다음에 켰을 때 바로 보이게 준비
       echoGuardRef.current = true;
       safeSetOptions(presetSelected);
+      safeSetOptionEtc(""); // 🔹 extraOptionsText 초기화
     } else {
       // 켤 때 입력이 없으면 1칸 자동 생성
       setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
+      // 켠 직후에는 사용자가 입력/커밋하면 syncOptions에서 optionEtc가 채워짐
     }
   };
 
@@ -200,10 +210,13 @@ export default function OptionsSection({
     });
   };
 
+  // ⬇️ 변경 포인트: 타이핑할 때마다 부모 상태도 동기화
   const handleCustomChangeLocal = (idx: number, val: string) => {
     setCustomInputs((prev) => {
       const next = [...prev];
       next[idx] = val;
+      // 즉시 동기화하여 optionEtc / options가 항상 최신
+      syncOptions(next);
       return next;
     });
   };
@@ -250,7 +263,6 @@ export default function OptionsSection({
           {etcOn ? (
             <>
               {rows.length === 0 ? (
-                // 안전그물: 초기에는 첫 번째 인풋만 렌더
                 <>
                   <div className="min-h-9 flex items-center">
                     <label className="inline-flex items-center gap-2 text-sm">
@@ -277,7 +289,7 @@ export default function OptionsSection({
                     inputWidthBase={INPUT_W_BASE}
                     inputWidthMd={INPUT_W_MD}
                   />
-                  {/* 3열: 자리만 확보 */}
+                  {/* 3열 자리 */}
                   <div className={`h-9 ${CELL_W_BASE} ${CELL_W_MD}`} />
                   {/* 4열: + 버튼 */}
                   <div className="flex items-center justify-start">
@@ -299,13 +311,11 @@ export default function OptionsSection({
                   const isLastRow = rowIdx === rows.length - 1;
                   const [v1, v2] = pair;
                   const baseIndex = rowIdx * 2;
-                  const rowKey = `row-${rowIdx}-${(v1 ?? "").toString()}-${(
-                    v2 ?? ""
-                  ).toString()}`;
+                  const rowKey = `row-${rowIdx}`;
 
                   return (
                     <Fragment key={rowKey}>
-                      {/* 1열: 첫 줄엔 체크박스/라벨, 이후 줄엔 자리만 유지 */}
+                      {/* 1열 */}
                       <div className="min-h-9 flex items-center">
                         {isFirstRow ? (
                           <label className="inline-flex items-center gap-2 text-sm">
@@ -325,7 +335,7 @@ export default function OptionsSection({
                         )}
                       </div>
 
-                      {/* 2열: 첫 번째 인풋 (항상 렌더) */}
+                      {/* 2열 */}
                       <OptionCell
                         value={v1 ?? ""}
                         index={baseIndex}
@@ -340,7 +350,7 @@ export default function OptionsSection({
                         inputWidthMd={INPUT_W_MD}
                       />
 
-                      {/* 3열: 두 번째 인풋 - 값이 있을 때만 */}
+                      {/* 3열 */}
                       {v2 !== undefined ? (
                         <OptionCell
                           value={v2}

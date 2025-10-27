@@ -20,10 +20,12 @@ import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/pins/types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
-/** 안전 숫자 변환 (숫자 아니면 undefined) */
+/** 안전 숫자 변환 ("" | null | undefined → undefined) */
 const toNum = (v: unknown) => {
   if (v === null || v === undefined) return undefined;
-  const n = Number(v);
+  const s = String(v).trim();
+  if (s === "") return undefined;
+  const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 };
 
@@ -55,8 +57,6 @@ type BuildArgs = {
 
   /** ✅ 신설: 총 주차 대수 (권장) */
   totalParkingSlots?: number | string | null;
-  /** @deprecated 구버전 호환 입력만 받음. 페이로드에는 포함하지 않음. */
-  parkingCount?: string | number | null;
 
   completionDate?: string; // optional
   salePrice: string;
@@ -118,7 +118,6 @@ export function buildCreatePayload(args: BuildArgs) {
     listingStars,
     parkingType,
     totalParkingSlots,
-    parkingCount, // deprecated in, but we’ll absorb into totalParkingSlots
     completionDate,
     salePrice,
     baseAreaSet,
@@ -240,10 +239,7 @@ export function buildCreatePayload(args: BuildArgs) {
   /* 4) 최종 payload */
   const safeBadge = s(badge);
 
-  // ✅ parkingCount(구버전)과 totalParkingSlots(신규) 중 유효한 값을 정수/nullable로 정규화
-  const normalizedTotalParkingSlots = toIntOrNull(
-    totalParkingSlots ?? parkingCount
-  );
+  const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
 
   const payload: CreatePayload & {
     imageFolders: StoredMediaItem[][];
@@ -307,8 +303,9 @@ export function buildCreatePayload(args: BuildArgs) {
       ? { parkingType: String(parkingType) }
       : {}),
 
-    /** ✅ 백엔드 스펙에 맞춰 총 주차 대수만 전송 */
-    totalParkingSlots: normalizedTotalParkingSlots,
+    ...(normalizedTotalParkingSlots === null
+      ? {}
+      : { totalParkingSlots: normalizedTotalParkingSlots }),
 
     // YYYY-MM-DD, KST
     completionDate: effectiveCompletionDate,

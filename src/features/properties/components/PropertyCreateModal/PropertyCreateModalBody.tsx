@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyCreateModal/PropertyCreateModalBody.tsx
 "use client";
 
 import { useRef, useState, useCallback } from "react";
@@ -34,8 +35,6 @@ import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
-// ✅ 예약/드래프트 스토어: 즉시 반영용
-
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -61,14 +60,26 @@ export default function PropertyCreateModalBody({
   } = usePropertyImages();
 
   // ✅ 예약/드래프트 스토어 액션 (즉시 반영 핵심)
-  const {
-    removeByReservationId,
-    removeByPinDraftId,
-    // 필요하면 .refetch 도 노출해서 사용 가능
-  } = useScheduledReservations();
+  const { removeByReservationId, removeByPinDraftId } =
+    useScheduledReservations();
 
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // 숫자 → 정수 또는 null (""/undefined/null → null, 0 허용)
+  const toIntOrNull = (v: any) => {
+    if (v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+
+  // 숫자 → number 또는 undefined (빈문자/NaN은 undefined)
+  const toNum = (v: any) => {
+    const s = String(v ?? "").trim();
+    if (s === "") return undefined;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+  };
 
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
@@ -93,12 +104,7 @@ export default function PropertyCreateModalBody({
           ? f.completionDate
           : new Date().toISOString().slice(0, 10);
 
-      const toIntNullable = (v: any) => {
-        if (v === "" || v === null || v === undefined) return undefined;
-        const n = Number(v);
-        return Number.isFinite(n) ? Math.trunc(n) : undefined;
-      };
-
+      // ✅ buildCreatePayload에도 totalParkingSlots 및 options 전달(프론트 보관용)
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -112,10 +118,7 @@ export default function PropertyCreateModalBody({
         structure: f.structure,
         listingStars: f.listingStars,
         parkingType: f.parkingType,
-        parkingCount: f.parkingCount,
-        totalParkingSlots: toIntNullable(
-          (f as any).totalParkingSlots ?? f.parkingCount
-        ),
+        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
         baseAreaSet: f.baseAreaSet,
@@ -145,16 +148,29 @@ export default function PropertyCreateModalBody({
         lng: lngNum,
       });
 
-      const toNum = (v: any) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : undefined;
-      };
-
       // ✅ 드래프트/예약 정보 보존
       const reservationId = (f as any).reservationId;
       const explicitPinDraftId = (f as any).pinDraftId;
 
-      // ✅ /pins DTO로 매핑 (+ pinDraftId 함께 전달 — 백엔드가 정확히 비활성화하도록)
+      // ✅ /pins 옵션 매핑 (선택 라벨 → boolean) + extraOptionsText
+      const selected: string[] = Array.isArray(f.options) ? f.options : [];
+      const has = (label: string) => selected.includes(label);
+      const extraOptionsTextRaw = String(f.optionEtc ?? "").trim();
+      const pinOptions = {
+        hasAircon: has("에어컨"),
+        hasFridge: has("냉장고"),
+        hasWasher: has("세탁기"),
+        hasDryer: has("건조기"),
+        hasBidet: has("비데"),
+        // 라벨 케이스가 프로젝트마다 달라질 수 있어 둘 다 허용
+        hasAirPurifier: has("공기청정기") || has("공기순환기"),
+        isDirectLease: has("직영임대") || has("직영 임대"),
+        ...(extraOptionsTextRaw
+          ? { extraOptionsText: extraOptionsTextRaw.slice(0, 255) }
+          : {}),
+      };
+
+      // ✅ /pins DTO로 매핑 (여기서 totalParkingSlots와 options 반드시 포함!)
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
@@ -173,15 +189,18 @@ export default function PropertyCreateModalBody({
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
-        // 🔥 추가: 백엔드 create(dto)에서 pinDraftId를 우선 매칭하도록
-        // (백이 아직 필드를 안 받는다면 타입 확장 또는 any 캐스팅으로 임시 전송 가능)
+
+        // 🔥 핵심: 총 주차대수 + 옵션 포함 (0도 전송됨)
+        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
+        options: pinOptions,
+
+        // 🔥 추가: 백엔드가 드래프트 매칭을 우선 하도록
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
           : {}),
       } as any;
 
       // ✅ 핀 생성 (/pins)
-      //    백엔드가 응답에 { id, matchedDraftId, (선택) lat, lng }를 내려주는게 베스트
       const { id: pinId, matchedDraftId /*, lat, lng*/ } = await createPin(
         pinDto
       );
@@ -192,11 +211,8 @@ export default function PropertyCreateModalBody({
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);
-          // 🔥 로컬 스토어 즉시 반영
           removeByReservationId?.(String(reservationId));
         } else if (pinDraftId != null) {
-          // 서버 정리
-          // (예약 id를 모르면 목록에서 찾아 삭제)
           const listRes = await api.get("/survey-reservations/scheduled");
           const arr = Array.isArray(listRes.data?.data)
             ? listRes.data.data
@@ -210,7 +226,6 @@ export default function PropertyCreateModalBody({
           );
           if (target?.id != null) {
             await api.delete(`/survey-reservations/${target.id}`);
-            // 🔥 로컬 스토어 즉시 반영
             removeByReservationId?.(String(target.id));
           }
         }
@@ -221,12 +236,12 @@ export default function PropertyCreateModalBody({
         }
       }
 
-      // 🔥 드래프트 기반 분기/메뉴 즉시 변경: 스토어에서 드래프트 제거
+      // 🔥 드래프트 제거 즉시 반영
       if (pinDraftId != null) {
         removeByPinDraftId?.(String(pinDraftId));
       }
 
-      // ✅ 부모에 결과 전달 (부모가 맵 레이어 스토어를 쓰면 여기서도 바로 패치 가능)
+      // ✅ 부모에 결과 전달
       await Promise.resolve(
         onSubmit?.({
           pinId: String(pinId),

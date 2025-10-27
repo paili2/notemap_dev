@@ -30,9 +30,11 @@ const toIsoDate = (v: any): string | null => {
   return Number.isNaN(t) ? null : iso;
 };
 
-/** 숫자 캐스팅 후 유한수면 반환, 아니면 undefined */
+/** 숫자 캐스팅 후 유한수면 반환, 아니면 undefined ("" → undefined, 0 유지) */
 const toFinite = (v: any) => {
-  const n = Number(v);
+  const s = String(v ?? "").trim();
+  if (s === "") return undefined;
+  const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 };
 
@@ -92,7 +94,6 @@ export function buildCreateDto(
   const registryRaw = (payload as any)?.registryOne; // (구버전) 선택값/ID
   const parkingTypeIdRaw = (payload as any)?.parkingTypeId; // ✅ 신버전: 주차 유형 ID
   const parkingTypeRaw = (payload as any)?.parkingType; // (구버전) 라벨/ID 혼재
-  const parkingCountRaw = (payload as any)?.parkingCount;
 
   // 등기(등록유형) — 숫자/문자 모두 허용 → 숫자로 캐스팅
   if (
@@ -122,12 +123,6 @@ export function buildCreateDto(
     if (Number.isFinite(n)) dto.parkingTypeId = n;
   }
 
-  // 주차 대수
-  {
-    const n = toFinite(parkingCountRaw);
-    if (n !== undefined) dto.totalParkingSlots = n;
-  }
-
   // ─────────────────────────────────────────────────────────────────────
 
   // ✅ name: 없으면 title → name 폴백 (서버가 '임시 매물'로 채우는 걸 방지)
@@ -155,6 +150,7 @@ export function buildCreateDto(
       const n = toFinite((payload as any)?.totalHouseholds);
       return n !== undefined ? { totalHouseholds: n } : {};
     })(),
+    // ✅ 총 주차대수: payload.totalParkingSlots만 사용 (0도 전송)
     (() => {
       const n = toFinite((payload as any)?.totalParkingSlots);
       return n !== undefined ? { totalParkingSlots: n } : {};
@@ -184,38 +180,26 @@ export function buildCreateDto(
     })()
   );
 
-  // 옵션 세트: 스위치 만졌을 때만 포함
-  if ((payload as any)?.optionsTouched) {
-    dto.options = {
-      hasAircon: !!(payload as any)?.hasAircon,
-      hasFridge: !!(payload as any)?.hasFridge,
-      hasWasher: !!(payload as any)?.hasWasher,
-      hasDryer: !!(payload as any)?.hasDryer,
-      hasBidet: !!(payload as any)?.hasBidet,
-      hasAirPurifier: !!(payload as any)?.hasAirPurifier,
-      ...(toStr((payload as any)?.extraOptionsText).trim()
-        ? { extraOptionsText: sanitizeText((payload as any).extraOptionsText) }
-        : {}),
-    };
-  }
+  /* ✅ options: 백엔드 스펙(CreatePinOptionsDto)에 맞춰 항상 포함
+     - 없으면 false/빈 문자열 디폴트
+     - payload.options가 있으면 우선 사용, 없으면 개별 루트 필드에서 폴백
+  */
+  const opts = (payload as any)?.options ?? {};
+  const pickBool = (k: string) => !!(opts[k] ?? (payload as any)?.[k]);
+  const extraText = toStr(
+    opts.extraOptionsText ?? (payload as any)?.extraOptionsText
+  ).trim();
 
-  // 유닛: 유효값이 있는 항목만 포함
-  if (Array.isArray((payload as any)?.units) && (payload as any).units.length) {
-    const units = (payload as any).units
-      .map((u: any) => ({
-        rooms: toFinite(u?.rooms) ?? 0,
-        baths: toFinite(u?.baths) ?? 0,
-        hasLoft: !!u?.hasLoft,
-        hasTerrace: !!u?.hasTerrace,
-        minPrice: toFinite(u?.minPrice) ?? 0,
-        maxPrice: toFinite(u?.maxPrice) ?? 0,
-        ...(toStr(u?.note).trim() ? { note: sanitizeText(u.note) } : {}),
-      }))
-      .filter(
-        (u: any) => (u.minPrice ?? 0) > 0 || (u.maxPrice ?? 0) > 0 || !!u.note
-      );
-    if (units.length) dto.units = units;
-  }
+  dto.options = {
+    hasAircon: pickBool("hasAircon"),
+    hasFridge: pickBool("hasFridge"),
+    hasWasher: pickBool("hasWasher"),
+    hasDryer: pickBool("hasDryer"),
+    hasBidet: pickBool("hasBidet"),
+    hasAirPurifier: pickBool("hasAirPurifier"),
+    isDirectLease: pickBool("isDirectLease"),
+    ...(extraText ? { extraOptionsText: sanitizeText(extraText, 255) } : {}),
+  };
 
   // 방향/면적 그룹 정리
   const directions = sanitizeDirections((payload as any)?.directions);
@@ -229,6 +213,6 @@ export function buildCreateDto(
     delete dto.name;
   }
 
-  // null/undefined 깊은 제거
+  // null/undefined 깊은 제거 (0/""/false는 유지되어야 함)
   return pruneNullishDeep(dto);
 }

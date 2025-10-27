@@ -23,6 +23,18 @@ function makeIdempotencyKey() {
 const round6 = (n: number | string) => Number(Number(n).toFixed(6));
 
 /* ───────────── DTO (export!) ───────────── */
+export type CreatePinOptionsDto = {
+  hasAircon?: boolean;
+  hasFridge?: boolean;
+  hasWasher?: boolean;
+  hasDryer?: boolean;
+  hasBidet?: boolean;
+  hasAirPurifier?: boolean;
+  isDirectLease?: boolean;
+  /** 0~255 */
+  extraOptionsText?: string | null;
+};
+
 export type CreatePinDto = {
   lat: number | string;
   lng: number | string;
@@ -39,7 +51,10 @@ export type CreatePinDto = {
   completionDate?: string | null;
   buildingType?: string | null;
   totalHouseholds?: number | string | null;
+
+  /** ✅ 총 주차대수 (0 허용) */
   totalParkingSlots?: number | string | null;
+
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
   parkingGrade?: string | null;
@@ -51,6 +66,9 @@ export type CreatePinDto = {
   isOld?: boolean;
   isNew?: boolean;
   hasElevator?: boolean;
+
+  /** ✅ 옵션 세트 */
+  options?: CreatePinOptionsDto;
 };
 
 type CreatePinResponse = {
@@ -74,11 +92,32 @@ const hashPayload = (p: unknown) => {
   }
 };
 
+/* 옵션 sanitize: boolean은 !!로, extraOptionsText는 255자로 제한 */
+function sanitizeOptions(o?: CreatePinOptionsDto) {
+  if (!o) return undefined;
+  const clip255 = (s: any) => {
+    const t = String(s ?? "").trim();
+    return t ? t.slice(0, 255) : undefined;
+  };
+  const payload: any = {
+    hasAircon: !!o.hasAircon,
+    hasFridge: !!o.hasFridge,
+    hasWasher: !!o.hasWasher,
+    hasDryer: !!o.hasDryer,
+    hasBidet: !!o.hasBidet,
+    hasAirPurifier: !!o.hasAirPurifier,
+    isDirectLease: !!o.isDirectLease,
+  };
+  const txt = clip255(o.extraOptionsText);
+  if (txt !== undefined) payload.extraOptionsText = txt;
+  return payload;
+}
+
 export async function createPin(
   dto: CreatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string; matchedDraftId: number | null }> {
-  // 동일 입력 빠른 연속 호출 흡수
+  // 동일 입력 빠른 연속 호출 흡수 (❗ 주요 값 해시에 포함)
   const preview = {
     lat: round6(dto.lat),
     lng: round6(dto.lng),
@@ -88,6 +127,31 @@ export async function createPin(
       dto.pinDraftId == null || String(dto.pinDraftId) === ""
         ? undefined
         : Number(dto.pinDraftId),
+    totalParkingSlots:
+      dto.totalParkingSlots === 0 || dto.totalParkingSlots
+        ? Number(dto.totalParkingSlots)
+        : undefined,
+    parkingTypeId:
+      dto.parkingTypeId == null ? undefined : Number(dto.parkingTypeId),
+    registrationTypeId:
+      dto.registrationTypeId == null
+        ? undefined
+        : Number(dto.registrationTypeId),
+    buildingType: dto.buildingType ?? undefined,
+    // 옵션은 내용 변화가 잦아 해시에 포함하지 않아도 무방하지만,
+    // 동일 입력 흡수 정확도를 위해 주요 boolean을 반영
+    options: dto.options
+      ? {
+          a: !!dto.options.hasAircon,
+          f: !!dto.options.hasFridge,
+          w: !!dto.options.hasWasher,
+          d: !!dto.options.hasDryer,
+          b: !!dto.options.hasBidet,
+          p: !!dto.options.hasAirPurifier,
+          l: !!dto.options.isDirectLease,
+          x: (dto.options.extraOptionsText ?? "").trim().slice(0, 32),
+        }
+      : undefined,
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -123,9 +187,12 @@ export async function createPin(
     ...(dto.totalHouseholds != null
       ? { totalHouseholds: Number(dto.totalHouseholds) }
       : {}),
-    ...(dto.totalParkingSlots != null
+
+    /** ✅ 0도 전송되도록 null/undefined만 제외 */
+    ...(dto.totalParkingSlots !== null && dto.totalParkingSlots !== undefined
       ? { totalParkingSlots: Number(dto.totalParkingSlots) }
       : {}),
+
     ...(dto.registrationTypeId != null
       ? { registrationTypeId: Number(dto.registrationTypeId) }
       : {}),
@@ -143,6 +210,9 @@ export async function createPin(
     ...(typeof dto.hasElevator === "boolean"
       ? { hasElevator: dto.hasElevator }
       : {}),
+
+    // ✅ 옵션 세트 포함
+    ...(dto.options ? { options: sanitizeOptions(dto.options) } : {}),
   } as const;
 
   G[KEY_HASH] = h;

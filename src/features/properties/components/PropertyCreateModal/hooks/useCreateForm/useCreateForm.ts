@@ -24,7 +24,7 @@ export function useCreateForm({ initialAddress }: Args) {
   const header = useHeaderFields();
   const basic = useBasicInfo({ initialAddress });
   const nums = useNumbers();
-  const parking = useParking();
+  const parking = useParking(); // parkingType, totalParkingSlots, parkingTypeId, registrationTypeId
   const grades = useGrades();
   const aspects = useAspects();
   const areas = useAreaSets();
@@ -36,7 +36,7 @@ export function useCreateForm({ initialAddress }: Args) {
     ...header.state,
     ...basic.state,
     ...nums.state,
-    ...parking.state,
+    ...parking.state, // ← 여기엔 totalParkingSlots가 포함됨
     ...grades.state,
     ...aspects.state,
     ...areas.state,
@@ -53,7 +53,7 @@ export function useCreateForm({ initialAddress }: Args) {
     const buildingType = (basic.state as any).buildingType ?? null;
     const setBuildingType = (basic.actions as any).setBuildingType ?? noop;
 
-    // registrationTypeId / parkingTypeId 는 보통 Parking 슬라이스에서 관리
+    // registrationTypeId / parkingTypeId 는 Parking 슬라이스에서 관리
     const registrationTypeId =
       (parking.state as any).registrationTypeId ?? null;
     const setRegistrationTypeId =
@@ -78,14 +78,14 @@ export function useCreateForm({ initialAddress }: Args) {
       ...header.state,
       ...basic.state,
       ...nums.state,
-      ...parking.state, // parkingType/registrationType/parkingCount 등
+      ...parking.state, // parkingType / totalParkingSlots / registrationTypeId / parkingTypeId
       ...grades.state,
       ...aspects.state,
       ...areas.state,
       ...units.state,
       ...opts.state,
 
-      // ✅ 신규 브릿지 노출(없는 프로젝트에서도 타입 보장)
+      // ✅ 브릿지 노출(없는 프로젝트에서도 타입 보장)
       buildingType,
       setBuildingType,
       registrationTypeId,
