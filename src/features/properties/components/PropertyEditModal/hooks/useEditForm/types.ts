@@ -1,4 +1,3 @@
-// 외부 도메인 타입 import만 여기서 한 번에
 import type {
   AspectRowLite as DomainAspectRowLite,
   Grade,
@@ -35,8 +34,8 @@ export type NormalizedEditData = {
 
   // 별점/주차/준공/매매
   listingStars: number;
-  parkingType: string;
-  parkingCount: string;
+  parkingType: string; // UI는 문자열 보유
+  totalParkingSlots: string; // ✅ 신규: 총 주차 대수 (문자열로 보관)
   completionDate: string;
   salePrice: string;
 

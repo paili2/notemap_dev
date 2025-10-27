@@ -2,16 +2,32 @@
 
 import { useMemo } from "react";
 import { filled, hasPair } from "../../../lib/validators";
-import { AreaSet } from "../../sections/AreaSetsSection/types";
 import { AspectRowLite } from "../../../types/property-domain";
+
+/* 느슨한 면적 타입 */
+type LooseAreaUnit = {
+  exclusiveM2?: number | string | null;
+  realM2?: number | string | null;
+};
+type LooseAreaSet = {
+  title?: string;
+  exMinM2?: string;
+  exMaxM2?: string;
+  exMinPy?: string;
+  exMaxPy?: string;
+  realMinM2?: string;
+  realMaxM2?: string;
+  realMinPy?: string;
+  realMaxPy?: string;
+  units?: LooseAreaUnit[];
+};
 
 type Args = {
   // 기본
   title: string;
   address: string;
   officePhone: string;
-  /** 초기엔 미선택(null)일 수 있음 */
-  parkingType: string | null; // ⬅️ 변경
+  parkingType: string | null;
   completionDate: string;
   salePrice: string;
   // 숫자
@@ -27,9 +43,16 @@ type Args = {
   unitLinesLen: number;
   listingStars: number;
   aspects: AspectRowLite[];
-  baseAreaSet: AreaSet;
-  extraAreaSets: AreaSet[];
+  // 느슨한 타입 사용
+  baseAreaSet: LooseAreaSet;
+  extraAreaSets: LooseAreaSet[];
 };
+
+/** units 길이만 안전하게 얻는 헬퍼 */
+function getUnitsLen(s: LooseAreaSet): number {
+  const maybeUnits = s?.units;
+  return Array.isArray(maybeUnits) ? maybeUnits.length : 0;
+}
 
 export function useCreateValidation({
   title,
@@ -51,10 +74,11 @@ export function useCreateValidation({
   baseAreaSet,
   extraAreaSets,
 }: Args) {
+  /* 면적 범위 유효성 */
   const baseHasExclusive = useMemo(
     () =>
-      hasPair(baseAreaSet.exMinM2, baseAreaSet.exMaxM2) ||
-      hasPair(baseAreaSet.exMinPy, baseAreaSet.exMaxPy),
+      hasPair(baseAreaSet.exMinM2 ?? "", baseAreaSet.exMaxM2 ?? "") ||
+      hasPair(baseAreaSet.exMinPy ?? "", baseAreaSet.exMaxPy ?? ""),
     [
       baseAreaSet.exMinM2,
       baseAreaSet.exMaxM2,
@@ -65,8 +89,8 @@ export function useCreateValidation({
 
   const baseHasReal = useMemo(
     () =>
-      hasPair(baseAreaSet.realMinM2, baseAreaSet.realMaxM2) ||
-      hasPair(baseAreaSet.realMinPy, baseAreaSet.realMaxPy),
+      hasPair(baseAreaSet.realMinM2 ?? "", baseAreaSet.realMaxM2 ?? "") ||
+      hasPair(baseAreaSet.realMinPy ?? "", baseAreaSet.realMaxPy ?? ""),
     [
       baseAreaSet.realMinM2,
       baseAreaSet.realMaxM2,
@@ -78,7 +102,9 @@ export function useCreateValidation({
   const extrasHaveExclusive = useMemo(
     () =>
       extraAreaSets.some(
-        (s) => hasPair(s.exMinM2, s.exMaxM2) || hasPair(s.exMinPy, s.exMaxPy)
+        (s) =>
+          hasPair(s.exMinM2 ?? "", s.exMaxM2 ?? "") ||
+          hasPair(s.exMinPy ?? "", s.exMaxPy ?? "")
       ),
     [extraAreaSets]
   );
@@ -87,7 +113,8 @@ export function useCreateValidation({
     () =>
       extraAreaSets.some(
         (s) =>
-          hasPair(s.realMinM2, s.realMaxM2) || hasPair(s.realMinPy, s.realMaxPy)
+          hasPair(s.realMinM2 ?? "", s.realMaxM2 ?? "") ||
+          hasPair(s.realMinPy ?? "", s.realMaxPy ?? "")
       ),
     [extraAreaSets]
   );
@@ -95,6 +122,18 @@ export function useCreateValidation({
   const hasExclusiveAny = baseHasExclusive || extrasHaveExclusive;
   const hasRealAny = baseHasReal || extrasHaveReal;
 
+  /* 개별평수(units) 유효성 */
+  const baseHasUnits = useMemo(
+    () => getUnitsLen(baseAreaSet) > 0,
+    [baseAreaSet]
+  );
+  const extrasHaveUnits = useMemo(
+    () => extraAreaSets.some((s) => getUnitsLen(s) > 0),
+    [extraAreaSets]
+  );
+  const hasUnitsAny = baseHasUnits || extrasHaveUnits;
+
+  /* 옵션/기타 */
   const optionsValid = useMemo(
     () => options.length > 0 || (etcChecked && optionEtc.trim().length > 0),
     [options, etcChecked, optionEtc]
@@ -105,6 +144,7 @@ export function useCreateValidation({
     [aspects]
   );
 
+  /* 최종 저장 가능 여부 */
   const isSaveEnabled = useMemo(() => {
     const numbersOk =
       filled(totalBuildings) &&
@@ -116,11 +156,10 @@ export function useCreateValidation({
       filled(title) &&
       filled(address) &&
       filled(officePhone) &&
-      filled(parkingType ?? "") && // ⬅️ null 방지
+      filled(parkingType ?? "") &&
       filled(completionDate) &&
       filled(salePrice) &&
-      hasExclusiveAny &&
-      hasRealAny;
+      (hasExclusiveAny || hasRealAny || hasUnitsAny);
 
     return (
       basicOk &&
@@ -139,6 +178,7 @@ export function useCreateValidation({
     salePrice,
     hasExclusiveAny,
     hasRealAny,
+    hasUnitsAny,
     totalBuildings,
     totalFloors,
     totalHouseholds,

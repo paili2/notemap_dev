@@ -1,3 +1,4 @@
+import { CreatePinAreaGroupDto } from "./area-group-dto";
 import { ImageItem } from "./media";
 import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
 
@@ -29,6 +30,8 @@ export type CreatePayload = {
   aspect2?: string;
   aspect3?: string;
   orientations?: OrientationRow[];
+  /** ✅ 백엔드 스펙: [{ direction: "남향" }, ...] 또는 문자열 혼용 허용 */
+  directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
   salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
@@ -70,11 +73,19 @@ export type CreatePayload = {
   imageCards?: ImageItem[][];
   fileItems?: ImageItem[];
 
-  // 면적
+  // 면적(레거시 문자열)
   exclusiveArea?: string;
   realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
+
+  /** ✅ 신규 스펙: 면적 그룹 */
+  areaGroups?: CreatePinAreaGroupDto[];
+
+  /** ✅ 임시핀 매칭/좌표(선택) */
+  pinDraftId?: number | string | null;
+  lat?: number;
+  lng?: number;
 };
 
 /* ------------------------------------------------------------------ */
@@ -103,6 +114,8 @@ export type UpdatePayload = {
   aspect2?: string;
   aspect3?: string;
   orientations?: OrientationRow[];
+  /** ✅ 업데이트도 동일 형태 허용 */
+  directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
   salePrice?: string | number | null;
@@ -132,9 +145,17 @@ export type UpdatePayload = {
   unitLines?: UnitLine[];
   images?: string[];
 
-  // 면적
+  // 면적(레거시 문자열)
   exclusiveArea?: string;
   realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
+
+  /** ✅ 신규 스펙: 면적 그룹 */
+  areaGroups?: CreatePinAreaGroupDto[];
+
+  /** ✅ 임시핀/좌표도 선택 허용(패치성 업데이트 대비) */
+  pinDraftId?: number | string | null;
+  lat?: number;
+  lng?: number;
 };

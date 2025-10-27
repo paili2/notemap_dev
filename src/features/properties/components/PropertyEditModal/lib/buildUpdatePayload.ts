@@ -18,10 +18,15 @@ const toIntOrNull = (v: unknown) => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
-type BuildUpdateArgs = {
-  // id는 호출부에서 사용(엔드포인트용). payload엔 포함하지 않음
-  id: string;
+/** 숫자 → 문자열, 문자열은 trim, 빈문자면 undefined 반환 */
+const toNumericStringOrUndefined = (v: string | number | null | undefined) => {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : undefined;
+  const s = String(v).trim();
+  return s.length ? s : undefined;
+};
 
+type BuildUpdateArgs = {
   // 기본
   title?: string;
   address?: string;
@@ -36,10 +41,8 @@ type BuildUpdateArgs = {
   // 평점/주차/준공/매매
   listingStars?: number | null;
   parkingType?: string | null;
-  /** 신규 메인 */
+  /** ✅ 신규 메인: 총 주차대수 */
   totalParkingSlots?: number | string | null;
-  /** 레거시 입력(있으면 totalParkingSlots로 흡수만 함) */
-  parkingCount?: string | number | null;
   completionDate?: string;
   salePrice?: string | number | null;
 
@@ -73,7 +76,7 @@ type BuildUpdateArgs = {
   secretMemo?: string | null;
 
   // 향/유닛
-  /** ✅ OrientationRow[] 또는 간이형 둘 다 허용 */
+  /** OrientationRow[] 또는 간이형 둘 다 허용 */
   orientations?:
     | OrientationRow[]
     | Array<{
@@ -110,12 +113,11 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
     ? (a.optionEtc ?? "").trim()
     : a.optionEtc ?? "";
 
-  // totalParkingSlots 정규화 (parkingCount 흡수)
-  const normalizedTotalParkingSlots = (() => {
-    const src =
-      a.totalParkingSlots !== undefined ? a.totalParkingSlots : a.parkingCount;
-    return src === undefined ? undefined : toIntOrNull(src);
-  })();
+  // ✅ totalParkingSlots만 사용 (parkingCount 제거)
+  const normalizedTotalParkingSlots =
+    a.totalParkingSlots === undefined
+      ? undefined
+      : toIntOrNull(a.totalParkingSlots);
 
   // ✅ orientations 정규화: (OrientationRow | 간이형)[] → OrientationRow[]
   let orientationsNormalized: OrientationRow[] | undefined;
@@ -135,6 +137,13 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
       } as OrientationRow;
     });
   }
+
+  // ✅ salePrice는 서버 DTO가 string 기대 → 문자열로 정규화
+  const salePriceStr = toNumericStringOrUndefined(a.salePrice);
+
+  // ✅ listingStars: null은 보내지 않음(= undefined)
+  const listingStarsVal =
+    typeof a.listingStars === "number" ? a.listingStars : undefined;
 
   const patch: UpdatePayload = {
     // 기본
@@ -159,7 +168,7 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
       : {}),
 
     // 가격/주차/준공
-    ...(a.salePrice !== undefined ? { salePrice: a.salePrice } : {}),
+    ...(a.salePrice !== undefined ? { salePrice: salePriceStr } : {}),
     ...(a.parkingType !== undefined
       ? { parkingType: a.parkingType ?? undefined }
       : {}),
@@ -171,10 +180,10 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
       : {}),
 
     // 평점/엘리베이터
-    ...(a.listingStars !== undefined ? { listingStars: a.listingStars } : {}),
+    ...(a.listingStars !== undefined ? { listingStars: listingStarsVal } : {}),
     ...(a.elevator !== undefined ? { elevator: a.elevator } : {}),
 
-    // 숫자 필드(문자/숫자 모두 허용)
+    // 숫자 필드(문자/숫자 혼용 허용)
     ...(a.totalBuildings !== undefined
       ? { totalBuildings: a.totalBuildings }
       : {}),

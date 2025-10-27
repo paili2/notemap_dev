@@ -27,7 +27,6 @@ export default function ParkingContainer({ form }: { form: ParkingFormSlice }) {
     <ParkingSection
       parkingType={form.parkingType}
       setParkingType={form.setParkingType}
-      // ✅ 레거시 parkingCount 대신 totalParkingSlots 사용
       totalParkingSlots={form.totalParkingSlots}
       setTotalParkingSlots={form.setTotalParkingSlots}
       parkingTypeId={form.parkingTypeId ?? null}

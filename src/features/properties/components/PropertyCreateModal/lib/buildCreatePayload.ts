@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyCreateModal/lib/buildCreatePayload.ts
 "use client";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
@@ -16,9 +15,13 @@ import type {
   StoredMediaItem,
 } from "@/features/properties/types/media";
 
-import { AreaSet } from "../../sections/AreaSetsSection/types";
+import type { AreaSet as StrictAreaSet } from "../../sections/AreaSetsSection/types";
 import { PinKind } from "@/features/pins/types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
+import { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
+import { buildAreaGroups } from "@/features/properties/lib/area";
+
+/** ---------- 공통 유틸 ---------- */
 
 /** 안전 숫자 변환 ("" | null | undefined → undefined) */
 const toNum = (v: unknown) => {
@@ -39,6 +42,36 @@ const toIntOrNull = (v: unknown) => {
 /** 간단 문자열 sanitize */
 const s = (v: unknown) => String(v ?? "").trim();
 
+/** 느슨한 AreaSet (필드가 일부 비어 있을 수 있음) */
+type LooseAreaSet = Partial<
+  Pick<
+    StrictAreaSet,
+    | "title"
+    | "exMinM2"
+    | "exMaxM2"
+    | "exMinPy"
+    | "exMaxPy"
+    | "realMinM2"
+    | "realMaxM2"
+    | "realMinPy"
+    | "realMaxPy"
+  >
+>;
+
+/** ⛑ 느슨한 AreaSet -> 엄격 AreaSet 변환 (undefined를 ""로 보정) */
+const toStrictAreaSet = (raw: LooseAreaSet | StrictAreaSet): StrictAreaSet => ({
+  title: String((raw as any)?.title ?? ""),
+  exMinM2: String((raw as any)?.exMinM2 ?? ""),
+  exMaxM2: String((raw as any)?.exMaxM2 ?? ""),
+  exMinPy: String((raw as any)?.exMinPy ?? ""),
+  exMaxPy: String((raw as any)?.exMaxPy ?? ""),
+  realMinM2: String((raw as any)?.realMinM2 ?? ""),
+  realMaxM2: String((raw as any)?.realMaxM2 ?? ""),
+  realMinPy: String((raw as any)?.realMinPy ?? ""),
+  realMaxPy: String((raw as any)?.realMaxPy ?? ""),
+});
+
+/** ---------- 빌더 Args ---------- */
 type BuildArgs = {
   title: string;
   address: string;
@@ -55,14 +88,15 @@ type BuildArgs = {
   listingStars: number;
   parkingType: string | null;
 
-  /** ✅ 신설: 총 주차 대수 (권장) */
+  /** ✅ 총 주차 대수 (0 허용) */
   totalParkingSlots?: number | string | null;
 
   completionDate?: string; // optional
   salePrice: string;
 
-  baseAreaSet: AreaSet;
-  extraAreaSets: AreaSet[];
+  /** ⛑ 느슨/엄격 모두 허용하고 내부에서 엄격으로 변환 */
+  baseAreaSet: LooseAreaSet | StrictAreaSet;
+  extraAreaSets: Array<LooseAreaSet | StrictAreaSet>;
 
   elevator: "O" | "X";
   registryOne?: Registry;
@@ -120,8 +154,11 @@ export function buildCreatePayload(args: BuildArgs) {
     totalParkingSlots,
     completionDate,
     salePrice,
-    baseAreaSet,
-    extraAreaSets,
+
+    /** ⛑ 느슨/엄격 → 엄격으로 고정 */
+    baseAreaSet: baseAreaSetRaw,
+    extraAreaSets: extraAreaSetsRaw,
+
     elevator,
     registryOne,
     slopeGrade,
@@ -152,14 +189,38 @@ export function buildCreatePayload(args: BuildArgs) {
     pinKind,
   } = args;
 
+  /** ⛑ 변환: 이후 모든 로직은 엄격 타입만 사용 */
+  const baseAreaSet = toStrictAreaSet(baseAreaSetRaw);
+  const extraAreaSets = (
+    Array.isArray(extraAreaSetsRaw) ? extraAreaSetsRaw : []
+  ).map(toStrictAreaSet);
+
   // completionDate fallback — 비어있으면 KST YYYY-MM-DD
   const effectiveCompletionDate = s(completionDate) || todayYmdKST();
 
   /* 1) 향/방향 필드 */
-  const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
-    buildOrientationFields(aspects);
+  const {
+    orientations, // string[]
+    aspect,
+    aspectNo,
+    aspect1,
+    aspect2,
+    aspect3,
+  } = buildOrientationFields(aspects);
 
-  /* 2) 면적 패킹 */
+  // ✅ 백엔드 스펙: directions = [{ direction: "남향" }, ...]
+  const directions =
+    Array.isArray(orientations) && orientations.length > 0
+      ? Array.from(
+          new Set(
+            orientations
+              .map((v) => String(v ?? "").trim())
+              .filter((v) => v.length > 0)
+          )
+        ).map((direction) => ({ direction }))
+      : undefined;
+
+  /* 2) 면적 패킹 (레거시 호환) — 엄격 AreaSet만 사용 */
   const exclusiveArea = setPack(
     baseAreaSet.exMinM2,
     baseAreaSet.exMaxM2,
@@ -181,6 +242,12 @@ export function buildCreatePayload(args: BuildArgs) {
 
   const baseAreaTitle = (baseAreaSet.title ?? "").trim();
   const extraAreaTitles = extraAreaSets.map((s0) => (s0.title ?? "").trim());
+
+  // ✅ 신규 면적 그룹(DTO): 엄격으로 넘김
+  const areaGroups: CreatePinAreaGroupDto[] = buildAreaGroups(
+    baseAreaSet,
+    extraAreaSets
+  );
 
   /* 3) 이미지 포맷 */
   const imageFoldersRaw: ImageItem[][] = imageFolders.map((card) =>
@@ -238,7 +305,6 @@ export function buildCreatePayload(args: BuildArgs) {
 
   /* 4) 최종 payload */
   const safeBadge = s(badge);
-
   const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
 
   const payload: CreatePayload & {
@@ -259,6 +325,7 @@ export function buildCreatePayload(args: BuildArgs) {
     extraAreaTitles?: string[];
     areaSetTitle?: string;
     areaSetTitles?: string[];
+    areaGroups?: CreatePinAreaGroupDto[];
     pinKind?: PinKind;
     imageFoldersRaw: ImageItem[][];
     fileItemsRaw: ImageItem[];
@@ -291,18 +358,23 @@ export function buildCreatePayload(args: BuildArgs) {
 
     ...(safeBadge ? { badge: safeBadge.slice(0, 30) } : {}),
 
+    /* 향/방향 */
     aspect,
     aspectNo,
     ...(aspect1 ? { aspect1 } : {}),
     ...(aspect2 ? { aspect2 } : {}),
     ...(aspect3 ? { aspect3 } : {}),
-    orientations,
+    orientations, // 내부 용도 유지
+    ...(directions ? { directions } : {}), // ✅ 백엔드용
 
     salePrice,
+
+    // 주차 타입은 선택값 (string|null), 값 있을 때만 보냄
     ...(parkingType != null && String(parkingType).trim() !== ""
       ? { parkingType: String(parkingType) }
       : {}),
 
+    // 총 주차 대수: null이면 제외, 0 포함
     ...(normalizedTotalParkingSlots === null
       ? {}
       : { totalParkingSlots: normalizedTotalParkingSlots }),
@@ -310,8 +382,15 @@ export function buildCreatePayload(args: BuildArgs) {
     // YYYY-MM-DD, KST
     completionDate: effectiveCompletionDate,
 
+    /* 면적 (레거시 호환) */
     exclusiveArea,
     realArea,
+    extraExclusiveAreas,
+    extraRealAreas,
+
+    /* ✅ 신규: 면적 그룹 */
+    ...(areaGroups.length ? { areaGroups } : {}),
+
     listingStars,
     elevator,
 
@@ -334,12 +413,13 @@ export function buildCreatePayload(args: BuildArgs) {
     options,
     optionEtc: etcChecked ? s(optionEtc) : "",
     publicMemo,
-    secretMemo, // ✅ 메인 키
-    privateMemo: secretMemo, // ✅ 레거시 호환도 함께 전송
+    secretMemo, // 메인 키
+    privateMemo: secretMemo, // 레거시 호환도 함께 전송
     registry: registryOne,
 
     unitLines,
 
+    /* 이미지/파일 */
     imageFolders: imageFoldersStored,
     imageCards: imageCardsUI,
     imageCardCounts,
@@ -349,15 +429,14 @@ export function buildCreatePayload(args: BuildArgs) {
     imageFoldersRaw,
     fileItemsRaw,
 
-    extraExclusiveAreas,
-    extraRealAreas,
+    /* 분류/제목 레거시 */
     pinKind,
-
     baseAreaTitle,
     extraAreaTitles,
     areaSetTitle: baseAreaTitle,
     areaSetTitles: extraAreaTitles,
 
+    /* 분류/ID */
     ...(s(buildingType) ? { buildingType: s(buildingType) } : {}),
     ...(toNum(registrationTypeId) !== undefined
       ? { registrationTypeId: toNum(registrationTypeId)! }

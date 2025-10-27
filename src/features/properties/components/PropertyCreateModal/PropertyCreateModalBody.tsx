@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyCreateModal/PropertyCreateModalBody.tsx
 "use client";
 
 import { useRef, useState, useCallback } from "react";
@@ -34,6 +33,12 @@ import { mapPinKindToBadge } from "../../lib/badge";
 import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
+
+// ⛳️ areaGroups는 buildAreaGroups로 생성 (sanitizeAreaGroups 사용 X)
+import { buildAreaGroups } from "@/features/properties/lib/area";
+
+// 🔐 AreaSetsSection이 기대하는 엄격 타입
+import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 
 export default function PropertyCreateModalBody({
   onClose,
@@ -81,6 +86,19 @@ export default function PropertyCreateModalBody({
     return Number.isFinite(n) ? n : undefined;
   };
 
+  // ⛑ 느슨한 AreaSet -> 엄격한 AreaSet 변환 (undefined를 빈 문자열로 보정)
+  const toStrictAreaSet = (s: any): StrictAreaSet => ({
+    title: String(s?.title ?? ""),
+    exMinM2: String(s?.exMinM2 ?? ""),
+    exMaxM2: String(s?.exMaxM2 ?? ""),
+    exMinPy: String(s?.exMinPy ?? ""),
+    exMaxPy: String(s?.exMaxPy ?? ""),
+    realMinM2: String(s?.realMinM2 ?? ""),
+    realMaxM2: String(s?.realMaxM2 ?? ""),
+    realMinPy: String(s?.realMinPy ?? ""),
+    realMaxPy: String(s?.realMaxPy ?? ""),
+  });
+
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
     isSavingRef.current = true;
@@ -104,7 +122,15 @@ export default function PropertyCreateModalBody({
           ? f.completionDate
           : new Date().toISOString().slice(0, 10);
 
+      // ✅ areaGroups: 엄격 변환 후 buildAreaGroups로 생성
+      const strictBase = toStrictAreaSet(f.baseAreaSet);
+      const strictExtras = (
+        Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
+      ).map(toStrictAreaSet);
+      const areaGroups = buildAreaGroups(strictBase, strictExtras);
+
       // ✅ buildCreatePayload에도 totalParkingSlots 및 options 전달(프론트 보관용)
+      //    ⛑ base/extra를 엄격 타입으로 변환해서 타입 에러 해결
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -121,8 +147,8 @@ export default function PropertyCreateModalBody({
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
-        baseAreaSet: f.baseAreaSet,
-        extraAreaSets: f.extraAreaSets,
+        baseAreaSet: strictBase, // ← 변환값 사용
+        extraAreaSets: strictExtras, // ← 변환값 사용
         elevator: f.elevator,
         registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
@@ -162,7 +188,6 @@ export default function PropertyCreateModalBody({
         hasWasher: has("세탁기"),
         hasDryer: has("건조기"),
         hasBidet: has("비데"),
-        // 라벨 케이스가 프로젝트마다 달라질 수 있어 둘 다 허용
         hasAirPurifier: has("공기청정기") || has("공기순환기"),
         isDirectLease: has("직영임대") || has("직영 임대"),
         ...(extraOptionsTextRaw
@@ -170,7 +195,18 @@ export default function PropertyCreateModalBody({
           : {}),
       };
 
-      // ✅ /pins DTO로 매핑 (여기서 totalParkingSlots와 options 반드시 포함!)
+      // ✅ NEW: 향 -> directions 문자열 배열로 매핑
+      const directions: string[] = Array.isArray((f as any).aspects)
+        ? Array.from(
+            new Set(
+              (f as any).aspects
+                .map((a: any) => (a?.dir ?? "").trim())
+                .filter((d: string) => d.length > 0)
+            )
+          )
+        : [];
+
+      // ✅ /pins DTO로 매핑
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
@@ -190,11 +226,13 @@ export default function PropertyCreateModalBody({
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
 
-        // 🔥 핵심: 총 주차대수 + 옵션 포함 (0도 전송됨)
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         options: pinOptions,
+        directions,
 
-        // 🔥 추가: 백엔드가 드래프트 매칭을 우선 하도록
+        // 🔥 areaGroups는 length 체크 후 확실히 포함
+        ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
+
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
           : {}),
@@ -315,7 +353,19 @@ export default function PropertyCreateModalBody({
               REGISTRY_LIST={REGISTRY_LIST}
             />
             <AspectsContainer form={f} />
-            <AreaSetsContainer form={f} />
+            {/* ⛑ AreaSetsContainer에 엄격 타입으로 어댑팅해서 전달 */}
+            <AreaSetsContainer
+              form={{
+                baseAreaSet: toStrictAreaSet(f.baseAreaSet),
+                setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
+                extraAreaSets: (Array.isArray(f.extraAreaSets)
+                  ? f.extraAreaSets
+                  : []
+                ).map(toStrictAreaSet),
+                setExtraAreaSets: (arr: StrictAreaSet[]) =>
+                  f.setExtraAreaSets(arr),
+              }}
+            />
             <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
             <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
             <MemosContainer form={f} />

@@ -82,6 +82,17 @@ export function buildCreateDto(
     isNew: !!(payload as any)?.isNew,
   };
 
+  // 🔹 임시핀-매물 명시 매칭 (문자/숫자 모두 허용; 숫자면 number로)
+  const rawDraftId = (payload as any)?.pinDraftId;
+  if (
+    rawDraftId !== undefined &&
+    rawDraftId !== null &&
+    `${rawDraftId}`.trim() !== ""
+  ) {
+    const n = Number(rawDraftId);
+    dto.pinDraftId = Number.isFinite(n) ? n : `${rawDraftId}`.trim();
+  }
+
   // 서브 연락처: 전화가 있을 때만 포함(라벨 없으면 "사무실" 기본)
   if (toStr(subPhoneRaw).trim()) {
     Object.assign(dto, {
@@ -123,8 +134,6 @@ export function buildCreateDto(
     if (Number.isFinite(n)) dto.parkingTypeId = n;
   }
 
-  // ─────────────────────────────────────────────────────────────────────
-
   // ✅ name: 없으면 title → name 폴백 (서버가 '임시 매물'로 채우는 걸 방지)
   const rawName = toStr(
     (payload as any)?.name || (payload as any)?.title
@@ -140,7 +149,7 @@ export function buildCreateDto(
     dto,
     // enum/선택값은 공백이면 아예 미포함
     toStr((payload as any)?.badge).trim()
-      ? { badge: toStr((payload as any)?.badge).trim() }
+      ? { badge: clip(toStr((payload as any)?.badge).trim(), 30) } // 🔹 30자 제한
       : {},
     normalizedDate ? { completionDate: normalizedDate } : {},
     (payload as any)?.buildingType
@@ -205,7 +214,9 @@ export function buildCreateDto(
   const directions = sanitizeDirections((payload as any)?.directions);
   if (directions) dto.directions = directions;
 
-  const areaGroups = sanitizeAreaGroups((payload as any)?.areaGroups);
+  const areaGroups = sanitizeAreaGroups(
+    (payload as any)?.areaSets ?? (payload as any)?.areaGroups
+  );
   if (areaGroups) dto.areaGroups = areaGroups;
 
   // 빈 문자열 name은 제거 (이중 안전망)

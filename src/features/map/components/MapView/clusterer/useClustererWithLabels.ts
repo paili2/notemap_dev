@@ -15,6 +15,8 @@ import { useSelectionEffect } from "./effects/useSelectionEffect";
 import { useRestoreClosedBubbles } from "./effects/useRestoreClosedBubbles";
 import { useUpdateZIndexAndLabels } from "./effects/useUpdateZIndexAndLabels";
 
+type Opts = ClustererWithLabelsOptions & { enableDebug?: boolean };
+
 export function useClustererWithLabels(
   kakao: any,
   map: any,
@@ -28,7 +30,8 @@ export function useClustererWithLabels(
     hitboxSizePx = HITBOX.DIAMETER_PX,
     defaultPinKind = "1room",
     hideLabelForId = null,
-  }: ClustererWithLabelsOptions = {}
+    enableDebug = false,
+  }: Opts = {}
 ) {
   const { reservationOrderMap = {}, reservationOrderByPosKey = {} } =
     useSidebar();
@@ -85,8 +88,37 @@ export function useClustererWithLabels(
     if (!hitboxOvRef.current) hitboxOvRef.current = {};
   }, [isReady, realMarkersKey]);
 
+  // (옵션) 클릭 막는 UI가 있을 때 대비한 스타일 패치
+  useEffect(() => {
+    if (!enableDebug || !isClient) return;
+    const id = "kakao-pin-pointer-patch";
+    if (document.getElementById(id)) return;
+    const style = document.createElement("style");
+    style.id = id;
+    style.textContent = `
+      .pin-label { pointer-events: none; user-select: none; }
+      .pin-hitbox { pointer-events: none; user-select: none; }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      try {
+        style.remove();
+      } catch {}
+    };
+  }, [enableDebug, isClient]);
+
   usePreloadIcons(isReady, markers, defaultPinKind as PinKind, realMarkersKey);
   useInitClusterer(isReady, kakao, map, clustererRef, clusterMinLevel);
+
+  // 클러스터 클릭 확대 동작은 기본 유지
+  useEffect(() => {
+    if (!isReady || !clustererRef.current) return;
+    try {
+      if (typeof clustererRef.current.setDisableClickZoom === "function") {
+        clustererRef.current.setDisableClickZoom(false);
+      }
+    } catch {}
+  }, [isReady, realMarkersKey]);
 
   useRebuildScene({
     isReady,
@@ -158,6 +190,29 @@ export function useClustererWithLabels(
     markerObjsRef,
     labelOvRef
   );
+
+  // 🔒 프로덕션: 세이프티 리스너 비활성 (디버그시에만 부착)
+  useEffect(() => {
+    if (!enableDebug || !isReady) return;
+    const entries = Object.entries(markerObjsRef.current || {});
+    if (!entries.length) return;
+
+    entries.forEach(([key, marker]) => {
+      try {
+        if (typeof marker.setClickable === "function") {
+          marker.setClickable(true);
+        }
+        if (!(marker as any).__dbg_click_bound) {
+          (marker as any).__dbg_click_bound = true;
+          kakao.maps.event.addListener(marker, "click", () => {
+            // eslint-disable-next-line no-console
+            console.log("[DBG] marker clicked:", key);
+            onMarkerClickRef.current?.(key);
+          });
+        }
+      } catch {}
+    });
+  }, [enableDebug, isReady, realMarkersKey, kakao]);
 
   return {
     redraw: () => clustererRef.current?.redraw?.(),
