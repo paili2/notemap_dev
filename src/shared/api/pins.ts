@@ -1,4 +1,3 @@
-// src/shared/api/pins.ts
 import {
   PinSearchParams,
   PinSearchResult,

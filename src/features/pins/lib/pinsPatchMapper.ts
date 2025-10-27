@@ -1,4 +1,3 @@
-// pinsPatchMapper.ts
 import type { OrientationValue } from "@/features/properties/types/property-domain";
 import type { PropertyEditItem } from "@/features/properties/components/PropertyEditModal/types";
 

@@ -1,5 +1,3 @@
-// src/features/properties/lib/area.ts
-
 /** 1평 = 3.305785㎡ */
 const PYEONG = 3.305785 as const;
 
