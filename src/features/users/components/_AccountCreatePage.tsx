@@ -28,6 +28,7 @@ import {
 } from "@/components/atoms/Form/Form";
 import { Plus, Calendar as CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { getTeams } from "@/features/teams/api";
 import {
   createAccount,
@@ -48,7 +49,6 @@ export type CreateAccountPayload = {
   email: string;
   password: string;
   name: string;
-  role: "manager" | "staff";
   positionRank:
     | "STAFF"
     | "ASSISTANT_MANAGER"
@@ -60,7 +60,8 @@ export type CreateAccountPayload = {
   birthday: string; // YYYY-MM-DD (빈값 허용 시 "")
   emergency_contact: string;
   address: string;
-  salary_account: string;
+  salary_bank_name: string; // 은행명
+  salary_account: string; // 계좌번호
 
   // 팀 정보 (필수)
   team: {
@@ -93,9 +94,6 @@ const CreateUserSchema = z
       .string()
       .min(8, "비밀번호 확인도 8자 이상이어야 합니다."),
     name: z.string().min(1, "이름을 입력하세요.").max(100),
-    role: z.enum(["manager", "staff"], {
-      required_error: "권한을 선택하세요.",
-    }),
     positionRank: z.enum(
       [
         "STAFF",
@@ -121,7 +119,8 @@ const CreateUserSchema = z
       .regex(phoneRegex, "연락처 형식이 올바르지 않습니다.")
       .max(20),
     address: z.string().min(1, "주소를 입력하세요.").max(200),
-    salary_account: z.string().min(1, "급여계좌를 입력하세요.").max(50),
+    salary_bank_name: z.string().min(1, "은행명을 입력하세요.").max(50),
+    salary_account: z.string().min(1, "계좌번호를 입력하세요.").max(50),
     team: z.object({
       teamId: z.string().min(1, "팀을 선택하세요."),
       isPrimary: z.boolean().optional(),
@@ -182,12 +181,12 @@ export default function AccountCreatePage({
       password: "",
       password_confirm: "",
       name: "",
-      role: "staff",
       positionRank: "STAFF",
       phone: "",
       birthday: "",
       emergency_contact: "",
       address: "",
+      salary_bank_name: "",
       salary_account: "",
       team: {
         teamId: "",
@@ -210,16 +209,29 @@ export default function AccountCreatePage({
   >({});
 
   /** 팀 목록 관리 */
-  const [teams, setTeams] = useState<Array<{ id: number; name: string }>>([]);
+  const [teams, setTeams] = useState<
+    Array<{ id: number; name: string; teamLeaderName: string | null }>
+  >([]);
+  const [selectedTeamLeader, setSelectedTeamLeader] = useState<string | null>(
+    null
+  );
+  const [isTeamLeader, setIsTeamLeader] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     const loadTeams = async () => {
       try {
         const teamData = await getTeams();
-        setTeams(teamData.map((team) => ({ id: team.id, name: team.name })));
+        setTeams(
+          teamData.map((team) => ({
+            id: team.id,
+            name: team.name,
+            teamLeaderName: team.teamLeaderName || null,
+          }))
+        );
       } catch (error) {
         console.error("팀 목록 로드 실패:", error);
         setTeams([]);
@@ -240,15 +252,21 @@ export default function AccountCreatePage({
     setIsSubmitting(true);
 
     try {
+      // 팀장 체크박스에 따라 권한 설정 (체크하면 manager, 아니면 staff)
+      const role: "manager" | "staff" = isTeamLeader ? "manager" : "staff";
+
       // 1단계: 계정 생성 (credentials)
       const accountData = {
         email: v.email,
         password: v.password,
-        role: v.role,
+        role,
         team: {
           teamId: v.team.teamId,
           isPrimary: v.team.isPrimary ?? true,
-          joinedAt: v.team.joinedAt,
+          // joinedAt이 빈 문자열이면 undefined로 처리
+          ...(v.team.joinedAt && v.team.joinedAt !== ""
+            ? { joinedAt: v.team.joinedAt }
+            : {}),
         },
         isDisabled: false,
       };
@@ -263,6 +281,7 @@ export default function AccountCreatePage({
         phone: v.phone,
         emergencyContact: v.emergency_contact,
         addressLine: v.address,
+        salaryBankName: v.salary_bank_name,
         salaryAccount: v.salary_account,
         positionRank: v.positionRank,
         profileUrl: v.photo_url,
@@ -288,17 +307,22 @@ export default function AccountCreatePage({
         description: `${v.name}님의 계정이 성공적으로 생성되었습니다.`,
       });
 
-      // 폼 리셋
-      form.reset();
-      setUploadErrors({});
-      setUploading(null);
-    } catch (error) {
+      // 관리자 페이지로 이동
+      router.push("/admin");
+    } catch (error: any) {
       console.error("계정 생성 실패:", error);
+
+      // 에러 메시지 추출
+      const errorMessages = error?.response?.data?.messages || [];
+      const errorMessage =
+        errorMessages.length > 0
+          ? errorMessages.join(", ")
+          : "계정 생성 중 오류가 발생했습니다.";
 
       // 에러 토스트
       toast({
         title: "계정 생성 실패",
-        description: "계정 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -322,7 +346,10 @@ export default function AccountCreatePage({
             1
           )}MB 까지 가능합니다.`
         );
-        e.currentTarget.value = "";
+        // 파일 입력이 여전히 존재하는지 확인
+        if (e.currentTarget) {
+          e.currentTarget.value = "";
+        }
         return;
       }
 
@@ -342,7 +369,10 @@ export default function AccountCreatePage({
         setFieldError(field, err?.message ?? "업로드 중 오류가 발생했습니다.");
       } finally {
         setUploading(null);
-        e.currentTarget.value = "";
+        // 파일 입력이 여전히 존재하는지 확인
+        if (e.currentTarget) {
+          e.currentTarget.value = "";
+        }
       }
     };
 
@@ -388,27 +418,6 @@ export default function AccountCreatePage({
                     <FormLabel>이름 *</FormLabel>
                     <FormControl>
                       <Input placeholder="홍길동" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {/* 권한 */}
-              <FormField
-                control={form.control}
-                name="role"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>권한 *</FormLabel>
-                    <FormControl>
-                      <select
-                        value={field.value}
-                        onChange={(e) => field.onChange(e.target.value)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="staff">일반 사용자</option>
-                        <option value="manager">팀장</option>
-                      </select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -585,6 +594,20 @@ export default function AccountCreatePage({
                   </FormItem>
                 )}
               />{" "}
+              {/* 은행명 */}
+              <FormField
+                control={form.control}
+                name="salary_bank_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>은행명 *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="국민은행" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               {/* 급여계좌 */}
               <FormField
                 control={form.control}
@@ -609,7 +632,17 @@ export default function AccountCreatePage({
                     <FormControl>
                       <select
                         value={field.value}
-                        onChange={(e) => field.onChange(e.target.value)}
+                        onChange={(e) => {
+                          field.onChange(e.target.value);
+                          // 선택한 팀의 팀장 여부 확인
+                          const selectedTeam = teams.find(
+                            (t) => t.id.toString() === e.target.value
+                          );
+                          const leader = selectedTeam?.teamLeaderName || null;
+                          setSelectedTeamLeader(leader);
+                          // 팀장이 공석이면 체크박스 표시, 있으면 초기화
+                          setIsTeamLeader(leader === null);
+                        }}
                         disabled={teamsLoading}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -629,6 +662,32 @@ export default function AccountCreatePage({
                   </FormItem>
                 )}
               />
+              {/* 팀장 여부 표시 및 선택 */}
+              {form.watch("team.teamId") && selectedTeamLeader === null && (
+                <div className="flex items-center space-x-2 p-4 border rounded-md bg-gray-50">
+                  <input
+                    type="checkbox"
+                    id="isTeamLeader"
+                    checked={isTeamLeader}
+                    onChange={(e) => setIsTeamLeader(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label
+                    htmlFor="isTeamLeader"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    이 직원을 팀장으로 설정합니다
+                  </label>
+                </div>
+              )}
+              {form.watch("team.teamId") && selectedTeamLeader !== null && (
+                <div className="p-4 border rounded-md bg-blue-50">
+                  <p className="text-sm text-gray-700">
+                    현재 팀장:{" "}
+                    <span className="font-semibold">{selectedTeamLeader}</span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* ===== 추가 정보 (파일 업로드) ===== */}
@@ -704,12 +763,18 @@ export default function AccountCreatePage({
                     email: "",
                     password: "",
                     name: "",
-                    role: "staff",
+                    positionRank: "STAFF",
                     phone: "",
                     birthday: "",
                     emergency_contact: "",
                     address: "",
+                    salary_bank_name: "",
                     salary_account: "",
+                    team: {
+                      teamId: "",
+                      isPrimary: true,
+                      joinedAt: "",
+                    },
                     photo_url: "",
                     id_photo_url: "",
                     resident_register_url: "",

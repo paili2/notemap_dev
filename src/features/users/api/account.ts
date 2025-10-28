@@ -26,6 +26,7 @@ export type CreateEmployeeInfoRequest = {
   phone: string;
   emergencyContact: string;
   addressLine: string;
+  salaryBankName: string;
   salaryAccount: string;
   positionRank:
     | "STAFF"
@@ -88,6 +89,7 @@ export async function createEmployeeInfo(
   } catch (error) {
     console.error("직원 정보 생성 API 호출 실패:", error);
     console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 메시지:", (error as any)?.response?.data?.messages);
     throw error;
   }
 }

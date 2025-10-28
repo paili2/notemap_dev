@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import type {
   FavorateListItem,
@@ -78,6 +79,7 @@ export function useSidebarState() {
   );
   const [favoritesLoading, setFavoritesLoading] = useState(true);
   const { toast } = useToast();
+  const pathname = usePathname();
 
   // 즐겨찾기 그룹 로드
   const loadFavorites = useCallback(async () => {
@@ -108,10 +110,15 @@ export function useSidebarState() {
     }
   }, [toast]);
 
-  // 컴포넌트 마운트 시 즐겨찾기 로드
+  // 컴포넌트 마운트 시 즐겨찾기 로드 (계정 생성 페이지 제외)
   useEffect(() => {
+    // 계정 생성 페이지에서는 즐겨찾기를 불러오지 않음
+    if (pathname?.includes("/admin/accounts/create")) {
+      setFavoritesLoading(false);
+      return;
+    }
     loadFavorites();
-  }, [loadFavorites]);
+  }, [loadFavorites, pathname]);
 
   // 2) 예약 전 임시핀(서버 /survey-reservations/before)
   const [siteReservations, setSiteReservations] = useState<ListItem[]>([]);

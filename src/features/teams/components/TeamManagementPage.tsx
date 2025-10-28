@@ -1,49 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Card } from "@/components/atoms/Card/Card";
 import { Badge } from "@/components/atoms/Badge/Badge";
 import { Button } from "@/components/atoms/Button/Button";
 import { Users, User } from "lucide-react";
 import Link from "next/link";
 import { CreateTeamForm } from "./CreateTeamForm";
-import { getTeams, CreateTeamResponse } from "../api";
+import { useTeams } from "../hooks/useTeams";
 import { useToast } from "@/hooks/use-toast";
 
 export default function TeamManagementPage() {
-  const [teams, setTeams] = useState<CreateTeamResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: teams = [], isLoading, error } = useTeams();
   const { toast } = useToast();
 
-  // DB에서 팀 목록 불러오기
-  const loadTeams = async () => {
-    try {
-      const teamData = await getTeams();
-      setTeams(teamData);
-      console.log("팀 목록 로드 성공:", teamData);
-    } catch (error) {
-      console.error("팀 목록 로드 실패:", error);
-      console.error("HTTP 상태 코드:", (error as any)?.response?.status);
-      console.error("에러 메시지:", (error as any)?.message);
-      setTeams([]);
-
-      toast({
-        title: "팀 목록 로드 실패",
-        description: "백엔드 서버를 확인해주세요.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadTeams();
-  }, []);
+  if (error) {
+    toast({
+      title: "팀 목록 로드 실패",
+      description: "백엔드 서버를 확인해주세요.",
+      variant: "destructive",
+    });
+  }
 
   const handleTeamCreated = () => {
-    // 팀 생성 후 DB에서 다시 불러오기
-    loadTeams();
+    // React Query가 자동으로 캐시를 무효화하고 다시 불러옴
   };
 
   if (isLoading) {

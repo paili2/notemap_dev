@@ -1,5 +1,5 @@
 import { SalesContractData } from "../types/contract-records";
-import { CreateContractRequest, ContractResponse } from "./contracts";
+import { CreateContractRequest, ContractResponse } from "../api/contracts";
 
 // 프론트엔드 SalesContractData를 백엔드 CreateContractRequest로 변환
 export function transformSalesContractToCreateRequest(
@@ -71,7 +71,10 @@ export function transformContractResponseToContractData(
     id: contract.id.toString(),
     contractNumber: `CONTRACT-${contract.id}`,
     customerName: contract.customerName || "",
-    salespersonName: contract.salespersonName || "",
+    customerContact: contract.customerPhone || "",
+    salesPerson: contract.salespersonName || "",
+    salesPersonSalary: 0, // 백엔드에 없음, 기본값
+    totalCalculation: contract.grandTotal,
     contractDate: contract.createdAt,
     amount: contract.grandTotal,
     status: "completed" as const,

@@ -16,8 +16,8 @@ import {
 } from "@/components/atoms/Dialog/Dialog";
 import { FormError } from "@/components/atoms/FormError/FormError";
 import { Plus } from "lucide-react";
-import { createTeam } from "../api";
 import { useToast } from "@/hooks/use-toast";
+import { useCreateTeam } from "../hooks/useTeams";
 
 const createTeamSchema = z.object({
   name: z
@@ -34,8 +34,8 @@ interface CreateTeamFormProps {
 
 export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
   const [open, setOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const createTeamMutation = useCreateTeam();
 
   const {
     register,
@@ -47,9 +47,8 @@ export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
   });
 
   const onSubmit = async (data: CreateTeamFormData) => {
-    setIsLoading(true);
     try {
-      await createTeam({
+      await createTeamMutation.mutateAsync({
         name: data.name,
         code: data.name.replace(/\s+/g, "").toLowerCase(),
         isActive: true,
@@ -70,8 +69,6 @@ export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
         description: "팀 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -100,9 +97,9 @@ export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
               id="name"
               placeholder="예: 개발팀, 마케팅팀"
               {...register("name")}
-              disabled={isLoading}
+              disabled={createTeamMutation.isPending}
             />
-            <FormError error={errors.name} />
+            <FormError message={errors.name?.message} />
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -110,12 +107,12 @@ export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
-              disabled={isLoading}
+              disabled={createTeamMutation.isPending}
             >
               취소
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "생성 중..." : "팀 생성"}
+            <Button type="submit" disabled={createTeamMutation.isPending}>
+              {createTeamMutation.isPending ? "생성 중..." : "팀 생성"}
             </Button>
           </div>
         </form>
