@@ -213,15 +213,15 @@ export function useSidebarState() {
           args.title?.trim() ||
           args.roadAddress?.trim() ||
           args.jibunAddress?.trim() ||
-          `${args.lat.toFixed(6)}, ${args.lng.toFixed(6)}`;
+          // ⛑ 표시문자열에서도 toFixed 제거 (혹시라도 역파싱 방지)
+          `${args.lat}, ${args.lng}`;
 
         await createPinDraft({
-          lat: args.lat,
-          lng: args.lng,
+          lat: args.lat, // ✅ 원본 숫자 그대로
+          lng: args.lng, // ✅ 원본 숫자 그대로
           addressLine,
         });
 
-        // 서버 재로딩으로 일관성 맞춤
         await loadSiteReservations();
       } catch (e: any) {
         setErr(e?.message ?? "failed to create draft");

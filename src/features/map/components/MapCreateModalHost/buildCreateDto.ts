@@ -38,6 +38,7 @@ const toFinite = (v: any) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+/** 주소 폴백: 좌표 문자열은 표시용이며, 절대 역파싱해서 좌표로 쓰지 말 것 */
 const resolveAddressLine = (
   payload: CreatePayload,
   pos: LatLng,
@@ -47,7 +48,8 @@ const resolveAddressLine = (
   const a2 = toStr((payload as any)?.roadAddress).trim();
   const a3 = toStr((payload as any)?.jibunAddress).trim();
   const a4 = toStr(prefill).trim();
-  return a1 || a2 || a3 || a4 || `${pos.lat.toFixed(6)}, ${pos.lng.toFixed(6)}`;
+  // ⛑ 표시 문자열에서도 toFixed 금지 (정밀도 보존)
+  return a1 || a2 || a3 || a4 || `${pos.lat}, ${pos.lng}`;
 };
 
 export function buildCreateDto(
@@ -69,6 +71,7 @@ export function buildCreateDto(
     (payload as any)?.contactSubPhone ?? (payload as any)?.officePhone2;
 
   const dto: any = {
+    // ✅ 좌표는 원본 정밀도 그대로(수치형으로 전송)
     lat: Number(pos.lat),
     lng: Number(pos.lng),
     addressLine: resolveAddressLine(payload, pos, prefill),
@@ -102,19 +105,24 @@ export function buildCreateDto(
   }
 
   // ── UI → DTO 키 보강 매핑 ────────────────────────────────────────────
-  const registryRaw = (payload as any)?.registryOne; // (구버전) 선택값/ID
-  const parkingTypeIdRaw = (payload as any)?.parkingTypeId; // ✅ 신버전: 주차 유형 ID
-  const parkingTypeRaw = (payload as any)?.parkingType; // (구버전) 라벨/ID 혼재
+  const parkingTypeIdRaw = (payload as any)?.parkingTypeId; // 신버전
+  const parkingTypeRaw = (payload as any)?.parkingType; // 구버전(라벨/ID 혼재)
 
-  // 등기(등록유형) — 숫자/문자 모두 허용 → 숫자로 캐스팅
-  if (
-    registryRaw !== undefined &&
-    registryRaw !== null &&
-    `${registryRaw}`.trim() !== ""
-  ) {
+  // ✅ registrationTypeId: 신필드 우선, 없으면 구버전(registryOne) 폴백
+  const regFromNew = toFinite((payload as any)?.registrationTypeId);
+  const regFromLegacy = (() => {
+    const registryRaw = (payload as any)?.registryOne;
+    if (
+      registryRaw === undefined ||
+      registryRaw === null ||
+      `${registryRaw}`.trim() === ""
+    )
+      return undefined;
     const n = Number(registryRaw);
-    dto.registrationTypeId = Number.isFinite(n) ? n : registryRaw;
-  }
+    return Number.isFinite(n) ? n : undefined; // 라벨 문자열이면 무시
+  })();
+  if (regFromNew !== undefined) dto.registrationTypeId = regFromNew;
+  else if (regFromLegacy !== undefined) dto.registrationTypeId = regFromLegacy;
 
   // ✅ parkingTypeId 우선 적용 (문자 "1"도 숫자로 변환해서 세팅)
   if (
@@ -129,12 +137,11 @@ export function buildCreateDto(
     parkingTypeRaw !== null &&
     `${parkingTypeRaw}`.trim() !== ""
   ) {
-    // 보조: 구버전이 숫자일 때만 채택 (라벨 문자열이면 무시)
     const n = Number(parkingTypeRaw);
     if (Number.isFinite(n)) dto.parkingTypeId = n;
   }
 
-  // ✅ name: 없으면 title → name 폴백 (서버가 '임시 매물'로 채우는 걸 방지)
+  // ✅ name: 없으면 title → name 폴백 (서버의 '임시 매물' 기본값 방지)
   const rawName = toStr(
     (payload as any)?.name || (payload as any)?.title
   ).trim();
@@ -149,7 +156,7 @@ export function buildCreateDto(
     dto,
     // enum/선택값은 공백이면 아예 미포함
     toStr((payload as any)?.badge).trim()
-      ? { badge: clip(toStr((payload as any)?.badge).trim(), 30) } // 🔹 30자 제한
+      ? { badge: clip(toStr((payload as any)?.badge).trim(), 30) }
       : {},
     normalizedDate ? { completionDate: normalizedDate } : {},
     (payload as any)?.buildingType
@@ -163,10 +170,6 @@ export function buildCreateDto(
     (() => {
       const n = toFinite((payload as any)?.totalParkingSlots);
       return n !== undefined ? { totalParkingSlots: n } : {};
-    })(),
-    (() => {
-      const n = toFinite((payload as any)?.registrationTypeId);
-      return n !== undefined ? { registrationTypeId: n } : {};
     })(),
     (payload as any)?.parkingGrade
       ? { parkingGrade: (payload as any).parkingGrade }

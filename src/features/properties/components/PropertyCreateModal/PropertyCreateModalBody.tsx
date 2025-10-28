@@ -39,6 +39,7 @@ import { buildAreaGroups } from "@/features/properties/lib/area";
 
 // 🔐 AreaSetsSection이 기대하는 엄격 타입
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 export default function PropertyCreateModalBody({
   onClose,
@@ -117,10 +118,11 @@ export default function PropertyCreateModalBody({
 
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
+      // KST YYYY-MM-DD로 통일 (서버/기존 코드와 일관)
       const effectiveCompletionDate =
         typeof f.completionDate === "string" && f.completionDate.trim() !== ""
           ? f.completionDate
-          : new Date().toISOString().slice(0, 10);
+          : todayYmdKST();
 
       // ✅ areaGroups: 엄격 변환 후 buildAreaGroups로 생성
       const strictBase = toStrictAreaSet(f.baseAreaSet);

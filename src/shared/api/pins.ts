@@ -1,4 +1,3 @@
-// src/shared/api/pins.ts
 import {
   PinSearchParams,
   PinSearchResult,
@@ -6,16 +5,14 @@ import {
 import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
 import { buildSearchQuery } from "./utils/query";
-import { todayYmdKST } from "../date/todayYmdKST";
+// ⛳ todayYmdKST / resolveCompletionDate 제거 (값 있을 때만 전송)
+// ✅ 전송 직전 좌표 검증/로그
+import { assertNoTruncate } from "@/shared/debug/assertCoords";
 
 // ✅ 추가: 면적 그룹 DTO 임포트
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
 
 /* ───────────── 유틸 ───────────── */
-function resolveCompletionDate(input?: string | null): string {
-  if (typeof input === "string" && input.trim() !== "") return input;
-  return todayYmdKST();
-}
 function makeIdempotencyKey() {
   try {
     if ((globalThis as any).crypto?.randomUUID)
@@ -23,8 +20,12 @@ function makeIdempotencyKey() {
   } catch {}
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
-// round6: 해시(중복 방지)용 근사치. "전송"에는 사용하지 않음.
-const round6 = (n: number | string) => Number(Number(n).toFixed(6));
+
+/** 해시(중복 방지)용 6자리 근사치. "전송"에는 절대 사용하지 않음. */
+const round6 = (n: string | number) => {
+  const v = Number(n);
+  return Math.round(v * 1e6) / 1e6;
+};
 const isFiniteNum = (v: any) => Number.isFinite(Number(v));
 
 /* ───────────── DTO (export!) ───────────── */
@@ -104,7 +105,13 @@ type CreatePinResponse = {
   success: boolean;
   path: string;
   message?: string;
-  data: { id: string | number; matchedDraftId: number | null } | null;
+  // 서버가 lat/lng를 함께 내려주면 추적에 활용 (optional)
+  data: {
+    id: string | number;
+    matchedDraftId: number | null;
+    lat?: number;
+    lng?: number;
+  } | null;
   statusCode?: number;
   messages?: string[];
 };
@@ -212,6 +219,15 @@ function sanitizeAreaGroups(
   return out;
 }
 
+/* ───────────── 내부 헬퍼: 부분 좌표 PATCH 안전 검사 ───────────── */
+function safeAssertNoTruncate(origin: string, lat?: any, lng?: any) {
+  const latOk = Number.isFinite(Number(lat));
+  const lngOk = Number.isFinite(Number(lng));
+  if (latOk && lngOk) {
+    assertNoTruncate(origin, Number(lat), Number(lng));
+  }
+}
+
 /* ───────────── 핀 생성 (/pins) ───────────── */
 export async function createPin(
   dto: CreatePinDto,
@@ -222,7 +238,7 @@ export async function createPin(
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
 
-  // 동일 입력 빠른 연속 호출 흡수 (좌표는 round6로 근사)
+  // 동일 입력 빠른 연속 호출 흡수 (좌표는 round6로 근사) — 전송에는 사용하지 않음
   const preview = {
     lat: round6(dto.lat),
     lng: round6(dto.lng),
@@ -261,12 +277,18 @@ export async function createPin(
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
 
-  const effectiveCompletionDate = resolveCompletionDate(dto.completionDate);
+  // ✅ 좌표 유효성 가드
+  const latNum = Number(dto.lat);
+  const lngNum = Number(dto.lng);
+  if (!Number.isFinite(latNum))
+    throw new Error("lat이 유효한 숫자가 아닙니다.");
+  if (!Number.isFinite(lngNum))
+    throw new Error("lng가 유효한 숫자가 아닙니다.");
 
   const payload = {
-    // 좌표는 원본 정밀도 그대로
-    lat: Number(dto.lat),
-    lng: Number(dto.lng),
+    // 좌표는 원본 정밀도 그대로 (단, 유효성만 보장)
+    lat: latNum,
+    lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
 
@@ -285,7 +307,12 @@ export async function createPin(
       ? { pinDraftId: Number(dto.pinDraftId) }
       : {}),
 
-    completionDate: effectiveCompletionDate,
+    // completionDate: 값 있을 때만 전송
+    ...(typeof dto.completionDate === "string" &&
+    dto.completionDate.trim() !== ""
+      ? { completionDate: dto.completionDate }
+      : {}),
+
     ...(dto.buildingType ? { buildingType: dto.buildingType } : {}),
     ...(dto.totalHouseholds != null
       ? { totalHouseholds: Number(dto.totalHouseholds) }
@@ -323,25 +350,53 @@ export async function createPin(
     ...(groups ? { areaGroups: groups } : {}),
   } as const;
 
+  // 전송 직전 좌표 추적
+  assertNoTruncate("createPin", payload.lat, payload.lng);
+
+  // 단일비행 요청 객체 생성/보관
+  const request = api.post<CreatePinResponse>("/pins", payload, {
+    withCredentials: true,
+    headers: {
+      "Content-Type": "application/json",
+      "x-no-retry": "1",
+      "Idempotency-Key": makeIdempotencyKey(),
+    },
+    maxRedirects: 0,
+    signal,
+    // (선택) 상태코드 직접 분기
+    validateStatus: () => true,
+  });
   G[KEY_HASH] = h;
+  G[KEY_PROMISE] = request;
 
   try {
-    const { data } = await api.post<CreatePinResponse>("/pins", payload, {
-      withCredentials: true,
-      headers: {
-        "Content-Type": "application/json",
-        "x-no-retry": "1",
-        "Idempotency-Key": makeIdempotencyKey(),
-      },
-      maxRedirects: 0,
-      signal,
-    });
+    const { data, status } = await request;
+
+    if (status === 409) {
+      throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
+    }
 
     if (!data?.success || !data?.data?.id) {
       const msg = data?.messages?.join("\n") || data?.message || "핀 생성 실패";
       const e = new Error(msg) as any;
       e.responseData = data;
       throw e;
+    }
+
+    // 서버가 좌표를 내려주면 비교해서 잘렸는지 경고
+    const savedLat = (data as any)?.data?.lat;
+    const savedLng = (data as any)?.data?.lng;
+    if (
+      typeof savedLat === "number" &&
+      typeof savedLng === "number" &&
+      (Math.abs(savedLat - payload.lat) > 1e-8 ||
+        Math.abs(savedLng - payload.lng) > 1e-8)
+    ) {
+      // eslint-disable-next-line no-console
+      console.warn("[coords-mismatch:createPin] server-truncated?", {
+        sent: { lat: payload.lat, lng: payload.lng },
+        saved: { lat: savedLat, lng: savedLng },
+      });
     }
 
     return {
@@ -430,7 +485,7 @@ export async function updatePin(
       ? { contactSubPhone: (dto.contactSubPhone ?? "").toString() }
       : {}),
 
-    // ✅ PATCH에서 completionDate는 빈값이면 **전송하지 않음** (의도치 않은 덮어쓰기 방지)
+    // ✅ PATCH에서 completionDate는 빈값이면 **전송하지 않음**
     ...(has("completionDate")
       ? typeof dto.completionDate === "string" &&
         dto.completionDate.trim() !== ""
@@ -487,16 +542,27 @@ export async function updatePin(
     ...(has("units") ? { units: unitsPayload } : {}),
   };
 
-  try {
-    const { data } = await api.patch(`/pins/${id}`, payload, {
-      withCredentials: true,
-      headers: {
-        "Content-Type": "application/json",
-        "x-no-retry": "1",
-      },
-      signal,
-    });
+  // 전송 직전 좌표 추적 (lat/lng가 payload에 있는 경우만, 둘 다 유효할 때만)
+  safeAssertNoTruncate("updatePin", payload.lat, payload.lng);
 
+  try {
+    const { data, status } = await api.patch(
+      `/pins/${encodeURIComponent(String(id))}`,
+      payload,
+      {
+        withCredentials: true,
+        headers: {
+          "Content-Type": "application/json",
+          "x-no-retry": "1",
+        },
+        signal,
+        validateStatus: () => true,
+      }
+    );
+
+    if (status === 404) {
+      throw new Error("핀을 찾을 수 없습니다.");
+    }
     if (!data?.success || !data?.data?.id) {
       const msg = data?.messages?.join("\n") || data?.message || "핀 수정 실패";
       const e = new Error(msg) as any;
@@ -527,7 +593,7 @@ type CreatePinDraftResponse = {
   success: boolean;
   path: string;
   message?: string;
-  data: { draftId: number } | null;
+  data: { draftId: number; lat?: number; lng?: number } | null;
   statusCode?: number;
   messages?: string[];
 };
@@ -536,26 +602,56 @@ export async function createPinDraft(
   dto: CreatePinDraftDto,
   signal?: AbortSignal
 ): Promise<{ id: string }> {
+  const latNum = Number(dto.lat);
+  const lngNum = Number(dto.lng);
+  if (!Number.isFinite(latNum))
+    throw new Error("lat이 유효한 숫자가 아닙니다.");
+  if (!Number.isFinite(lngNum))
+    throw new Error("lng가 유효한 숫자가 아닙니다.");
+
   const payload = {
     // ⛳ 임시핀도 전송은 원본 좌표 그대로(정밀도 보존)
-    lat: Number(dto.lat),
-    lng: Number(dto.lng),
+    lat: latNum,
+    lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
   };
-  const { data, headers } = await api.post<CreatePinDraftResponse>(
-    "/pin-drafts",
-    payload,
-    {
-      withCredentials: true,
-      headers: {
-        "Content-Type": "application/json",
-        "x-no-retry": "1",
-        "Idempotency-Key": makeIdempotencyKey(),
-      },
-      maxRedirects: 0,
-      signal,
-    }
-  );
+
+  // 전송 직전 좌표 추적
+  assertNoTruncate("createPinDraft", payload.lat, payload.lng);
+
+  const request = api.post<CreatePinDraftResponse>("/pin-drafts", payload, {
+    withCredentials: true,
+    headers: {
+      "Content-Type": "application/json",
+      "x-no-retry": "1",
+      "Idempotency-Key": makeIdempotencyKey(),
+    },
+    maxRedirects: 0,
+    signal,
+    validateStatus: () => true,
+  });
+
+  const { data, headers, status } = await request;
+
+  if (status === 409) {
+    throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
+  }
+
+  // 서버가 좌표를 내려주면 비교해서 잘렸는지 경고
+  const savedLat = (data as any)?.data?.lat;
+  const savedLng = (data as any)?.data?.lng;
+  if (
+    typeof savedLat === "number" &&
+    typeof savedLng === "number" &&
+    (Math.abs(savedLat - payload.lat) > 1e-8 ||
+      Math.abs(savedLng - payload.lng) > 1e-8)
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn("[coords-mismatch:createPinDraft] server-truncated?", {
+      sent: { lat: payload.lat, lng: payload.lng },
+      saved: { lat: savedLat, lng: savedLng },
+    });
+  }
 
   let draftId: string | number | undefined = data?.data?.draftId ?? undefined;
   if (draftId == null) {

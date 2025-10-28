@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Trash2, Pencil } from "lucide-react";
 
 import type { PropertyViewDetails } from "./types";
@@ -21,21 +22,28 @@ import MemosContainer from "./ui/MemosContainer";
 import PropertyEditModalBody from "@/features/properties/components/PropertyEditModal/PropertyEditModalBody";
 import { CreatePayload, UpdatePayload } from "../../types/property-dto";
 
+import { cn } from "@/lib/cn";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+
 /* ───────── null → undefined 보정 ───────── */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
 
-/* ───────── EditPayload → ViewPatch 어댑터 ─────────
-   - Edit 모달이 주는 페이로드를 View가 쓰기 좋은 패치 형태로 변환
-   - nullability 차이만 최소 보정 (필요 시 계속 보강)
-*/
+/* 지도 이벤트(카카오맵) 누수 방지 */
+function eat(e: any) {
+  try {
+    (window as any)?.kakao?.maps?.event?.preventMap?.();
+  } catch {}
+  if (typeof e?.stopPropagation === "function") e.stopPropagation();
+  if (typeof e?.preventDefault === "function") e.preventDefault();
+}
+
+/* ───────── EditPayload → ViewPatch 어댑터 ───────── */
 function toViewPatchFromEdit(
   p: UpdatePayload & Partial<CreatePayload>
 ): Partial<PropertyViewDetails> {
   const anyP = p as any;
   return {
     ...(p as any),
-
-    // nullability 보정
     publicMemo: toUndef(anyP.publicMemo),
     secretMemo: toUndef(anyP.secretMemo),
     salePrice: toUndef(anyP.salePrice),
@@ -53,186 +61,316 @@ export default function PropertyViewModal({
 }: {
   open: boolean;
   onClose: () => void;
-  data: PropertyViewDetails;
+  /** 로딩 동안 null 허용 */
+  data?: PropertyViewDetails | null;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
-  if (!open || !data) return null;
-
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const f = useViewForm({ open, data });
 
-  return (
-    <div className="fixed inset-0 z-[100]">
+  // 포커스/키보드 트랩용
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const firstTrapRef = useRef<HTMLSpanElement | null>(null);
+  const lastTrapRef = useRef<HTMLSpanElement | null>(null);
+  const initialFocusRef = useRef<HTMLButtonElement | null>(null);
+
+  // 배경 스크롤 잠금
+  useBodyScrollLock(open);
+
+  // ESC 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", onKey, { capture: true });
+  }, [open, onClose]);
+
+  // 최초 포커스 이동
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => {
+      initialFocusRef.current?.focus();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [open, mode]);
+
+  // 탭 포커스 트랩
+  const onFocusTrap = useCallback((e: React.FocusEvent) => {
+    if (!wrapperRef.current) return;
+    const focusable = wrapperRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.target === firstTrapRef.current) {
+      last.focus();
+    } else if (e.target === lastTrapRef.current) {
+      first.focus();
+    }
+  }, []);
+
+  // 바깥(Dim) 클릭으로 닫기
+  const onDimClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      eat(e);
+      onClose();
+    },
+    [onClose]
+  );
+
+  // 콘텐츠 내부 포인터 이벤트 누수 방지
+  const onContentPointerDown = useCallback((e: React.PointerEvent) => {
+    eat(e);
+  }, []);
+
+  if (!open) return null;
+
+  const hasData = !!data;
+  const headingId = "property-view-modal-heading";
+  const descId = "property-view-modal-desc";
+
+  // ✅ data 의존 훅/렌더는 hasData일 때만
+  const f = hasData ? useViewForm({ open, data: data! }) : null;
+
+  const node = (
+    <div
+      className="fixed inset-0 z-[1000]" // z-index 상승
+      onPointerDownCapture={onContentPointerDown}
+    >
       {/* Dim */}
       <button
+        type="button"
         className="absolute inset-0 bg-black/40"
-        onClick={onClose}
+        onClick={onDimClick}
         aria-label="닫기"
       />
 
       {/* Wrapper: 모바일 풀스크린 / 데스크탑 카드 */}
       <div
-        className={[
+        ref={wrapperRef}
+        className={cn(
           "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
           "bg-white shadow-xl overflow-hidden flex flex-col",
           "w-screen h-screen max-w-none max-h-none rounded-none",
-          "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl",
-        ].join(" ")}
+          "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
+        )}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={headingId}
+        aria-describedby={descId}
+        onKeyDownCapture={(e) => {
+          if (e.key === "Escape") e.stopPropagation();
+        }}
       >
+        {/* 포커스 트랩 시작 */}
+        <span ref={firstTrapRef} tabIndex={0} onFocus={onFocusTrap} />
+
         {mode === "view" ? (
-          <>
-            {/* 헤더 */}
-            <div className="sticky top-0 z-10 bg-white border-b">
-              <HeaderViewContainer
-                title={f.title}
-                listingStars={f.listingStars}
-                elevator={f.elevator}
-                pinKind={f.pinKind}
-                onClose={onClose}
-              />
-            </div>
-
-            {/* 본문 */}
-            <div
-              className={[
-                "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
-                "px-4 py-4 md:px-5 md:py-4",
-                "grid gap-4 md:gap-6",
-                "grid-cols-1 md:grid-cols-[300px_1fr]",
-              ].join(" ")}
-            >
-              {/* 좌측(이미지) */}
-              <div className="space-y-4">
-                <DisplayImagesContainer
-                  cards={f.cardsHydrated}
-                  images={f.imagesProp}
-                  files={f.filesHydrated}
+          hasData ? (
+            <>
+              {/* 헤더 */}
+              <div className="sticky top-0 z-10 bg-white border-b">
+                <HeaderViewContainer
+                  title={f!.title}
+                  listingStars={f!.listingStars}
+                  elevator={f!.elevator}
+                  pinKind={f!.pinKind}
+                  onClose={onClose}
+                  closeButtonRef={initialFocusRef}
+                  headingId={headingId}
+                  descId={descId}
                 />
               </div>
 
-              {/* 우측(정보 섹션들) */}
-              <div className="space-y-4 md:space-y-6">
-                <BasicInfoViewContainer
-                  address={f.address}
-                  officePhone={f.officePhone}
-                  officePhone2={f.officePhone2}
-                />
-                <NumbersViewContainer
-                  totalBuildings={f.totalBuildings}
-                  totalFloors={f.totalFloors}
-                  totalHouseholds={f.totalHouseholds}
-                  remainingHouseholds={f.remainingHouseholds}
-                />
-                <ParkingViewContainer
-                  parkingType={f.parkingType}
-                  parkingCount={f.parkingCount}
-                />
-                <CompletionRegistryViewContainer
-                  completionDate={f.completionDateText}
-                  salePrice={f.salePrice}
-                  registry={f.registry}
-                  slopeGrade={f.slopeGrade}
-                  structureGrade={f.structureGrade}
-                />
-                <AspectsViewContainer details={data} />
-                <AreaSetsViewContainer
-                  exclusiveArea={f.exclusiveArea}
-                  realArea={f.realArea}
-                  extraExclusiveAreas={f.extraExclusiveAreas}
-                  extraRealAreas={f.extraRealAreas}
-                  baseAreaTitle={f.baseAreaTitleView}
-                  extraAreaTitles={f.extraAreaTitlesView}
-                />
-                <StructureLinesListContainer lines={f.unitLines} />
-                <OptionsBadgesContainer
-                  options={f.options}
-                  optionEtc={f.optionEtc}
-                />
-                <MemosContainer
-                  publicMemo={f.publicMemo}
-                  secretMemo={f.secretMemo}
-                />
-                <div className="h-16 md:hidden" />
-              </div>
-            </div>
-
-            {/* 하단 액션 */}
-            <div className="md:static">
+              {/* 본문 */}
               <div
-                className={[
-                  "fixed bottom-0 left-0 right-0 z-20 md:relative",
-                  "bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70",
-                  "border-t",
-                  "px-4 py-3 md:px-5 md:py-3",
-                  "flex items-center justify-between",
-                  "shadow-[0_-4px_10px_-6px_rgba(0,0,0,0.15)] md:shadow-none",
-                ].join(" ")}
+                className={cn(
+                  "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
+                  "px-4 py-4 md:px-5 md:py-4",
+                  "grid gap-4 md:gap-6",
+                  "grid-cols-1 md:grid-cols-[300px_1fr]"
+                )}
               >
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMode("edit")}
-                    className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
-                    aria-label="수정"
-                    title="수정"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    수정
-                  </button>
-
-                  {onDelete && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!confirm("정말 삭제할까요?")) return;
-                        await onDelete();
-                      }}
-                      className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex"
-                      aria-label="삭제"
-                      title="삭제"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      삭제
-                    </button>
-                  )}
+                {/* 좌측(이미지) */}
+                <div className="space-y-4">
+                  <DisplayImagesContainer
+                    cards={f!.cardsHydrated}
+                    images={f!.imagesProp}
+                    files={f!.filesHydrated}
+                  />
                 </div>
 
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-md border px-3 h-9 hover:bg-muted"
-                  aria-label="닫기"
-                  title="닫기"
-                >
-                  닫기
-                </button>
+                {/* 우측(정보 섹션들) */}
+                <div className="space-y-4 md:space-y-6">
+                  <BasicInfoViewContainer
+                    address={f!.address}
+                    officePhone={f!.officePhone}
+                    officePhone2={f!.officePhone2}
+                  />
+                  <NumbersViewContainer
+                    totalBuildings={f!.totalBuildings}
+                    totalFloors={f!.totalFloors}
+                    totalHouseholds={f!.totalHouseholds}
+                    remainingHouseholds={f!.remainingHouseholds}
+                  />
+                  <ParkingViewContainer
+                    parkingType={f!.parkingType}
+                    parkingCount={f!.parkingCount}
+                  />
+                  <CompletionRegistryViewContainer
+                    completionDate={f!.completionDateText}
+                    salePrice={f!.salePrice}
+                    registry={f!.registry}
+                    slopeGrade={f!.slopeGrade}
+                    structureGrade={f!.structureGrade}
+                  />
+                  <AspectsViewContainer details={data!} />
+                  <AreaSetsViewContainer
+                    exclusiveArea={f!.exclusiveArea}
+                    realArea={f!.realArea}
+                    extraExclusiveAreas={f!.extraExclusiveAreas}
+                    extraRealAreas={f!.extraRealAreas}
+                    baseAreaTitle={f!.baseAreaTitleView}
+                    extraAreaTitles={f!.extraAreaTitlesView}
+                  />
+                  <StructureLinesListContainer lines={f!.unitLines} />
+                  <OptionsBadgesContainer
+                    options={f!.options}
+                    optionEtc={f!.optionEtc}
+                  />
+                  <MemosContainer
+                    publicMemo={f!.publicMemo}
+                    secretMemo={f!.secretMemo}
+                  />
+                  <div className="h-16 md:hidden" />
+                </div>
               </div>
-            </div>
-          </>
+
+              {/* 하단 액션 */}
+              <div className="md:static">
+                <div
+                  className={cn(
+                    "fixed bottom-0 left-0 right-0 z-20 md:relative",
+                    "bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70",
+                    "border-t",
+                    "px-4 py-3 md:px-5 md:py-3",
+                    "flex items-center justify-between",
+                    "shadow-[0_-4px_10px_-6px_rgba(0,0,0,0.15)] md:shadow-none"
+                  )}
+                >
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setMode("edit")}
+                      ref={initialFocusRef}
+                      className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
+                      aria-label="수정"
+                      title="수정"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      수정
+                    </button>
+
+                    {onDelete && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm("정말 삭제할까요?")) return;
+                          await onDelete();
+                        }}
+                        className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex"
+                        aria-label="삭제"
+                        title="삭제"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        삭제
+                      </button>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex items-center gap-2 rounded-md border px-3 h-9 hover:bg-muted"
+                    aria-label="닫기"
+                    title="닫기"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            // 🔹 데이터 없을 때 로딩 화면
+            <>
+              <div className="sticky top-0 z-10 bg-white border-b">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <h2 id={headingId} className="text-lg font-semibold">
+                    상세 정보를 불러오는 중…
+                  </h2>
+                  <button
+                    type="button"
+                    ref={initialFocusRef}
+                    onClick={onClose}
+                    className="rounded-md border px-3 h-9 hover:bg-muted"
+                    aria-label="닫기"
+                    title="닫기"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 grid place-items-center p-10">
+                <div className="flex flex-col items-center gap-3 text-slate-600">
+                  <span className="animate-pulse text-base">
+                    상세 정보를 불러오는 중…
+                  </span>
+                  <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
+                    <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
+                  </div>
+                </div>
+              </div>
+            </>
+          )
         ) : (
-          /* 편집 모드: 같은 모달 프레임 안에서 내용만 교체 */
-          <PropertyEditModalBody
-            key={String(data.id ?? "edit")} // 폼 초기화 보장
-            embedded
-            initialData={data}
-            onClose={() => setMode("view")}
-            // ✅ 기대 타입으로 받고 → 어댑터로 변환 → onSave 호출
-            onSubmit={async (
-              payload: UpdatePayload & Partial<CreatePayload>
-            ) => {
-              try {
-                const viewPatch = toViewPatchFromEdit(payload);
-                await onSave?.(viewPatch);
-              } finally {
-                setMode("view");
-              }
-            }}
-          />
+          // 편집 모드
+          hasData && (
+            <PropertyEditModalBody
+              key={String(data!.id ?? "edit")}
+              embedded
+              initialData={data!}
+              onClose={() => setMode("view")}
+              onSubmit={async (
+                payload: UpdatePayload & Partial<CreatePayload>
+              ) => {
+                try {
+                  const viewPatch = toViewPatchFromEdit(payload);
+                  await onSave?.(viewPatch);
+                } finally {
+                  setMode("view");
+                }
+              }}
+            />
+          )
         )}
+
+        {/* 포커스 트랩 끝 */}
+        <span ref={lastTrapRef} tabIndex={0} onFocus={onFocusTrap} />
       </div>
     </div>
   );
+
+  // 포털로 최상위에 렌더
+  if (typeof document !== "undefined") {
+    return createPortal(node, document.body);
+  }
+  return node;
 }

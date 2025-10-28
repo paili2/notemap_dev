@@ -62,12 +62,14 @@ export default function ContextMenuPanel({
     return { draft, reserved, planned, headerTitle };
   }, [propertyId, isVisitReservedPin, isPlanPin, propertyTitle]);
 
-  // 상세보기 가능 여부: id가 있고 드래프트가 아닐 때만
+  // 상세보기 가능 여부: id가 있고 드래프트/visit가 아닐 때만
   const canView = useMemo(() => {
     if (!propertyId) return false;
-    if (propertyId === "__draft__") return false;
     const s = String(propertyId).trim();
-    return s.length > 0;
+    if (!s) return false;
+    if (s === "__draft__") return false;
+    if (s.startsWith("__visit__")) return false; // 예약 임시핀 상세보기 차단
+    return true;
   }, [propertyId]);
 
   /** 초기 포커스/복귀 */
@@ -88,7 +90,7 @@ export default function ContextMenuPanel({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
-    window.addEventListener("keydown", onKey); // passive 불필요
+    window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
@@ -99,9 +101,7 @@ export default function ContextMenuPanel({
       if (!panelRef.current || !target) return;
       if (!panelRef.current.contains(target)) onClose();
     };
-    // capture: true 로 등록
     document.addEventListener("pointerdown", onDocPointerDown, true);
-    // 제거 시에도 동일한 capture 불리언을 전달해야 함
     return () =>
       document.removeEventListener("pointerdown", onDocPointerDown, true);
   }, [onClose]);
@@ -138,7 +138,6 @@ export default function ContextMenuPanel({
     propertyTitle,
     onPlan,
     onClose,
-    ,
     bump,
   ]);
 
@@ -151,8 +150,10 @@ export default function ContextMenuPanel({
 
   const handleViewClick = useCallback(() => {
     if (!canView) return;
-    onView?.(String(propertyId));
-  }, [onView, propertyId, canView]);
+    onView?.(String(propertyId)); // 1) 먼저 상세보기 트리거
+    Promise.resolve().then(() => onClose()); // 2) 다음 틱에 닫기 (경합 방지)
+    // 또는: requestAnimationFrame(() => onClose());
+  }, [onView, onClose, propertyId, canView]);
 
   return (
     <div

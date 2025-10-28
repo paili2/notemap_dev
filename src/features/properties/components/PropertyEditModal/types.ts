@@ -1,4 +1,3 @@
-// features/properties/components/PropertyEditModal/types.ts
 import type {
   Grade,
   Registry,

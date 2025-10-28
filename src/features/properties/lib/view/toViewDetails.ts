@@ -1,4 +1,3 @@
-import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import type { ImageItem } from "@/features/properties/types/media";
 import {
@@ -7,81 +6,168 @@ import {
   normalizeOneImage,
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
+import type { ViewSource } from "@/features/properties/lib/view/types";
 
-/** PropertyItem → ViewModel 변환 (UI 친화) */
-export function toViewDetails(p: PropertyItem): PropertyViewDetails {
-  const v: any = (p as any).view ?? {};
+/** 안전 변환 유틸 */
+const toNumOr = (v: any, fallback: number) =>
+  Number.isFinite(Number(v)) ? Number(v) : fallback;
+const toStrOr = (v: any, fallback = "") =>
+  typeof v === "string" ? v : v == null ? fallback : String(v);
+const isNonEmpty = (s: any) => typeof s === "string" && s.trim() !== "";
 
-  // ✅ imagesByCard 제거: imageCards만 수용
+/** ViewSource → ViewModel 변환 (UI 친화) */
+export function toViewDetails(p: ViewSource): PropertyViewDetails {
+  // 백엔드가 내려주는 view 블록(선택적)
+  const v = (p as unknown as { view?: Record<string, any> })?.view ?? {};
+
+  // ✅ imagesByCard는 무시하고 imageCards만 수용
   const cards: ImageItem[][] = Array.isArray(v.imageCards)
     ? normalizeImageCards(v.imageCards)
     : [];
 
-  const imagesSafe: ImageItem[] =
-    cards.length > 0
-      ? flattenCards(cards)
-      : Array.isArray(v.images)
-      ? (v.images.map(normalizeOneImage).filter(Boolean) as ImageItem[])
-      : [];
+  // 카드가 있으면 카드 기반 일람, 없으면 옛날 단일 images/fileItems 호환
+  const imagesFromCards: ImageItem[] = cards.length ? flattenCards(cards) : [];
+  const imagesLegacy: ImageItem[] = Array.isArray(v.images)
+    ? (v.images.map(normalizeOneImage).filter(Boolean) as ImageItem[])
+    : [];
+  const images: ImageItem[] =
+    imagesFromCards.length > 0 ? imagesFromCards : imagesLegacy;
 
-  const filesSafe: ImageItem[] = Array.isArray(v.fileItems)
+  const fileItems: ImageItem[] = Array.isArray(v.fileItems)
     ? normalizeImages(v.fileItems)
     : [];
 
   // 향/호수 파생
-  const ori: { ho: number; value: string }[] = Array.isArray(v.orientations)
+  type OriRow = { ho: number; value: string };
+  const orientations: OriRow[] = Array.isArray(v.orientations)
     ? (v.orientations as any[]).map((o) => ({
-        ho: Number(o.ho),
-        value: String(o.value),
+        ho: toNumOr(o?.ho, NaN),
+        value: toStrOr(o?.value),
       }))
     : [];
-  const pick = (ho: number) => ori.find((o) => o.ho === ho)?.value;
 
+  const pick = (ho: number) =>
+    orientations.find((o) => o.ho === ho && isNonEmpty(o.value))?.value;
+
+  // 과거 키 호환: aspect1/2/3, aspectNo + aspect
   const a1 =
-    pick(1) ??
-    v.aspect1 ??
-    (v.aspectNo === "1호" ? v.aspect : undefined) ??
-    "남";
+    pick(1) ||
+    (isNonEmpty(v.aspect1) ? String(v.aspect1) : undefined) ||
+    (v.aspectNo === "1호" && isNonEmpty(v.aspect)
+      ? String(v.aspect)
+      : undefined);
   const a2 =
-    pick(2) ??
-    v.aspect2 ??
-    (v.aspectNo === "2호" ? v.aspect : undefined) ??
-    "북";
+    pick(2) ||
+    (isNonEmpty(v.aspect2) ? String(v.aspect2) : undefined) ||
+    (v.aspectNo === "2호" && isNonEmpty(v.aspect)
+      ? String(v.aspect)
+      : undefined);
   const a3 =
-    pick(3) ??
-    v.aspect3 ??
-    (v.aspectNo === "3호" ? v.aspect : undefined) ??
-    "남동";
+    pick(3) ||
+    (isNonEmpty(v.aspect3) ? String(v.aspect3) : undefined) ||
+    (v.aspectNo === "3호" && isNonEmpty(v.aspect)
+      ? String(v.aspect)
+      : undefined);
 
-  // 면적 세트 제목(과거 키 호환 제거하고 싶으면 v.areaSetTitle, v.areaTitle 분기 삭제)
-  const baseAreaTitle = v.baseAreaTitle ?? v.areaSetTitle ?? v.areaTitle ?? "";
-  const extraAreaTitles = v.extraAreaTitles ?? v.areaSetTitles ?? [];
+  // 면적 세트 제목(레거시 키 호환)
+  const baseAreaTitle =
+    toStrOr(v.baseAreaTitle) || toStrOr(v.areaSetTitle) || toStrOr(v.areaTitle);
+  const extraAreaTitles: string[] = Array.isArray(v.extraAreaTitles)
+    ? v.extraAreaTitles.map((s: any) => toStrOr(s)).filter(Boolean)
+    : Array.isArray(v.areaSetTitles)
+    ? v.areaSetTitles.map((s: any) => toStrOr(s)).filter(Boolean)
+    : [];
+
+  // 숫자류 안전 기본값: 기존 하드코딩 대신 undefined 유지
+  const totalBuildings = Number.isFinite(Number(v.totalBuildings))
+    ? Number(v.totalBuildings)
+    : undefined;
+  const totalFloors = Number.isFinite(Number(v.totalFloors))
+    ? Number(v.totalFloors)
+    : undefined;
+  const totalHouseholds = Number.isFinite(Number(v.totalHouseholds))
+    ? Number(v.totalHouseholds)
+    : undefined;
+  const remainingHouseholds = Number.isFinite(Number(v.remainingHouseholds))
+    ? Number(v.remainingHouseholds)
+    : undefined;
+
+  // 별점 0~5 범위 클램프
+  const listingStarsRaw =
+    typeof v.listingStars === "number"
+      ? v.listingStars
+      : Number(v.listingStars);
+  const listingStars = Number.isFinite(listingStarsRaw)
+    ? Math.max(0, Math.min(5, listingStarsRaw))
+    : 0;
+
+  // 엘리베이터: "O"/"X" 외 값 들어오면 기본값 "O"
+  const elevator =
+    v.elevator === "O" || v.elevator === "X" ? (v.elevator as "O" | "X") : "O";
+
+  // 주차: type 라벨/개수(문자), 레거시 값과 공백 허용
+  const parkingType = isNonEmpty(v.parkingType)
+    ? String(v.parkingType)
+    : "답사지 확인";
+  const parkingCount = isNonEmpty(v.parkingCount) ? String(v.parkingCount) : "";
+
+  // 날짜/작성자 정보: 문자열만 반영
+  const createdAt = toStrOr(v.createdAt);
+  const updatedAt = toStrOr(v.updatedAt);
+  const inspectedAt = toStrOr(v.inspectedAt);
+
+  const createdByName = toStrOr(v.createdByName);
+  const updatedByName = toStrOr(v.updatedByName);
+  const inspectedByName = toStrOr(v.inspectedByName);
+
+  // 옵션/등기/유닛라인 등 배열/문자 기본 처리
+  const options: string[] = Array.isArray(v.options)
+    ? v.options.map((s: any) => toStrOr(s)).filter(Boolean)
+    : [];
+  const unitLines = Array.isArray(v.unitLines) ? v.unitLines : [];
+  const optionEtc = toStrOr(v.optionEtc);
+  const registry = isNonEmpty(v.registry) ? String(v.registry) : "주택";
 
   return {
+    // 상단 메타
     status: (p as any).status ?? "공개",
     dealStatus: (p as any).dealStatus ?? "분양중",
-    title: p.title,
-    address: p.address ?? "",
+    title: toStrOr(p.title),
+    address: toStrOr(p.address),
+
+    // 유형/가격
     type: (p as any).type ?? "주택",
-    salePrice: (p as any).priceText ?? "",
+    salePrice: toStrOr((p as any).priceText),
 
-    images: imagesSafe,
+    // 미디어
+    images,
     imageCards: cards,
-    fileItems: filesSafe,
+    fileItems,
 
-    options: v.options ?? [],
-    optionEtc: v.optionEtc ?? "",
-    registry: v.registry ?? "주택",
-    unitLines: v.unitLines ?? [],
-    listingStars: typeof v.listingStars === "number" ? v.listingStars : 0,
-    elevator: (v.elevator as "O" | "X") ?? "O",
-    parkingType: v.parkingType ?? "답사지 확인",
-    parkingCount: v.parkingCount ?? "",
-    completionDate: v.completionDate,
+    // 옵션/문구
+    options,
+    optionEtc,
+    registry,
 
-    // 면적
-    exclusiveArea: v.exclusiveArea,
-    realArea: v.realArea,
+    // 라인/평면 등
+    unitLines,
+
+    // 부가 정보
+    listingStars,
+    elevator,
+    parkingType,
+    parkingCount,
+    completionDate: isNonEmpty(v.completionDate)
+      ? String(v.completionDate)
+      : undefined,
+
+    // 면적 (숫자/배열 그대로 통과, undefined 허용)
+    exclusiveArea: Number.isFinite(Number(v.exclusiveArea))
+      ? Number(v.exclusiveArea)
+      : undefined,
+    realArea: Number.isFinite(Number(v.realArea))
+      ? Number(v.realArea)
+      : undefined,
     extraExclusiveAreas: Array.isArray(v.extraExclusiveAreas)
       ? v.extraExclusiveAreas
       : [],
@@ -90,23 +176,31 @@ export function toViewDetails(p: PropertyItem): PropertyViewDetails {
     baseAreaTitle,
     extraAreaTitles,
 
-    // 향/등급 등
+    // 향(존재하는 값만)
     aspect1: a1,
     aspect2: a2,
     aspect3: a3,
-    totalBuildings: v.totalBuildings ?? 2,
-    totalFloors: v.totalFloors ?? 10,
-    totalHouseholds: v.totalHouseholds ?? 50,
-    remainingHouseholds: v.remainingHouseholds ?? 10,
-    slopeGrade: v.slopeGrade ?? "상",
-    structureGrade: v.structureGrade ?? "상",
-    publicMemo: v.publicMemo ?? "",
-    secretMemo: v.secretMemo ?? "",
-    createdByName: v.createdByName ?? "",
-    createdAt: v.createdAt ?? "",
-    inspectedByName: v.inspectedByName ?? "",
-    inspectedAt: v.inspectedAt ?? "",
-    updatedByName: v.updatedByName ?? "",
-    updatedAt: v.updatedAt ?? "",
-  } as any;
+
+    // 수량 정보(선택)
+    totalBuildings,
+    totalFloors,
+    totalHouseholds,
+    remainingHouseholds,
+
+    // 등급류
+    slopeGrade: toStrOr(v.slopeGrade) || undefined,
+    structureGrade: toStrOr(v.structureGrade) || undefined,
+
+    // 메모
+    publicMemo: toStrOr(v.publicMemo),
+    secretMemo: toStrOr(v.secretMemo),
+
+    // 작성/수정/검수 정보
+    createdByName,
+    createdAt,
+    inspectedByName,
+    inspectedAt,
+    updatedByName,
+    updatedAt,
+  } as PropertyViewDetails;
 }

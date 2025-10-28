@@ -6,7 +6,6 @@ import { MapMenuKey } from "../../../components/MapMenu";
 import { useRoadview } from "../../../hooks/useRoadview";
 import { usePinsFromViewport } from "../../../hooks/usePinsFromViewport";
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
-import { MapViewHandle } from "../../../components/MapView/MapView";
 import { MapHomeUIProps } from "../../components/types";
 import { useMergedMarkers } from "../hooks/useMergedMarkers";
 import MapCanvas from "../components/MapCanvas";
@@ -26,6 +25,12 @@ import type {
   PinSearchResult,
 } from "@/features/pins/types/pin-search";
 import { searchPins } from "@/shared/api/pins";
+
+// ✅ 상세보기 데이터 패칭 & 뷰모델 변환
+import { getPin } from "@/shared/api/getPin";
+import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
+import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+import type { ViewSource } from "@/features/properties/lib/view/types";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -86,14 +91,14 @@ function pickBestExitStrict(
     if (want != null && no === want) score += 1000;
     if (n(d.place_name).includes(sNorm)) score += 50;
 
-    let dist = Number(d.distance ?? 999999);
+    let dist = Number(d.distance ?? 999_999);
     if (isNaN(dist) && stationLL) {
       const dy = Math.abs(Number(d.y) - stationLL.getLat());
       const dx = Math.abs(Number(d.x) - stationLL.getLng());
-      dist = Math.sqrt(dx * dx + dy * dy) * 111000;
+      dist = Math.sqrt(dx * dx + dy * dy) * 111_000;
     }
     score += Math.max(0, 500 - Math.min(dist, 500));
-    return { d, score, dist };
+    return { d, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
@@ -106,21 +111,17 @@ function scorePlaceForSchool(item: any, keywordNorm: string) {
   const cat = (item.category_name || "").replace(/\s+/g, "");
   let s = 0;
 
-  // 정확/시작 일치 가중
   if (nameN === keywordNorm) s += 1000;
   if (nameN.startsWith(keywordNorm)) s += 400;
   if (nameN.includes(keywordNorm)) s += 150;
 
-  // 학교/캠퍼스 가중
   if (/학교|대학교|캠퍼스|정문|본관/.test(item.place_name)) s += 300;
   if (/학교|대학교/.test(cat)) s += 250;
 
-  // 잡음(숲/등산/로/길/야외) 페널티
   if (/숲|산|등산|둘레길|산책로|야외|야영/.test(item.place_name)) s -= 500;
   if (/[로|길]$/.test(item.place_name)) s -= 300;
 
-  // 위치 가중(카카오가 주는 distance m)
-  const dist = Number(item.distance ?? 999999);
+  const dist = Number(item.distance ?? 999_999);
   if (!isNaN(dist)) s += Math.max(0, 400 - Math.min(dist, 400));
   return s;
 }
@@ -133,7 +134,6 @@ function pickBestPlace(
   if (!data?.length) return null;
   const kw = norm(keyword);
 
-  // 일반 스텝: 정확 → 부분 → 거리
   const exact = data.find((d) => norm(d.place_name) === kw);
   if (exact) return exact;
   const starts = data.find((d) => norm(d.place_name).startsWith(kw));
@@ -150,59 +150,23 @@ function pickBestPlace(
   return data[0];
 }
 
-// 학교 쿼리 감지
-const isSchoolQuery = (q: string) =>
-  /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(q);
-
-// 중복 제거용
-const uniqById = (arr: any[]) => {
-  const seen = new Set<string>();
-  const out: any[] = [];
-  for (const it of arr || []) {
-    if (!seen.has(it.id)) {
-      seen.add(it.id);
-      out.push(it);
-    }
-  }
-  return out;
-};
-
-// 학교 전용 스코어러 (카테·키워드 가중↑, 야외/도로 페널티↓↓)
-function scorePlaceForSchoolHard(item: any, keywordNorm: string) {
-  const name = item.place_name || "";
-  const nameN = norm(name);
-  const catName = (item.category_name || "").replace(/\s+/g, "");
-  const group = item.category_group_code || "";
-
-  let s = 0;
-
-  // 이름 일치도
-  if (nameN === keywordNorm) s += 1200;
-  if (nameN.startsWith(keywordNorm)) s += 500;
-  if (nameN.includes(keywordNorm)) s += 180;
-
-  // 학교/캠퍼스 가중
-  if (/학교|대학교|캠퍼스/.test(name)) s += 450;
-  if (/정문|본관/.test(name)) s += 220;
-  if (/학교|대학교/.test(catName)) s += 320;
-
-  // 카테고리 그룹 가중 (SC4 = 학교)
-  if (group === "SC4") s += 800;
-
-  // 노이즈 큰 페널티
-  if (/숲|산|둘레길|산책로|야외/.test(name)) s -= 800;
-  if (/주차장/.test(name)) s -= 500;
-  if (/버스정류장|정류장/.test(name)) s -= 400;
-  if (/[로|길]$/.test(name)) s -= 350;
-
-  // 거리 가중(최대 +400)
-  const dist = Number(item.distance ?? 999999);
-  if (!isNaN(dist)) s += Math.max(0, 400 - Math.min(dist, 400));
-
-  return s;
-}
-
 /* ----------------------------------------------------------- */
+/** API getPin() 결과(상세) -> ViewSource 얇은 어댑터 */
+function toViewSourceFromApiPin(pin: any): ViewSource {
+  const anyP = pin ?? {};
+  return {
+    title: anyP.title ?? anyP.badge ?? undefined,
+    address:
+      (anyP.address && String(anyP.address)) ||
+      (anyP.addressLine && String(anyP.addressLine)) ||
+      undefined,
+    status: anyP.status ?? null,
+    dealStatus: anyP.dealStatus ?? null,
+    type: anyP.type ?? null,
+    priceText: anyP.priceText ?? anyP.price ?? null,
+    view: anyP.view ?? undefined,
+  };
+}
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -227,20 +191,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuJibunAddr,
     menuTitle,
     onCloseMenu,
-    onViewFromMenu,
     onCreateFromMenu,
     onPlanFromMenu,
     onMarkerClick,
     onMapReady,
     onViewportChange,
-    addFav,
-    viewOpen,
+    // 상위 상태 유지 전달 (모달·패치 등)
     createOpen,
     selectedViewItem,
     prefillAddress,
     draftPin,
     selectedPos,
-    closeView,
     onSaveViewPatch,
     onDeleteFromView,
     createHostHandlers,
@@ -249,6 +210,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onChangeHideLabelForId,
     onAddFav,
     favById = {},
+    onReserveFromMenu,
+    // 🔻 (선택) 상위가 핸들러를 내려주면 우선 사용
+    onViewFromMenu,
   } = props;
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
@@ -261,6 +225,39 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [searchRes, setSearchRes] = useState<PinSearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+
+  // ✅ 상세보기 모달을 이 컴포넌트에서 직접 관리 (fallback)
+  const [viewOpenLocal, setViewOpenLocal] = useState(false);
+  const [viewDataLocal, setViewDataLocal] =
+    useState<PropertyViewDetails | null>(null);
+
+  const handleViewFromMenuLocal = useCallback(async (pinId: string) => {
+    setViewOpenLocal(true);
+    setViewDataLocal(null);
+    try {
+      const res = await getPin(pinId);
+      if (res?.ok && res?.pin) {
+        setViewDataLocal(toViewDetails(toViewSourceFromApiPin(res.pin)));
+      } else {
+        setViewOpenLocal(false);
+      }
+    } catch (e) {
+      console.error(e);
+      setViewOpenLocal(false);
+    }
+  }, []);
+
+  // 🔑 합성: 상위가 주면 그걸 쓰고, 없으면 로컬 fallback
+  const handleViewFromMenu = useCallback(
+    (id: string) => {
+      if (typeof onViewFromMenu === "function") {
+        onViewFromMenu(id);
+      } else {
+        handleViewFromMenuLocal(id);
+      }
+    },
+    [onViewFromMenu, handleViewFromMenuLocal]
+  );
 
   const fitToSearch = useCallback(
     (res: PinSearchResult) => {
@@ -276,7 +273,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
       );
       try {
         mapInstance.setBounds(bounds);
-      } catch {}
+      } catch {
+        /* noop */
+      }
     },
     [kakaoSDK, mapInstance]
   );
@@ -452,10 +451,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuAnchor,
   });
 
-  const { plannedDrafts, plannedMarkersOnly } = usePlannedDrafts({
-    filter,
-    getBounds: getBoundsRaw,
-  });
+  usePlannedDrafts({ filter, getBounds: getBoundsRaw }); // plannedMarkersOnly는 여기선 사용 안 함
 
   const {
     roadviewContainerRef,
@@ -470,7 +466,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
       close();
       return;
     }
-    // ✅ 우선순위: 선택 좌표 → 메뉴앵커 → 드래프트 → 지도중심
     const anchor =
       selectedPos ??
       menuAnchor ??
@@ -483,10 +478,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
         : null);
 
     if (anchor) {
-      console.log("[rv-toggle] openAt", anchor);
-      openAt(anchor, { face: anchor }); // ✅ 탐색/고정은 pos, 시선은 face
+      openAt(anchor, { face: anchor });
     } else {
-      console.log("[rv-toggle] openAtCenter (fallback)");
       openAtCenter();
     }
   }, [
@@ -500,8 +493,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     mapInstance,
   ]);
 
-  const mapViewRef = useRef<MapViewHandle>(null);
   const [didInit, setDidInit] = useState(false);
+
   const handleMapReady = useCallback(
     (api: unknown) => {
       onMapReady?.(api);
@@ -511,10 +504,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
   );
 
   const activeMenu = (filter as MapMenuKey) ?? "all";
-  const visibleMarkers = useMemo(() => {
-    if (activeMenu === "plannedOnly") return plannedMarkersOnly;
-    return mergedWithTempDraft;
-  }, [activeMenu, plannedMarkersOnly, mergedWithTempDraft]);
+  const visibleMarkers = useMemo(
+    () => mergedWithTempDraft,
+    [mergedWithTempDraft]
+  );
 
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
@@ -522,19 +515,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const { siteReservations } = useSidebarCtx();
 
-  const refreshViewportPins = useCallback(
-    async (_box?: any) => {
-      if (!kakaoSDK || !mapInstance) return;
-      try {
-        const c = mapInstance.getCenter();
-        const level = mapInstance.getLevel();
-        mapInstance.setLevel(level + 1, { animate: false });
-        mapInstance.setLevel(level, { animate: false });
-        mapInstance.setCenter(c);
-      } catch {}
-    },
-    [kakaoSDK, mapInstance]
-  );
+  const refreshViewportPins = useCallback(async () => {
+    if (!kakaoSDK || !mapInstance) return;
+    try {
+      const c = mapInstance.getCenter();
+      const level = mapInstance.getLevel();
+      mapInstance.setLevel(level + 1, { animate: false });
+      mapInstance.setLevel(level, { animate: false });
+      mapInstance.setCenter(c);
+    } catch {
+      /* noop */
+    }
+  }, [kakaoSDK, mapInstance]);
 
   // ===== 검색핸들러 =====
   const handleSubmitSearch = useCallback(
@@ -544,13 +536,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       onSubmitSearch?.(query);
 
-      // 지도만 이동
       const setCenterOnly = (lat: number, lng: number) => {
         mapInstance.setCenter(new kakaoSDK.maps.LatLng(lat, lng));
         mapInstance.setLevel(3);
       };
 
-      // 주소처럼 보이면 지오코딩
       const looksLikeAddress =
         /(\d|\b동\b|\b구\b|\b로\b|\b길\b|\b번지\b|\b리\b)/.test(query);
       if (looksLikeAddress) {
@@ -572,12 +562,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
           }
         : {};
 
-      // 역/출구 분기
       const isStationQuery = /역|출구/.test(query);
       if (!isStationQuery) {
-        // ===== 일반 장소 =====
-        const isSchoolQuery =
-          /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(query);
+        const isSchoolQ = /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(
+          query
+        );
 
         places.keywordSearch(
           query,
@@ -585,7 +574,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
             if (status !== kakaoSDK.maps.services.Status.OK || !res?.length)
               return;
 
-            if (isSchoolQuery) {
+            if (isSchoolQ) {
               const kwN = norm(query);
               const ranked = res
                 .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
@@ -747,10 +736,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onMarkerClick={onMarkerClick}
         onOpenMenu={onOpenMenu}
         onChangeHideLabelForId={onChangeHideLabelForId}
-        onMapReady={(api) => {
-          onMapReady?.(api);
-          requestAnimationFrame(() => setDidInit(true));
-        }}
+        onMapReady={handleMapReady}
         onViewportChange={onViewportChange}
         isDistrictOn={isDistrictOn}
       />
@@ -769,10 +755,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
         favById={favById}
         siteReservations={siteReservations}
         onCloseMenu={onCloseMenu}
-        onViewFromMenu={onViewFromMenu}
+        // 🔑 합성된 핸들러로 전달 (상위가 주면 상위 실행, 아니면 로컬)
+        onViewFromMenu={(id) => handleViewFromMenu(String(id))}
         onCreateFromMenu={onCreateFromMenu}
         onPlanFromMenu={onPlanFromMenu}
-        onReserveFromMenu={props.onReserveFromMenu}
+        onReserveFromMenu={onReserveFromMenu}
         onAddFav={onAddFav}
         onOpenMenu={onOpenMenu}
         onChangeHideLabelForId={onChangeHideLabelForId}
@@ -848,9 +835,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        viewOpen={viewOpen}
-        selectedViewItem={selectedViewItem}
-        onCloseView={closeView}
+        // ✅ 우선순위: 상위 selectedViewItem(있으면) → 로컬(viewDataLocal)
+        viewOpen={viewOpenLocal || !!selectedViewItem}
+        selectedViewItem={selectedViewItem ?? viewDataLocal ?? null}
+        onCloseView={() => setViewOpenLocal(false)}
+        // 이하 기존 전달값 유지
         onSaveViewPatch={onSaveViewPatch}
         onDeleteFromView={onDeleteFromView}
         createOpen={createOpen}

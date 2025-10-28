@@ -12,12 +12,14 @@ import { useRunSearch } from "../../hooks/useRunSearch";
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
+import type { ViewSource } from "@/features/properties/lib/view/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 import { PoiKind } from "../../components/overlays/poiOverlays";
-
-// ✅ 서버에서 핀을 가져오는 훅
+// 서버 핀 훅
 import { usePinsMap } from "@/features/map/hooks/usePinsMap";
+// 좌표 검증 로그
+import { assertNoTruncate } from "@/shared/debug/assertCoords";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 
@@ -25,7 +27,7 @@ const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
   !!a && !!b && Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
 
-/** 뷰포트 타입(프로젝트 정의와 일치하도록 맞춰 주세요) */
+/** 뷰포트 타입 */
 type Viewport = {
   leftTop: LatLng;
   leftBottom: LatLng;
@@ -47,6 +49,36 @@ const sameViewport = (a?: Viewport | null, b?: Viewport | null, eps = 1e-7) => {
     eq(a.rightBottom, b.rightBottom)
   );
 };
+
+/** Kakao LatLng 객체/POJO 모두에서 원본 숫자를 뽑아내는 정규화 */
+function normalizeLL(v: any): LatLng {
+  if (v && typeof v.getLat === "function" && typeof v.getLng === "function") {
+    return { lat: v.getLat(), lng: v.getLng() };
+  }
+  return { lat: Number(v?.lat), lng: Number(v?.lng) };
+}
+
+/** ─────────────────────────────────────────────────────────────
+ *  PropertyItem -> ViewSource (얇은 어댑터)
+ *  - 필수 공통 메타만 매핑, 이미지 등은 p.view가 있으면 그대로 통과
+ *  - address는 address, addressLine 둘 중 있는 값 사용
+ * ───────────────────────────────────────────────────────────── */
+function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
+  const anyP = p as any;
+  return {
+    title: p.title,
+    address:
+      (anyP.address && String(anyP.address)) ||
+      (anyP.addressLine && String(anyP.addressLine)) ||
+      undefined,
+    status: anyP.status ?? null,
+    dealStatus: anyP.dealStatus ?? null,
+    type: anyP.type ?? null,
+    priceText: anyP.priceText ?? null,
+    // 서버에서 내려보내 저장해둔 view 블록이 있다면 그대로 활용
+    view: anyP.view ?? undefined,
+  };
+}
 
 export function useMapHomeState() {
   // 지도 관련 상태
@@ -77,16 +109,33 @@ export function useMapHomeState() {
   // Modals
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
 
-  /* ✅ 생성용 드래프트 핀만 로컬 복원 (임시 UI용) */
+  // ✅ 생성용 드래프트 핀만 로컬 복원 (임시 UI용)
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
-  const setDraftPin = useCallback((pin: LatLng | null) => {
-    _setDraftPin(pin);
-    try {
-      if (pin) localStorage.setItem(DRAFT_PIN_STORAGE_KEY, JSON.stringify(pin));
-      else localStorage.removeItem(DRAFT_PIN_STORAGE_KEY);
-    } catch {}
-  }, []);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
+
+  // menuAnchor 세팅 시 **원본 숫자 그대로** 넣고 즉시 검증
+  const setRawMenuAnchor = useCallback((ll: LatLng | any) => {
+    const p = normalizeLL(ll);
+    assertNoTruncate("useMapHomeState:setMenuAnchor", p.lat, p.lng);
+    setMenuAnchor(p);
+  }, []);
+
+  // draftPin 세팅도 동일
+  const setDraftPinSafe = useCallback((pin: LatLng | null) => {
+    if (pin) {
+      const p = normalizeLL(pin);
+      assertNoTruncate("useMapHomeState:setDraftPin", p.lat, p.lng);
+      _setDraftPin(p);
+      try {
+        localStorage.setItem(DRAFT_PIN_STORAGE_KEY, JSON.stringify(p));
+      } catch {}
+    } else {
+      _setDraftPin(null);
+      try {
+        localStorage.removeItem(DRAFT_PIN_STORAGE_KEY);
+      } catch {}
+    }
+  }, []);
 
   // Toggles
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
@@ -96,7 +145,6 @@ export function useMapHomeState() {
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
 
   const [items, setItems] = useState<PropertyItem[]>([]);
-
   const [addFav, setAddFav] = useState<boolean>(false);
 
   // Search / filter
@@ -117,11 +165,10 @@ export function useMapHomeState() {
   );
 
   // ─ Viewport post (기존 훅 래핑해서 force 옵션 추가)
-  const postViewport = useViewportPost(); // 기존 훅
+  const postViewport = useViewportPost();
   const lastViewportRef = useRef<Viewport | null>(null);
 
   // ✅ 서버 핀 훅: /pins/map
-  //    points: 실제 핀, drafts: 임시/답사예정
   const { points, drafts, setBounds, refetch } = usePinsMap();
 
   // 🔥 매물 등록 직후 드래프트 마커를 즉시 숨기기 위한 로컬 상태
@@ -190,11 +237,12 @@ export function useMapHomeState() {
       if (raw) {
         const v = JSON.parse(raw);
         if (v && typeof v.lat === "number" && typeof v.lng === "number") {
-          _setDraftPin(v);
           restoredDraftPinRef.current = v;
+          setDraftPinSafe(v); // ✅ 검증 경유
         }
       }
     } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Derived
@@ -228,33 +276,40 @@ export function useMapHomeState() {
       propertyId: "__draft__" | string,
       opts?: { roadAddress?: string | null; jibunAddress?: string | null }
     ) => {
+      const p = normalizeLL(position);
       const isDraft = propertyId === "__draft__";
       setSelectedId(isDraft ? null : String(propertyId));
       setMenuTargetId(isDraft ? "__draft__" : String(propertyId));
-      setDraftPin(isDraft ? position : null);
+      setDraftPinSafe(isDraft ? p : null);
       setFitAllOnce(false);
 
       onChangeHideLabelForId("__draft__");
       onChangeHideLabelForId(isDraft ? "__draft__" : String(propertyId));
 
-      setMenuAnchor(position);
+      setRawMenuAnchor(p);
 
       if (opts?.roadAddress || opts?.jibunAddress) {
         setMenuRoadAddr(opts.roadAddress ?? null);
         setMenuJibunAddr(opts.jibunAddress ?? null);
       } else {
-        const { road, jibun } = await resolveAddress(position);
+        const { road, jibun } = await resolveAddress(p);
         setMenuRoadAddr(road ?? null);
         setMenuJibunAddr(jibun ?? null);
       }
 
-      panToWithOffset(position, 180);
+      panToWithOffset(p, 180);
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
     },
-    [resolveAddress, panToWithOffset, setDraftPin, onChangeHideLabelForId]
+    [
+      resolveAddress,
+      panToWithOffset,
+      setDraftPinSafe,
+      onChangeHideLabelForId,
+      setRawMenuAnchor,
+    ]
   );
 
   const geocodeAddress = useCallback(
@@ -278,21 +333,22 @@ export function useMapHomeState() {
   // 기존 핀 말주머니 열기
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
-      setDraftPin(null);
+      const pos = normalizeLL(p.position);
+      setDraftPinSafe(null);
       const sid = String(p.id);
       setSelectedId(sid);
       setMenuTargetId(sid);
-      setMenuAnchor(p.position);
+      setRawMenuAnchor(pos);
       setFitAllOnce(false);
       onChangeHideLabelForId(sid);
 
-      panToWithOffset(p.position, 180);
+      panToWithOffset(pos, 180);
 
-      if (p.address) {
-        setMenuRoadAddr(p.address);
+      if ((p as any).address) {
+        setMenuRoadAddr((p as any).address);
         setMenuJibunAddr(null);
       } else {
-        const { road, jibun } = await resolveAddress(p.position);
+        const { road, jibun } = await resolveAddress(pos);
         setMenuRoadAddr(road ?? null);
         setMenuJibunAddr(jibun ?? null);
       }
@@ -301,7 +357,13 @@ export function useMapHomeState() {
         requestAnimationFrame(() => setMenuOpen(true));
       });
     },
-    [resolveAddress, panToWithOffset, setDraftPin, onChangeHideLabelForId]
+    [
+      resolveAddress,
+      panToWithOffset,
+      setDraftPinSafe,
+      onChangeHideLabelForId,
+      setRawMenuAnchor,
+    ]
   );
 
   // 검색 훅 원본
@@ -323,11 +385,7 @@ export function useMapHomeState() {
   const handleSearchSubmit = useCallback(
     async (kw?: string) => {
       const keyword = kw ?? q;
-
-      // 1) 기존 핀/장소 검색
       await runSearch(keyword);
-
-      // 2) 주소 지오코딩 → 성공 시 해당 좌표에 메뉴 오픈(__draft__)
       const pos = await geocodeAddress(keyword);
       if (pos) {
         await openMenuAt(pos, "__draft__");
@@ -347,7 +405,7 @@ export function useMapHomeState() {
 
     setSelectedId(null);
     setMenuTargetId("__draft__");
-    setMenuAnchor(draftPin);
+    setRawMenuAnchor(draftPin);
     setFitAllOnce(false);
 
     (async () => {
@@ -363,7 +421,7 @@ export function useMapHomeState() {
     } else {
       setMenuOpen(false);
     }
-  }, [draftPin, resolveAddress, onChangeHideLabelForId]);
+  }, [draftPin, resolveAddress, onChangeHideLabelForId, setRawMenuAnchor]);
 
   // 지도 이동(idle 트리거)
   useEffect(() => {
@@ -382,19 +440,21 @@ export function useMapHomeState() {
       const item = items.find((p) => p.id === sid);
       if (!item) return;
 
+      const pos = normalizeLL(item.position);
+
       setSelectedId(sid);
       setMenuTargetId(sid);
-      setDraftPin(null);
+      setDraftPinSafe(null);
       setFitAllOnce(false);
-      setMenuAnchor(item.position);
+      setRawMenuAnchor(pos);
       onChangeHideLabelForId(sid);
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
 
-      panToWithOffset(item.position, 180);
-      const { road, jibun } = await resolveAddress(item.position);
+      panToWithOffset(pos, 180);
+      const { road, jibun } = await resolveAddress(pos);
       setMenuRoadAddr(road ?? null);
       setMenuJibunAddr(jibun ?? null);
     },
@@ -402,8 +462,9 @@ export function useMapHomeState() {
       items,
       resolveAddress,
       panToWithOffset,
-      setDraftPin,
+      setDraftPinSafe,
       onChangeHideLabelForId,
+      setRawMenuAnchor,
     ]
   );
 
@@ -468,7 +529,7 @@ export function useMapHomeState() {
     [selectedId, setItems, setEditOpen]
   );
 
-  // 메뉴 닫기 (드래프트 핀은 상황 따라 유지/해제)
+  // 메뉴 닫기
   const closeMenu = useCallback(() => {
     setMenuOpen(false);
     setMenuTargetId(null);
@@ -478,21 +539,21 @@ export function useMapHomeState() {
     onChangeHideLabelForId(null);
 
     if (!menuTargetId && draftPin) {
-      setDraftPin(null);
+      setDraftPinSafe(null);
     }
-  }, [menuTargetId, draftPin, setDraftPin, onChangeHideLabelForId]);
+  }, [menuTargetId, draftPin, setDraftPinSafe, onChangeHideLabelForId]);
 
   const openViewFromMenu = useCallback(
     (id: string) => {
       setSelectedId(id);
-      closeMenu(); // ★ 메뉴 닫으면서 라벨 복구까지
+      closeMenu();
       setViewOpen(true);
     },
     [closeMenu]
   );
 
   const openCreateFromMenu = useCallback(() => {
-    closeMenu(); // ★ 메뉴 닫으면서 라벨 복구까지
+    closeMenu();
     setPrefillAddress(menuRoadAddr ?? menuJibunAddr ?? undefined);
     setCreateOpen(true);
   }, [menuRoadAddr, menuJibunAddr, closeMenu]);
@@ -508,38 +569,34 @@ export function useMapHomeState() {
   // ✅ 메뉴에서 “답사예정” 선택 시: 로컬 추가 제거, UI만 정리
   const onPlanFromMenu = useCallback(
     (pos: LatLng) => {
-      if (draftPin && sameCoord(draftPin, pos)) {
-        setDraftPin(null);
+      const p = normalizeLL(pos);
+      if (draftPin && sameCoord(draftPin, p)) {
+        setDraftPinSafe(null);
       }
       closeMenu();
-      // 실제 생성/예약은 컨텍스트 메뉴의 onReserve 흐름에서 처리되며,
-      // 성공 후 refetch({ draftState: "all" })로 서버 결과 갱신하세요.
     },
-    [closeMenu, draftPin, setDraftPin]
+    [closeMenu, draftPin, setDraftPinSafe]
   );
 
-  // ✅ 마커 목록: 서버 points(실핀) + drafts(임시/답사예정) + 생성용 draftPin
+  // ✅ 마커 목록: 서버 points + drafts + 생성용 draftPin
   const markers = useMemo(() => {
-    // 실제 핀(points)
     const pointMarkers = (points ?? []).map((p) => ({
       id: String(p.id),
       position: { lat: p.lat, lng: p.lng },
-      kind: "1room" as const, // 프로젝트 핀 종류에 맞게
+      kind: "1room" as const,
       title: p.badge ?? "",
       isFav: false,
     }));
 
-    // 임시/답사예정(drafts) — 🔥 숨김 목록 제외
     const draftMarkers = (drafts ?? [])
       .filter((d) => !hiddenDraftIds.has(String(d.id)))
       .map((d) => ({
-        id: `__visit__${d.id}`, // 컨텍스트 메뉴에서 패턴으로 식별
+        id: `__visit__${d.id}`,
         position: { lat: d.lat, lng: d.lng },
         kind: "question" as const,
         isFav: false,
       }));
 
-    // 생성용 드래프트(있을 때만)
     const draftPinMarker = draftPin
       ? [
           {
@@ -559,7 +616,7 @@ export function useMapHomeState() {
     () => ({
       onClose: () => {
         setCreateOpen(false);
-        setDraftPin(null);
+        setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setMenuOpen(false);
       },
@@ -571,19 +628,18 @@ export function useMapHomeState() {
         setMenuTargetId(null);
       },
       resetAfterCreate: () => {
-        setDraftPin(null);
+        setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setCreateOpen(false);
       },
-      // 🔥 매물 등록 직후 부모가 호출할 콜백 (PropertyCreateModalBody → onSubmit에서 호출)
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
-          hideDraft(res.matchedDraftId); // 즉시 숨김(로컬)
+          hideDraft(res.matchedDraftId);
         }
-        refetch(); // 서버 재조회로 확정 반영
+        refetch();
       },
     }),
-    [setItems, setDraftPin, hideDraft, refetch]
+    [setItems, setDraftPinSafe, hideDraft, refetch]
   );
 
   const editHostHandlers = useMemo(
@@ -597,13 +653,13 @@ export function useMapHomeState() {
 
   const closeCreate = useCallback(() => {
     setCreateOpen(false);
-    setDraftPin(null);
+    setDraftPinSafe(null);
     setPrefillAddress(undefined);
     setMenuOpen(false);
-  }, [setDraftPin]);
+  }, [setDraftPinSafe]);
 
   /* ─────────────────────────────────────────────────────────────
-     ⭐ POI 변경 시 즉시 반영: 현재 뷰포트 강제 재조회 + idle 트리거
+     ⭐ POI 변경 시 즉시 반영
      ───────────────────────────────────────────────────────────── */
   useEffect(() => {
     if (lastViewportRef.current) {
@@ -621,29 +677,27 @@ export function useMapHomeState() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poiKinds]);
 
-  /** ───────────── 추가 파생/alias: MapHomeUI 호환 세트 ───────────── */
+  /** ───────────── 추가 파생/alias: MapHomeUI 호환 ───────────── */
 
-  // 뷰포트 체인지 alias
   const onViewportChange = useCallback(
     (vp: any, opts?: { force?: boolean }) => sendViewportQuery(vp, opts),
     [sendViewportQuery]
   );
 
-  // 선택된 아이템을 ViewDetails로 변환
+  // 🔧 핵심 수정: PropertyItem -> ViewSource 얇은 어댑터를 거쳐 toViewDetails 호출
   const selectedViewItem = useMemo(
-    () => (selected ? toViewDetails(selected) : null),
+    () =>
+      selected ? toViewDetails(toViewSourceFromPropertyItem(selected)) : null,
     [selected]
   );
 
-  // 선택 좌표(메뉴앵커 > 드래프트 > 선택항목 순)
   const selectedPos = useMemo<LatLng | null>(() => {
     if (menuAnchor) return menuAnchor;
     if (draftPin) return draftPin;
-    if (selected) return selected.position;
+    if (selected) return normalizeLL((selected as any).position);
     return null;
   }, [menuAnchor, draftPin, selected]);
 
-  // 뷰/에디트 닫기 & 전환
   const closeView = useCallback(() => setViewOpen(false), []);
   const closeEdit = useCallback(() => setEditOpen(false), []);
   const onEditFromView = useCallback(() => {
@@ -651,23 +705,21 @@ export function useMapHomeState() {
     setEditOpen(true);
   }, []);
 
-  // 메뉴 열기 어댑터
   const onOpenMenu = useCallback(
     (p: {
-      position: { lat: number; lng: number };
+      position: { lat: number; lng: number } | any;
       propertyId?: "__draft__" | string | number;
       propertyTitle?: string | null;
       pin?: { kind?: string; isFav?: boolean };
     }) => {
       openMenuAt(
-        p.position,
+        normalizeLL(p.position),
         (p.propertyId ?? "__draft__") as "__draft__" | string
       );
     },
     [openMenuAt]
   );
 
-  // 마커 클릭 alias
   const onMarkerClick = handleMarkerClick;
 
   return {
@@ -693,7 +745,7 @@ export function useMapHomeState() {
     setSelectedId,
     selected,
 
-    // search/filter (원본 + alias)
+    // search/filter
     q,
     setQ,
     filter,
@@ -732,7 +784,7 @@ export function useMapHomeState() {
 
     // draft
     draftPin,
-    setDraftPin,
+    setDraftPin: setDraftPinSafe,
 
     // marker click / viewport
     handleMarkerClick,
@@ -767,7 +819,7 @@ export function useMapHomeState() {
     hideLabelForId,
     onChangeHideLabelForId,
 
-    // 🔥 숨김 제어 API
+    // 숨김 제어 API
     hideDraft,
     clearHiddenDraft,
   } as const;

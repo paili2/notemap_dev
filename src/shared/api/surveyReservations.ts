@@ -8,7 +8,7 @@ type ApiWrap<T> = { message?: string; data?: T };
  * ──────────────────────────────────────────── */
 
 export type CreateSurveyReservationDto = {
-  pinDraftId: number; // 임시핀 ID
+  pinDraftId: number; // 임시핀 ID (프론트에서 좌표 예약 시 먼저 /pin-drafts로 생성)
   reservedDate: string; // "YYYY-MM-DD"
   note?: string; // 선택(서버가 무시해도 무방)
   insertAt?: number; // 선택: 0 이상 정수(없으면 맨 뒤)
@@ -22,7 +22,8 @@ export type MyReservation = {
   createdAt?: string | null;
   lat?: number | null;
   lng?: number | null;
-  posKey?: string; // 좌표 매칭용 (소수점 5자리)
+  /** 좌표 매칭/그룹핑 전용 키(소수점 5자리). ⚠️ 절대 역파싱해서 좌표로 쓰지 말 것! */
+  posKey?: string;
   sortOrder?: number; // 0-based
   isActive?: boolean; // 서버가 주면 매핑
 };
@@ -61,7 +62,12 @@ const toNum = (v: unknown): number | null => {
 const toStrOrNull = (v: unknown): string | null =>
   v == null ? null : String(v);
 
-/** 외부에서도 쓰기 좋게 export (지도 라벨 매칭 등에 활용) */
+/**
+ * posKey: 좌표 매칭/그룹핑용 키
+ *  - 소수 5자리(≈1.1m)로 문자열화
+ *  - ⚠️ 절대 split(',').map(Number)로 역파싱하여 좌표 전송에 쓰지 말 것!
+ *    (payload 좌표는 항상 원본 lat/lng 숫자에서 직접 사용)
+ */
 export const makePosKey = (
   lat?: number | null,
   lng?: number | null
@@ -112,7 +118,7 @@ const normalizeReservation = (raw: any): MyReservation => {
       toStrOrNull(raw?.createdAt) ?? toStrOrNull(raw?.created_at) ?? null,
     lat,
     lng,
-    posKey: makePosKey(lat, lng),
+    posKey: makePosKey(lat ?? undefined, lng ?? undefined),
     sortOrder: typeof raw?.sortOrder === "number" ? raw.sortOrder : undefined,
     isActive: typeof raw?.isActive === "boolean" ? raw.isActive : undefined,
   };
@@ -145,8 +151,10 @@ const makeIdempotencyKey = () => {
  * API
  * ──────────────────────────────────────────── */
 
-/** 0) 예약 전 임시핀 목록 GET /survey-reservations/before
- * 서버 스펙: Query/body 없음, 세션 불필요
+/**
+ * 0) 예약 전 임시핀 목록 GET /survey-reservations/before
+ * - 서버 스펙: Query/body 없음, 세션 불필요
+ * - 프론트에서는 좌표 원본(lat/lng)을 그대로 유지한 채로 only-view에 사용
  */
 export async function fetchUnreservedDrafts(
   _bounds?: BoundsParams,
@@ -166,12 +174,17 @@ export async function fetchUnreservedDrafts(
   );
 }
 
-/** 1) 예약 생성 POST /survey-reservations (insertAt 지원) */
+/**
+ * 1) 예약 생성 POST /survey-reservations (insertAt 지원)
+ * - payload에는 어떠한 좌표 가공도 하지 않음(여기서는 pinDraftId만 전송).
+ * - 좌표 기반 예약 시에는 컨텍스트 메뉴 측에서 먼저 /pin-drafts로 원본 좌표를 그대로 생성하고,
+ *   반환받은 draftId를 여기 pinDraftId로 넘겨서 호출해야 함.
+ */
 export async function createSurveyReservation(
   dto: CreateSurveyReservationDto,
   signal?: AbortSignal
 ): Promise<{ id: string; sortOrder: number }> {
-  // insertAt 음수/소수 방어
+  // insertAt 음수/소수 방어 (좌표와 무관)
   const body = {
     ...dto,
     insertAt:
@@ -202,7 +215,11 @@ export async function createSurveyReservation(
   return { id: String(inner.id), sortOrder: inner.sortOrder };
 }
 
-/** 2) 내 예약 목록(개인 순서 반영) GET /survey-reservations/scheduled */
+/**
+ * 2) 내 예약 목록(개인 순서 반영) GET /survey-reservations/scheduled
+ * - 좌표는 서버 값 그대로 숫자로 보존
+ * - posKey는 프론트에서 매칭용 파생필드로 생성(역파싱 금지)
+ */
 export async function fetchMySurveyReservations(
   signal?: AbortSignal
 ): Promise<MyReservation[]> {
@@ -219,12 +236,14 @@ export async function fetchMySurveyReservations(
   return sortByServerRule(normalized);
 }
 
-/** 3) 예약 순서 재정렬 PATCH /survey-reservations/reorder */
+/**
+ * 3) 예약 순서 재정렬 PATCH /survey-reservations/reorder
+ * - 좌표 무관, sortOrder 정수화만 수행
+ */
 export async function reorderSurveyReservations(
   items: ReorderItem[],
   signal?: AbortSignal
 ): Promise<{ count: number }> {
-  // 클라이언트 방어: sortOrder 정수/0이상 보정 + 정렬
   const payload = {
     items: items
       .map((it) => ({
@@ -249,7 +268,10 @@ export async function reorderSurveyReservations(
   return { count: Number(inner?.count ?? 0) };
 }
 
-/** 4) 예약 취소 DELETE /survey-reservations/:id (순서 압축) */
+/**
+ * 4) 예약 취소 DELETE /survey-reservations/:id (순서 압축)
+ * - 좌표와 무관
+ */
 export async function cancelSurveyReservation(
   id: number | string,
   signal?: AbortSignal

@@ -13,6 +13,10 @@ export default function HeaderSectionView({
   elevator,
   pinKind = "1room",
   onClose,
+
+  closeButtonRef,
+  headingId,
+  descId,
 }: HeaderSectionViewProps) {
   const pinSrc = getPinUrl(pinKind);
   const rating = Math.max(0, Math.min(5, listingStars ?? 0));
@@ -57,7 +61,16 @@ export default function HeaderSectionView({
         {/* 제목: 줄바꿈 없이 말줄임, 가로폭 초과 방지 */}
         <div className="flex-1 min-w-0 text-xl text-slate-900">
           <div className="h-9 md:h-10 flex items-center px-2 md:px-3 rounded-md bg-white">
-            <span className="truncate text-lg font-medium">{title || "-"}</span>
+            {/* ✅ aria-labelledby로 연결될 수 있도록 id 부여(옵션) */}
+            <span id={headingId} className="truncate text-lg font-medium">
+              {title || "-"}
+            </span>
+            {/* ✅ 보조 설명을 SR-only로 제공(옵션) */}
+            {descId && (
+              <span id={descId} className="sr-only">
+                매물 상세 보기 모달
+              </span>
+            )}
           </div>
         </div>
 
@@ -79,6 +92,18 @@ export default function HeaderSectionView({
         >
           {elevator}
         </span>
+
+        {/* 닫기 버튼 */}
+        <button
+          type="button"
+          ref={closeButtonRef}
+          onClick={onClose}
+          className="ml-2 shrink-0 rounded-md border px-3 h-9 hover:bg-muted"
+          aria-label="닫기"
+          title="닫기"
+        >
+          닫기
+        </button>
       </div>
     </header>
   );
