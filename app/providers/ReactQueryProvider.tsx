@@ -10,10 +10,15 @@ export default function ReactQueryProvider({
   children: React.ReactNode;
 }) {
   const [client] = useState(() => new QueryClient());
+
+  const isDev = process.env.NODE_ENV === "development";
+
   return (
     <QueryClientProvider client={client}>
       {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+
+      {/* ✅ 개발 모드에서만 Devtools 표시 */}
+      {isDev && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

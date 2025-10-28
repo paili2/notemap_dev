@@ -7,7 +7,6 @@ import type { PropertyEditModalProps } from "./types";
 
 import { useEditImages } from "./hooks/useEditImages";
 import { useEditForm } from "./hooks/useEditForm/useEditForm";
-import { buildEditPayload } from "./lib/buildEditPayload";
 
 import HeaderContainer from "./ui/HeaderContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
@@ -20,6 +19,7 @@ import StructureLinesContainer from "./ui/StructureLinesContainer";
 import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import ImagesContainer from "./ui/ImagesContainer";
+import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
@@ -31,19 +31,15 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const propertyId = String((initialData as any)?.id ?? "");
 
-  // 이미지 초기값: view 우선 + 레퍼런스 전달
+  // 이미지 초기값
   const initialImages = useMemo(() => {
     if (!initialData) return null;
     const v = (initialData as any).view ?? (initialData as any);
     return {
-      _imageCardRefs: v?._imageCardRefs,
-      _fileItemRefs: v?._fileItemRefs,
       imageFolders: v?.imageFolders,
-      imagesByCard: v?.imagesByCard,
       imageCards: v?.imageCards,
       images: v?.images,
       imageCardCounts: v?.imageCardCounts,
-      // 세로열: verticalImages 우선, 없으면 imagesVertical/fileItems 폴백
       verticalImages: v?.verticalImages ?? v?.imagesVertical ?? v?.fileItems,
       imagesVertical: v?.imagesVertical,
       fileItems: v?.fileItems,
@@ -69,16 +65,15 @@ export default function PropertyEditModalBody({
   // 폼 훅
   const f = useEditForm({ initialData });
 
+  // ✅ ParkingContainer에 맞춘 어댑터: parkingCount 제거, totalParkingSlots만 사용
   const parkingForm: ParkingFormSlice = {
     parkingType: f.parkingType || null,
     setParkingType: (v) => f.setParkingType(v ?? ""),
 
-    // ParkingContainer가 string|null만 기대하므로 number는 string으로 강제
-    parkingCount: f.parkingCount === "" ? null : String(f.parkingCount),
-    setParkingCount: (v) => f.setParkingCount(v ?? ""),
+    totalParkingSlots:
+      f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
+    setTotalParkingSlots: (v) => f.setTotalParkingSlots(v ?? ""),
   };
-
-  // --- 어댑터 끝 ---
 
   const isSaveEnabled = f.isSaveEnabled;
 
@@ -96,8 +91,8 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
-    const payload = buildEditPayload({
-      id: propertyId,
+    // ✅ buildUpdatePayload 에 id 전달 X (payload에는 id 없음)
+    const payload = buildUpdatePayload({
       title: f.title,
       address: f.address,
       officeName: f.officeName,
@@ -110,7 +105,7 @@ export default function PropertyEditModalBody({
 
       listingStars: f.listingStars,
       parkingType: f.parkingType,
-      parkingCount: f.parkingCount,
+      totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
       salePrice: f.salePrice,
 
@@ -124,9 +119,8 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
 
       elevator: f.elevator,
-      // 서버 DTO가 registryOne을 요구하면 값만 f.registry로 전달
+      // 서버 DTO가 registryOne 키를 쓴다면 이대로 유지
       registryOne: f.registry,
-      // (만약 서버/DTO가 registry로 바뀌었다면 registry: f.registry 사용)
       slopeGrade: f.slopeGrade,
       structureGrade: f.structureGrade,
 
@@ -155,6 +149,7 @@ export default function PropertyEditModalBody({
       pinKind: f.pinKind,
     });
 
+    // 상위에서 받은 onSubmit을 그대로 사용 (여기서 API를 직접 호출하지 않음)
     await onSubmit?.(payload as any);
     onClose();
   };
@@ -215,7 +210,7 @@ export default function PropertyEditModalBody({
         onClick={onClose}
         aria-hidden
       />
-      <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] maxHeight-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
+      <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">

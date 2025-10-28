@@ -1,3 +1,4 @@
+import { CreatePinAreaGroupDto } from "./area-group-dto";
 import { ImageItem } from "./media";
 import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
 
@@ -17,7 +18,7 @@ export type CreatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 추가: 빌딩/등록/주차 타입 (id는 number 권장)
+  // ✅ 빌딩/등록/주차 타입 (id는 number 권장)
   buildingType?: string;
   registrationTypeId?: number;
   parkingTypeId?: number;
@@ -29,11 +30,14 @@ export type CreatePayload = {
   aspect2?: string;
   aspect3?: string;
   orientations?: OrientationRow[];
+  /** ✅ 백엔드 스펙: [{ direction: "남향" }, ...] 또는 문자열 혼용 허용 */
+  directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
-  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 바꿔도 됨)
+  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
   parkingType?: string; // 예: "자주식", "답사지 확인"
-  parkingCount?: string | number;
+  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  totalParkingSlots?: number | null;
 
   // 설비/등급/날짜
   listingStars?: number;
@@ -69,11 +73,19 @@ export type CreatePayload = {
   imageCards?: ImageItem[][];
   fileItems?: ImageItem[];
 
-  // 면적
+  // 면적(레거시 문자열)
   exclusiveArea?: string;
   realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
+
+  /** ✅ 신규 스펙: 면적 그룹 */
+  areaGroups?: CreatePinAreaGroupDto[];
+
+  /** ✅ 임시핀 매칭/좌표(선택) */
+  pinDraftId?: number | string | null;
+  lat?: number;
+  lng?: number;
 };
 
 /* ------------------------------------------------------------------ */
@@ -90,7 +102,7 @@ export type UpdatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 추가: 빌딩/등록/주차 타입
+  // ✅ 빌딩/등록/주차 타입
   buildingType?: string;
   registrationTypeId?: number;
   parkingTypeId?: number;
@@ -102,12 +114,15 @@ export type UpdatePayload = {
   aspect2?: string;
   aspect3?: string;
   orientations?: OrientationRow[];
+  /** ✅ 업데이트도 동일 형태 허용 */
+  directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
   salePrice?: string | number | null;
   listingStars?: number | null; // Create와 동일 키
   parkingType?: string;
-  parkingCount?: string | number | null;
+  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  totalParkingSlots?: number | null;
 
   // 설비/등급/날짜
   elevator?: "O" | "X";
@@ -130,9 +145,17 @@ export type UpdatePayload = {
   unitLines?: UnitLine[];
   images?: string[];
 
-  // 면적
+  // 면적(레거시 문자열)
   exclusiveArea?: string;
   realArea?: string;
   extraExclusiveAreas?: string[];
   extraRealAreas?: string[];
+
+  /** ✅ 신규 스펙: 면적 그룹 */
+  areaGroups?: CreatePinAreaGroupDto[];
+
+  /** ✅ 임시핀/좌표도 선택 허용(패치성 업데이트 대비) */
+  pinDraftId?: number | string | null;
+  lat?: number;
+  lng?: number;
 };

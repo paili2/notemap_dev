@@ -19,18 +19,7 @@ import { getPin } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-
-/** KST 기준 YYYY-MM-DD */
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 export default function ContextMenuPanel({
   roadAddress,
@@ -133,7 +122,7 @@ export default function ContextMenuPanel({
         propertyId: propertyId ?? null,
         propertyTitle: propertyTitle ?? null,
         // 날짜는 KST 기준으로 잘라서 사용
-        dateISO: todayKST(),
+        dateISO: todayYmdKST(),
       };
       await onPlan?.(payload as PlanRequestPayload); // 상위에서 POST /pins 수행
       bump();

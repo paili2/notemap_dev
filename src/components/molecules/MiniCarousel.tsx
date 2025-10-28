@@ -14,7 +14,6 @@ type Props = {
   className?: string;
   showIndex?: boolean;
   indexPlacement?: IndexPlacement;
-
   onIndexChange?: (i: number) => void;
 };
 
@@ -30,9 +29,14 @@ export default function MiniCarousel({
   onIndexChange,
 }: Props) {
   const [idx, setIdx] = React.useState(0);
+  const [errorByIndex, setErrorByIndex] = React.useState<
+    Record<number, boolean>
+  >({});
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
+
   const hasImages = Array.isArray(images) && images.length > 0;
 
+  // 이미지 배열이 바뀌면 인덱스/에러 상태 정리
   React.useEffect(() => {
     if (!hasImages) return;
     setIdx((cur) => {
@@ -40,6 +44,7 @@ export default function MiniCarousel({
       if (clamped !== cur) onIndexChange?.(clamped);
       return clamped;
     });
+    setErrorByIndex({});
   }, [hasImages, images.length, onIndexChange]);
 
   const go = (n: number) => {
@@ -52,7 +57,7 @@ export default function MiniCarousel({
   const prev = () => go(idx - 1);
   const next = () => go(idx + 1);
 
-  // 키보드 좌/우
+  // 좌/우 키보드 네비
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -89,15 +94,23 @@ export default function MiniCarousel({
 
   const indexPos = pos(indexPlacement);
 
+  // 유효한 src 판정
+  const toSafeSrc = (raw?: string | null) => {
+    const s = (raw ?? "").trim();
+    return s.length > 0 ? s : undefined;
+  };
+
   return (
     <div ref={wrapRef} tabIndex={0} className={wrapClasses}>
       {/* Slides */}
       <div className="absolute inset-0 overflow-hidden rounded-md">
         {hasImages &&
           images.map((img, i) => {
-            const src = img.dataUrl ?? img.url;
+            const raw = img.dataUrl ?? img.url;
+            const safeSrc = toSafeSrc(raw);
             const displayTitle =
               img.caption?.trim?.() || img.name?.trim?.() || `image-${i + 1}`;
+            const showFallback = !safeSrc || !!errorByIndex[i];
 
             return (
               <div
@@ -113,19 +126,30 @@ export default function MiniCarousel({
                 title={displayTitle}
               >
                 {objectFit === "cover" ? (
-                  <div
-                    className="absolute inset-0 bg-no-repeat bg-center bg-cover"
-                    style={{ backgroundImage: `url("${src}")` }}
-                  />
+                  showFallback ? (
+                    <div className="absolute inset-0 bg-muted" />
+                  ) : (
+                    <div
+                      className="absolute inset-0 bg-no-repeat bg-center bg-cover"
+                      style={{ backgroundImage: `url("${safeSrc}")` }}
+                    />
+                  )
+                ) : showFallback ? (
+                  <div className="w-full h-full max-w-full max-h-full grid place-items-center bg-muted text-xs text-gray-500">
+                    이미지 로드 실패
+                  </div>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={src}
+                    src={safeSrc}
                     alt={displayTitle}
                     className="max-w-full max-h-full w-auto h-auto object-contain object-center"
                     loading="lazy"
                     decoding="async"
                     draggable={false}
+                    onError={() =>
+                      setErrorByIndex((m) => ({ ...m, [i]: true }))
+                    }
                   />
                 )}
               </div>
@@ -183,6 +207,7 @@ export default function MiniCarousel({
           {images.map((_, i) => (
             <button
               key={i}
+              type="button"
               onClick={() => {
                 setIdx(i);
                 onIndexChange?.(i);

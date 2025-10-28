@@ -12,8 +12,8 @@ import { AdminButton } from "./components/AdminButton";
 
 import { useScheduledReservations } from "../survey-reservations/hooks/useScheduledReservations";
 import { useReorderReservations } from "../survey-reservations/hooks/useReorderReservations";
-import type { MyReservation } from "@/shared/api/surveyReservations";
 import { useCancelReservation } from "../survey-reservations/hooks/useCancelReservation";
+import { useSignout } from "../auth/hooks/useSignout";
 
 export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
   // 0) 안전 기본값
@@ -32,14 +32,16 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
   const { onReorder } = useReorderReservations({
     items: items ?? [],
     setItems,
-    onSuccess: () => refetch(), // 서버 적용 후 동기화
-    onAfterSuccessRefetch: () => refetch(), // 보수적 동기화(선택)
+    onSuccess: () => refetch(),
+    onAfterSuccessRefetch: () => refetch(),
   });
 
-  // ✅ 예약 취소 훅(옵티미스틱 삭제 + 실패 롤백 + 성공 후 refetch)
   const { onCancel } = useCancelReservation(items ?? [], setItems, () =>
     refetch()
   );
+
+  // ✅ 로그아웃 훅
+  const { mutate: doSignout, isPending: isSigningOut } = useSignout();
 
   // 2) 파생 리스트
   const listItems: ListItem[] = useMemo(
@@ -52,14 +54,8 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
     [items]
   );
 
-  // ⚠️ 이중 옵티미스틱 방지: onItemsChange는 미리보기/로컬 재정렬을 하지 않음
-  // (SidebarSection이 자체적으로 드래그 프리뷰를 처리하지 않는다면,
-  //  UI 프리뷰가 꼭 필요할 때만 별도의 "로컬 전용 상태"를 만들어 쓰고,
-  //  최종 확정은 onReorderIds로만 처리하세요.)
   const handleListItemsChange = useCallback((_nextList: ListItem[]) => {
-    // no-op: 최종 확정은 onReorderIds에서 처리
-    // 만약 드래그 중 프리뷰가 꼭 필요하면,
-    // 여기서 별도의 previewItems 상태를 관리하세요(본 items는 건드리지 않기).
+    // no-op
   }, []);
 
   // 3) 조기 리턴
@@ -78,9 +74,9 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
         <SidebarSection
           title="답사지 예약"
           items={listItems}
-          onItemsChange={handleListItemsChange} // 프리뷰 필요없으면 no-op 유지
+          onItemsChange={handleListItemsChange}
           onDeleteItem={(id) => onCancel(id)}
-          onReorderIds={onReorder} // 최종 확정은 이쪽만
+          onReorderIds={onReorder}
         />
 
         {/* 즐겨찾기 */}
@@ -98,7 +94,6 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
         <ContractRecordsButton onClick={handleContractRecordsClick} />
         <AdminButton />
 
-        {/* 계정 정보 및 로그아웃 */}
         <div className="flex justify-between items-center p-2 border-t border-gray-200">
           <span className="text-base font-medium text-gray-700">
             사용자 계정
@@ -106,10 +101,10 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              console.log("로그아웃");
-            }}
+            onClick={() => doSignout()}
+            disabled={isSigningOut}
             className="p-0"
+            title="로그아웃"
           >
             <LogOut size={16} />
           </Button>

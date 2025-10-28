@@ -32,7 +32,8 @@ export default function TopRightControls(props: {
     e.nativeEvent?.stopPropagation?.();
     e.nativeEvent?.stopImmediatePropagation?.();
   };
-  // 1) kakao Bounds -> 커스텀 Bounds 어댑터
+
+  // kakao Bounds -> 커스텀 Bounds 어댑터
   const getBoundsForHook = () => {
     const b = props.getBounds?.();
     if (!b) return undefined;
@@ -48,7 +49,7 @@ export default function TopRightControls(props: {
 
   const { reloadPlanned } = usePlannedDrafts({
     filter: isPlannedKey(props.activeMenu) ? "planned" : "all",
-    getBounds: getBoundsForHook, // 2) 어댑터를 훅에 전달
+    getBounds: getBoundsForHook,
   });
 
   const loadingRef = useRef(false);
@@ -65,18 +66,30 @@ export default function TopRightControls(props: {
           loadingRef.current = false;
         }
       }
-      // else: 다른 메뉴에서는 planned 레이어를 렌더 단계에서 제외
     };
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.activeMenu, reloadPlanned]);
 
+  // ─────────────────────────────────────────────────────────────
+  // 로드뷰가 열리면:
+  // - z-index를 낮춰서 로드뷰 오버레이 뒤로 보냄
+  // - pointer-events를 비활성화해서 클릭 차단
+  // - 시각적으로 희미하게(선택)
+  // 평소에는 높은 z-index 유지
+  // ─────────────────────────────────────────────────────────────
+  const rootClass =
+    "fixed top-3 right-3 " +
+    (props.roadviewVisible
+      ? "z-[10] pointer-events-none opacity-40"
+      : "z-[700] pointer-events-auto"); // 필요 시 숫자 조정
+
   return (
     <Portal>
       <div
         id="top-right-controls"
-        className="fixed top-3 right-3 z-[2147483647]"
-        style={{ pointerEvents: "auto" }}
+        className={rootClass}
+        aria-hidden={props.roadviewVisible}
       >
         <div
           className="relative flex items-center gap-2"
@@ -89,7 +102,6 @@ export default function TopRightControls(props: {
               active={props.activeMenu}
               onChange={(next) => {
                 const resolved = next === props.activeMenu ? "all" : next;
-                // 즉시 로드가 필요하면 아래 2줄을 유지(중복이 걱정되면 useEffect만으로도 충분)
                 if (isPlannedKey(resolved)) reloadPlanned();
                 props.onChangeFilter(resolved as MapMenuKey);
               }}
@@ -107,7 +119,7 @@ export default function TopRightControls(props: {
             />
           </div>
 
-          <div className="relative z-[3] shrink-0 pointer-events-auto">
+          <div className="relative z-[3] shrink-0">
             <ToggleSidebar
               overlay={false}
               controlledOpen={props.sidebarOpen}

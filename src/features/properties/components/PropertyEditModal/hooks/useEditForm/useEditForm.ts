@@ -36,7 +36,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [listingStars, setListingStars] = useState(0);
   const [parkingType, setParkingType] = useState("");
-  const [parkingCount, setParkingCount] = useState("");
+  const [totalParkingSlots, setTotalParkingSlots] = useState<string>("");
   const [completionDate, setCompletionDate] = useState("");
   const [salePrice, setSalePrice] = useState("");
 
@@ -138,7 +138,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setAspects(EMPTY_ASPECTS);
     setListingStars(0);
     setParkingType("");
-    setParkingCount("");
+    setTotalParkingSlots("");
     setCompletionDate("");
     setSalePrice("");
     setBaseAreaSet({
@@ -193,8 +193,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setStructure(normalized.structure);
 
     setListingStars(normalized.listingStars);
-    setParkingType(normalized.parkingType);
-    setParkingCount(normalized.parkingCount);
+    setParkingType(normalized.parkingType ?? "");
+    setTotalParkingSlots((normalized as any).totalParkingSlots ?? "");
     setCompletionDate(normalized.completionDate);
     setSalePrice(normalized.salePrice);
 
@@ -270,8 +270,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     () => options.length > 0 || (etcChecked && optionEtc.trim().length > 0),
     [options, etcChecked, optionEtc]
   );
+
   const aspectsValid = useMemo(
-    () => aspects.length > 0 && aspects[0].dir.trim().length > 0,
+    () =>
+      aspects.filter(
+        (a) => typeof a.dir === "string" && a.dir.trim().length > 0
+      ).length > 0,
     [aspects]
   );
 
@@ -372,7 +376,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspects,
       listingStars,
       parkingType,
-      parkingCount,
+      totalParkingSlots,
       completionDate,
       salePrice,
       baseAreaSet,
@@ -407,7 +411,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspects,
       listingStars,
       parkingType,
-      parkingCount,
+      totalParkingSlots,
       completionDate,
       salePrice,
       baseAreaSet,
@@ -448,7 +452,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       setAspects,
       setListingStars,
       setParkingType,
-      setParkingCount,
+      setTotalParkingSlots,
       setCompletionDate,
       setSalePrice,
       setBaseAreaSet,

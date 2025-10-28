@@ -30,17 +30,13 @@ const toIsoDate = (v: any): string | null => {
   return Number.isNaN(t) ? null : iso;
 };
 
-// ✅ KST 오늘 날짜 (YYYY-MM-DD)
-function todayKST(): string {
-  const now = new Date();
-  const kst = new Date(
-    now.getTime() + (9 * 60 + now.getTimezoneOffset()) * 60 * 1000
-  );
-  const y = kst.getUTCFullYear();
-  const m = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(kst.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+/** 숫자 캐스팅 후 유한수면 반환, 아니면 undefined ("" → undefined, 0 유지) */
+const toFinite = (v: any) => {
+  const s = String(v ?? "").trim();
+  if (s === "") return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+};
 
 const resolveAddressLine = (
   payload: CreatePayload,
@@ -86,6 +82,17 @@ export function buildCreateDto(
     isNew: !!(payload as any)?.isNew,
   };
 
+  // 🔹 임시핀-매물 명시 매칭 (문자/숫자 모두 허용; 숫자면 number로)
+  const rawDraftId = (payload as any)?.pinDraftId;
+  if (
+    rawDraftId !== undefined &&
+    rawDraftId !== null &&
+    `${rawDraftId}`.trim() !== ""
+  ) {
+    const n = Number(rawDraftId);
+    dto.pinDraftId = Number.isFinite(n) ? n : `${rawDraftId}`.trim();
+  }
+
   // 서브 연락처: 전화가 있을 때만 포함(라벨 없으면 "사무실" 기본)
   if (toStr(subPhoneRaw).trim()) {
     Object.assign(dto, {
@@ -95,11 +102,9 @@ export function buildCreateDto(
   }
 
   // ── UI → DTO 키 보강 매핑 ────────────────────────────────────────────
-  // ── UI → DTO 키 보강 매핑 ────────────────────────────────────────────
   const registryRaw = (payload as any)?.registryOne; // (구버전) 선택값/ID
   const parkingTypeIdRaw = (payload as any)?.parkingTypeId; // ✅ 신버전: 주차 유형 ID
   const parkingTypeRaw = (payload as any)?.parkingType; // (구버전) 라벨/ID 혼재
-  const parkingCountRaw = (payload as any)?.parkingCount;
 
   // 등기(등록유형) — 숫자/문자 모두 허용 → 숫자로 캐스팅
   if (
@@ -129,18 +134,6 @@ export function buildCreateDto(
     if (Number.isFinite(n)) dto.parkingTypeId = n;
   }
 
-  // 주차 대수
-  if (
-    parkingCountRaw !== undefined &&
-    parkingCountRaw !== null &&
-    `${parkingCountRaw}`.trim() !== ""
-  ) {
-    const n = Number(parkingCountRaw);
-    if (Number.isFinite(n)) dto.totalParkingSlots = n;
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-
   // ✅ name: 없으면 title → name 폴백 (서버가 '임시 매물'로 채우는 걸 방지)
   const rawName = toStr(
     (payload as any)?.name || (payload as any)?.title
@@ -149,30 +142,32 @@ export function buildCreateDto(
     dto.name = clip(rawName, 100);
   }
 
-  // ✅ completionDate: 실패/빈값이면 오늘(KST)로 보정해서 항상 포함
-  const normalizedDate =
-    toIsoDate((payload as any)?.completionDate) ?? todayKST();
+  // ✅ completionDate: 유효할 때만 포함(미입력/무효면 전송 생략)
+  const normalizedDate = toIsoDate((payload as any)?.completionDate);
 
   Object.assign(
     dto,
     // enum/선택값은 공백이면 아예 미포함
     toStr((payload as any)?.badge).trim()
-      ? { badge: toStr((payload as any)?.badge).trim() }
+      ? { badge: clip(toStr((payload as any)?.badge).trim(), 30) } // 🔹 30자 제한
       : {},
-    { completionDate: normalizedDate }, // ✅ 항상 포함
+    normalizedDate ? { completionDate: normalizedDate } : {},
     (payload as any)?.buildingType
       ? { buildingType: (payload as any).buildingType }
       : {},
-    Number.isFinite((payload as any)?.totalHouseholds)
-      ? { totalHouseholds: Number((payload as any).totalHouseholds) }
-      : {},
-    // 아래 3개는 위 보강 블록에서도 다루지만, 직접 값을 넣어 호출하는 경우도 커버
-    Number.isFinite((payload as any)?.totalParkingSlots)
-      ? { totalParkingSlots: Number((payload as any).totalParkingSlots) }
-      : {},
-    Number.isFinite((payload as any)?.registrationTypeId)
-      ? { registrationTypeId: Number((payload as any).registrationTypeId) }
-      : {},
+    (() => {
+      const n = toFinite((payload as any)?.totalHouseholds);
+      return n !== undefined ? { totalHouseholds: n } : {};
+    })(),
+    // ✅ 총 주차대수: payload.totalParkingSlots만 사용 (0도 전송)
+    (() => {
+      const n = toFinite((payload as any)?.totalParkingSlots);
+      return n !== undefined ? { totalParkingSlots: n } : {};
+    })(),
+    (() => {
+      const n = toFinite((payload as any)?.registrationTypeId);
+      return n !== undefined ? { registrationTypeId: n } : {};
+    })(),
     (payload as any)?.parkingGrade
       ? { parkingGrade: (payload as any).parkingGrade }
       : {},
@@ -194,44 +189,34 @@ export function buildCreateDto(
     })()
   );
 
-  // 옵션 세트: 스위치 만졌을 때만 포함
-  if ((payload as any)?.optionsTouched) {
-    dto.options = {
-      hasAircon: !!(payload as any)?.hasAircon,
-      hasFridge: !!(payload as any)?.hasFridge,
-      hasWasher: !!(payload as any)?.hasWasher,
-      hasDryer: !!(payload as any)?.hasDryer,
-      hasBidet: !!(payload as any)?.hasBidet,
-      hasAirPurifier: !!(payload as any)?.hasAirPurifier,
-      ...(toStr((payload as any)?.extraOptionsText).trim()
-        ? { extraOptionsText: sanitizeText((payload as any).extraOptionsText) }
-        : {}),
-    };
-  }
+  /* ✅ options: 백엔드 스펙(CreatePinOptionsDto)에 맞춰 항상 포함
+     - 없으면 false/빈 문자열 디폴트
+     - payload.options가 있으면 우선 사용, 없으면 개별 루트 필드에서 폴백
+  */
+  const opts = (payload as any)?.options ?? {};
+  const pickBool = (k: string) => !!(opts[k] ?? (payload as any)?.[k]);
+  const extraText = toStr(
+    opts.extraOptionsText ?? (payload as any)?.extraOptionsText
+  ).trim();
 
-  // 유닛: 유효값이 있는 항목만 포함
-  if (Array.isArray((payload as any)?.units) && (payload as any).units.length) {
-    const units = (payload as any).units
-      .map((u: any) => ({
-        rooms: Number.isFinite(u?.rooms) ? Number(u.rooms) : 0,
-        baths: Number.isFinite(u?.baths) ? Number(u.baths) : 0,
-        hasLoft: !!u?.hasLoft,
-        hasTerrace: !!u?.hasTerrace,
-        minPrice: Number.isFinite(u?.minPrice) ? Number(u.minPrice) : 0,
-        maxPrice: Number.isFinite(u?.maxPrice) ? Number(u.maxPrice) : 0,
-        ...(toStr(u?.note).trim() ? { note: sanitizeText(u.note) } : {}),
-      }))
-      .filter(
-        (u: any) => (u.minPrice ?? 0) > 0 || (u.maxPrice ?? 0) > 0 || !!u.note
-      );
-    if (units.length) dto.units = units;
-  }
+  dto.options = {
+    hasAircon: pickBool("hasAircon"),
+    hasFridge: pickBool("hasFridge"),
+    hasWasher: pickBool("hasWasher"),
+    hasDryer: pickBool("hasDryer"),
+    hasBidet: pickBool("hasBidet"),
+    hasAirPurifier: pickBool("hasAirPurifier"),
+    isDirectLease: pickBool("isDirectLease"),
+    ...(extraText ? { extraOptionsText: sanitizeText(extraText, 255) } : {}),
+  };
 
   // 방향/면적 그룹 정리
   const directions = sanitizeDirections((payload as any)?.directions);
   if (directions) dto.directions = directions;
 
-  const areaGroups = sanitizeAreaGroups((payload as any)?.areaGroups);
+  const areaGroups = sanitizeAreaGroups(
+    (payload as any)?.areaSets ?? (payload as any)?.areaGroups
+  );
   if (areaGroups) dto.areaGroups = areaGroups;
 
   // 빈 문자열 name은 제거 (이중 안전망)
@@ -239,6 +224,6 @@ export function buildCreateDto(
     delete dto.name;
   }
 
-  // null/undefined 깊은 제거
+  // null/undefined 깊은 제거 (0/""/false는 유지되어야 함)
   return pruneNullishDeep(dto);
 }

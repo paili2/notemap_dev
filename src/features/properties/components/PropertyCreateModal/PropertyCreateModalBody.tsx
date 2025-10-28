@@ -30,8 +30,15 @@ import MemosContainer from "./ui/MemosContainer";
 import { mapPinKindToBadge } from "../../lib/badge";
 
 // ✅ /pins 호출 유틸과 api 클라이언트 임포트
-import { api } from "@/shared/api/api"; // 예약 삭제용
+import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
+import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
+
+// ⛳️ areaGroups는 buildAreaGroups로 생성 (sanitizeAreaGroups 사용 X)
+import { buildAreaGroups } from "@/features/properties/lib/area";
+
+// 🔐 AreaSetsSection이 기대하는 엄격 타입
+import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 
 export default function PropertyCreateModalBody({
   onClose,
@@ -40,10 +47,8 @@ export default function PropertyCreateModalBody({
   initialLat,
   initialLng,
 }: Omit<PropertyCreateModalProps, "open">) {
-  // 모든 상태/액션
   const f = useCreateForm({ initialAddress });
 
-  // 이미지 훅
   const {
     imageFolders,
     fileItems,
@@ -59,9 +64,40 @@ export default function PropertyCreateModalBody({
     handleRemoveFileItem,
   } = usePropertyImages();
 
-  // 중복 저장 가드
+  // ✅ 예약/드래프트 스토어 액션 (즉시 반영 핵심)
+  const { removeByReservationId, removeByPinDraftId } =
+    useScheduledReservations();
+
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // 숫자 → 정수 또는 null (""/undefined/null → null, 0 허용)
+  const toIntOrNull = (v: any) => {
+    if (v === "" || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.trunc(n) : null;
+  };
+
+  // 숫자 → number 또는 undefined (빈문자/NaN은 undefined)
+  const toNum = (v: any) => {
+    const s = String(v ?? "").trim();
+    if (s === "") return undefined;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  // ⛑ 느슨한 AreaSet -> 엄격한 AreaSet 변환 (undefined를 빈 문자열로 보정)
+  const toStrictAreaSet = (s: any): StrictAreaSet => ({
+    title: String(s?.title ?? ""),
+    exMinM2: String(s?.exMinM2 ?? ""),
+    exMaxM2: String(s?.exMaxM2 ?? ""),
+    exMinPy: String(s?.exMinPy ?? ""),
+    exMaxPy: String(s?.exMaxPy ?? ""),
+    realMinM2: String(s?.realMinM2 ?? ""),
+    realMaxM2: String(s?.realMaxM2 ?? ""),
+    realMinPy: String(s?.realMinPy ?? ""),
+    realMaxPy: String(s?.realMaxPy ?? ""),
+  });
 
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
@@ -71,7 +107,7 @@ export default function PropertyCreateModalBody({
     try {
       if (!f.title.trim()) return;
 
-      // ✅ 좌표는 반드시 외부에서 고정 주입된 값만 사용
+      // 좌표는 반드시 외부에서 고정 주입된 값만 사용
       const latNum = Number(initialLat);
       const lngNum = Number(initialLng);
       if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
@@ -79,7 +115,6 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // 배지/날짜 계산 (YYYY-MM-DD)
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
       const effectiveCompletionDate =
@@ -87,7 +122,15 @@ export default function PropertyCreateModalBody({
           ? f.completionDate
           : new Date().toISOString().slice(0, 10);
 
-      // 매물 payload (내부 가공용)
+      // ✅ areaGroups: 엄격 변환 후 buildAreaGroups로 생성
+      const strictBase = toStrictAreaSet(f.baseAreaSet);
+      const strictExtras = (
+        Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
+      ).map(toStrictAreaSet);
+      const areaGroups = buildAreaGroups(strictBase, strictExtras);
+
+      // ✅ buildCreatePayload에도 totalParkingSlots 및 options 전달(프론트 보관용)
+      //    ⛑ base/extra를 엄격 타입으로 변환해서 타입 에러 해결
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -101,11 +144,11 @@ export default function PropertyCreateModalBody({
         structure: f.structure,
         listingStars: f.listingStars,
         parkingType: f.parkingType,
-        parkingCount: f.parkingCount,
+        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
-        baseAreaSet: f.baseAreaSet,
-        extraAreaSets: f.extraAreaSets,
+        baseAreaSet: strictBase, // ← 변환값 사용
+        extraAreaSets: strictExtras, // ← 변환값 사용
         elevator: f.elevator,
         registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
@@ -114,12 +157,9 @@ export default function PropertyCreateModalBody({
         totalFloors: f.totalFloors,
         totalHouseholds: f.totalHouseholds,
         remainingHouseholds: f.remainingHouseholds,
-
-        // 추가 필드
         buildingType: (f as any).buildingType ?? null,
         registrationTypeId: (f as any).registrationTypeId ?? null,
         parkingTypeId: (f as any).parkingTypeId ?? null,
-
         options: f.options,
         etcChecked: f.etcChecked,
         optionEtc: f.optionEtc,
@@ -130,18 +170,43 @@ export default function PropertyCreateModalBody({
         imageFolders,
         fileItems,
         pinKind: f.pinKind,
-
-        // 좌표 전달(고정)
         lat: latNum,
         lng: lngNum,
       });
 
-      // ✅ /pins DTO로 매핑 (서버가 허용하는 필드만)
-      const toNum = (v: any) => {
-        const n = Number(v);
-        return Number.isFinite(n) ? n : undefined;
+      // ✅ 드래프트/예약 정보 보존
+      const reservationId = (f as any).reservationId;
+      const explicitPinDraftId = (f as any).pinDraftId;
+
+      // ✅ /pins 옵션 매핑 (선택 라벨 → boolean) + extraOptionsText
+      const selected: string[] = Array.isArray(f.options) ? f.options : [];
+      const has = (label: string) => selected.includes(label);
+      const extraOptionsTextRaw = String(f.optionEtc ?? "").trim();
+      const pinOptions = {
+        hasAircon: has("에어컨"),
+        hasFridge: has("냉장고"),
+        hasWasher: has("세탁기"),
+        hasDryer: has("건조기"),
+        hasBidet: has("비데"),
+        hasAirPurifier: has("공기청정기") || has("공기순환기"),
+        isDirectLease: has("직영임대") || has("직영 임대"),
+        ...(extraOptionsTextRaw
+          ? { extraOptionsText: extraOptionsTextRaw.slice(0, 255) }
+          : {}),
       };
 
+      // ✅ NEW: 향 -> directions 문자열 배열로 매핑
+      const directions: string[] = Array.isArray((f as any).aspects)
+        ? Array.from(
+            new Set(
+              (f as any).aspects
+                .map((a: any) => (a?.dir ?? "").trim())
+                .filter((d: string) => d.length > 0)
+            )
+          )
+        : [];
+
+      // ✅ /pins DTO로 매핑
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
@@ -149,8 +214,6 @@ export default function PropertyCreateModalBody({
         name: f.title ?? "임시 매물",
         contactMainLabel: (f.officeName ?? "").trim() || "대표",
         contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
-
-        // 선택 (서버 허용 범위에서만)
         completionDate: effectiveCompletionDate, // YYYY-MM-DD
         buildingType: (f as any).buildingType ?? null,
         totalHouseholds: toNum(f.totalHouseholds) ?? null,
@@ -158,30 +221,50 @@ export default function PropertyCreateModalBody({
         parkingTypeId: toNum((f as any).parkingTypeId) ?? null,
         slopeGrade: f.slopeGrade ?? null,
         structureGrade: f.structureGrade ?? null,
-        badge: effectiveBadge ?? null,
+        badge: (effectiveBadge as any) ?? null,
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
-      };
+
+        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
+        options: pinOptions,
+        directions,
+
+        // 🔥 areaGroups는 length 체크 후 확실히 포함
+        ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
+
+        ...(explicitPinDraftId != null
+          ? { pinDraftId: String(explicitPinDraftId) }
+          : {}),
+      } as any;
 
       // ✅ 핀 생성 (/pins)
-      const { id: pinId, matchedDraftId } = await createPin(pinDto);
+      const { id: pinId, matchedDraftId /*, lat, lng*/ } = await createPin(
+        pinDto
+      );
 
-      // ✅ 예약 삭제 (있으면 id로, 없으면 draft 기준으로 탐색 후 삭제)
-      const reservationId = (f as any).reservationId;
-      const pinDraftId = (f as any).pinDraftId ?? matchedDraftId;
+      // ✅ 예약 정리(서버) + 스토어 즉시 반영(로컬)
+      const pinDraftId = explicitPinDraftId ?? matchedDraftId;
+
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);
+          removeByReservationId?.(String(reservationId));
         } else if (pinDraftId != null) {
           const listRes = await api.get("/survey-reservations/scheduled");
-          const target = (listRes.data ?? []).find(
+          const arr = Array.isArray(listRes.data?.data)
+            ? listRes.data.data
+            : Array.isArray(listRes.data)
+            ? listRes.data
+            : [];
+          const target = arr.find(
             (r: any) =>
               String(r?.pin_draft_id) === String(pinDraftId) ||
               String(r?.pin?.draftId) === String(pinDraftId)
           );
           if (target?.id != null) {
             await api.delete(`/survey-reservations/${target.id}`);
+            removeByReservationId?.(String(target.id));
           }
         }
       } catch (err: any) {
@@ -191,14 +274,19 @@ export default function PropertyCreateModalBody({
         }
       }
 
-      // ✅ 부모에 결과만 전달 (부모에서 API 재호출 금지)
+      // 🔥 드래프트 제거 즉시 반영
+      if (pinDraftId != null) {
+        removeByPinDraftId?.(String(pinDraftId));
+      }
+
+      // ✅ 부모에 결과 전달
       await Promise.resolve(
         onSubmit?.({
           pinId: String(pinId),
-          matchedDraftId,
+          matchedDraftId: pinDraftId ?? null,
           lat: latNum,
           lng: lngNum,
-          payload, // 필요 없으면 types에서 제거 가능
+          payload,
         } as any)
       );
 
@@ -214,7 +302,17 @@ export default function PropertyCreateModalBody({
       isSavingRef.current = false;
       setIsSaving(false);
     }
-  }, [f, imageFolders, fileItems, onSubmit, onClose, initialLat, initialLng]);
+  }, [
+    f,
+    imageFolders,
+    fileItems,
+    onSubmit,
+    onClose,
+    initialLat,
+    initialLng,
+    removeByReservationId,
+    removeByPinDraftId,
+  ]);
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -226,7 +324,7 @@ export default function PropertyCreateModalBody({
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         <HeaderContainer form={f} onClose={onClose} />
 
-        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min_h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer
             images={{
               imageFolders,
@@ -255,7 +353,19 @@ export default function PropertyCreateModalBody({
               REGISTRY_LIST={REGISTRY_LIST}
             />
             <AspectsContainer form={f} />
-            <AreaSetsContainer form={f} />
+            {/* ⛑ AreaSetsContainer에 엄격 타입으로 어댑팅해서 전달 */}
+            <AreaSetsContainer
+              form={{
+                baseAreaSet: toStrictAreaSet(f.baseAreaSet),
+                setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
+                extraAreaSets: (Array.isArray(f.extraAreaSets)
+                  ? f.extraAreaSets
+                  : []
+                ).map(toStrictAreaSet),
+                setExtraAreaSets: (arr: StrictAreaSet[]) =>
+                  f.setExtraAreaSets(arr),
+              }}
+            />
             <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
             <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
             <MemosContainer form={f} />

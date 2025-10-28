@@ -92,19 +92,23 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     showAtOrBelowLevel: 6,
   });
 
-  // 지도 클릭으로 생성 허용 시
+  // 지도 클릭 (디버그 로그 + 조건부 콜백)
   useEffect(() => {
     if (!kakao || !map) return;
-    if (!allowCreateOnMapClick || !onMapClick) return;
 
-    // Kakao 이벤트 객체에 공식 타입이 없어 any 사용
     const handler = (e: any) => {
       const latlng = e?.latLng;
       if (!latlng) return;
-      onMapClick({
-        lat: latlng.getLat(),
-        lng: latlng.getLng(),
-      });
+
+      // 디버그: 좌표 확인용
+      console.log("map clicked", latlng.getLat(), latlng.getLng());
+
+      if (allowCreateOnMapClick && onMapClick) {
+        onMapClick({
+          lat: latlng.getLat(),
+          lng: latlng.getLng(),
+        });
+      }
     };
 
     kakao.maps.event.addListener(map, "click", handler);
@@ -113,7 +117,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     };
   }, [kakao, map, allowCreateOnMapClick, onMapClick]);
 
-  // 마커 클릭 핸들러 (참조 안정화)
+  // 마커 클릭 핸들러
   const handleMarkerClick = useCallback(
     (id: string) => {
       // 1) 드래프트 핀
@@ -138,14 +142,28 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
             propertyTitle: (m as any).title ?? null,
             pin: { kind: "question", isFav: !!(m as any).isFav },
           });
-          return;
         }
+        return;
       }
 
-      // 3) 일반 핀
+      // 3) 일반 핀 → 컨텍스트 메뉴 열기 + 상위 콜백 알림
+      const m = markers.find((x) => String(x.id) === String(id));
+      if (m && onOpenMenu) {
+        onOpenMenu({
+          position: m.position,
+          propertyId: String(m.id),
+          propertyTitle: (m as any).title ?? (m as any).name ?? "",
+          pin: {
+            kind: (m as any).pin?.kind ?? pinKind,
+            isFav: !!(m as any).isFav,
+          },
+        });
+      }
+
+      // 기존 상위 알림도 유지 (필요 시 제거 가능)
       onMarkerClick?.(id);
     },
-    [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu]
+    [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu, pinKind]
   );
 
   // 클러스터러 + 라벨

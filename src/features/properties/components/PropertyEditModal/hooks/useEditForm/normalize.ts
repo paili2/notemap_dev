@@ -30,6 +30,7 @@ const pickOrientation = (o: unknown): OrientationValue | "" =>
     | OrientationValue
     | "";
 
+// ✅ parkingType은 string | null, 주차 대수는 totalParkingSlots만 사용
 type Normalized = {
   // 기본
   pinKind: PinKind;
@@ -44,8 +45,8 @@ type Normalized = {
   structure: string;
   // 별점/주차/준공/매매
   listingStars: number;
-  parkingType: string;
-  parkingCount: string;
+  parkingType: string | null;
+  totalParkingSlots: string;
   completionDate: string;
   salePrice: string;
   // 면적
@@ -100,9 +101,11 @@ export function normalizeInitialData(initialData: any | null): Normalized {
   const extraSets: AreaSet[] = Array.from({ length: len }, (_, i) => {
     const exi = unpackRange(extraExclusive[i] ?? "");
     const rei = unpackRange(extraReal[i] ?? "");
-    const title = asStr(extraTitles[i]) || `세트 ${i + 1}`;
+    const title = asStr(extraTitles[i] ?? "");
+    const hasAny = title || exi.min || exi.max || rei.min || rei.max;
+    if (!hasAny) return null as any;
     return {
-      title,
+      title: title || `세트 ${i + 1}`,
       exMinM2: exi.min,
       exMaxM2: exi.max,
       exMinPy: toPy(exi.min),
@@ -112,19 +115,26 @@ export function normalizeInitialData(initialData: any | null): Normalized {
       realMinPy: toPy(rei.min),
       realMaxPy: toPy(rei.max),
     };
-  });
+  }).filter((v): v is AreaSet => Boolean(v));
 
   // 향(orientations → AspectRowLite[])
   const aspects: AspectRowLite[] =
     Array.isArray(d.orientations) && d.orientations.length
       ? (d.orientations as unknown[]).map((o, idx) => ({
           no: idx + 1,
-          dir: pickOrientation(o), // OrientationValue | ""
+          dir: pickOrientation(o),
         }))
       : ([d.aspect1, d.aspect2, d.aspect3].filter(Boolean).map((dir, i) => ({
           no: i + 1,
           dir: (dir as OrientationValue) ?? "",
         })) as AspectRowLite[]);
+
+  // ✅ parkingType: 공백이면 null
+  const rawParkingType = asStr(d.parkingType).trim();
+  const parkingType: string | null = rawParkingType ? rawParkingType : null;
+
+  // ✅ totalParkingSlots: 없으면 빈 문자열
+  const totalParkingSlots = asStr(d.totalParkingSlots ?? "");
 
   return {
     // 기본
@@ -141,8 +151,8 @@ export function normalizeInitialData(initialData: any | null): Normalized {
 
     // 별점/주차/준공/매매
     listingStars: asNum(d.listingStars, 0),
-    parkingType: asStr(d.parkingType),
-    parkingCount: asStr(d.parkingCount),
+    parkingType,
+    totalParkingSlots,
     completionDate: asYMD(d.completionDate),
     salePrice: asStr(d.salePrice),
 
@@ -175,7 +185,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     // 옵션/메모/유닛
     options: (d.options as string[]) ?? [],
     optionEtc: asStr(d.optionEtc),
-    etcChecked: !!d.optionEtc,
+    etcChecked: asStr(d.optionEtc).trim().length > 0,
     publicMemo: asStr(d.publicMemo),
     secretMemo: asStr(d.secretMemo),
     unitLines: (d.unitLines as UnitLine[]) ?? [],

@@ -6,38 +6,51 @@ import RoadviewHost from "../../../components/Roadview/RoadviewHost";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
 export default function ModalsHost(props: {
+  /** View Modal */
   viewOpen: boolean;
   selectedViewItem: PropertyViewDetails | null;
   onCloseView: () => void;
   onSaveViewPatch: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDeleteFromView: (id: string) => void | Promise<void>;
 
+  /** Create Modal */
   createOpen: boolean;
   prefillAddress?: string;
-  draftPin: any;
-  selectedPos: any;
+  draftPin: { lat: number; lng: number } | null;
+  selectedPos: { lat: number; lng: number } | null;
   createHostHandlers: {
     onClose: () => void;
     appendItem: (it: any) => void;
     selectAndOpenView: (id: string) => void;
     resetAfterCreate: () => void;
+    /** ✅ 매물 생성 직후 호출되어 draft 숨김 + refetch 트리거 */
+    onAfterCreate: (args: {
+      pinId: string;
+      matchedDraftId?: string | number | null;
+      lat: number;
+      lng: number;
+    }) => void;
   };
 
+  /** Roadview */
   roadviewVisible: boolean;
   roadviewContainerRef: any;
   onCloseRoadview: () => void;
 }) {
   const {
+    // view
     viewOpen,
     selectedViewItem,
     onCloseView,
     onSaveViewPatch,
     onDeleteFromView,
+    // create
     createOpen,
     prefillAddress,
     draftPin,
     selectedPos,
     createHostHandlers,
+    // roadview
     roadviewVisible,
     roadviewContainerRef,
     onCloseRoadview,
@@ -65,6 +78,7 @@ export default function ModalsHost(props: {
           appendItem={createHostHandlers.appendItem}
           selectAndOpenView={createHostHandlers.selectAndOpenView}
           resetAfterCreate={createHostHandlers.resetAfterCreate}
+          onAfterCreate={createHostHandlers.onAfterCreate}
         />
       )}
 

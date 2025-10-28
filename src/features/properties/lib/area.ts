@@ -1,3 +1,5 @@
+// src/features/properties/lib/area.ts
+
 /** 1평 = 3.305785㎡ */
 const PYEONG = 3.305785 as const;
 
@@ -95,3 +97,83 @@ export const parsePreset = (s: string) => {
     baths: Number.isFinite(b) ? b : 0,
   };
 };
+
+/* ────────────────────────────────────────────────────────────────────
+   ▼ areaGroups 생성 유틸 (신규)
+   - UI AreaSet(string 기반) → API DTO(number 기반) 변환
+   - 정렬 sortOrder 1부터 자동 부여
+   - 스펙: 전용/실평 모두 필수 (㎡)
+   ──────────────────────────────────────────────────────────────────── */
+
+import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
+import { AreaSet } from "../components/sections/AreaSetsSection/types";
+
+/** "", null, undefined → undefined / 숫자 문자열 → number */
+const toNum = (v: unknown): number | undefined => {
+  const n = sanitizeNum(v);
+  return n == null ? undefined : n;
+};
+
+/** m² 우선, 없으면 평→m² 변환 */
+const chooseM2 = (m2: unknown, py: unknown): number | undefined => {
+  const m = toNum(m2);
+  if (m !== undefined) return m;
+  const p = toNum(py);
+  return p !== undefined ? p * PYEONG : undefined;
+};
+
+/** 단일 AreaSet → CreatePinAreaGroupDto (빈행/필수값 검증 포함) */
+function normalizeAreaGroup(s?: AreaSet): CreatePinAreaGroupDto | null {
+  if (!s) return null;
+
+  const title = String(s.title ?? "").trim();
+
+  const exMin = chooseM2(s.exMinM2, s.exMinPy);
+  const exMax = chooseM2(s.exMaxM2, s.exMaxPy);
+
+  const realMin = chooseM2(s.realMinM2, s.realMinPy);
+  const realMax = chooseM2(s.realMaxM2, s.realMaxPy);
+
+  // 완전 빈 행(제목/숫자 모두 없음) 제거
+  const hasAny =
+    !!title ||
+    exMin !== undefined ||
+    exMax !== undefined ||
+    realMin !== undefined ||
+    realMax !== undefined;
+  if (!hasAny) return null;
+
+  // 전용/실평 최소·최대 모두 필수 (스펙 반영)
+  if (exMin === undefined || exMax === undefined) return null;
+  if (realMin === undefined || realMax === undefined) return null;
+
+  const exLo = Math.min(exMin, exMax);
+  const exHi = Math.max(exMin, exMax);
+  const acLo = Math.min(realMin, realMax);
+  const acHi = Math.max(realMin, realMax);
+
+  return {
+    title,
+    exclusiveMinM2: Math.max(0, exLo),
+    exclusiveMaxM2: Math.max(0, exHi),
+    actualMinM2: Math.max(0, acLo),
+    actualMaxM2: Math.max(0, acHi),
+  };
+}
+
+/** base + extras → API용 areaGroups (sortOrder 1부터 연속) */
+export function buildAreaGroups(
+  base: AreaSet,
+  extras: AreaSet[]
+): CreatePinAreaGroupDto[] {
+  const out: CreatePinAreaGroupDto[] = [];
+  const first = normalizeAreaGroup(base);
+  if (first) out.push(first);
+
+  for (const s of extras ?? []) {
+    const n = normalizeAreaGroup(s);
+    if (n) out.push(n);
+  }
+
+  return out.map((g, i) => ({ ...g, sortOrder: i + 1 }));
+}

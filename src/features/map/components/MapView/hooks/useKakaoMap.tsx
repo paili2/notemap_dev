@@ -39,6 +39,69 @@ type SearchOptions = {
 
 const DEFAULT_VIEWPORT_DEBOUNCE = 120;
 
+// ─────────────────────────────────────────────
+// HTTPS 유틸
+// ─────────────────────────────────────────────
+const forceHttps = (u?: string) =>
+  typeof u === "string" ? u.replace(/^http:\/\//, "https://") : u;
+
+/** 지도 DOM 하위에서 http 이미지를 실시간 https로 치환 */
+function installHttpsImagePatch(root: HTMLElement) {
+  const toHttps = (s: string) => s.replaceAll("http://", "https://");
+
+  const fixElement = (el: Element) => {
+    // <img src="http://...">
+    if (el instanceof HTMLImageElement) {
+      const raw = el.getAttribute("src");
+      if (raw && raw.startsWith("http://")) {
+        el.setAttribute("src", toHttps(raw));
+      }
+    }
+    // inline style에 background: url("http://...")
+    if (el instanceof HTMLElement) {
+      const styleAttr = el.getAttribute("style");
+      if (styleAttr && styleAttr.includes("http://")) {
+        el.setAttribute("style", toHttps(styleAttr));
+      }
+    }
+  };
+
+  // 초기 스캔
+  root.querySelectorAll("*").forEach(fixElement);
+
+  // 이후 변경 감시
+  const mo = new MutationObserver((muts) => {
+    for (const m of muts) {
+      if (m.type === "attributes") {
+        if (
+          (m.target instanceof HTMLImageElement && m.attributeName === "src") ||
+          (m.target instanceof HTMLElement && m.attributeName === "style")
+        ) {
+          fixElement(m.target as Element);
+        }
+      }
+      if (m.type === "childList") {
+        m.addedNodes.forEach((n) => {
+          if (n.nodeType === 1) {
+            const el = n as Element;
+            fixElement(el);
+            el.querySelectorAll?.("*").forEach(fixElement);
+          }
+        });
+      }
+    }
+  });
+
+  mo.observe(root, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["src", "style"],
+  });
+
+  return () => mo.disconnect();
+}
+
 function useStableRef<T>(value: T) {
   const ref = useRef(value);
   ref.current = value;
@@ -62,7 +125,7 @@ const useKakaoMap = ({
 
   const [ready, setReady] = useState(false);
 
-  // 옵션/콜백 ref로 고정 (리스너 내부 stale 방지)
+  // 옵션/콜백 ref로 고정
   const maxLevelRef = useRef<number>(maxLevel);
   const onViewportChangeRef = useStableRef(onViewportChange);
 
@@ -78,9 +141,9 @@ const useKakaoMap = ({
   const idleListenerRef = useRef<((...a: any[]) => void) | null>(null);
   const idleTimerRef = useRef<number | null>(null);
 
-  // ───────────────────────────────────────────────────────────
-  // 1) 지도 초기화: 최초 1회만 생성 (빈 deps)
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // 1) 지도 초기화: 최초 1회만 생성
+  // ─────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     if (!containerRef.current) return;
@@ -95,12 +158,38 @@ const useKakaoMap = ({
 
         kakaoRef.current = kakao;
 
+        // (A) HTTP → HTTPS 패치 (SDK 기본 리소스)
+        try {
+          // 1) 클러스터 기본 스프라이트 경로 https로 고정
+          if (kakao?.maps?.MarkerClusterer) {
+            kakao.maps.MarkerClusterer.prototype.IMAGE_PATH =
+              "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerCluster";
+          }
+          // 2) 타일 URL이 http로 반환되면 https로 치환
+          if (kakao?.maps?.services?.TileUrl) {
+            const origin = kakao.maps.services.TileUrl;
+            kakao.maps.services.TileUrl = (...args: any[]) =>
+              forceHttps(origin(...args));
+          }
+        } catch (patchErr) {
+          console.warn("[Kakao HTTPS patch] skipped:", patchErr);
+        }
+
         if (!mapRef.current) {
           const map = new kakao.maps.Map(containerRef.current, {
             center: new kakao.maps.LatLng(center.lat, center.lng),
             level,
           });
           mapRef.current = map;
+
+          // (B) 지도 DOM 아래 http→https 강제 옵저버 설치
+          try {
+            const node: HTMLElement = map.getNode();
+            const detach = installHttpsImagePatch(node);
+            (map as any).__detachHttpsPatch__ = detach;
+          } catch (e) {
+            console.warn("[https image patch] attach failed:", e);
+          }
 
           // services 준비 (전역 재사용)
           geocoderRef.current = new kakao.maps.services.Geocoder();
@@ -162,22 +251,27 @@ const useKakaoMap = ({
         lastSearchMarkerRef.current = null;
       }
 
+      // https 패치 옵저버 해제
+      try {
+        (map as any)?.__detachHttpsPatch__?.();
+      } catch {}
+
       // mapRef는 언마운트 시에만 null
       mapRef.current = null;
       // kakaoRef는 SDK 전역이므로 유지
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ← 중요: 최초 1회만 생성
+  }, []); // 최초 1회
 
-  // ───────────────────────────────────────────────────────────
-  // 2) 이벤트 리스너 등록: 1회만 등록하고 콜백은 ref로 최신 유지
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // 2) 이벤트 리스너 등록 (1회)
+  // ─────────────────────────────────────────────
   useEffect(() => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
     if (!ready || !kakao || !map) return;
 
-    // 최대 확대 제한 강제
+    // 최대 확대 제한
     if (!zoomListenerRef.current) {
       const onZoomChanged = () => {
         const lv = map.getLevel();
@@ -192,7 +286,6 @@ const useKakaoMap = ({
       const onIdle = () => {
         if (!onViewportChangeRef.current) return;
 
-        // 디바운스
         if (idleTimerRef.current) {
           window.clearTimeout(idleTimerRef.current);
         }
@@ -215,9 +308,9 @@ const useKakaoMap = ({
     }
   }, [ready, viewportDebounceMs, onViewportChangeRef]);
 
-  // ───────────────────────────────────────────────────────────
-  // 3) center/level 변경은 "조작"으로만 반영 (재생성 금지)
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // 3) center/level은 조작으로만 반영
+  // ─────────────────────────────────────────────
   useEffect(() => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
@@ -226,7 +319,6 @@ const useKakaoMap = ({
     const current = map.getCenter?.();
     const next = new kakao.maps.LatLng(center.lat, center.lng);
 
-    // 좌표 동일하면 skip
     if (
       current &&
       current.getLat() === next.getLat() &&
@@ -250,9 +342,9 @@ const useKakaoMap = ({
     }
   }, [level, ready]);
 
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
   // 4) 유틸
-  // ───────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────
   const clearLastMarker = useCallback(() => {
     if (lastSearchMarkerRef.current) {
       lastSearchMarkerRef.current.setMap(null);
@@ -272,7 +364,6 @@ const useKakaoMap = ({
       showMarker = true,
     } = opts || {};
 
-    // 이전 검색 마커 제거 (showMarker=false면 무조건 제거)
     if ((clearPrev || showMarker === false) && lastSearchMarkerRef.current) {
       lastSearchMarkerRef.current.setMap(null);
       lastSearchMarkerRef.current = null;
@@ -296,7 +387,20 @@ const useKakaoMap = ({
 
     if (showMarker === false) return;
 
-    const marker = new kakao.maps.Marker({ map, position: coords });
+    // 기본 스프라이트 대신 https 아이콘을 명시해 Mixed Content 방지
+    const imgUrl =
+      "https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png";
+    const image = new kakao.maps.MarkerImage(
+      imgUrl,
+      new kakao.maps.Size(24, 35),
+      { offset: new kakao.maps.Point(12, 35) }
+    );
+
+    const marker = new kakao.maps.Marker({
+      map,
+      position: coords,
+      image,
+    });
     lastSearchMarkerRef.current = marker;
   }, []);
 
@@ -391,7 +495,7 @@ const useKakaoMap = ({
     [placeMarkerAt, ready]
   );
 
-  // 선택: 외부 제어 API
+  // 외부 제어 API
   const panTo = useCallback((p: LatLng) => {
     const kakao = kakaoRef.current;
     const map = mapRef.current;
@@ -421,25 +525,20 @@ const useKakaoMap = ({
     if (!map) return;
     maxLevelRef.current = maxLv;
     map.setMaxLevel(maxLv);
-    // 현재 레벨이 상한보다 크면 줄여준다
     const lv = map.getLevel?.();
     if (typeof lv === "number" && lv > maxLv) {
       map.setLevel(maxLv);
     }
   }, []);
 
-  // 외부에 안정적인 핸들러 제공을 위해 useMemo
   const api = useMemo(
     () => ({
-      // refs
       containerRef,
       kakao: kakaoRef.current,
       map: mapRef.current,
       ready,
-      // 검색/마커
       searchPlace,
       clearLastMarker,
-      // 제어
       panTo,
       fitBounds,
       setMaxLevel,
