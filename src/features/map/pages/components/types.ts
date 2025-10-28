@@ -38,7 +38,7 @@ export type MapHomeUIProps = {
 
   // toggles
   useSidebar: boolean;
-  setUseSidebar: Dispatch<SetStateAction<boolean>>; // ✅ React 네임스페이스 대신 명시 import
+  setUseSidebar: Dispatch<SetStateAction<boolean>>;
   useDistrict: boolean;
 
   // ⭐ POI
@@ -58,31 +58,40 @@ export type MapHomeUIProps = {
   menuJibunAddr: string | null;
   menuTitle: string | null;
   onCloseMenu: () => void;
-  onViewFromMenu: (id: string | number) => void;
+
+  // ✅ 상세보기 트리거 (컨트롤드 지원 시에만 전달; 없으면 내부에서 처리)
+  onViewFromMenu?: (id: string | number) => void;
+
   onCreateFromMenu: () => void;
   onPlanFromMenu: (pos: LatLng) => void;
 
   // map callbacks
   onMarkerClick: (id: string | number) => void;
-  onMapReady: (api: any) => void; // ← 현재 구현(handleMapReady)이 api를 통째로 넘기므로 이쪽이 더 자연스러움
+  onMapReady: (api: any) => void;
   onViewportChange: (vp: any, opts?: { force?: boolean }) => void;
 
-  // modals
-  viewOpen: boolean;
+  // modals (create/edit는 유지)
+  // ✅ 아래 3개도 컨트롤드가 필요할 때만 넘기는 옵션으로 변경
+  viewOpen?: boolean;
   editOpen: boolean;
   createOpen: boolean;
-  selectedViewItem: PropertyViewDetails | null;
+  selectedViewItem?: PropertyViewDetails | null;
+
   selectedId: string | number | null;
   prefillAddress?: string;
   draftPin: LatLng | null;
   setDraftPin: (pin: LatLng | null) => void;
   selectedPos: LatLng | null;
-  closeView: () => void;
+
+  // ✅ 상세보기 닫기 콜백도 옵션
+  closeView?: () => void;
+
   closeEdit: () => void;
   closeCreate: () => void;
   onSaveViewPatch: (patch: Partial<PropertyViewDetails>) => Promise<void>;
   onEditFromView: () => void;
   onDeleteFromView: () => Promise<void>;
+
   createHostHandlers: {
     onClose: () => void;
     appendItem: (item: PropertyItem) => void;

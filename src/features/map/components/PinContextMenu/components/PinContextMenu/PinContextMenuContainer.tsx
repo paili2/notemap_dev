@@ -127,14 +127,14 @@ export default function PinContextMenuContainer(props: Props) {
   const viewModal = usePropertyViewModal();
 
   const handleView = () => {
-    viewModal.openWithPin({
-      pin,
-      propertyId,
-      roadAddress,
-      jibunAddress,
-      propertyTitle,
-    });
-    onClose?.();
+    const id = String(propertyId ?? "");
+    // __draft__ 또는 __visit__* 은 상세보기 불가
+    if (!id || id === "__draft__" || id.startsWith("__visit__")) return;
+    // 상세보기는 상위로 위임 (MapHomeUI가 로컬 상태로 모달 오픈)
+    props.onView?.(id);
+    // 메뉴 닫기는 한 틱 뒤(배치 경합 방지)
+    Promise.resolve().then(() => onClose?.());
+    // 또는: setTimeout(() => onClose?.(), 0) / requestAnimationFrame(...)
   };
 
   if (!kakao || !map || !target) return null;
@@ -328,7 +328,6 @@ export default function PinContextMenuContainer(props: Props) {
     upsertDraftMarker,
     refreshViewportPins,
     getBoundsBox,
-    router,
     position,
     cleanupOverlaysAt,
     bump,

@@ -59,7 +59,7 @@ export default function MapHomePage() {
     ensureFavoriteGroup,
   });
 
-  // ===== FIX: 인라인 핸들러들을 useCallback으로 고정 =====
+  // ===== 콜백들 =====
   const onChangeQ = useCallback(
     (v: string) => {
       (s as any).onChangeQ?.(v) ?? (s as any).setQ?.(v);
@@ -76,7 +76,7 @@ export default function MapHomePage() {
 
   const onSubmitSearch = useCallback(
     (v?: string) => {
-      const text = v ?? ""; // undefined 들어오면 빈 문자열 등 기본값 처리
+      const text = v ?? "";
       (s as any).onSubmitSearch?.(text) ?? (s as any).performSearch?.(text);
     },
     [s]
@@ -87,13 +87,6 @@ export default function MapHomePage() {
       (s as any).onChangePoiKinds?.(next) ??
         (s as any).setPoiKinds?.(next) ??
         (s as any).updatePoiKinds?.(next);
-    },
-    [s]
-  );
-
-  const onViewFromMenu = useCallback(
-    (id: string | number) => {
-      (s as any).onViewFromMenu?.(id) ?? (s as any).viewFromMenu?.(id);
     },
     [s]
   );
@@ -109,7 +102,7 @@ export default function MapHomePage() {
     [s]
   );
 
-  // ===== FIX: payload → draftId 어댑터는 참조 고정 =====
+  // ===== payload → draftId 어댑터 =====
   const reserveVisitPlanFromPayload = useCallback(
     async (payload: {
       lat: number;
@@ -143,12 +136,13 @@ export default function MapHomePage() {
         dateISO: payload.dateISO,
       });
 
-      // 선택적 후처리: 존재할 때만 호출 (리렌더 최소화)
       try {
         (s as any).refetchPins?.({ draftState: "all" });
         (s as any).reloadPins?.();
         (s as any).onViewportChange?.(s.mapInstance);
-      } catch {}
+      } catch {
+        /* noop */
+      }
     },
     [reserveVisitPlan, s]
   );
@@ -159,13 +153,13 @@ export default function MapHomePage() {
     reserveVisitPlan: reserveVisitPlanFromPayload,
   });
 
-  // ===== FIX: menuTitle도 메모해 변동 최소화 =====
+  // ===== 메뉴 타이틀 메모 =====
   const menuTitle = useMemo(() => {
     if (!s.menuTargetId) return null;
     return s.items.find((p) => eqId(p.id, s.menuTargetId))?.title ?? null;
   }, [s.items, s.menuTargetId]);
 
-  // ===== FIX: MapHomeUI에 전달하는 props 묶음도 useMemo로 고정 =====
+  // ===== MapHomeUI에 내려줄 프롭 메모 =====
   const uiProps = useMemo(
     () => ({
       /* core */
@@ -208,7 +202,7 @@ export default function MapHomePage() {
       menuJibunAddr: s.menuJibunAddr,
       menuTitle,
       onCloseMenu: s.closeMenu,
-      onViewFromMenu,
+      // 상세보기는 MapHomeUI 내부에서 처리하므로 onViewFromMenu 전달 ❌
       onCreateFromMenu,
       onPlanFromMenu: s.onPlanFromMenu,
 
@@ -217,17 +211,15 @@ export default function MapHomePage() {
       onMapReady: s.onMapReady,
       onViewportChange: s.onViewportChange,
 
-      /* modals */
-      viewOpen: s.viewOpen,
+      /* modals (MapHomeUI가 view를 직접 관리) */
+      // create/edit 등 기존 값은 그대로 전달
       editOpen: s.editOpen,
       createOpen: s.createOpen,
-      selectedViewItem: s.selectedViewItem,
       selectedId: s.selectedId,
       prefillAddress: s.prefillAddress,
       draftPin: s.draftPin,
       setDraftPin: s.setDraftPin,
       selectedPos: s.selectedPos,
-      closeView: s.closeView,
       closeEdit: s.closeEdit,
       closeCreate: s.closeCreate,
       onSaveViewPatch: s.onSaveViewPatch,
@@ -245,25 +237,22 @@ export default function MapHomePage() {
     [
       KAKAO_MAP_KEY,
       s,
+      fav.favById,
+      fav.onAddFav,
       onChangeQ,
       onChangeFilter,
       onSubmitSearch,
       onChangePoiKinds,
-      onViewFromMenu,
       onCreateFromMenu,
       onChangeHideLabelForId,
       onReserveFromMenu,
       menuTitle,
-      fav.favById,
-      fav.onAddFav,
     ]
   );
 
   return (
     <>
-      {/* FIX: props 객체를 메모해서 MapHomeUI re-render 빈도↓ */}
       <MapHomeUI {...uiProps} />
-
       <FavGroupModal
         open={fav.favModalOpen}
         groups={nestedFavorites}

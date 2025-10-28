@@ -1,11 +1,17 @@
 import { useCallback } from "react";
 
+type ReverseGeocodeResult = { road: string | null; jibun: string | null };
+
 type ReserveDeps = {
-  s: any; // useMapHomeState() 반환값 타입을 가져오면 더 좋습니다
-  reverseGeocode: (
-    lat: number,
-    lng: number
-  ) => Promise<{ road: string | null; jibun: string | null }>;
+  s: {
+    markers: Array<{
+      id: string | number;
+      title?: string | null;
+      position: { lat: number; lng: number };
+    }>;
+    setUseSidebar: (v: boolean) => void;
+  };
+  reverseGeocode: (lat: number, lng: number) => Promise<ReverseGeocodeResult>;
   reserveVisitPlan: (payload: {
     lat: number;
     lng: number;
@@ -15,13 +21,22 @@ type ReserveDeps = {
   }) => Promise<any>;
 };
 
+type PayloadByCoords = {
+  lat: number;
+  lng: number;
+  title?: string | null;
+  roadAddress?: string | null;
+  jibunAddress?: string | null;
+};
+type PayloadByVisitId = { visitId: string | number };
+
 export function useReserveFromMenu({
   s,
   reverseGeocode,
   reserveVisitPlan,
 }: ReserveDeps) {
   return useCallback(
-    async (payload: any) => {
+    async (payload: PayloadByCoords | PayloadByVisitId) => {
       try {
         let lat: number;
         let lng: number;
@@ -30,27 +45,30 @@ export function useReserveFromMenu({
         let jibunAddress: string | null | undefined;
 
         if ("lat" in payload) {
-          // 좌표 직접 예약
-          lat = payload.lat;
-          lng = payload.lng;
+          lat = Number(payload.lat);
+          lng = Number(payload.lng);
           title = payload.title;
           roadAddress = payload.roadAddress ?? null;
           jibunAddress = payload.jibunAddress ?? null;
         } else {
-          // visitId -> 마커에서 좌표 조회
           const v = s.markers.find(
-            (m: any) => String(m.id) === String(payload.visitId)
+            (m) => String(m.id) === String(payload.visitId)
           );
           if (!v) {
             alert("예약하려는 핀을 찾지 못했습니다.");
             return;
           }
-          const pos = (v as any).position;
-          lat = pos.lat;
-          lng = pos.lng;
-          title = (v as any).title ?? null;
+          lat = v.position.lat;
+          lng = v.position.lng;
+          title = v.title ?? null;
           roadAddress = null;
           jibunAddress = null;
+        }
+
+        // ⛑ 좌표 유효성 가드
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          alert("좌표가 유효하지 않습니다.");
+          return;
         }
 
         if (!roadAddress && !jibunAddress) {
@@ -62,16 +80,12 @@ export function useReserveFromMenu({
         await reserveVisitPlan({
           lat,
           lng,
-          address:
-            title ??
-            roadAddress ??
-            jibunAddress ??
-            `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+          address: title ?? roadAddress ?? jibunAddress ?? `${lat}, ${lng}`,
           roadAddress: roadAddress ?? null,
           jibunAddress: jibunAddress ?? null,
         });
 
-        s.setUseSidebar(true); // 예약 목록 열기
+        s.setUseSidebar(true);
       } catch (e) {
         console.error(e);
         alert("답사지예약 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
@@ -81,5 +95,4 @@ export function useReserveFromMenu({
   );
 }
 
-// 안전한 ID 비교 유틸 (중복 사용 방지)
 export const eqId = (a: unknown, b: unknown) => String(a) === String(b);

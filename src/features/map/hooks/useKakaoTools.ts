@@ -48,7 +48,7 @@ const geocoderCache = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<AddressValue>>(); // 동시요청 합치기
 let geocoderSingleton: KakaoGeocoder | null = null;
 
-const toKey = (ll: LatLng) => `${ll.lat.toFixed(6)},${ll.lng.toFixed(6)}`; // ~11cm
+const toKey = (ll: LatLng) => `${ll.lat.toFixed(6)},${ll.lng.toFixed(6)}`;
 
 function getKakaoFromWindowOrRef(ref?: KakaoSDK | null): KakaoSDK | null {
   if (typeof window === "undefined") return ref ?? null;

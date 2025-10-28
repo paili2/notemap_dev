@@ -92,8 +92,13 @@ export function useRebuildScene(args: Args) {
     return undefined;
   }
 
-  // 좌표 → posKey (소수 5자리 ≈ 1.1m)
-  function toPosKey(lat?: number, lng?: number) {
+  /**
+   * 좌표 → 그룹핑용 키 (소수 5자리 ≈ 1.1m)
+   * ⚠️ 주의: 이 값은 라벨/그룹핑 전용입니다.
+   * ⚠️ 절대 payload 좌표로 역파싱(split(',').map(Number))하여 사용하지 마세요.
+   *    실제 전송 좌표는 항상 m.position.lat/lng 또는 getPosition()에서 직접 추출하세요.
+   */
+  function toGroupingPosKey(lat?: number, lng?: number) {
     if (typeof lat === "number" && typeof lng === "number") {
       return `${lat.toFixed(5)},${lng.toFixed(5)}`;
     }
@@ -140,7 +145,8 @@ export function useRebuildScene(args: Args) {
         typeof m.position?.lng === "number"
           ? m.position.lng
           : m.getPosition?.().getLng?.();
-      const posKey = m.posKey ?? (toPosKey(lat, lng) as string | undefined);
+      const posKey =
+        m.posKey ?? (toGroupingPosKey(lat, lng) as string | undefined);
 
       if (posKey && reservationOrderByPosKey) {
         const byPos = reservationOrderByPosKey[posKey];
@@ -176,7 +182,7 @@ export function useRebuildScene(args: Args) {
         typeof m.position?.lng === "number"
           ? m.position.lng
           : m.getPosition?.().getLng?.();
-      const posKey = m.posKey ?? toPosKey(lat, lng); // 허용오차 포함 posKey
+      const posKey = m.posKey ?? toGroupingPosKey(lat, lng); // 허용오차 포함 posKey (그룹핑 전용)
 
       // ✅ 주소임시핀은 절대 isPlan 되지 않도록 가드
       const isPlan =
@@ -311,7 +317,7 @@ export function useRebuildScene(args: Args) {
           delete labelByPos[posKey];
         }
 
-        // 새 라벨 생성
+        // 새 라벨 생성 (dataset에는 "원본 좌표"도 심어둔다 — 반올림 금지)
         const labelOv = createLabelOverlay(
           kakao,
           pos,
@@ -324,9 +330,9 @@ export function useRebuildScene(args: Args) {
           if (el) {
             (el as any).dataset = (el as any).dataset || {};
             (el as any).dataset.rawLabel = labelText;
-            (el as any).dataset.posKey = posKey ?? "";
-            (el as any).dataset.posLat = String(m.position?.lat ?? "");
-            (el as any).dataset.posLng = String(m.position?.lng ?? "");
+            (el as any).dataset.posKey = posKey ?? ""; // 그룹핑 전용 키
+            (el as any).dataset.posLat = String(m.position?.lat ?? ""); // 원본
+            (el as any).dataset.posLng = String(m.position?.lng ?? ""); // 원본
             (el as any).dataset.labelType = isPlan ? "plan" : "address";
 
             // ✅ 배지는 보존하고 제목만 업데이트

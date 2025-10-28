@@ -446,8 +446,12 @@ export function buildCreatePayload(args: BuildArgs) {
       : {}),
 
     /** ✅ 좌표 전달 (숫자인 경우에만 포함) */
-    ...(typeof lat === "number" ? { lat } : {}),
-    ...(typeof lng === "number" ? { lng } : {}),
+    ...(lat != null
+      ? { lat: typeof lat === "number" ? lat : Number(String(lat).trim()) }
+      : {}),
+    ...(lng != null
+      ? { lng: typeof lng === "number" ? lng : Number(String(lng).trim()) }
+      : {}),
 
     pinDraftId: args.pinDraftId ?? null,
   };

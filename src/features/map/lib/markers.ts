@@ -2,9 +2,12 @@ import type { MapMarkerTagged } from "@/features/map/types/map";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 
-// 좌표 기반으로 안정적인 고유 ID 생성
-const visitId = (p: LatLng) =>
-  `__visit__${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+/**
+ * 좌표 기반으로 안정적인 고유 ID 생성
+ * ⚠️ 절대 이 ID를 split(',') 등으로 파싱해 좌표로 재사용하지 말 것!
+ *    좌표는 항상 position.lat / position.lng 원본을 직접 사용.
+ */
+const visitId = (p: LatLng) => `__visit__${String(p.lat)},${String(p.lng)}`;
 
 export function getMapMarkers(
   filtered: PropertyItem[],
@@ -15,7 +18,7 @@ export function getMapMarkers(
   const base: MapMarkerTagged[] = filtered.map((p) => ({
     id: String(p.id),
     title: p.title,
-    position: { lat: p.position.lat, lng: p.position.lng },
+    position: { lat: p.position.lat, lng: p.position.lng }, // ← 원본 그대로
     kind: ((p as any).pinKind ??
       (p as any).markerKind ??
       (p as any).kind ??
@@ -26,9 +29,9 @@ export function getMapMarkers(
 
   // 답사예정 핀들(여러 개)
   const visits: MapMarkerTagged[] = visitPins.map((pos) => ({
-    id: visitId(pos),
+    id: visitId(pos), // ← 더 이상 toFixed(6) 안 씀
     title: "답사예정",
-    position: { lat: pos.lat, lng: pos.lng },
+    position: { lat: pos.lat, lng: pos.lng }, // ← 원본 그대로
     kind: "question" as any,
     tag: "visit",
   }));
@@ -39,7 +42,7 @@ export function getMapMarkers(
         {
           id: "__draft__",
           title: "신규 등록 위치",
-          position: { lat: draftPin.lat, lng: draftPin.lng },
+          position: { lat: draftPin.lat, lng: draftPin.lng }, // ← 원본 그대로
           kind: "question" as any,
           tag: "draft",
         },
