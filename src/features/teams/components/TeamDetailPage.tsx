@@ -1,19 +1,57 @@
+"use client";
+
 import { Button } from "@/components/atoms/Button/Button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { MOCK_TEAMS } from "../_mock";
+import { useTeam, useRemoveTeamMember } from "../hooks/useTeams";
 import UserSettingsPage from "@/features/users/pages/UserSettingsPage";
+import { useToast } from "@/hooks/use-toast";
 
 interface TeamDetailPageProps {
   teamId: string;
 }
 
 export default function TeamDetailPage({ teamId }: TeamDetailPageProps) {
-  const team = MOCK_TEAMS.find((t) => t.id === teamId);
+  const decodedTeamId = decodeURIComponent(teamId);
+  const { data: team, isLoading, error } = useTeam(decodedTeamId);
+  const { toast } = useToast();
+
+  if (error) {
+    toast({
+      title: "팀 정보 로드 실패",
+      description: "팀 정보를 불러올 수 없습니다.",
+      variant: "destructive",
+    });
+  }
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-7xl p-6 space-y-8">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              팀 정보를 불러오는 중...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!team) {
-    notFound();
+    return (
+      <div className="mx-auto max-w-7xl p-6 space-y-8">
+        <div className="text-center py-12">
+          <p className="text-lg font-semibold mb-2">팀을 찾을 수 없습니다</p>
+          <Link href="/admin/team-management">
+            <Button variant="outline" size="sm" className="mt-4">
+              팀 목록으로 돌아가기
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -35,7 +73,7 @@ export default function TeamDetailPage({ teamId }: TeamDetailPageProps) {
       </div>
 
       <div className="p-1 pb-8">
-        <UserSettingsPage />
+        <UserSettingsPage teamId={decodedTeamId} members={team.members} />
       </div>
     </div>
   );

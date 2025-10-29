@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +8,7 @@ import {
   DialogTitle,
 } from "@/components/atoms/Dialog/Dialog";
 import { UnassignedEmployeesTable } from "./UnassignedEmployeesTable";
-import { MOCK_UNASSIGNED_EMPLOYEES } from "../_mock";
-import { UnassignedEmployee } from "../types/unassignedEmployee";
+import { useUnassignedEmployees } from "../hooks/useUnassignedEmployees";
 
 interface UnassignedEmployeesModalProps {
   open: boolean;
@@ -23,21 +21,13 @@ export function UnassignedEmployeesModal({
   onOpenChange,
   onAddToTeam,
 }: UnassignedEmployeesModalProps) {
-  const [employees, setEmployees] = useState<UnassignedEmployee[]>(
-    MOCK_UNASSIGNED_EMPLOYEES
-  );
+  const { data: employees = [], isLoading, error } = useUnassignedEmployees();
 
   const handleAddToTeam = (employeeId: string) => {
-    // 팀에 추가 후 목록에서 제거
-    setEmployees((prev) => prev.filter((emp) => emp.id !== employeeId));
-
     // 상위 컴포넌트에 알림
     if (onAddToTeam) {
       onAddToTeam(employeeId);
     }
-
-    // TODO: API 연동
-    console.log("팀에 추가:", employeeId);
   };
 
   return (
@@ -51,10 +41,25 @@ export function UnassignedEmployeesModal({
         </DialogHeader>
 
         <div className="mt-4">
-          <UnassignedEmployeesTable
-            employees={employees}
-            onAddToTeam={handleAddToTeam}
-          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  무소속 직원 목록을 불러오는 중...
+                </p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-600">
+              무소속 직원 목록을 불러올 수 없습니다.
+            </div>
+          ) : (
+            <UnassignedEmployeesTable
+              employees={employees}
+              onAddToTeam={handleAddToTeam}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

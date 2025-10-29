@@ -26,7 +26,7 @@ export const createContract = async (
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 생성 실패:", error);
     throw error;
   }
@@ -47,7 +47,7 @@ export const getContracts = async (): Promise<ContractData[]> => {
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 목록 조회 실패:", error);
     throw error;
   }
@@ -72,7 +72,7 @@ export const updateContractStatus = async (
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 상태 업데이트 실패:", error);
     throw error;
   }
@@ -95,7 +95,7 @@ export const getContractById = async (
     }
 
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 상세 조회 실패:", error);
     throw error;
   }

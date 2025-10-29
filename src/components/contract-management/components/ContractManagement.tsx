@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Table, SearchBar, processTableData } from "@/features/table";
 import type { ContractData } from "../types";
 import type { SalesContractData } from "@/features/contract-records/types/contract-records";
@@ -11,12 +11,48 @@ import {
   paginationConfig,
 } from "../utils/tableConfig";
 import { transformSalesContractToContract } from "../utils/dataTransformer";
+import { getContracts } from "@/features/contract-records/api/contracts";
+import { transformContractResponseToContractData } from "@/features/contract-records/utils/contractTransformers";
+import { useToast } from "@/hooks/use-toast";
 
 export function ContractManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [contracts, setContracts] = useState<ContractData[]>(mockContracts);
+  const [contracts, setContracts] = useState<ContractData[]>([]);
+  const [isLoadingContracts, setIsLoadingContracts] = useState(true);
+  const { toast } = useToast();
+
+  // 계약 목록 로드
+  const loadContracts = async () => {
+    try {
+      const contractData = await getContracts({
+        page: currentPage,
+        size: paginationConfig.listsPerPage,
+      });
+
+      const transformedContracts = contractData.items.map(
+        transformContractResponseToContractData
+      );
+      setContracts(transformedContracts);
+    } catch (error: any) {
+      console.error("계약 목록 로드 실패:", error);
+      // API 실패 시 빈 배열로 설정
+      setContracts([]);
+
+      toast({
+        title: "계약 목록 로드 실패",
+        description: "백엔드 서버를 확인해주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingContracts(false);
+    }
+  };
+
+  useEffect(() => {
+    loadContracts();
+  }, [currentPage]);
 
   // 데이터 처리
   const { processedData, pagination } = useMemo(() => {
@@ -41,6 +77,8 @@ export function ContractManagement() {
   const addNewContract = (salesContractData: SalesContractData) => {
     const newContract = transformSalesContractToContract(salesContractData);
     setContracts((prevContracts) => [newContract, ...prevContracts]);
+    // API에서 다시 로드
+    loadContracts();
   };
 
   // 계약 상태 업데이트 함수
@@ -74,7 +112,7 @@ export function ContractManagement() {
         data={processedData}
         columns={contractTableColumns}
         pagination={pagination}
-        loading={loading}
+        loading={isLoadingContracts}
         emptyMessage="계약이 없습니다."
         onPageChange={handlePageChange}
         onRowClick={handleRowClick}

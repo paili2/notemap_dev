@@ -19,6 +19,7 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
   // 0) 안전 기본값
   const {
     nestedFavorites = [],
+    favoritesLoading,
     setNestedFavorites,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
@@ -80,9 +81,9 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
 
         {/* 즐겨찾기 */}
         <SidebarSection
-          title="즐겨찾기"
-          items={[]}
-          nestedItems={nestedFavorites}
+          title={favoritesLoading ? "즐겨찾기 (로딩 중...)" : "즐겨찾기"}
+          items={[]} // 평면 리스트 없음
+          nestedItems={favoritesLoading ? [] : nestedFavorites}
           onItemsChange={() => {}}
           onDeleteItem={() => {}}
           onNestedItemsChange={setNestedFavorites}
