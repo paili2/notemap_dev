@@ -1,6 +1,7 @@
 import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
 
+/** 서버 핀 상세 타입 */
 export type ApiPin = {
   id: string | number;
   lat: number;
@@ -14,12 +15,16 @@ export type ApiPin = {
 
   totalHouseholds?: number | null;
   totalParkingSlots?: number | null;
-  parkingTypeId?: number | null; // ✅ 주차유형 ID
+  parkingTypeId?: number | null;
 
   slopeGrade?: string | null;
   structureGrade?: string | null;
 
   hasElevator?: boolean | null;
+
+  /** ✅ 메모 필드 (서버 → 뷰) */
+  publicMemo?: string | null;
+  privateMemo?: string | null;
 
   options?: {
     hasAircon?: boolean | null;
@@ -32,6 +37,7 @@ export type ApiPin = {
     extraOptionsText?: string | null;
   } | null;
 
+  /** 서버 directions 그대로 수용 */
   directions?: Array<{ direction?: string | null }> | null;
 
   areaGroups?: Array<{
@@ -65,19 +71,11 @@ function toOrientationRows(
   dirs?: ApiPin["directions"]
 ): OrientationRow[] | undefined {
   if (!Array.isArray(dirs) || dirs.length === 0) return undefined;
-  const uniq = Array.from(
-    new Set(
-      dirs
-        .map((d) => toStr(d?.direction).trim())
-        .filter(Boolean)
-        .slice(0, 3)
-    )
-  );
-  if (!uniq.length) return undefined;
-  return uniq.map((dir, i) => ({
-    no: i + 1,
-    ho: 0,
-    value: dir as OrientationValue,
+  // ✅ 중복 제거/슬라이스 없이, 들어온 순서를 그대로 보존
+  const raw = dirs.map((d) => toStr(d?.direction).trim()).filter(Boolean);
+  return raw.map((dir, i) => ({
+    ho: i + 1,
+    value: dir as unknown as OrientationValue,
   }));
 }
 
@@ -95,7 +93,7 @@ const BUILDING_TYPE_LABEL: Record<string, string> = {
   근생: "근생",
 };
 
-/** ✅ parkingTypeId → 라벨 (사양에 맞게 수정 가능) */
+/** 주차유형 라벨 */
 const PARKING_TYPE_LABEL: Record<number, string> = {
   1: "병렬",
   2: "직렬",
@@ -120,8 +118,7 @@ function toOptionLabels(o?: ApiPin["options"]): string[] | undefined {
   if (o.hasWasher) labels.push("세탁기");
   if (o.hasDryer) labels.push("건조기");
   if (o.hasBidet) labels.push("비데");
-  if (o.hasAirPurifier) labels.push("공기청정기");
-  if (o.isDirectLease) labels.push("직거래");
+  if (o.hasAirPurifier) labels.push("공기순환기");
   return labels.length ? labels : undefined;
 }
 
@@ -203,14 +200,13 @@ export function toViewDetailsFromApi(
     /** 숫자/주차 */
     totalHouseholds: api.totalHouseholds ?? undefined,
     parkingCount: api.totalParkingSlots ?? undefined,
-    /** ✅ 주차유형 라벨 */
     parkingType: mapParkingType(api.parkingTypeId),
 
     /** 등급 */
     slopeGrade: toGrade(api.slopeGrade),
     structureGrade: toGrade(api.structureGrade),
 
-    /** 방향 */
+    /** 방향 (순서/중복 그대로) */
     orientations,
     aspect1: orientations?.[0]?.value as OrientationValue | undefined,
     aspect2: orientations?.[1]?.value as OrientationValue | undefined,
@@ -228,12 +224,14 @@ export function toViewDetailsFromApi(
     extraExclusiveAreas: area.extraExclusiveAreas,
     extraRealAreas: area.extraRealAreas,
 
+    /** ✅ 메모 매핑 */
+    publicMemo: api.publicMemo ?? undefined,
+    secretMemo: api.privateMemo ?? undefined,
+
     /** 나머지 초기화 */
     images: [],
     imageCards: [],
     fileItems: [],
-    publicMemo: undefined,
-    secretMemo: undefined,
     unitLines: undefined,
     totalBuildings: undefined,
     totalFloors: undefined,

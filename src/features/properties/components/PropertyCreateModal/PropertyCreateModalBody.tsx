@@ -13,7 +13,9 @@ import {
 import { usePropertyImages } from "./hooks/usePropertyImages";
 import { buildCreatePayload } from "./lib/buildCreatePayload";
 import { useCreateForm } from "./hooks/useCreateForm/useCreateForm";
-import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
+
+// ⛔️ REGISTRY_LIST import 제거
+// import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
 
 // UI 컨테이너
 import HeaderContainer from "./ui/HeaderContainer";
@@ -159,7 +161,8 @@ export default function PropertyCreateModalBody({
         baseAreaSet: strictBase,
         extraAreaSets: strictExtras,
         elevator: f.elevator,
-        registryOne: f.registryOne,
+        // ⛔️ 등기 제거
+        // registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
         totalBuildings: f.totalBuildings,
@@ -344,10 +347,8 @@ export default function PropertyCreateModalBody({
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
             <ParkingContainer form={f} />
-            <CompletionRegistryContainer
-              form={f}
-              REGISTRY_LIST={REGISTRY_LIST}
-            />
+            {/* ⛔️ REGISTRY_LIST prop 제거 */}
+            <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer
               form={{

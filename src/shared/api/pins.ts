@@ -5,11 +5,7 @@ import {
 import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
 import { buildSearchQuery } from "./utils/query";
-// ⛳ todayYmdKST / resolveCompletionDate 제거 (값 있을 때만 전송)
-// ✅ 전송 직전 좌표 검증/로그
 import { assertNoTruncate } from "@/shared/debug/assertCoords";
-
-// ✅ 추가: 면적 그룹 DTO 임포트
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
 
 /* ───────────── 유틸 ───────────── */
@@ -149,27 +145,29 @@ function sanitizeOptions(o?: CreatePinOptionsDto) {
   return payload;
 }
 
-/* directions sanitize: 문자열/객체 혼재 허용, 공백/중복 제거 */
+/* directions sanitize: 문자열/객체 혼재 허용, 공백만 제거(중복/제한 없음) */
 function sanitizeDirections(
   dirs?: Array<CreatePinDirectionDto | string>
 ): CreatePinDirectionDto[] | undefined {
   if (!Array.isArray(dirs) || dirs.length === 0) return undefined;
-  const seen = new Set<string>();
-  const out: CreatePinDirectionDto[] = [];
-  for (const d of dirs) {
-    const label =
-      typeof d === "string"
-        ? d
-        : typeof (d as any)?.direction === "string"
-        ? (d as any).direction
-        : "";
-    const t = label.trim();
-    if (!t) continue;
-    const key = t; // 한글 라벨 그대로 기준
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ direction: t });
-  }
+
+  const out = dirs
+    .map((d) => {
+      const label =
+        typeof d === "string"
+          ? d
+          : typeof (d as any)?.direction === "string"
+          ? (d as any).direction
+          : "";
+      const t = String(label ?? "");
+      // 디버깅을 쉽게 하려면 trim을 제거할 수도 있음. (지금은 최소한의 정리만)
+      const normalized = t.trim();
+      return normalized
+        ? ({ direction: normalized } as CreatePinDirectionDto)
+        : null;
+    })
+    .filter(Boolean) as CreatePinDirectionDto[];
+
   return out.length ? out : undefined;
 }
 
@@ -233,10 +231,26 @@ export async function createPin(
   dto: CreatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string; matchedDraftId: number | null }> {
-  // ✅ directions 정규화
-  const dirs = sanitizeDirections(dto.directions);
+  // ✅ directions: sanitizeDirections 대신 "그대로 매핑" (중복/제한 없음)
+  const dirs = Array.isArray(dto.directions)
+    ? dto.directions.map((d) =>
+        typeof d === "string"
+          ? { direction: d } // 디버그를 위해 원형 보존 (필요시 .trim() 추가 가능)
+          : { direction: String((d as any)?.direction ?? "") }
+      )
+    : undefined;
+
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
+
+  // 디버그 로그 (원본 vs 전송 예정)
+  // eslint-disable-next-line no-console
+  console.log("[createPin][A] dto.directions:", dto.directions);
+  // eslint-disable-next-line no-console
+  console.log(
+    "[createPin][B] payload.directions:",
+    Array.isArray(dirs) ? dirs.map((x) => x.direction) : dirs
+  );
 
   // 동일 입력 빠른 연속 호출 흡수 (좌표는 round6로 근사) — 전송에는 사용하지 않음
   const preview = {
@@ -343,7 +357,7 @@ export async function createPin(
 
     ...(dto.options ? { options: sanitizeOptions(dto.options) } : {}),
 
-    // ✅ directions: [{direction:"…"}[]] 형태로만 전송
+    // ✅ directions: [{direction:"…"}[]] 형태로만 전송 (중복/제한 없음)
     ...(dirs ? { directions: dirs } : {}),
 
     // ✅ areaGroups: sanitize 후 전송

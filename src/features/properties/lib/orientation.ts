@@ -22,12 +22,11 @@ const CODE_TO_LABEL: Record<string, OrientationValue> = {
 };
 
 function normalizeDir(raw: unknown): OrientationValue | "" {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  // 영문 코드면 라벨로
-  if (CODE_TO_LABEL[s]) return CODE_TO_LABEL[s];
-  // 이미 라벨이면 그대로(타입 레벨에선 OrientationValue, 런타임에선 느슨히 허용)
-  return s as OrientationValue;
+  const rawStr = String(raw ?? "").trim();
+  if (!rawStr) return "";
+  const key = rawStr.toUpperCase(); // ⬅️ 대소문자 보정
+  if (CODE_TO_LABEL[key]) return CODE_TO_LABEL[key];
+  return rawStr as OrientationValue; // 라벨(동/서/…)은 원문 유지
 }
 
 /** dir이 비어있지 않은 행만 남기고, dir을 OrientationValue(라벨)로 좁혀줌 */

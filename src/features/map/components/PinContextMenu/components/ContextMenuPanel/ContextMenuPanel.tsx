@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type React from "react";
 import type { ContextMenuPanelProps } from "./types";
 import { Plus } from "lucide-react";
 import type {
@@ -178,7 +179,6 @@ export default function ContextMenuPanel({
   ]);
 
   const handleReserveClick = useCallback(() => {
-    // ⭐ 이 콜백은 컨테이너의 handleReserveClick을 그대로 호출 → POST 보장
     const payload: ReserveRequestPayload | undefined = undefined;
     onReserve?.(payload);
     onClose();
@@ -189,6 +189,17 @@ export default function ContextMenuPanel({
     onView?.(String(propertyId));
     Promise.resolve().then(() => onClose());
   }, [onView, onClose, propertyId, canView]);
+
+  // ✅ Hover 시 프리페치: 훅은 바디 최상위에서만, 핸들러는 클로저의 qc 사용
+  const handleHoverPrefetch = useCallback(() => {
+    if (!canView) return;
+    const idStr = String(propertyId);
+    qc.prefetchQuery({
+      queryKey: pinKeys.detail(idStr),
+      queryFn: () => getPinRaw(idStr),
+      staleTime: 60_000,
+    });
+  }, [qc, propertyId, canView]);
 
   return (
     <div
@@ -313,16 +324,7 @@ export default function ContextMenuPanel({
             variant="default"
             size="lg"
             onClick={handleViewClick}
-            onMouseEnter={() => {
-              if (!useMemo) return; // no-op guard
-              const idStr = String(propertyId);
-              const qc = useQueryClient();
-              qc.prefetchQuery({
-                queryKey: pinKeys.detail(idStr),
-                queryFn: () => getPinRaw(idStr),
-                staleTime: 60_000,
-              });
-            }}
+            onMouseEnter={handleHoverPrefetch}
             className="w-full"
             disabled={!canView}
           >
