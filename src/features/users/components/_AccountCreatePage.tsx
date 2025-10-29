@@ -210,7 +210,7 @@ export default function AccountCreatePage({
 
   /** 팀 목록 관리 */
   const [teams, setTeams] = useState<
-    Array<{ id: number; name: string; teamLeaderName: string | null }>
+    Array<{ id: number | string; name: string; teamLeaderName: string | null }>
   >([]);
   const [selectedTeamLeader, setSelectedTeamLeader] = useState<string | null>(
     null

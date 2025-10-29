@@ -103,7 +103,11 @@ export default function TeamManagementPage() {
               )}
             </div>
 
-            <Link href={`/admin/team-management/${team.id}`}>
+            <Link
+              href={`/admin/team-management/${encodeURIComponent(
+                String(team.id)
+              )}`}
+            >
               <Button className="w-full">{team.name} 관리</Button>
             </Link>
           </Card>

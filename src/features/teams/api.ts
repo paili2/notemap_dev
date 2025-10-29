@@ -8,7 +8,7 @@ export type CreateTeamRequest = {
 };
 
 export type CreateTeamResponse = {
-  id: number;
+  id: number | string;
   name: string;
   code: string;
   description?: string | null;
@@ -44,4 +44,55 @@ export async function getTeams(): Promise<CreateTeamResponse[]> {
 
   console.log("DB 팀 목록 API 응답:", response.data);
   return response.data.data;
+}
+
+export type TeamMemberDetail = {
+  teamMemberId: string;
+  accountId: string;
+  name: string | null;
+  phone: string | null;
+  positionRank: string | null;
+  photoUrl: string | null;
+  teamRole: "manager" | "staff";
+  isPrimary: boolean;
+  joinedAt: string | null;
+};
+
+export type TeamDetailResponse = {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  isActive: boolean;
+  members: TeamMemberDetail[];
+};
+
+// DB에서 특정 팀 상세 조회 API
+export async function getTeam(id: string): Promise<TeamDetailResponse> {
+  const response = await api.get<{
+    message: string;
+    data: TeamDetailResponse;
+  }>(`/dashboard/accounts/teams/${id}`);
+
+  return response.data.data;
+}
+
+// 팀 멤버 삭제 API
+export async function removeTeamMember(memberId: string): Promise<void> {
+  await api.delete(`/dashboard/accounts/team-members/${memberId}`);
+}
+
+export type AssignTeamMemberRequest = {
+  teamId: string;
+  accountId: string;
+  role: "manager" | "staff";
+  isPrimary?: boolean;
+  joinedAt?: string;
+};
+
+// 팀 멤버 배정 API
+export async function assignTeamMember(
+  data: AssignTeamMemberRequest
+): Promise<void> {
+  await api.post(`/dashboard/accounts/team-members`, data);
 }
