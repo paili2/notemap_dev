@@ -106,7 +106,7 @@ export default function CreateNoticePage() {
               {...register("title")}
               disabled={isLoading}
             />
-            <FormError error={errors.title} />
+            <FormError message={errors.title?.message} />
           </div>
 
           <div className="space-y-2">
@@ -118,7 +118,7 @@ export default function CreateNoticePage() {
               {...register("content")}
               disabled={isLoading}
             />
-            <FormError error={errors.content} />
+            <FormError message={errors.content?.message} />
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">

@@ -66,9 +66,9 @@ export async function createAccount(
     }>("/dashboard/accounts/credentials", data);
     console.log("계정 생성 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("계정 생성 API 호출 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }
@@ -86,10 +86,10 @@ export async function createEmployeeInfo(
     }>(`/dashboard/accounts/employees/${credentialId}/info`, data);
     console.log("직원 정보 생성 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("직원 정보 생성 API 호출 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
-    console.error("에러 메시지:", (error as any)?.response?.data?.messages);
+    console.error("에러 상세:", error?.response?.data);
+    console.error("에러 메시지:", error?.response?.data?.messages);
     throw error;
   }
 }

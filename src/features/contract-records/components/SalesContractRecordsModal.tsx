@@ -213,7 +213,7 @@ export function SalesContractRecordsModal({
       }
 
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("계약 생성 실패:", error);
       toast({
         title: "계약 생성 실패",

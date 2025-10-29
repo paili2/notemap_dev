@@ -60,7 +60,7 @@ export function NoticesPage() {
     try {
       const noticeData = await getNotices();
       setNotices(noticeData);
-    } catch (error) {
+    } catch (error: any) {
       console.error("공지사항 목록 로드 실패:", error);
       // API 실패 시 빈 배열로 설정
       setNotices([]);

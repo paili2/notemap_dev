@@ -69,7 +69,7 @@ export default function UserSettingsPage({
             title: "팀원 삭제 완료",
             description: "팀에서 해당 직원이 제거되었습니다.",
           });
-        } catch (error) {
+        } catch (error: any) {
           toast({
             title: "팀원 삭제 실패",
             description: "팀원 삭제 중 오류가 발생했습니다.",
@@ -108,7 +108,7 @@ export default function UserSettingsPage({
 
       // 모달 닫기
       setIsModalOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "팀원 추가 실패",
         description: "팀원 추가 중 오류가 발생했습니다.",
@@ -131,7 +131,6 @@ export default function UserSettingsPage({
           open={isModalOpen}
           onOpenChange={setIsModalOpen}
           onAddToTeam={handleAddToTeam}
-          teamId={teamId}
         />
       )}
 

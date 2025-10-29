@@ -62,7 +62,7 @@ export function CreateTeamForm({ onTeamCreated }: CreateTeamFormProps) {
       reset();
       setOpen(false);
       onTeamCreated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("팀 생성 실패:", error);
       toast({
         title: "팀 생성 실패",

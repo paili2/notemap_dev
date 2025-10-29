@@ -28,9 +28,9 @@ export async function getFavoriteGroups(
     );
     console.log("즐겨찾기 그룹 목록 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("즐겨찾기 그룹 목록 조회 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }
@@ -52,9 +52,9 @@ export async function updateGroupTitle(
     );
     console.log("즐겨찾기 그룹 제목 수정 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("즐겨찾기 그룹 제목 수정 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }
@@ -75,9 +75,9 @@ export async function reorderGroups(data: ReorderGroupsRequest): Promise<void> {
       data
     );
     console.log("즐겨찾기 그룹 순서 변경 응답:", response.data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("즐겨찾기 그룹 순서 변경 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }
@@ -93,9 +93,9 @@ export async function deleteFavoriteItem(
       `/favorite-groups/${groupId}/items/${itemId}`
     );
     console.log("즐겨찾기 아이템 삭제 응답:", response.data);
-  } catch (error) {
+  } catch (error: any) {
     console.error("즐겨찾기 아이템 삭제 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }
@@ -134,9 +134,9 @@ export async function upsertFavoriteItem(
     }>("/favorite", data);
     console.log("즐겨찾기 아이템 추가/수정 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("즐겨찾기 아이템 추가/수정 실패:", error);
-    console.error("에러 상세:", (error as any)?.response?.data);
+    console.error("에러 상세:", error?.response?.data);
     throw error;
   }
 }

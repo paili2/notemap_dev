@@ -35,7 +35,7 @@ export function ContractManagement() {
         transformContractResponseToContractData
       );
       setContracts(transformedContracts);
-    } catch (error) {
+    } catch (error: any) {
       console.error("계약 목록 로드 실패:", error);
       // API 실패 시 빈 배열로 설정
       setContracts([]);

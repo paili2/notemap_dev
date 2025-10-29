@@ -232,7 +232,7 @@ export default function AccountCreatePage({
             teamLeaderName: team.teamLeaderName || null,
           }))
         );
-      } catch (error) {
+      } catch (error: any) {
         console.error("팀 목록 로드 실패:", error);
         setTeams([]);
       } finally {

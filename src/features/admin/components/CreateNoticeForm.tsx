@@ -67,7 +67,7 @@ export function CreateNoticeForm({ onNoticeCreated }: CreateNoticeFormProps) {
       reset();
       setOpen(false);
       onNoticeCreated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("공지사항 생성 실패:", error);
       toast({
         title: "공지사항 생성 실패",
@@ -106,7 +106,7 @@ export function CreateNoticeForm({ onNoticeCreated }: CreateNoticeFormProps) {
               {...register("title")}
               disabled={isLoading}
             />
-            <FormError error={errors.title} />
+            <FormError message={errors.title?.message} />
           </div>
 
           <div className="space-y-2">
@@ -118,7 +118,7 @@ export function CreateNoticeForm({ onNoticeCreated }: CreateNoticeFormProps) {
               {...register("content")}
               disabled={isLoading}
             />
-            <FormError error={errors.content} />
+            <FormError message={errors.content?.message} />
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

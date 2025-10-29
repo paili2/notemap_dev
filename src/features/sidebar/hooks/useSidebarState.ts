@@ -15,7 +15,6 @@ import {
   deleteFavoriteItem,
   updateGroupTitle,
   reorderGroups,
-  reorderItems,
   type FavoriteGroup,
   type FavoriteItem,
 } from "@/features/favorites/api/favorites";
@@ -98,7 +97,7 @@ export function useSidebarState() {
       }));
 
       setNestedFavorites(convertedGroups);
-    } catch (error) {
+    } catch (error: any) {
       console.error("즐겨찾기 로드 실패:", error);
       toast({
         title: "즐겨찾기 로드 실패",
@@ -321,7 +320,7 @@ export function useSidebarState() {
       // 새 그룹 생성 (실제로는 upsertFavoriteItem에서 자동 생성됨)
       try {
         await loadFavorites(); // 그룹 목록 새로고침
-      } catch (error) {
+      } catch (error: any) {
         console.error("즐겨찾기 그룹 확인 실패:", error);
       }
     },
@@ -346,7 +345,7 @@ export function useSidebarState() {
           title: "즐겨찾기 추가 완료",
           description: `${item.title}이(가) 즐겨찾기에 추가되었습니다.`,
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("즐겨찾기 추가 실패:", error);
         toast({
           title: "즐겨찾기 추가 실패",
@@ -376,7 +375,7 @@ export function useSidebarState() {
           title: "즐겨찾기 그룹 생성 및 추가 완료",
           description: `새 그룹 '${groupId}'에 ${item.title}이(가) 추가되었습니다.`,
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("즐겨찾기 그룹 생성 및 추가 실패:", error);
         toast({
           title: "즐겨찾기 그룹 생성 실패",
@@ -409,7 +408,7 @@ export function useSidebarState() {
           title: "즐겨찾기 삭제 완료",
           description: "즐겨찾기에서 삭제되었습니다.",
         });
-      } catch (error) {
+      } catch (error: any) {
         console.error("즐겨찾기 삭제 실패:", error);
         toast({
           title: "즐겨찾기 삭제 실패",

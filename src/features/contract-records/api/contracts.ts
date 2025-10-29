@@ -74,10 +74,10 @@ export async function createContract(
 
     console.log("계약 생성 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 생성 API 호출 실패:", error);
-    console.error("에러 상세:", error.response?.data);
-    console.error("에러 메시지들:", error.response?.data?.messages);
+    console.error("에러 상세:", error?.response?.data);
+    console.error("에러 메시지들:", error?.response?.data?.messages);
     throw error;
   }
 }
@@ -93,7 +93,7 @@ export async function getContracts(
 
     console.log("계약 목록 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 목록 API 호출 실패:", error);
     throw error;
   }
@@ -108,7 +108,7 @@ export async function getContract(id: number): Promise<ContractResponse> {
 
     console.log("계약 상세 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 상세 API 호출 실패:", error);
     throw error;
   }
@@ -127,7 +127,7 @@ export async function updateContract(
 
     console.log("계약 수정 API 응답:", response.data);
     return response.data.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 수정 API 호출 실패:", error);
     throw error;
   }
@@ -138,7 +138,7 @@ export async function deleteContract(id: number): Promise<void> {
   try {
     await api.delete(`/contracts/${id}`);
     console.log("계약 삭제 성공:", id);
-  } catch (error) {
+  } catch (error: any) {
     console.error("계약 삭제 API 호출 실패:", error);
     throw error;
   }
