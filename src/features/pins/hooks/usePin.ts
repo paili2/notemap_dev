@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPin, GetPinResult } from "@/shared/api/getPin";
+import { getPinResult, type GetPinResult } from "@/shared/api/getPin";
 
 export const pinKeys = {
   all: ["pin"] as const,
@@ -8,9 +8,10 @@ export const pinKeys = {
 
 export function usePin(id?: string | null) {
   const enabled = !!id && id.trim().length > 0;
+
   return useQuery<GetPinResult>({
     queryKey: enabled ? pinKeys.detail(id!) : pinKeys.all,
-    queryFn: () => getPin(id!),
+    queryFn: () => getPinResult(id!), // ✅ 레거시 유니온 결과 사용
     enabled,
     staleTime: 60_000, // 1분
   });

@@ -1,13 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/Select/Select";
+import SafeSelect from "@/features/safe/SafeSelect";
 
 import oneRoom from "@/../public/pins/1room-pin.svg";
 import oneRoomTerrace from "@/../public/pins/1room-terrace-pin.svg";
@@ -22,6 +16,7 @@ import duplex from "@/../public/pins/duplex-pin.svg";
 import oldhouse from "@/../public/pins/oldhouse-pin.svg";
 import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
+
 import { PinKind } from "@/features/pins/types";
 
 const PIN_OPTIONS = [
@@ -63,27 +58,16 @@ export default function PinTypeSelect({
   const selected = PIN_OPTIONS.find((o) => o.value === value);
 
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as PinKind)}>
-      <SelectTrigger className={className ?? "w-[220px] h-9"}>
-        <SelectValue
-          placeholder={placeholder}
-          // 트리거에도 아이콘+라벨 표시
-          aria-label={selected?.label}
-        >
-          {selected ? (
-            <PinOptionView icon={selected.icon} label={selected.label} />
-          ) : (
-            placeholder
-          )}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent className="max-h-[320px]">
-        {PIN_OPTIONS.map((o) => (
-          <SelectItem key={o.value} value={o.value}>
-            <PinOptionView icon={o.icon} label={o.label} />
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <SafeSelect
+      value={value ?? null}
+      onChange={(v) => onChange((v ?? "") as PinKind)}
+      items={PIN_OPTIONS.map((o) => ({
+        value: o.value,
+        label: <PinOptionView icon={o.icon} label={o.label} />,
+      }))}
+      placeholder={placeholder}
+      className={className ?? "w-[220px] h-9"}
+      contentClassName="max-h-[320px]"
+    />
   );
 }

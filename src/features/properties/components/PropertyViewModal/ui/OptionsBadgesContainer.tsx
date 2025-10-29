@@ -2,11 +2,11 @@
 import OptionsBadges from "../components/OptionsBadges";
 
 export default function OptionsBadgesContainer({
-  options,
-  optionEtc,
+  options = [], // ✅ 기본값
+  optionEtc = "", // ✅ 기본값
 }: {
-  options: string[];
-  optionEtc: string;
+  options?: string[]; // ✅ 옵셔널로 변경
+  optionEtc?: string; // ✅ 옵셔널로 변경
 }) {
-  return <OptionsBadges options={options ?? []} optionEtc={optionEtc ?? ""} />;
+  return <OptionsBadges options={options} optionEtc={optionEtc} />;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 import StarsRating from "@/components/molecules/StarsRating";
@@ -10,16 +11,34 @@ import StarMeter from "../../ui/StarMeter";
 export default function HeaderSectionView({
   title,
   listingStars,
-  elevator,
+  elevator, // "O" | "X" | undefined
   pinKind = "1room",
   onClose,
-
   closeButtonRef,
   headingId,
   descId,
 }: HeaderSectionViewProps) {
-  const pinSrc = getPinUrl(pinKind);
-  const rating = Math.max(0, Math.min(5, listingStars ?? 0));
+  const pinSrc = useMemo(() => getPinUrl(pinKind), [pinKind]);
+
+  const rating = useMemo(() => {
+    const v = Number.isFinite(Number(listingStars)) ? Number(listingStars) : 0;
+    return Math.max(0, Math.min(5, v));
+  }, [listingStars]);
+
+  // 표기용 매물명 (공백 제거 → 빈 값이면 "-")
+  const displayTitle = useMemo(() => {
+    const s = typeof title === "string" ? title.trim() : "";
+    return s.length ? s : "-";
+  }, [title]);
+
+  // 엘리베이터 표시: O / X / - (미지정)
+  const elevLabel = elevator ?? "-";
+  const elevClass =
+    elevLabel === "O"
+      ? "bg-blue-50 border-blue-200 text-blue-700"
+      : elevLabel === "X"
+      ? "bg-red-50 border-red-200 text-red-700"
+      : "bg-gray-50 border-gray-200 text-gray-600";
 
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
@@ -31,7 +50,7 @@ export default function HeaderSectionView({
             alt={`${pinKind} 핀`}
             width={24}
             height={32}
-            priority
+            priority={true}
           />
         </div>
 
@@ -50,7 +69,7 @@ export default function HeaderSectionView({
           </div>
         </div>
 
-        {/* 구분선 (모바일에선 숨겨서 폭 절약) */}
+        {/* 구분선 (모바일에선 숨김) */}
         <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
 
         {/* 데스크탑에서만 라벨 */}
@@ -58,14 +77,18 @@ export default function HeaderSectionView({
           매물명
         </span>
 
-        {/* 제목: 줄바꿈 없이 말줄임, 가로폭 초과 방지 */}
+        {/* 제목: 줄바꿈 없이 말줄임 */}
         <div className="flex-1 min-w-0 text-xl text-slate-900">
           <div className="h-9 md:h-10 flex items-center px-2 md:px-3 rounded-md bg-white">
-            {/* ✅ aria-labelledby로 연결될 수 있도록 id 부여(옵션) */}
-            <span id={headingId} className="truncate text-lg font-medium">
-              {title || "-"}
+            {/* aria-labelledby로 연결될 수 있도록 id 부여(옵션) */}
+            <span
+              id={headingId}
+              className="truncate text-lg font-medium"
+              title={displayTitle} // ✅ 긴 제목 툴팁
+            >
+              {displayTitle}
             </span>
-            {/* ✅ 보조 설명을 SR-only로 제공(옵션) */}
+            {/* 보조 설명을 SR-only로 제공(옵션) */}
             {descId && (
               <span id={descId} className="sr-only">
                 매물 상세 보기 모달
@@ -77,20 +100,19 @@ export default function HeaderSectionView({
         {/* 구분선 (모바일 숨김) */}
         <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
 
-        {/* 엘리베이터: 라벨은 모바일 숨김 */}
+        {/* 엘리베이터 */}
         <span className="shrink-0 font-medium text-gray-800 text-sm md:text-[20px]">
           엘리베이터
         </span>
         <span
           className={cn(
             "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",
-            elevator === "O"
-              ? "bg-blue-50 border-blue-200 text-blue-700"
-              : "bg-red-50 border-red-200 text-red-700"
+            elevClass
           )}
           title="엘리베이터 유무"
+          aria-live="polite"
         >
-          {elevator}
+          {elevLabel}
         </span>
 
         {/* 닫기 버튼 */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ComponentProps, useMemo } from "react";
+import { ComponentProps, useMemo, useCallback } from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 
 import type { PropertyEditModalProps } from "./types";
@@ -62,22 +62,30 @@ export default function PropertyEditModalBody({
     handleRemoveFileItem,
   } = useEditImages({ propertyId, initial: initialImages });
 
-  // 폼 훅
+  // 폼 훅 (항상 동일한 순서로 호출)
   const f = useEditForm({ initialData });
 
   // ✅ ParkingContainer에 맞춘 어댑터: parkingCount 제거, totalParkingSlots만 사용
-  const parkingForm: ParkingFormSlice = {
-    parkingType: f.parkingType || null,
-    setParkingType: (v) => f.setParkingType(v ?? ""),
+  const parkingForm: ParkingFormSlice = useMemo(
+    () => ({
+      parkingType: f.parkingType || null,
+      setParkingType: (v) => f.setParkingType(v ?? ""),
 
-    totalParkingSlots:
-      f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
-    setTotalParkingSlots: (v) => f.setTotalParkingSlots(v ?? ""),
-  };
+      totalParkingSlots:
+        f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
+      setTotalParkingSlots: (v) => f.setTotalParkingSlots(v ?? ""),
+    }),
+    [
+      f.parkingType,
+      f.totalParkingSlots,
+      f.setParkingType,
+      f.setTotalParkingSlots,
+    ]
+  );
 
   const isSaveEnabled = f.isSaveEnabled;
 
-  const save = async () => {
+  const save = useCallback(async () => {
     if (!f.title.trim()) return;
 
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
@@ -149,10 +157,9 @@ export default function PropertyEditModalBody({
       pinKind: f.pinKind,
     });
 
-    // 상위에서 받은 onSubmit을 그대로 사용 (여기서 API를 직접 호출하지 않음)
     await onSubmit?.(payload as any);
     onClose();
-  };
+  }, [f, imageFolders, verticalImages, onSubmit, onClose]);
 
   // ✅ embedded 모드: 오버레이/포지셔닝 없이 “바디만” 렌더
   if (embedded) {

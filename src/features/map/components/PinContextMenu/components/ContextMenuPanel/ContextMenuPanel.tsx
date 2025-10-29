@@ -15,17 +15,31 @@ import type {
   PlanRequestPayload,
   ReserveRequestPayload,
 } from "../PinContextMenu/types";
-import { getPin } from "@/shared/api/getPin";
+import { getPinRaw } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
+
+/** 느슨한 불리언 변환 (true/"true"/1/"1") */
+const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+
+/** 서버 draftState → planned/reserved 매핑 */
+function mapDraftState(s?: string | null) {
+  const v = String(s ?? "")
+    .trim()
+    .toUpperCase();
+  const planned = v === "BEFORE" || v === "PENDING" || v === "PLANNED";
+  const reserved = v === "SCHEDULED" || v === "RESERVED";
+  return { planned, reserved };
+}
 
 export default function ContextMenuPanel({
   roadAddress,
   jibunAddress,
   propertyId,
   propertyTitle,
+  draftState,
   isPlanPin,
   isVisitReservedPin,
   showFav,
@@ -45,30 +59,57 @@ export default function ContextMenuPanel({
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  // 생성 중(POST 진행 중) 중복 클릭 방지
   const [creating, setCreating] = useState(false);
 
-  /** 파생 상태: 예약 > 예정 > 드래프트 > 일반 */
+  /** 파생 상태: 예약 > 예정 > 드래프트 > 일반  */
   const { draft, reserved, planned, headerTitle } = useMemo(() => {
-    const reserved = isVisitReservedPin === true;
-    // 예정 여부는 propertyId와 무관
-    const planned = !reserved && isPlanPin === true;
-    // 둘 다 아니면 드래프트
-    const isLegacyDraft = !propertyId || propertyId === "__draft__";
+    const idStr = String(propertyId ?? "").trim();
+    const idLow = idStr.toLowerCase();
+
+    const byState = mapDraftState(draftState);
+    const reservedByProp = asBool(isVisitReservedPin);
+    const plannedByProp = asBool(isPlanPin);
+
+    const reservedById =
+      /(^|[_:. -])(visit|reserved|reserve|rsvd)([_:. -]|$)/i.test(idStr) ||
+      idLow.startsWith("__visit__") ||
+      idLow.startsWith("__reserved__");
+    const plannedById =
+      /(^|[_:. -])(plan|planned|planning|previsit)([_:. -]|$)/i.test(idStr) ||
+      idLow.startsWith("__plan__") ||
+      idLow.startsWith("__planned__");
+
+    const reserved = byState.reserved || reservedByProp || reservedById;
+    const planned =
+      !reserved && (byState.planned || plannedByProp || plannedById);
+
+    const isLegacyDraft = !idStr || idLow === "__draft__";
     const draft = !reserved && !planned && isLegacyDraft;
-    const headerTitle = isLegacyDraft
+
+    const headerTitle = draft
       ? "선택 위치"
       : (propertyTitle ?? "").trim() || "선택된 매물";
-    return { draft, reserved, planned, headerTitle };
-  }, [propertyId, isVisitReservedPin, isPlanPin, propertyTitle]);
 
-  // 상세보기 가능 여부: id가 있고 드래프트/visit가 아닐 때만
+    return { draft, reserved, planned, headerTitle };
+  }, [propertyId, propertyTitle, draftState, isPlanPin, isVisitReservedPin]);
+
+  // 상세보기 가능 여부
   const canView = useMemo(() => {
-    if (!propertyId) return false;
-    const s = String(propertyId).trim();
+    const s = String(propertyId ?? "").trim();
     if (!s) return false;
-    if (s === "__draft__") return false;
-    if (s.startsWith("__visit__")) return false; // 예약 임시핀 상세보기 차단
+    const low = s.toLowerCase();
+    if (low === "__draft__") return false;
+    if (
+      /(^|[_:. -])(visit|reserved|reserve|rsvd|plan|planned|planning|previsit)([_:. -]|$)/i.test(
+        s
+      ) ||
+      low.startsWith("__visit__") ||
+      low.startsWith("__reserved__") ||
+      low.startsWith("__plan__") ||
+      low.startsWith("__planned__")
+    ) {
+      return false;
+    }
     return true;
   }, [propertyId]);
 
@@ -76,13 +117,9 @@ export default function ContextMenuPanel({
   useEffect(() => {
     previouslyFocusedRef.current =
       (document.activeElement as HTMLElement) ?? null;
-    // 패널 포커스 → 스크린리더 접근성
     panelRef.current?.focus();
-    // 첫 인터랙션 요소로 자연 포커스 이동
     firstFocusableRef.current?.focus?.();
-    return () => {
-      previouslyFocusedRef.current?.focus?.();
-    };
+    return () => previouslyFocusedRef.current?.focus?.();
   }, []);
 
   /** ESC 닫기 */
@@ -94,7 +131,7 @@ export default function ContextMenuPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  /** 바깥 클릭 닫기 (pointerdown이 click보다 안전) */
+  /** 바깥 클릭 닫기 */
   useEffect(() => {
     const onDocPointerDown = (e: PointerEvent) => {
       const target = e.target as Node | null;
@@ -111,9 +148,9 @@ export default function ContextMenuPanel({
     e.stopPropagation();
   }, []);
 
-  // ✅ 답사예정: 생성(POST) 완료까지 기다린 뒤 패널 닫기
+  // ✅ 답사예정 생성 후 닫기 (UI만; 실제 POST는 컨테이너 핸들러에서)
   const handlePlanClick = useCallback(async () => {
-    if (creating) return; // 중복 클릭 방지
+    if (creating) return;
     setCreating(true);
     try {
       const payload: Partial<PlanRequestPayload> = {
@@ -121,10 +158,9 @@ export default function ContextMenuPanel({
         jibunAddress: jibunAddress ?? null,
         propertyId: propertyId ?? null,
         propertyTitle: propertyTitle ?? null,
-        // 날짜는 KST 기준으로 잘라서 사용
         dateISO: todayYmdKST(),
       };
-      await onPlan?.(payload as PlanRequestPayload); // 상위에서 POST /pins 수행
+      await onPlan?.(payload as PlanRequestPayload);
       bump();
       onClose();
     } finally {
@@ -142,7 +178,7 @@ export default function ContextMenuPanel({
   ]);
 
   const handleReserveClick = useCallback(() => {
-    // 컨테이너에서 실제 예약 로직 처리 (insertAt/날짜 선택 등)
+    // ⭐ 이 콜백은 컨테이너의 handleReserveClick을 그대로 호출 → POST 보장
     const payload: ReserveRequestPayload | undefined = undefined;
     onReserve?.(payload);
     onClose();
@@ -150,9 +186,8 @@ export default function ContextMenuPanel({
 
   const handleViewClick = useCallback(() => {
     if (!canView) return;
-    onView?.(String(propertyId)); // 1) 먼저 상세보기 트리거
-    Promise.resolve().then(() => onClose()); // 2) 다음 틱에 닫기 (경합 방지)
-    // 또는: requestAnimationFrame(() => onClose());
+    onView?.(String(propertyId));
+    Promise.resolve().then(() => onClose());
   }, [onView, onClose, propertyId, canView]);
 
   return (
@@ -279,11 +314,12 @@ export default function ContextMenuPanel({
             size="lg"
             onClick={handleViewClick}
             onMouseEnter={() => {
-              if (!canView) return;
+              if (!useMemo) return; // no-op guard
               const idStr = String(propertyId);
+              const qc = useQueryClient();
               qc.prefetchQuery({
                 queryKey: pinKeys.detail(idStr),
-                queryFn: () => getPin(idStr),
+                queryFn: () => getPinRaw(idStr),
                 staleTime: 60_000,
               });
             }}

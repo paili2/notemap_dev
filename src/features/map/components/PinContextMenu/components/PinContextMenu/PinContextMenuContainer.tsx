@@ -40,33 +40,31 @@ function extractDraftIdFromPin(pin: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-type FindDraftArgs = {
+/** before 목록에서 좌표/주소로 draft 찾기 (최후 보조용) */
+function findDraftIdByHeuristics(args: {
   before: BeforeDraft[];
   lat: number;
   lng: number;
   roadAddress?: string | null;
   jibunAddress?: string | null;
-};
-
-/** before 목록에서 좌표/주소로 draft 찾기 */
-function findDraftIdByHeuristics(args: FindDraftArgs): number | undefined {
+}): number | undefined {
   const { before, lat, lng, roadAddress, jibunAddress } = args;
   const targetKey = posKey(lat, lng);
 
-  // 1) 좌표 posKey 완전 일치
-  const byPos = before.find((d) => posKey(d.lat, d.lng) === targetKey);
+  // 1) 좌표 완전 일치
+  const byPos = before.find(
+    (d) => `${d.lat.toFixed(5)},${d.lng.toFixed(5)}` === targetKey
+  );
   if (byPos) return Number(byPos.id);
 
-  // 2) 주소 라인 일치(보조)
-  if (roadAddress || jibunAddress) {
-    const addr = (roadAddress ?? jibunAddress ?? "").trim();
-    if (addr) {
-      const byAddr = before.find((d) => (d.addressLine ?? "").trim() === addr);
-      if (byAddr) return Number(byAddr.id);
-    }
+  // 2) 주소 라인 일치
+  const addr = (roadAddress ?? jibunAddress ?? "").trim();
+  if (addr) {
+    const byAddr = before.find((d) => (d.addressLine ?? "").trim() === addr);
+    if (byAddr) return Number(byAddr.id);
   }
 
-  // 3) 근사 좌표(약 1m 허용)
+  // 3) 근사 좌표(≈1m)
   const EPS = 1e-5;
   const byNear = before.find(
     (d) => Math.abs(d.lat - lat) < EPS && Math.abs(d.lng - lng) < EPS
@@ -80,14 +78,11 @@ function findDraftIdByHeuristics(args: FindDraftArgs): number | undefined {
 const optimisticPlannedPosSet = new Set<string>();
 
 type Props = PinContextMenuProps & {
-  /** useMergedMarkers에서 전달되는 판정용 메타 */
   mergedMeta?: MergedMarker[];
-  /** ✅ 뷰포트 마커 갱신용 선택 콜백(있으면 즉시 재패치) */
   refreshViewportPins?: (bounds: {
     sw: { lat: number; lng: number };
     ne: { lat: number; lng: number };
   }) => Promise<void> | void;
-  /** ✅ 등록 직후 임시 draft 마커를 로컬에 주입 (새로고침 없이 지도에 즉시 표시) */
   upsertDraftMarker?: (m: {
     id: string | number;
     lat: number;
@@ -116,8 +111,8 @@ export default function PinContextMenuContainer(props: Props) {
     isPlanPin: isPlanPinFromParent,
     isVisitReservedPin: isVisitReservedFromParent,
     mergedMeta,
-    refreshViewportPins, // ✅ 선택 콜백
-    upsertDraftMarker, // ✅ 임시 마커 주입 콜백
+    refreshViewportPins,
+    upsertDraftMarker,
   } = props;
 
   const version = useReservationVersion((s) => s.version);
@@ -128,13 +123,9 @@ export default function PinContextMenuContainer(props: Props) {
 
   const handleView = () => {
     const id = String(propertyId ?? "");
-    // __draft__ 또는 __visit__* 은 상세보기 불가
     if (!id || id === "__draft__" || id.startsWith("__visit__")) return;
-    // 상세보기는 상위로 위임 (MapHomeUI가 로컬 상태로 모달 오픈)
     props.onView?.(id);
-    // 메뉴 닫기는 한 틱 뒤(배치 경합 방지)
     Promise.resolve().then(() => onClose?.());
-    // 또는: setTimeout(() => onClose?.(), 0) / requestAnimationFrame(...)
   };
 
   if (!kakao || !map || !target) return null;
@@ -150,15 +141,12 @@ export default function PinContextMenuContainer(props: Props) {
     const fromPinDraftId = extractDraftIdFromPin(pin);
 
     onCreate?.({
-      // 폼/저장에서 반드시 이 값을 우선 사용하도록!
       latFromPin: lat,
       lngFromPin: lng,
       fromPinDraftId,
-      // 선택: 주소도 같이 넘기면 폼 초기값에 좋음
       address: (roadAddress ?? jibunAddress ?? null) as string | null,
     });
 
-    // 메뉴 닫기
     onClose?.();
   }, [onCreate, onClose, position, pin, roadAddress, jibunAddress]);
 
@@ -190,6 +178,19 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [mergedMeta, position]);
 
+  /** ✅ draftState 해석 */
+  const resolvedDraftState = React.useMemo<string | undefined>(() => {
+    const fromMeta =
+      metaAtPos?.source === "draft" ? metaAtPos?.draftState : undefined;
+    const fromPin =
+      (pin as any)?.draft?.draftState ??
+      (pin as any)?.draft?.state ??
+      (pin as any)?.draftState ??
+      undefined;
+    const v = (fromMeta ?? fromPin) as unknown;
+    return typeof v === "string" ? v : undefined;
+  }, [metaAtPos, pin]);
+
   /** ⭐ 낙관적 planned 반영 */
   const posK = React.useMemo(
     () => posKey(position.getLat(), position.getLng()),
@@ -205,7 +206,7 @@ export default function PinContextMenuContainer(props: Props) {
   if (!isNewClick && metaAtPos) {
     if (metaAtPos.source === "draft") {
       reserved = metaAtPos.draftState === "SCHEDULED";
-      planned = metaAtPos.draftState !== "SCHEDULED" || planned; // 낙관적 planned 유지
+      planned = metaAtPos.draftState !== "SCHEDULED" || planned; // 낙관 유지
       listed = false;
     } else if (metaAtPos.source === "point") {
       listed = true;
@@ -231,7 +232,7 @@ export default function PinContextMenuContainer(props: Props) {
     loadScheduledReservations: refetchScheduledReservations,
   });
 
-  /** ✅ 현재 지도 bounds를 {sw, ne}로 추출 */
+  /** 현재 지도 bounds를 {sw, ne}로 추출 */
   const getBoundsBox = React.useCallback(() => {
     try {
       const b = map.getBounds();
@@ -246,20 +247,13 @@ export default function PinContextMenuContainer(props: Props) {
     }
   }, [map]);
 
-  /** ─────────────────────────────────────────
-   *  공용: 동일 좌표 오버레이/라벨 정리 훅
-   *  - 전역 함수나 커스텀 이벤트가 연결돼 있으면 호출
-   *  - 없다면 그냥 지나가도 무해
-   *  ───────────────────────────────────────── */
+  /** 공용 오버레이 정리 */
   const cleanupOverlaysAt = React.useCallback((lat: number, lng: number) => {
     try {
-      // (A) 전역 훅을 제공하는 경우
-      // window.__cleanupOverlaysAtPos?.(lat, lng)
       const anyWin = globalThis as any;
       if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
         anyWin.__cleanupOverlaysAtPos(lat, lng);
       }
-      // (B) 이벤트로 브로드캐스트 (클러스터/오버레이 모듈에서 수신)
       if (typeof window !== "undefined" && "dispatchEvent" in window) {
         window.dispatchEvent(
           new CustomEvent("map:cleanup-overlays-at", { detail: { lat, lng } })
@@ -270,22 +264,19 @@ export default function PinContextMenuContainer(props: Props) {
     }
   }, []);
 
-  /** ⭐ onPlan 클릭 시: 서버 생성 → (중복 방지) 주입 or 리패치 중 하나 → 동기화 → 오버레이 정리 → 리렌더 */
+  /** ⭐ 답사예정 생성 */
   const handlePlanClick = React.useCallback(async () => {
     const lat = position.getLat();
     const lng = position.getLng();
 
-    // 1) 서버에 draft 생성 (usePlanReserve가 draftId/payload 반환)
     const result = (await handlePlan()) as {
       draftId?: string | number;
       payload: { lat: number; lng: number; address?: string | null };
     } | void;
 
-    // 2) 즉시 예정으로 보이도록 낙관적 전환
     optimisticPlannedPosSet.add(posK);
 
-    // 3) "둘 다" 하지 말고 하나만!
-    // FIX: refreshViewportPins가 있으면 임시 주입을 생략 → 겹라벨 예방
+    // 뷰포트 리패치 우선, 실패 시 임시 주입
     let refreshed = false;
     const box = getBoundsBox();
     if (refreshViewportPins && box) {
@@ -297,7 +288,6 @@ export default function PinContextMenuContainer(props: Props) {
       }
     }
     if (!refreshed && result?.payload && upsertDraftMarker) {
-      // 리패치가 실패했을 때만 임시 주입
       const id = (result.draftId ?? `__temp_${Date.now()}`) as string | number;
       upsertDraftMarker({
         id,
@@ -307,20 +297,12 @@ export default function PinContextMenuContainer(props: Props) {
       });
     }
 
-    // 4) 서버 동기화(목록 재조회) — before 목록/상태 갱신
-    try {
-      await fetchUnreservedDrafts();
-    } catch {}
-
-    // 5) 동일 좌표에 남은 오버레이 청소 (임시 + 신규 중복 제거)
-    // FIX: 겹라벨 방지 핵심
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         cleanupOverlaysAt(lat, lng);
       });
     });
 
-    // 6) 컨텍스트 메뉴 강제 리렌더(상태 즉시 반영)
     bump();
   }, [
     handlePlan,
@@ -333,75 +315,97 @@ export default function PinContextMenuContainer(props: Props) {
     bump,
   ]);
 
-  const xAnchor = 0.5;
-  const yAnchor = 1;
-  const offsetPx = 57;
+  /** ✅ 예약용 draftId 해석기: POST만 보장 */
+  const getDraftIdForReservation = React.useCallback(async (): Promise<
+    number | undefined
+  > => {
+    // 1) 핀 객체에서 직접
+    let draftId = extractDraftIdFromPin(pin);
+    if (draftId != null) return draftId;
+
+    // 2) 메타(클러스터 병합 정보)에서
+    const metaDraftId =
+      metaAtPos?.source === "draft" ? (metaAtPos as any)?.draftId : undefined;
+    if (typeof metaDraftId === "number") return metaDraftId;
+
+    // 3) propertyId에 숫자 형태가 포함된 경우 (예: "__plan__123")
+    const idStr = String(propertyId ?? "");
+    const m = idStr.match(/(\d{1,})$/);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n)) return n;
+    }
+
+    // 4) 최후 보조: before 목록에서 좌표/주소로 추정 (이 호출은 보조일 뿐)
+    try {
+      const before = await fetchUnreservedDrafts();
+      const lat = position.getLat();
+      const lng = position.getLng();
+      draftId = findDraftIdByHeuristics({
+        before,
+        lat,
+        lng,
+        roadAddress,
+        jibunAddress,
+      });
+      if (draftId != null) return draftId;
+    } catch {
+      // 무시 (보조 실패)
+    }
+
+    return undefined;
+  }, [pin, metaAtPos, propertyId, position, roadAddress, jibunAddress]);
 
   const [reserving, setReserving] = React.useState(false);
 
+  /** ✅ “답사지 예약” → 반드시 POST /survey-reservations */
   const handleReserveClick = async () => {
-    // “답사예정 핀” → /survey-reservations POST
-    if (planned) {
-      try {
-        setReserving(true);
+    try {
+      setReserving(true);
 
-        let draftId = extractDraftIdFromPin(pin);
-
-        if (draftId == null) {
-          const lat = position.getLat();
-          const lng = position.getLng();
-          const before = await fetchUnreservedDrafts();
-          draftId = findDraftIdByHeuristics({
-            before,
-            lat,
-            lng,
-            roadAddress,
-            jibunAddress,
-          });
-        }
-
-        if (draftId == null) {
-          console.error("No pinDraftId for planned pin", {
-            pin,
-            rawId: pin?.id,
-            roadAddress,
-            jibunAddress,
-            pos: [position.getLat(), position.getLng()],
-          });
-          return;
-        }
-
-        await createSurveyReservation({
-          pinDraftId: draftId,
-          reservedDate: todayYmdKST(),
+      // planned 여부와 무관하게, 이 핸들러는 “예약 확정”이므로 POST만 보낸다.
+      let draftId = await getDraftIdForReservation();
+      if (draftId == null) {
+        console.error("No pinDraftId resolved for reservation", {
+          pin,
+          propertyId,
+          pos: [position.getLat(), position.getLng()],
         });
-
-        // 예약 완료 → 스케줄 재패치
-        await refetchScheduledReservations();
-
-        // FIX: 예약으로 상태 전환 시에도 좌표 중복 오버레이 정리
-        cleanupOverlaysAt(position.getLat(), position.getLng());
-
-        bump();
-
-        onClose?.();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setReserving(false);
+        // 실패 시, 기존 로직으로 fallback 하고 싶다면 아래 주석 해제:
+        // return handleReserve();
+        return; // ← 요구사항: POST만 보장. draftId 없으면 중단.
       }
-      return;
-    }
 
-    // 신규/일반 핀 → 기존 로직
-    return handleReserve();
+      await createSurveyReservation({
+        pinDraftId: draftId,
+        reservedDate: todayYmdKST(),
+      });
+
+      await (async () => {
+        try {
+          await refetchScheduledReservations();
+        } catch {}
+      })();
+
+      cleanupOverlaysAt(position.getLat(), position.getLng());
+      bump();
+      onClose?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setReserving(false);
+    }
   };
+
+  const xAnchor = 0.5;
+  const yAnchor = 1;
+  const offsetPx = 57;
 
   return (
     <CustomOverlay
       key={`ctx:${version}:${position.getLat().toFixed(5)},${position
         .getLng()
-        .toFixed(5)}`} // ✅ 등록 직후 강제 리마운트로 반영
+        .toFixed(5)}`}
       kakao={kakao}
       map={map}
       position={position}
@@ -418,10 +422,13 @@ export default function PinContextMenuContainer(props: Props) {
               jibunAddress={jibunAddress ?? null}
               propertyId={propertyId ?? null}
               propertyTitle={propertyTitle ?? null}
+              /** ⬇️ 서버/메타에서 해석된 draftState를 패널에 전달 (UI 표시 용) */
+              draftState={resolvedDraftState}
               onClose={onClose}
               onView={handleView}
               onCreate={handleCreateClick}
               onPlan={handlePlanClick}
+              /** ⬇️ 예약 버튼은 항상 여기 핸들러 → POST 보장 */
               onReserve={reserving ? () => {} : handleReserveClick}
               isPlanPin={planned}
               isVisitReservedPin={reserved}

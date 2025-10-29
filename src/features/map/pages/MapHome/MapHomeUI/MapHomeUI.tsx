@@ -26,11 +26,10 @@ import type {
 } from "@/features/pins/types/pin-search";
 import { searchPins } from "@/shared/api/pins";
 
-// ✅ 상세보기 데이터 패칭 & 뷰모델 변환
-import { getPin } from "@/shared/api/getPin";
-import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
+/* ✅ 상세보기 데이터 패칭 & 뷰모델 변환 */
+import { getPinRaw } from "@/shared/api/getPin";
+import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
-import type { ViewSource } from "@/features/properties/lib/view/types";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -150,24 +149,6 @@ function pickBestPlace(
   return data[0];
 }
 
-/* ----------------------------------------------------------- */
-/** API getPin() 결과(상세) -> ViewSource 얇은 어댑터 */
-function toViewSourceFromApiPin(pin: any): ViewSource {
-  const anyP = pin ?? {};
-  return {
-    title: anyP.title ?? anyP.badge ?? undefined,
-    address:
-      (anyP.address && String(anyP.address)) ||
-      (anyP.addressLine && String(anyP.addressLine)) ||
-      undefined,
-    status: anyP.status ?? null,
-    dealStatus: anyP.dealStatus ?? null,
-    type: anyP.type ?? null,
-    priceText: anyP.priceText ?? anyP.price ?? null,
-    view: anyP.view ?? undefined,
-  };
-}
-
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -196,7 +177,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onMarkerClick,
     onMapReady,
     onViewportChange,
-    // 상위 상태 유지 전달 (모달·패치 등)
+    /* 상위 상태 유지 전달 (모달·패치 등) */
     createOpen,
     selectedViewItem,
     prefillAddress,
@@ -211,7 +192,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onAddFav,
     favById = {},
     onReserveFromMenu,
-    // 🔻 (선택) 상위가 핸들러를 내려주면 우선 사용
+    /* 상위가 내려주면 우선 사용 */
     onViewFromMenu,
   } = props;
 
@@ -226,7 +207,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  // ✅ 상세보기 모달을 이 컴포넌트에서 직접 관리 (fallback)
+  /* ✅ 상세보기 모달을 이 컴포넌트에서 직접 관리하는 fallback */
   const [viewOpenLocal, setViewOpenLocal] = useState(false);
   const [viewDataLocal, setViewDataLocal] =
     useState<PropertyViewDetails | null>(null);
@@ -235,26 +216,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
     setViewOpenLocal(true);
     setViewDataLocal(null);
     try {
-      const res = await getPin(pinId);
-      if (res?.ok && res?.pin) {
-        setViewDataLocal(toViewDetails(toViewSourceFromApiPin(res.pin)));
-      } else {
-        setViewOpenLocal(false);
-      }
+      // ⬇️ RAW로 가져와서 어댑터에 태움
+      const apiPin = await getPinRaw(pinId);
+      setViewDataLocal(toViewDetailsFromApi(apiPin));
     } catch (e) {
       console.error(e);
       setViewOpenLocal(false);
     }
   }, []);
 
-  // 🔑 합성: 상위가 주면 그걸 쓰고, 없으면 로컬 fallback
+  /* 🔑 합성: 상위가 주면 그걸 쓰고, 없으면 로컬 fallback */
   const handleViewFromMenu = useCallback(
     (id: string) => {
-      if (typeof onViewFromMenu === "function") {
-        onViewFromMenu(id);
-      } else {
-        handleViewFromMenuLocal(id);
-      }
+      if (typeof onViewFromMenu === "function") onViewFromMenu(id);
+      else handleViewFromMenuLocal(id);
     },
     [onViewFromMenu, handleViewFromMenuLocal]
   );
@@ -451,7 +426,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuAnchor,
   });
 
-  usePlannedDrafts({ filter, getBounds: getBoundsRaw }); // plannedMarkersOnly는 여기선 사용 안 함
+  usePlannedDrafts({ filter, getBounds: getBoundsRaw });
 
   const {
     roadviewContainerRef,
@@ -528,7 +503,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [kakaoSDK, mapInstance]);
 
-  // ===== 검색핸들러 =====
+  /* ===== 검색핸들러 ===== */
   const handleSubmitSearch = useCallback(
     (text: string) => {
       const query = text.trim();
@@ -755,7 +730,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         favById={favById}
         siteReservations={siteReservations}
         onCloseMenu={onCloseMenu}
-        // 🔑 합성된 핸들러로 전달 (상위가 주면 상위 실행, 아니면 로컬)
+        /* 🔑 합성된 핸들러로 전달 (상위가 주면 상위, 아니면 로컬) */
         onViewFromMenu={(id) => handleViewFromMenu(String(id))}
         onCreateFromMenu={onCreateFromMenu}
         onPlanFromMenu={onPlanFromMenu}
@@ -835,11 +810,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        // ✅ 우선순위: 상위 selectedViewItem(있으면) → 로컬(viewDataLocal)
+        /* ✅ 우선순위: 상위 selectedViewItem → 로컬(viewDataLocal) */
         viewOpen={viewOpenLocal || !!selectedViewItem}
         selectedViewItem={selectedViewItem ?? viewDataLocal ?? null}
         onCloseView={() => setViewOpenLocal(false)}
-        // 이하 기존 전달값 유지
+        /* 기존 전달 값 유지 */
         onSaveViewPatch={onSaveViewPatch}
         onDeleteFromView={onDeleteFromView}
         createOpen={createOpen}

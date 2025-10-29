@@ -8,22 +8,36 @@ import type {
 } from "@/features/properties/types/media";
 
 // 레거시 원본 입력 타입 (훅에서 오는 것)
-type Img = { idbKey?: string; url?: string; name?: string; caption?: string };
+type Img = {
+  id?: string;
+  idbKey?: string;
+  url?: string;
+  name?: string;
+  caption?: string;
+};
 
 export default function ImagesContainer({
   images,
 }: {
   images: {
+    /** 카드(좌측) */
     imageFolders: Img[][];
-    fileItems: Img[];
+    /** 세로(우측) – 프로젝트별로 verticalImages 또는 fileItems 중 하나 사용 */
+    verticalImages?: Img[];
+    fileItems?: Img[];
 
-    registerImageInput: (idx: number, el: HTMLInputElement | null) => void;
+    /** ref 연결 & 파일 열기/선택 */
+    registerImageInput: {
+      (idx: number): (el: HTMLInputElement | null) => void; // 새 권장 방식
+      (idx: number, el: HTMLInputElement | null): void; // 과거 방식 호환
+    };
     openImagePicker: (folderIndex: number) => void;
     onPickFilesToFolder: (
       folderIndex: number,
       e: React.ChangeEvent<HTMLInputElement>
     ) => void | Promise<void>;
 
+    /** 카드 폴더 조작 & 편집 */
     addPhotoFolder: () => void;
     removePhotoFolder: (
       folderIdx: number,
@@ -36,53 +50,72 @@ export default function ImagesContainer({
     ) => void;
     handleRemoveImage: (folderIndex: number, imageIndex: number) => void;
 
+    /** 세로 파일 조작 */
     onAddFiles: (files: FileList | null) => void;
     onChangeFileItemCaption: (index: number, v: string) => void;
     handleRemoveFileItem: (index: number) => void;
 
-    maxPerCard: number;
-    maxFiles: number;
+    /** 제한값 (없으면 기본값) */
+    maxPerCard?: number;
+    maxFiles?: number;
   };
 }) {
-  // 1) 카드 이미지 정규화 (ImagesSection의 ImageItem 요구사항에 맞춤)
-  const imagesByCard: ImageItem[][] = images.imageFolders.map((folder) =>
-    folder.map((img) => ({
-      // ImageItem에서 필수인 최소 속성만 안전하게 매핑
-      url: img.url ?? "",
-      name: img.name ?? "",
-      caption: img.caption,
-      // 서버에서 내려온 id가 있다면 보존(대표 지정/삭제 등에서 사용 가능)
-      ...((img as any).id ? { id: (img as any).id } : {}),
-    }))
+  /** 1) 카드 이미지 정규화 (ImagesSection의 ImageItem 요구사항에 맞춤) */
+  const imagesByCard: ImageItem[][] = React.useMemo(
+    () =>
+      images.imageFolders.map((folder) =>
+        folder.map((img) => ({
+          // ImageItem의 최소 필드
+          url: img?.url ?? "",
+          name: img?.name ?? "",
+          caption: img?.caption,
+          ...(img?.id ? { id: img.id } : {}),
+        }))
+      ),
+    [images.imageFolders]
   );
 
-  // 2) 파일 아이템 정규화: 업로드 대기 목록 → ResolvedFileItem[]
-  const fileItemsNormalized: ResolvedFileItem[] = images.fileItems.map(
-    (img) => ({
-      url: img.url ?? "",
-      name: img.name ?? "",
-      caption: img.caption,
-      idbKey: img.idbKey, // 로컬 식별자 유지
-      ...((img as any).id ? { id: (img as any).id } : {}),
-    })
+  /** 2) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
+  const verticalSource: Img[] = images.fileItems ?? images.verticalImages ?? [];
+
+  /** 3) 세로 파일 정규화 → ResolvedFileItem[] */
+  const fileItemsNormalized: ResolvedFileItem[] = React.useMemo(
+    () =>
+      verticalSource.map((img) => ({
+        url: img?.url ?? "",
+        name: img?.name ?? "",
+        caption: img?.caption,
+        idbKey: img?.idbKey,
+        ...(img?.id ? { id: img.id } : {}),
+      })),
+    [verticalSource]
   );
+
+  /** 4) 제한값 디폴트 */
+  const maxPerCard = images.maxPerCard ?? 20;
+  const maxFiles = images.maxFiles ?? 200;
+
+  /** 5) (선택) 타입 안정 래퍼 – 현재는 그대로 전달해도 안전하지만,
+   *    타입 추론을 돕기 위해 래핑함. (루프 방지는 useEditImages 쪽에서 이미 처리)
+   */
+  const registerInputRef = images.registerImageInput;
 
   return (
     <ImagesSection
       imagesByCard={imagesByCard}
       onOpenPicker={images.openImagePicker}
-      onChangeFiles={images.onPickFilesToFolder} // (idx, e)
-      registerInputRef={images.registerImageInput} // (idx, el)
+      onChangeFiles={images.onPickFilesToFolder} // (folderIdx, e)
+      registerInputRef={registerInputRef} // (idx) 또는 (idx, el)
       onAddPhotoFolder={images.addPhotoFolder}
       onRemovePhotoFolder={images.removePhotoFolder}
-      maxPerCard={images.maxPerCard}
+      maxPerCard={maxPerCard}
       onChangeCaption={images.onChangeImageCaption}
       onRemoveImage={images.handleRemoveImage}
       fileItems={fileItemsNormalized}
       onAddFiles={images.onAddFiles}
       onChangeFileItemCaption={images.onChangeFileItemCaption}
       onRemoveFileItem={images.handleRemoveFileItem}
-      maxFiles={images.maxFiles}
+      maxFiles={maxFiles}
     />
   );
 }

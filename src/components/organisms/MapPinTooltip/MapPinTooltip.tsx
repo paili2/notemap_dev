@@ -9,11 +9,7 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/atoms/HoverCard/HoverCard";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/atoms/Popover/Popover";
+import SafePopover from "@/features/safe/SafePopover"; // ✅ 가드된 Popover
 import { MapPin, Star } from "lucide-react";
 import { MapPinTooltipProps } from "./MapPinTooltip.types";
 
@@ -115,24 +111,29 @@ export function MapPinTooltip({
   );
 
   if (mode === "click") {
+    // ✅ 클릭 모드: SafePopover 사용 + 트리거는 항상 span으로 래핑하여 refCb만 연결
     return (
-      <Popover>
-        <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        <PopoverContent
-          side={side}
-          align={align}
-          sideOffset={sideOffset}
-          className="p-3"
-        >
-          {content}
-        </PopoverContent>
-      </Popover>
+      <SafePopover
+        align={align}
+        className="p-3"
+        // side/offset은 SafePopover 내부 PopoverContent의 props로 직접 전달하고 싶다면 SafePopover에 전달되도록 구현했을 것.
+        // 현재 SafePopover가 align/className만 받는다면, 필요 시 SafePopover에 side/sideOffset 프롭을 추가해도 됨.
+        trigger={({ refCb }) => (
+          <span ref={refCb as any} className="inline-flex">
+            {trigger}
+          </span>
+        )}
+        content={content}
+      />
     );
   }
 
+  // ✅ 호버 모드: asChild 유지하되 항상 span으로 감싸서 안정 ref로만 동작
   return (
     <HoverCard>
-      <HoverCardTrigger asChild>{trigger}</HoverCardTrigger>
+      <HoverCardTrigger asChild>
+        <span className="inline-flex">{trigger}</span>
+      </HoverCardTrigger>
       <HoverCardContent
         side={side}
         align={align}

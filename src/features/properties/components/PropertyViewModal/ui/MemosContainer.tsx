@@ -4,11 +4,11 @@ import MemoPanel from "../components/MemoPanel";
 import { MemoTab } from "../types";
 
 export default function MemosContainer({
-  publicMemo,
-  secretMemo,
+  publicMemo = "", // ✅ 기본값 지정
+  secretMemo = "", // ✅ 기본값 지정
 }: {
-  publicMemo: string;
-  secretMemo: string;
+  publicMemo?: string; // ✅ 옵셔널로 변경
+  secretMemo?: string; // ✅ 옵셔널로 변경
 }) {
   const [memoTab, setMemoTab] = useState<MemoTab>("KN");
 
@@ -43,9 +43,9 @@ export default function MemosContainer({
       </div>
 
       {memoTab === "KN" ? (
-        <MemoPanel mode="KN" value={publicMemo ?? ""} />
+        <MemoPanel mode="KN" value={publicMemo} />
       ) : (
-        <MemoPanel mode="R" value={secretMemo ?? ""} />
+        <MemoPanel mode="R" value={secretMemo} />
       )}
     </div>
   );

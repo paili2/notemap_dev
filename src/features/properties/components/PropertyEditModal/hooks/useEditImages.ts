@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import type { AnyImageRef, ImageItem } from "../../../types/media";
 import { makeImgKey } from "@/features/properties/lib/mediaKeys";
@@ -121,100 +121,154 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     };
   }, [initial]);
 
-  // input refs
+  /* ───────────── input refs (안정화) ─────────────
+     - 동일 DOM 노드면 무시하여 불필요한 업데이트 방지
+     - 인라인 콜백을 피하기 위해 인덱스별 콜백을 캐시
+  */
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const registerImageInput = (idx: number, el: HTMLInputElement | null) => {
-    imageInputRefs.current[idx] = el;
+  const inputRefCallbacks = useRef<
+    Array<((el: HTMLInputElement | null) => void) | null>
+  >([]);
+
+  /** ref={registerImageInput(idx)} 형태로 사용할 수 있는 안정 콜백 반환 */
+  const getRegisterImageInput = useCallback((idx: number) => {
+    if (inputRefCallbacks.current[idx]) return inputRefCallbacks.current[idx]!;
+    const cb = (el: HTMLInputElement | null) => {
+      // 동일 참조면 아무 것도 안 함
+      if (imageInputRefs.current[idx] === el) return;
+      imageInputRefs.current[idx] = el;
+    };
+    inputRefCallbacks.current[idx] = cb;
+    return cb;
+  }, []);
+
+  /**
+   * 과거 사용 호환: ref={(el)=>registerImageInput(idx, el)} 도 지원
+   * - el 인자가 있으면 직접 세팅
+   * - el 인자가 없으면 getRegisterImageInput(idx)를 돌려줌
+   */
+  const registerImageInput = useCallback(
+    (idx: number, el?: HTMLInputElement | null) => {
+      if (arguments.length >= 2) {
+        if (imageInputRefs.current[idx] !== el) {
+          imageInputRefs.current[idx] = el ?? null;
+        }
+        return;
+      }
+      return getRegisterImageInput(idx);
+    },
+    [getRegisterImageInput]
+  ) as unknown as {
+    (idx: number): (el: HTMLInputElement | null) => void;
+    (idx: number, el: HTMLInputElement | null): void;
   };
-  const openImagePicker = (idx: number) => imageInputRefs.current[idx]?.click();
+
+  /** 파일 선택창 열기 (안정 콜백) */
+  const openImagePicker = useCallback(
+    (idx: number) => imageInputRefs.current[idx]?.click(),
+    []
+  );
 
   // 카드형: 이미지 삭제
-  const handleRemoveImage = (folderIdx: number, imageIdx: number) => {
-    setImageFolders((prev) => {
-      const next = prev.map((arr) => [...arr]);
-      const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
-      if (removed?.url?.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(removed.url);
-        } catch {}
-      }
-      return next;
-    });
-  };
-
-  // 카드형: 캡션
-  const onChangeImageCaption = (
-    folderIdx: number,
-    imageIdx: number,
-    text: string
-  ) => {
-    setImageFolders((prev) =>
-      prev.map((arr, i) =>
-        i !== folderIdx
-          ? arr
-          : arr.map((img, j) =>
-              j === imageIdx ? { ...img, caption: text } : img
-            )
-      )
-    );
-  };
-
-  // 카드형: 파일 추가(IndexedDB 저장 & blob 미리보기)
-  const onPickFilesToFolder = async (
-    idx: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    const newItems: ImageItem[] = [];
-    for (const f of Array.from(files)) {
-      const key = makeImgKey(propertyId, "card");
-      await putBlobToIDB(key, f);
-      newItems.push({ idbKey: key, url: URL.createObjectURL(f), name: f.name });
-    }
-
-    setImageFolders((prev) => {
-      const next = [...prev];
-      const current = next[idx] ?? [];
-      next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
-      return next;
-    });
-
-    // 같은 파일 다시 선택 가능
-    e.target.value = "";
-  };
-
-  // 카드형: 폴더 추가/삭제
-  const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
-  const removePhotoFolder = (
-    folderIdx: number,
-    opts?: { keepAtLeastOne?: boolean }
-  ) => {
-    const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
-
-    setImageFolders((prev) => {
-      // 삭제 대상 폴더의 blob URL 정리
-      const target = prev[folderIdx] ?? [];
-      target.forEach((img) => {
-        if (img?.url?.startsWith("blob:")) {
+  const handleRemoveImage = useCallback(
+    (folderIdx: number, imageIdx: number) => {
+      setImageFolders((prev) => {
+        const next = prev.map((arr) => [...arr]);
+        const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
+        if (removed?.url?.startsWith("blob:")) {
           try {
-            URL.revokeObjectURL(img.url);
+            URL.revokeObjectURL(removed.url);
           } catch {}
         }
+        return next;
+      });
+    },
+    []
+  );
+
+  // 카드형: 캡션
+  const onChangeImageCaption = useCallback(
+    (folderIdx: number, imageIdx: number, text: string) => {
+      setImageFolders((prev) =>
+        prev.map((arr, i) =>
+          i !== folderIdx
+            ? arr
+            : arr.map((img, j) =>
+                j === imageIdx ? { ...img, caption: text } : img
+              )
+        )
+      );
+    },
+    []
+  );
+
+  // 카드형: 파일 추가(IndexedDB 저장 & blob 미리보기)
+  const onPickFilesToFolder = useCallback(
+    async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files) return;
+
+      const newItems: ImageItem[] = [];
+      for (const f of Array.from(files)) {
+        const key = makeImgKey(propertyId, "card");
+        await putBlobToIDB(key, f);
+        newItems.push({
+          idbKey: key,
+          url: URL.createObjectURL(f),
+          name: f.name,
+        });
+      }
+
+      setImageFolders((prev) => {
+        const next = [...prev];
+        const current = next[idx] ?? [];
+        next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
+        return next;
       });
 
-      const next = prev.map((arr) => [...arr]);
-      next.splice(folderIdx, 1);
-      imageInputRefs.current.splice(folderIdx, 1);
+      // 같은 파일 다시 선택 가능
+      e.target.value = "";
+    },
+    [propertyId]
+  );
 
-      if (next.length === 0 && keepAtLeastOne) next.push([]);
-      return next;
-    });
-  };
+  // 카드형: 폴더 추가/삭제
+  const addPhotoFolder = useCallback(() => {
+    setImageFolders((prev) => [...prev, []]);
+    // ref 콜백/실제 ref 배열도 인덱스에 맞춰 확장되므로 별도 처리 불필요
+  }, []);
+
+  const removePhotoFolder = useCallback(
+    (folderIdx: number, opts?: { keepAtLeastOne?: boolean }) => {
+      const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
+
+      setImageFolders((prev) => {
+        // 삭제 대상 폴더의 blob URL 정리
+        const target = prev[folderIdx] ?? [];
+        target.forEach((img) => {
+          if (img?.url?.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(img.url);
+            } catch {}
+          }
+        });
+
+        const next = prev.map((arr) => [...arr]);
+        next.splice(folderIdx, 1);
+
+        // ref/콜백 배열도 동일하게 정렬 유지
+        imageInputRefs.current.splice(folderIdx, 1);
+        inputRefCallbacks.current.splice(folderIdx, 1);
+
+        if (next.length === 0 && keepAtLeastOne) next.push([]);
+        return next;
+      });
+    },
+    []
+  );
 
   // 세로형: 삭제/추가/캡션
-  const handleRemoveFileItem = (index: number) => {
+  const handleRemoveFileItem = useCallback((index: number) => {
     setVerticalImages((prev) => {
       const next = [...prev];
       const [removed] = next.splice(index, 1);
@@ -225,25 +279,28 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       }
       return next;
     });
-  };
+  }, []);
 
-  const onAddFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
+  const onAddFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
 
-    const items: ImageItem[] = [];
-    for (const f of Array.from(files)) {
-      const key = makeImgKey(propertyId, "vertical");
-      await putBlobToIDB(key, f);
-      items.push({ idbKey: key, url: URL.createObjectURL(f), name: f.name });
-    }
-    setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
-  };
+      const items: ImageItem[] = [];
+      for (const f of Array.from(files)) {
+        const key = makeImgKey(propertyId, "vertical");
+        await putBlobToIDB(key, f);
+        items.push({ idbKey: key, url: URL.createObjectURL(f), name: f.name });
+      }
+      setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
+    },
+    [propertyId]
+  );
 
-  const onChangeFileItemCaption = (index: number, text: string) => {
+  const onChangeFileItemCaption = useCallback((index: number, text: string) => {
     setVerticalImages((prev) =>
       prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
     );
-  };
+  }, []);
 
   // 언마운트 시 blob URL 정리
   useEffect(() => {
@@ -261,6 +318,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   return {
     imageFolders,
     verticalImages,
+    /** ref={registerImageInput(idx)} 또는 ref={(el)=>registerImageInput(idx, el)} 모두 지원 */
     registerImageInput,
     openImagePicker,
     onPickFilesToFolder,

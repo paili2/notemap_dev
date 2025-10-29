@@ -1,12 +1,8 @@
+"use client";
+
 import { Button } from "@/components/atoms/Button/Button";
 import { Trash2 } from "lucide-react";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/atoms/Select/Select";
+import SafeSelect from "@/features/safe/SafeSelect";
 import type {
   AspectRowLite,
   OrientationValue,
@@ -20,9 +16,6 @@ type Props = {
   canRemove: boolean;
 };
 
-// controlled 유지용 가짜 빈 값
-const EMPTY = "__EMPTY__";
-
 export default function AspectCell({
   row,
   orientations,
@@ -30,37 +23,24 @@ export default function AspectCell({
   removeAspect,
   canRemove,
 }: Props) {
-  // 항상 문자열을 넘겨서 controlled 유지
-  const value = row.dir && row.dir.length > 0 ? row.dir : EMPTY;
+  // SafeSelect는 빈 값을 null로 다루도록
+  const value: string | null = row.dir && row.dir.length > 0 ? row.dir : null;
 
   return (
     <div className="flex items-center gap-2">
       <span className="w-10 text-right">{row.no}호</span>
 
-      <Select
+      <SafeSelect
         value={value}
-        onValueChange={(v) => {
-          // 가짜 값이 선택되면 빈 문자열로 상태 반영 (placeholder 상태)
-          setAspectDir(row.no, v === EMPTY ? "" : (v as OrientationValue));
+        onChange={(v) => {
+          // null → "" 로 변환하여 상위 상태에 반영
+          setAspectDir(row.no, (v ?? "") as OrientationValue | "");
         }}
-      >
-        <SelectTrigger className="w-[110px] h-9">
-          {/* value가 EMPTY여도 label은 아래 disabled 아이템의 라벨로 보임 */}
-          <SelectValue placeholder="방향" />
-        </SelectTrigger>
-        <SelectContent position="popper" className="z-[1205]">
-          {/* placeholder 역할의 disabled 아이템 */}
-          <SelectItem value={EMPTY} disabled>
-            방향
-          </SelectItem>
-
-          {orientations.map((o) => (
-            <SelectItem key={o} value={o}>
-              {o}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        items={orientations.map((o) => ({ value: o, label: o }))}
+        placeholder="방향"
+        className="w-[110px] h-9"
+        contentClassName="z-[1205]"
+      />
 
       {canRemove && (
         <Button

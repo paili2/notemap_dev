@@ -73,6 +73,8 @@ export type ContextMenuPanelProps = {
   /** 매물명(선택) */
   propertyTitle?: string | null;
 
+  draftState?: string;
+
   /**
    * 핀 상태 플래그
    * - isDraftPin: 지도에서 막 찍은 임시(답사예정候補)

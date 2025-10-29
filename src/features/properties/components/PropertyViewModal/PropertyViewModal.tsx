@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Trash2, Pencil } from "lucide-react";
 
@@ -52,6 +52,12 @@ function toViewPatchFromEdit(
   };
 }
 
+/**
+ * ❗ 훅을 항상 같은 순서로 호출하기 위해 data가 없을 때도
+ * 안전한 더미 객체를 만들어 넣습니다.
+ */
+const EMPTY_VIEW: PropertyViewDetails = {} as unknown as PropertyViewDetails;
+
 export default function PropertyViewModal({
   open,
   onClose,
@@ -91,7 +97,7 @@ export default function PropertyViewModal({
       window.removeEventListener("keydown", onKey, { capture: true });
   }, [open, onClose]);
 
-  // 최초 포커스 이동
+  // 최초 포커스 이동 (mode 바뀔 때도 최초 버튼에 포커스)
   useEffect(() => {
     if (!open) return;
     const t = setTimeout(() => {
@@ -137,12 +143,20 @@ export default function PropertyViewModal({
   const headingId = "property-view-modal-heading";
   const descId = "property-view-modal-desc";
 
-  // ✅ data 의존 훅/렌더는 hasData일 때만
-  const f = hasData ? useViewForm({ open, data: data! }) : null;
+  /**
+   * ✅ 훅은 항상 호출
+   * - data가 없을 때는 EMPTY_VIEW를 전달하여 훅 호출 순서를 보장
+   * - 실제 화면 렌더는 hasData로 가드
+   */
+  const formInput = useMemo(
+    () => ({ open, data: (data ?? EMPTY_VIEW) as PropertyViewDetails }),
+    [open, data]
+  );
+  const f = useViewForm(formInput);
 
   const node = (
     <div
-      className="fixed inset-0 z-[1000]" // z-index 상승
+      className="fixed inset-0 z-[99999]"
       onPointerDownCapture={onContentPointerDown}
     >
       {/* Dim */}
@@ -179,10 +193,10 @@ export default function PropertyViewModal({
               {/* 헤더 */}
               <div className="sticky top-0 z-10 bg-white border-b">
                 <HeaderViewContainer
-                  title={f!.title}
-                  listingStars={f!.listingStars}
-                  elevator={f!.elevator}
-                  pinKind={f!.pinKind}
+                  title={f.title}
+                  listingStars={f.listingStars}
+                  elevator={f.elevator}
+                  pinKind={f.pinKind}
                   onClose={onClose}
                   closeButtonRef={initialFocusRef}
                   headingId={headingId}
@@ -199,56 +213,55 @@ export default function PropertyViewModal({
                   "grid-cols-1 md:grid-cols-[300px_1fr]"
                 )}
               >
-                {/* 좌측(이미지) */}
                 <div className="space-y-4">
                   <DisplayImagesContainer
-                    cards={f!.cardsHydrated}
-                    images={f!.imagesProp}
-                    files={f!.filesHydrated}
+                    cards={f.cardsHydrated}
+                    images={f.imagesProp}
+                    files={f.filesHydrated}
                   />
                 </div>
 
-                {/* 우측(정보 섹션들) */}
                 <div className="space-y-4 md:space-y-6">
                   <BasicInfoViewContainer
-                    address={f!.address}
-                    officePhone={f!.officePhone}
-                    officePhone2={f!.officePhone2}
+                    address={f.address ?? ""}
+                    officePhone={f.officePhone ?? ""}
+                    officePhone2={f.officePhone2 ?? ""}
                   />
                   <NumbersViewContainer
-                    totalBuildings={f!.totalBuildings}
-                    totalFloors={f!.totalFloors}
-                    totalHouseholds={f!.totalHouseholds}
-                    remainingHouseholds={f!.remainingHouseholds}
+                    totalBuildings={f.totalBuildings}
+                    totalFloors={f.totalFloors}
+                    totalHouseholds={f.totalHouseholds}
+                    remainingHouseholds={f.remainingHouseholds}
                   />
                   <ParkingViewContainer
-                    parkingType={f!.parkingType}
-                    parkingCount={f!.parkingCount}
+                    parkingType={f.parkingType}
+                    totalParkingSlots={f.totalParkingSlots}
                   />
                   <CompletionRegistryViewContainer
-                    completionDate={f!.completionDateText}
-                    salePrice={f!.salePrice}
-                    registry={f!.registry}
-                    slopeGrade={f!.slopeGrade}
-                    structureGrade={f!.structureGrade}
+                    completionDate={f.completionDateText}
+                    salePrice={f.salePrice}
+                    registry={f.registry}
+                    slopeGrade={f.slopeGrade}
+                    structureGrade={f.structureGrade}
                   />
+                  {/* 방위/면적은 서버 값 → 어댑터 → useViewForm → 여기로 */}
                   <AspectsViewContainer details={data!} />
                   <AreaSetsViewContainer
-                    exclusiveArea={f!.exclusiveArea}
-                    realArea={f!.realArea}
-                    extraExclusiveAreas={f!.extraExclusiveAreas}
-                    extraRealAreas={f!.extraRealAreas}
-                    baseAreaTitle={f!.baseAreaTitleView}
-                    extraAreaTitles={f!.extraAreaTitlesView}
+                    exclusiveArea={f.exclusiveArea}
+                    realArea={f.realArea}
+                    extraExclusiveAreas={f.extraExclusiveAreas}
+                    extraRealAreas={f.extraRealAreas}
+                    baseAreaTitle={f.baseAreaTitleView}
+                    extraAreaTitles={f.extraAreaTitlesView}
                   />
-                  <StructureLinesListContainer lines={f!.unitLines} />
+                  <StructureLinesListContainer lines={f.unitLines} />
                   <OptionsBadgesContainer
-                    options={f!.options}
-                    optionEtc={f!.optionEtc}
+                    options={f.options}
+                    optionEtc={f.optionEtc}
                   />
                   <MemosContainer
-                    publicMemo={f!.publicMemo}
-                    secretMemo={f!.secretMemo}
+                    publicMemo={f.publicMemo}
+                    secretMemo={f.secretMemo}
                   />
                   <div className="h-16 md:hidden" />
                 </div>
@@ -341,7 +354,7 @@ export default function PropertyViewModal({
             </>
           )
         ) : (
-          // 편집 모드
+          // 편집 모드 (hasData일 때만 렌더)
           hasData && (
             <PropertyEditModalBody
               key={String(data!.id ?? "edit")}

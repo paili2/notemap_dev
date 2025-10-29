@@ -3,11 +3,16 @@
 import ParkingView from "../components/ParkingView";
 
 export default function ParkingViewContainer({
-  parkingType,
-  parkingCount,
+  parkingType = "",
+  totalParkingSlots = undefined,
 }: {
-  parkingType: string;
-  parkingCount?: string | number;
+  parkingType?: string | null;
+  totalParkingSlots?: string | number | null;
 }) {
-  return <ParkingView parkingType={parkingType} parkingCount={parkingCount} />;
+  return (
+    <ParkingView
+      parkingType={parkingType ?? ""}
+      totalParkingSlots={totalParkingSlots ?? undefined}
+    />
+  );
 }

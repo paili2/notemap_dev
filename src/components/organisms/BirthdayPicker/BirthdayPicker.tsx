@@ -5,12 +5,7 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  PopoverAnchor,
-} from "@/components/atoms/Popover/Popover";
+import SafePopover from "@/features/safe/SafePopover"; // ✅ 가드된 Popover
 import { Calendar } from "@/components/atoms/Calendar/Calendar";
 import { toYMD, parseYMD, isValidYMD } from "@/lib/dateUtils"; // ✅ 공통 유틸 사용
 
@@ -101,10 +96,15 @@ export default function BirthdayPicker({
         disabled={disabled}
       />
 
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverAnchor className="absolute inset-0" />
-        <PopoverTrigger asChild>
+      {/* ✅ 가드된 Popover 사용 (refCb만 전달) */}
+      <SafePopover
+        open={open}
+        onOpenChange={setOpen}
+        align="end"
+        className="p-0 w-auto"
+        trigger={({ refCb }) => (
           <Button
+            ref={refCb as any}
             type="button"
             variant="ghost"
             size="icon"
@@ -114,16 +114,8 @@ export default function BirthdayPicker({
           >
             <CalendarIcon className="h-4 w-4" />
           </Button>
-        </PopoverTrigger>
-
-        <PopoverContent
-          side="bottom"
-          align="end"
-          sideOffset={8}
-          avoidCollisions={false}
-          sticky="always"
-          className="p-0 w-auto"
-        >
+        )}
+        content={
           <Calendar
             className="min-w-[320px]"
             mode="single"
@@ -139,8 +131,8 @@ export default function BirthdayPicker({
             fromYear={fromYear}
             toYear={toYear}
           />
-        </PopoverContent>
-      </Popover>
+        }
+      />
     </div>
   );
 }

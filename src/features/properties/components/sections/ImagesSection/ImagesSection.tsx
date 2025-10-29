@@ -12,7 +12,12 @@ type Props = {
   imagesByCard: ImageItem[][];
   onOpenPicker: (idx: number) => void;
   onChangeFiles: (idx: number, e: React.ChangeEvent<HTMLInputElement>) => void;
-  registerInputRef?: (idx: number, el: HTMLInputElement | null) => void;
+
+  /** (idx) => (el)=>…  또는 (idx, el) => void  모두 지원 */
+  registerInputRef?: {
+    (idx: number): (el: HTMLInputElement | null) => void;
+    (idx: number, el: HTMLInputElement | null): void;
+  };
 
   onAddPhotoFolder: () => void;
   onRemovePhotoFolder?: (
@@ -70,7 +75,7 @@ export default function ImagesSection(props: Props) {
     text: string
   ) => {
     onChangeCaption?.(cardIdx, imageIdx, text); // UI만 반영
-    // 서버 저장이 필요하면 여기서 별도 caption API로 호출하도록 확장
+    // 서버 저장 필요 시 별도 caption API 호출로 확장
   };
 
   const handleRemove = async (cardIdx: number, imageIdx: number) => {
@@ -82,7 +87,7 @@ export default function ImagesSection(props: Props) {
       await deletePhotos([String(photoId)]);
     } catch (e) {
       console.error(e);
-      // 실패 시 복구 로직이 필요하면 여기서 되돌리기
+      // 실패 시 복구 로직 필요하면 여기서 되돌리기
     }
   };
 
@@ -110,33 +115,56 @@ export default function ImagesSection(props: Props) {
     if (photoId == null) return;
     try {
       await updatePhotos({ photoIds: [String(photoId)], isCover: true });
-      // UI에서 isCover 토글 반영이 필요하면 상위 상태 업데이트 로직도 함께 호출
+      // UI에서 isCover 토글 반영 필요 시 상위 상태 업데이트 로직 호출
     } catch (e) {
       console.error(e);
     }
   };
 
   /* ─────────────────────────────
-   * ref 유지/전달 (기존 그대로)
+   * ref 유지/전달
+   * - 인덱스별 RefObject를 재사용
+   * - 실제 DOM 노드 변경시에만 registerInputRef 호출
    * ───────────────────────────── */
   const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
+  // 길이 맞추기 (기존 인스턴스 최대 재사용)
   if (cardInputRefs.current.length !== list.length) {
     cardInputRefs.current = Array.from(
       { length: list.length },
       (_, i) => cardInputRefs.current[i] ?? React.createRef<HTMLInputElement>()
     );
   }
+
   const prevNodesRef = useRef<Array<HTMLInputElement | null>>([]);
   useEffect(() => {
     if (!registerInputRef) return;
+
     const nextNodes = cardInputRefs.current.map((r) => r.current ?? null);
     const prevNodes = prevNodesRef.current;
+
+    // 변경된 인덱스만 반영
     for (let i = 0; i < nextNodes.length; i++) {
       if (prevNodes[i] !== nextNodes[i]) {
-        registerInputRef(i, nextNodes[i]);
+        try {
+          // 1) (idx) => (el)=>… 형태 지원 시
+          const maybeCb = (registerInputRef as any)(i);
+          if (typeof maybeCb === "function") {
+            maybeCb(nextNodes[i]);
+          } else {
+            // 2) (idx, el) 형태만 지원 시
+            (registerInputRef as any)(i, nextNodes[i]);
+          }
+        } catch {
+          // (idx, el) 시그니처만 있는 경우
+          (registerInputRef as any)(i, nextNodes[i]);
+        }
       }
     }
+
+    // 스냅샷 교체
     prevNodesRef.current = nextNodes;
+    // list.length만 의존: 노드 교체 타이밍에만 실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [list.length, registerInputRef]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -176,7 +204,7 @@ export default function ImagesSection(props: Props) {
             onOpenPicker={() => onOpenPicker(idx)}
             inputRef={cardInputRefs.current[idx]}
             onChangeFiles={(e) => onChangeFiles(idx, e)}
-            // 있으면 연결:
+            // (선택)
             // onReorder={(from, to) => handleReorder(idx, from, to)}
             // onSetCover={(imageIdx) => handleSetCover(idx, imageIdx)}
           />

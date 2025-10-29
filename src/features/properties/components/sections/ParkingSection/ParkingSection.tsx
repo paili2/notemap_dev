@@ -2,16 +2,10 @@
 
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/Select/Select";
 import { useEffect, useMemo, useState } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
+import SafeSelect from "@/features/safe/SafeSelect";
 
 type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
   totalParkingSlots?: number | null;
@@ -26,11 +20,9 @@ export default function ParkingSection({
   parkingType,
   setParkingType,
 
-  // ✅ 신규 필드만 사용
   totalParkingSlots,
   setTotalParkingSlots,
 
-  // 타입 id 관련
   parkingTypeId,
   setParkingTypeId,
   parkingTypeNameToId = {},
@@ -41,13 +33,12 @@ export default function ParkingSection({
   const [selectValue, setSelectValue] = useState<string>("");
   const [custom, setCustom] = useState<string>("");
 
-  /** 주차대수 현재값 (표시용) */
   const displayCount = useMemo(
     () => (typeof totalParkingSlots === "number" ? totalParkingSlots : null),
     [totalParkingSlots]
   );
 
-  /** prop → 내부 상태 동기화 */
+  // prop → 내부 상태
   useEffect(() => {
     if (!parkingType) {
       setSelectValue("");
@@ -67,13 +58,12 @@ export default function ParkingSection({
       setParkingTypeId?.(null);
       return;
     }
-    // 임의 문자열(예: "지상 병렬 1대") → custom 모드 + id 없음
     setSelectValue("custom");
     setCustom(parkingType);
     setParkingTypeId?.(null);
   }, [parkingType, parkingTypeNameToId, setParkingTypeId]);
 
-  /** 내부 상태 → 상위 값 반영 */
+  // 내부 → 상위 반영 (동등성 가드는 SafeSelect/유틸 쪽에서 잡음)
   useEffect(() => {
     if (selectValue === "custom") {
       const trimmed = custom.trim();
@@ -96,7 +86,6 @@ export default function ParkingSection({
     parkingTypeNameToId,
   ]);
 
-  // 숫자만 허용(붙여넣기 포함) + 빈값이면 null.
   const onChangeCount = (raw: string) => {
     const onlyDigits = raw.replace(/\D+/g, "");
     const next = onlyDigits === "" ? null : Number(onlyDigits);
@@ -107,25 +96,20 @@ export default function ParkingSection({
     <div className="grid grid-cols-2 items-center md:grid-cols-3">
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
-          <Select
-            value={selectValue || undefined}
-            onValueChange={(val) => {
-              setSelectValue(val);
+          <SafeSelect
+            value={selectValue || null}
+            onChange={(val) => {
+              // SafeSelect가 값 동등성 가드 적용하므로 그대로 세팅
+              setSelectValue(val ?? "");
               if (val === "custom") setCustom("");
             }}
-          >
-            <SelectTrigger className="w-28 h-9">
-              <SelectValue placeholder="선택" />
-            </SelectTrigger>
-            <SelectContent className="max-h-64 overflow-auto">
-              {PRESETS.map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-              <SelectItem value="custom">직접입력</SelectItem>
-            </SelectContent>
-          </Select>
+            items={[
+              ...PRESETS.map((opt) => ({ value: opt, label: opt })),
+              { value: "custom", label: "직접입력" },
+            ]}
+            placeholder="선택"
+            className="w-28 h-9"
+          />
 
           {selectValue === "custom" && (
             <Input
