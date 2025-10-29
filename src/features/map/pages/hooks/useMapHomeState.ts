@@ -16,10 +16,7 @@ import type { ViewSource } from "@/features/properties/lib/view/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 import { PoiKind } from "../../components/overlays/poiOverlays";
-// 서버 핀 훅
 import { usePinsMap } from "@/features/map/hooks/usePinsMap";
-// 좌표 검증 로그
-import { assertNoTruncate } from "@/shared/debug/assertCoords";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 
@@ -27,7 +24,6 @@ const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
   !!a && !!b && Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
 
-/** 뷰포트 타입 */
 type Viewport = {
   leftTop: LatLng;
   leftBottom: LatLng;
@@ -36,7 +32,6 @@ type Viewport = {
   zoomLevel: number;
 };
 
-/** 얕은 뷰포트 비교 */
 const sameViewport = (a?: Viewport | null, b?: Viewport | null, eps = 1e-7) => {
   if (!a || !b) return false;
   const eq = (p: LatLng, q: LatLng) =>
@@ -50,7 +45,7 @@ const sameViewport = (a?: Viewport | null, b?: Viewport | null, eps = 1e-7) => {
   );
 };
 
-/** Kakao LatLng 객체/POJO 모두에서 원본 숫자를 뽑아내는 정규화 */
+/** Kakao LatLng 객체/POJO 모두 대응 정규화 */
 function normalizeLL(v: any): LatLng {
   if (v && typeof v.getLat === "function" && typeof v.getLng === "function") {
     return { lat: v.getLat(), lng: v.getLng() };
@@ -58,11 +53,7 @@ function normalizeLL(v: any): LatLng {
   return { lat: Number(v?.lat), lng: Number(v?.lng) };
 }
 
-/** ─────────────────────────────────────────────────────────────
- *  PropertyItem -> ViewSource (얇은 어댑터)
- *  - 필수 공통 메타만 매핑, 이미지 등은 p.view가 있으면 그대로 통과
- *  - address는 address, addressLine 둘 중 있는 값 사용
- * ───────────────────────────────────────────────────────────── */
+/** PropertyItem -> ViewSource (얇은 어댑터) */
 function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
   const anyP = p as any;
   return {
@@ -75,23 +66,22 @@ function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
     dealStatus: anyP.dealStatus ?? null,
     type: anyP.type ?? null,
     priceText: anyP.priceText ?? null,
-    // 서버에서 내려보내 저장해둔 view 블록이 있다면 그대로 활용
     view: anyP.view ?? undefined,
   };
 }
 
 export function useMapHomeState() {
-  // 지도 관련 상태
+  // 지도/SDK
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
 
-  // 라벨 숨김 상태
+  // 라벨 숨김
   const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
   const onChangeHideLabelForId = useCallback((id: string | null) => {
     setHideLabelForId(id);
   }, []);
 
-  // UI 모달 & 메뉴 상태
+  // 모달/메뉴
   const [menuOpen, setMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
@@ -103,28 +93,25 @@ export function useMapHomeState() {
   const [menuAnchor, setMenuAnchor] = useState<LatLng | null>(null);
   const [menuTargetId, setMenuTargetId] = useState<string | null>(null);
 
-  // Fit once
+  // 1회 전체 맞춤
   const [fitAllOnce, setFitAllOnce] = useState(true);
 
-  // Modals
+  // 생성 시 주소 프리필
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
 
-  // ✅ 생성용 드래프트 핀만 로컬 복원 (임시 UI용)
+  // 생성용 draft 핀 복원
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
 
-  // menuAnchor 세팅 시 **원본 숫자 그대로** 넣고 즉시 검증
+  // 좌표 세터(정규화만)
   const setRawMenuAnchor = useCallback((ll: LatLng | any) => {
     const p = normalizeLL(ll);
-    assertNoTruncate("useMapHomeState:setMenuAnchor", p.lat, p.lng);
     setMenuAnchor(p);
   }, []);
 
-  // draftPin 세팅도 동일
   const setDraftPinSafe = useCallback((pin: LatLng | null) => {
     if (pin) {
       const p = normalizeLL(pin);
-      assertNoTruncate("useMapHomeState:setDraftPin", p.lat, p.lng);
       _setDraftPin(p);
       try {
         localStorage.setItem(DRAFT_PIN_STORAGE_KEY, JSON.stringify(p));
@@ -137,17 +124,22 @@ export function useMapHomeState() {
     }
   }, []);
 
-  // Toggles
+  // 토글/필터
   const [useDistrict, setUseDistrict] = useState<boolean>(false);
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
 
-  // ⭐ POI 선택 상태
+  // POI
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
+  const onChangePoiKinds = useCallback(
+    (next: PoiKind[]) => setPoiKinds(next),
+    []
+  );
 
+  // 데이터
   const [items, setItems] = useState<PropertyItem[]>([]);
   const [addFav, setAddFav] = useState<boolean>(false);
 
-  // Search / filter
+  // 검색/필터 값
   const [query, setQuery] = useState("");
   const [type, setType] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
@@ -156,22 +148,38 @@ export function useMapHomeState() {
   );
   const [q, setQ] = useState("");
 
-  // === UI prop 호환용 alias들 ===
   const onChangeQ = useCallback((v: string) => setQ(v), []);
   const onChangeFilter = useCallback((v: any) => setFilter(v), []);
-  const onChangePoiKinds = useCallback(
-    (next: PoiKind[]) => setPoiKinds(next),
-    []
+
+  // 파생: 필터링 목록
+  const filtered = useMemo(() => {
+    return items.filter((p) => {
+      const qq = query.trim().toLowerCase();
+      const matchQ =
+        !qq ||
+        p.title.toLowerCase().includes(qq) ||
+        (p.address?.toLowerCase().includes(qq) ?? false);
+      const matchType = type === "all" || (p as any).type === type;
+      const matchStatus = status === "all" || (p as any).status === status;
+      return matchQ && matchType && matchStatus;
+    });
+  }, [items, query, type, status]);
+
+  // 선택 상태
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = useMemo(
+    () => items.find((x) => x.id === selectedId) ?? null,
+    [items, selectedId]
   );
 
-  // ─ Viewport post (기존 훅 래핑해서 force 옵션 추가)
+  // 뷰포스트
   const postViewport = useViewportPost();
   const lastViewportRef = useRef<Viewport | null>(null);
 
-  // ✅ 서버 핀 훅: /pins/map
+  // 서버 핀
   const { points, drafts, setBounds, refetch } = usePinsMap();
 
-  // 🔥 매물 등록 직후 드래프트 마커를 즉시 숨기기 위한 로컬 상태
+  // 방금 등록된 draft 숨김 관리
   const [hiddenDraftIds, setHiddenDraftIds] = useState<Set<string>>(new Set());
   const hideDraft = useCallback(
     (draftId: string | number | null | undefined) => {
@@ -205,7 +213,6 @@ export function useMapHomeState() {
         ? (postViewport as any).sendViewportQuery(vp)
         : (postViewport as any)(vp);
 
-      // 카카오 idle 트리거
       if (kakaoSDK && mapInstance) {
         kakaoSDK.maps.event.trigger(mapInstance, "idle");
         requestAnimationFrame(() =>
@@ -213,7 +220,6 @@ export function useMapHomeState() {
         );
       }
 
-      // ✅ /pins/map 훅에도 bounds 전달 (남서, 북동)
       try {
         const sw = vp.leftBottom;
         const ne = vp.rightTop;
@@ -230,7 +236,7 @@ export function useMapHomeState() {
 
   const lastViewport = lastViewportRef.current;
 
-  // ▸ 초기 복원 (draftPin) — 지도 열릴 때만
+  // 초기에 draftPin 복원
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_PIN_STORAGE_KEY);
@@ -238,35 +244,14 @@ export function useMapHomeState() {
         const v = JSON.parse(raw);
         if (v && typeof v.lat === "number" && typeof v.lng === "number") {
           restoredDraftPinRef.current = v;
-          setDraftPinSafe(v); // ✅ 검증 경유
+          setDraftPinSafe(v);
         }
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Derived
-  const filtered = useMemo(() => {
-    return items.filter((p) => {
-      const qq = query.trim().toLowerCase();
-      const matchQ =
-        !qq ||
-        p.title.toLowerCase().includes(qq) ||
-        (p.address?.toLowerCase().includes(qq) ?? false);
-      const matchType = type === "all" || (p as any).type === type;
-      const matchStatus = status === "all" || (p as any).status === status;
-      return matchQ && matchType && matchStatus;
-    });
-  }, [items, query, type, status]);
-
-  // Selection
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = useMemo(
-    () => items.find((x) => x.id === selectedId) ?? null,
-    [items, selectedId]
-  );
-
-  // Tools
+  // 유틸
   const resolveAddress = useResolveAddress(kakaoSDK);
   const panToWithOffset = usePanToWithOffset(kakaoSDK, mapInstance);
 
@@ -330,7 +315,6 @@ export function useMapHomeState() {
     [kakaoSDK]
   );
 
-  // 기존 핀 말주머니 열기
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
       const pos = normalizeLL(p.position);
@@ -366,7 +350,6 @@ export function useMapHomeState() {
     ]
   );
 
-  // 검색 훅 원본
   const runSearchRaw = useRunSearch({
     kakaoSDK,
     mapInstance,
@@ -399,7 +382,7 @@ export function useMapHomeState() {
     [handleSearchSubmit]
   );
 
-  // ▸ draftPin 세팅 시(생성용) — 말주머니 처리
+  // draftPin 세팅 시 말주머니 처리
   useEffect(() => {
     if (!draftPin) return;
 
@@ -468,7 +451,7 @@ export function useMapHomeState() {
     ]
   );
 
-  // Map ready
+  // 지도 준비
   const onMapReady = useCallback(
     ({ kakao, map }: any) => {
       setKakaoSDK(kakao);
@@ -480,7 +463,6 @@ export function useMapHomeState() {
         kakao.maps.event.trigger(map, "idle");
       }, 0);
 
-      // ✅ 초기 bounds 설정 → /pins/map 최초 로드
       try {
         const b = map.getBounds();
         const sw = b.getSouthWest();
@@ -497,21 +479,21 @@ export function useMapHomeState() {
     [refetch, setBounds]
   );
 
-  // View modal
+  // ViewModal 패치/삭제 핸들러
   const onSaveViewPatch = useCallback(
     async (patch: Partial<PropertyViewDetails>) => {
       setItems((prev) =>
         prev.map((p) => (p.id === selectedId ? applyPatchToItem(p, patch) : p))
       );
     },
-    [selectedId, setItems]
+    [selectedId]
   );
 
   const onDeleteFromView = useCallback(async () => {
     setItems((prev) => prev.filter((p) => p.id !== selectedId));
     setViewOpen(false);
     setSelectedId(null);
-  }, [selectedId, setItems]);
+  }, [selectedId]);
 
   const onSubmitEdit = useCallback(
     async (payload: CreatePayload) => {
@@ -526,7 +508,7 @@ export function useMapHomeState() {
       );
       setEditOpen(false);
     },
-    [selectedId, setItems, setEditOpen]
+    [selectedId]
   );
 
   // 메뉴 닫기
@@ -558,7 +540,7 @@ export function useMapHomeState() {
     setCreateOpen(true);
   }, [menuRoadAddr, menuJibunAddr, closeMenu]);
 
-  // === 메뉴/액션 alias
+  // alias들
   const onCloseMenu = closeMenu;
   const onViewFromMenu = useCallback(
     (id: string | number) => openViewFromMenu(String(id)),
@@ -566,7 +548,6 @@ export function useMapHomeState() {
   );
   const onCreateFromMenu = openCreateFromMenu;
 
-  // ✅ 메뉴에서 “답사예정” 선택 시: 로컬 추가 제거, UI만 정리
   const onPlanFromMenu = useCallback(
     (pos: LatLng) => {
       const p = normalizeLL(pos);
@@ -578,7 +559,7 @@ export function useMapHomeState() {
     [closeMenu, draftPin, setDraftPinSafe]
   );
 
-  // ✅ 마커 목록: 서버 points + drafts + 생성용 draftPin
+  // 마커 목록
   const markers = useMemo(() => {
     const pointMarkers = (points ?? []).map((p) => ({
       id: String(p.id),
@@ -611,7 +592,7 @@ export function useMapHomeState() {
     return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
   }, [points, drafts, draftPin, hiddenDraftIds]);
 
-  // Create host
+  // Create/Edit Host 브리지
   const createHostHandlers = useMemo(
     () => ({
       onClose: () => {
@@ -639,7 +620,7 @@ export function useMapHomeState() {
         refetch();
       },
     }),
-    [setItems, setDraftPinSafe, hideDraft, refetch]
+    [hideDraft, refetch, setDraftPinSafe]
   );
 
   const editHostHandlers = useMemo(
@@ -648,7 +629,7 @@ export function useMapHomeState() {
       updateItems: setItems,
       onSubmit: onSubmitEdit,
     }),
-    [setItems, onSubmitEdit]
+    [onSubmitEdit]
   );
 
   const closeCreate = useCallback(() => {
@@ -658,9 +639,7 @@ export function useMapHomeState() {
     setMenuOpen(false);
   }, [setDraftPinSafe]);
 
-  /* ─────────────────────────────────────────────────────────────
-     ⭐ POI 변경 시 즉시 반영
-     ───────────────────────────────────────────────────────────── */
+  // POI 변경 즉시 반영
   useEffect(() => {
     if (lastViewportRef.current) {
       sendViewportQuery(lastViewportRef.current, { force: true });
@@ -677,14 +656,11 @@ export function useMapHomeState() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poiKinds]);
 
-  /** ───────────── 추가 파생/alias: MapHomeUI 호환 ───────────── */
-
   const onViewportChange = useCallback(
     (vp: any, opts?: { force?: boolean }) => sendViewportQuery(vp, opts),
     [sendViewportQuery]
   );
 
-  // 🔧 핵심 수정: PropertyItem -> ViewSource 얇은 어댑터를 거쳐 toViewDetails 호출
   const selectedViewItem = useMemo(
     () =>
       selected ? toViewDetails(toViewSourceFromPropertyItem(selected)) : null,
@@ -786,7 +762,7 @@ export function useMapHomeState() {
     draftPin,
     setDraftPin: setDraftPinSafe,
 
-    // marker click / viewport
+    // marker / viewport
     handleMarkerClick,
     onMarkerClick,
     onViewportChange,
@@ -819,7 +795,7 @@ export function useMapHomeState() {
     hideLabelForId,
     onChangeHideLabelForId,
 
-    // 숨김 제어 API
+    // 숨김 제어
     hideDraft,
     clearHiddenDraft,
   } as const;

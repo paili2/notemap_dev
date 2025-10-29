@@ -9,11 +9,13 @@ import { LatLng } from "@/lib/geo/types";
 import { toastBus } from "@/shared/toast/toastBus";
 import { ensureAuthed } from "@/shared/api/auth";
 
-// 업로드 & URL 변환
-import { uploadPhotos, metaToUrl } from "@/shared/api/photos";
-// 새 스펙: 그룹 등록
-import { createGroupPhotos } from "@/shared/api/pinPhotos";
 import type { PropertyCreateResult } from "@/features/properties/components/PropertyCreateModal/types";
+
+// ✅ 그룹(폴더) 생성: POST /photo-groups  (title, sortOrder, pinId:number)
+import { createPhotoGroup } from "@/shared/api/photoGroups";
+
+// ✅ 업로드(S3): POST /photo/upload  (요청당 10장 자동 분할)
+import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
 
 type MapCreateModalHostProps = {
   open: boolean;
@@ -52,7 +54,7 @@ export default function MapCreateModalHost({
       key={prefillAddress ?? "blank"}
       initialAddress={prefillAddress}
       onClose={onClose}
-      /** ✅ 기존 핀 좌표를 그대로 주입 (지오코딩/드래그 좌표 금지) */
+      /** ✅ 기존 핀 좌표 그대로 사용 */
       initialLat={resolvePos().lat}
       initialLng={resolvePos().lng}
       onSubmit={async ({
@@ -73,54 +75,76 @@ export default function MapCreateModalHost({
             return;
           }
 
-          // ✅ 결과 좌표 그대로 사용 (백업: resolvePos)
           const pos: LatLng =
             Number.isFinite(lat) && Number.isFinite(lng)
               ? { lat, lng }
               : resolvePos();
 
-          // ---- 이미지 업로드 & 그룹 등록 ----
-          const _p = (payload ?? {}) as any;
+          // ---- 이미지 업로드 & 그룹(폴더) 생성 ----
+          const _p = (payload ?? {}) as Record<string, unknown>;
 
-          // NOTE: 프로젝트별 키 폴백
-          const fileItemsRaw =
-            _p.fileItemsRaw ?? _p.fileItems ?? _p.verticalImages ?? [];
-          const imageFoldersRaw =
-            _p.imageFoldersRaw ??
-            _p.imageFolders ??
-            _p.imageCards ?? // ← imagesByCard는 선호하지 않아 폴백에만 둠
+          // 레거시/신규 키 폴백
+          const fileItemsRaw: unknown[] =
+            (_p["fileItemsRaw"] as unknown[]) ??
+            (_p["fileItems"] as unknown[]) ??
+            (_p["verticalImages"] as unknown[]) ??
             [];
 
+          const imageFoldersRaw: unknown[][] =
+            (_p["imageFoldersRaw"] as unknown[][]) ??
+            (_p["imageFolders"] as unknown[][]) ??
+            (_p["imageCards"] as unknown[][]) ?? // legacy 읽기 전용
+            [];
+
+          // 프론트 상태용 문자열 id
           const serverId = String(pinId);
 
-          const fileGroup = {
-            groupId: `${serverId}:files`,
-            files: (fileItemsRaw as any[])
-              .map((x: any) => x?.file as File)
-              .filter(Boolean) as File[],
-          };
+          // 백엔드 전송용 숫자 id
+          const pinIdNum = Number(pinId);
+          if (!Number.isFinite(pinIdNum)) {
+            throw new Error("유효하지 않은 pinId 입니다(숫자 아님).");
+          }
 
-          const folderGroups = (imageFoldersRaw as any[][]).map(
-            (card, idx) => ({
-              groupId: `${serverId}:folder:${idx}`,
-              files: card
-                .map((i: any) => i?.file as File)
-                .filter(Boolean) as File[],
-            })
-          );
+          // 1) 세로 파일(대기열) 업로드 → URL만 확보
+          const fileUrls =
+            fileItemsRaw.length > 0
+              ? await uploadPhotosAndGetUrls(
+                  fileItemsRaw
+                    .map((x: any) => x?.file as File)
+                    .filter((f: File | undefined): f is File => !!f),
+                  { domain: "map" }
+                )
+              : [];
 
-          const groups = [fileGroup, ...folderGroups].filter(
-            (g) => (g.files?.length ?? 0) > 0
-          );
+          // 2) 각 가로 폴더별 업로드 (URL만 확보)
+          const folderUrlsList: string[][] = [];
+          for (const card of imageFoldersRaw) {
+            const files = (card as unknown[])
+              .map((i: any) => i?.file as File)
+              .filter((f: File | undefined): f is File => !!f);
+            const urls = files.length
+              ? await uploadPhotosAndGetUrls(files, { domain: "map" })
+              : [];
+            folderUrlsList.push(urls);
+          }
 
-          for (let gi = 0; gi < groups.length; gi++) {
-            const g = groups[gi];
-            const metas = await uploadPhotos(g.files, { domain: "map" });
-            const urls = metas.map(metaToUrl);
-            await createGroupPhotos(g.groupId, {
-              urls,
-              sortOrders: urls.map((_, i) => i),
-              isCover: gi === 0 ? true : undefined,
+          // 3) 그룹(폴더) 레코드 생성 — 현재 백엔드는 URL을 받지 않으므로 제목/정렬만 보냄
+          //    (추후 /photos 계열 API 나오면 반환된 group.id로 사진 URL을 연결)
+          let sortBase = 0;
+
+          if (fileUrls.length > 0) {
+            await createPhotoGroup({
+              pinId: pinIdNum, // ✅ number
+              title: "files",
+              sortOrder: sortBase++,
+            });
+          }
+
+          for (let idx = 0; idx < folderUrlsList.length; idx++) {
+            await createPhotoGroup({
+              pinId: pinIdNum, // ✅ number
+              title: `folder-${idx + 1}`,
+              sortOrder: sortBase++,
             });
           }
 
@@ -143,19 +167,19 @@ export default function MapCreateModalHost({
           toastBus?.success?.(
             matchedDraftId != null
               ? "임시핀과 매칭되어 등록되었습니다."
-              : "매물이 등록되고 이미지가 연결되었습니다."
+              : "매물이 등록되고 이미지 그룹이 생성되었습니다."
           );
           onClose?.();
         } catch (e: any) {
           const res = e?.response?.data;
-          const messages = Array.isArray(res?.messages)
-            ? res.messages
+          const messages: string[] | undefined = Array.isArray(res?.messages)
+            ? (res.messages as string[])
             : undefined;
           if (messages?.length) {
             console.log("messages:", messages);
             toastBus?.error?.(messages.join("\n"));
           } else {
-            const msg = e?.message || "매물 등록에 실패했습니다.";
+            const msg: string = e?.message || "매물 등록에 실패했습니다.";
             toastBus?.error?.(msg);
           }
         } finally {

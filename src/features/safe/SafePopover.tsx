@@ -6,7 +6,6 @@ import {
   PopoverContent,
 } from "@/components/atoms/Popover/Popover";
 
-// ✅ 여기가 핵심: safeRefs.ts에서 가져오기
 import {
   useBooleanGuardSetter,
   useStableRefCallback,

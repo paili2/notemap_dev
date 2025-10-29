@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import ImagesSection from "../../sections/ImagesSection/ImagesSection";
+import ImagesSection, {
+  type PhotoFolder,
+} from "../../sections/ImagesSection/ImagesSection";
 import type {
   ImageItem,
   ResolvedFileItem,
@@ -60,12 +62,11 @@ export default function ImagesContainer({
     maxFiles?: number;
   };
 }) {
-  /** 1) 카드 이미지 정규화 (ImagesSection의 ImageItem 요구사항에 맞춤) */
-  const imagesByCard: ImageItem[][] = React.useMemo(
+  /** 1) 카드 이미지 → ImageItem[]로 정규화 */
+  const imageItemsByCard: ImageItem[][] = React.useMemo(
     () =>
       images.imageFolders.map((folder) =>
         folder.map((img) => ({
-          // ImageItem의 최소 필드
           url: img?.url ?? "",
           name: img?.name ?? "",
           caption: img?.caption,
@@ -75,10 +76,21 @@ export default function ImagesContainer({
     [images.imageFolders]
   );
 
-  /** 2) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
+  /** 2) folders prop으로 변환 (id/title은 인덱스 기반으로 안정 생성) */
+  const folders: PhotoFolder[] = React.useMemo(
+    () =>
+      imageItemsByCard.map((items, idx) => ({
+        id: `folder-${idx}`,
+        title: `사진 폴더 ${idx + 1}`,
+        items,
+      })),
+    [imageItemsByCard]
+  );
+
+  /** 3) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
   const verticalSource: Img[] = images.fileItems ?? images.verticalImages ?? [];
 
-  /** 3) 세로 파일 정규화 → ResolvedFileItem[] */
+  /** 4) 세로 파일 정규화 → ResolvedFileItem[] */
   const fileItemsNormalized: ResolvedFileItem[] = React.useMemo(
     () =>
       verticalSource.map((img) => ({
@@ -91,26 +103,32 @@ export default function ImagesContainer({
     [verticalSource]
   );
 
-  /** 4) 제한값 디폴트 */
+  /** 5) 제한값 디폴트 */
   const maxPerCard = images.maxPerCard ?? 20;
   const maxFiles = images.maxFiles ?? 200;
 
-  /** 5) (선택) 타입 안정 래퍼 – 현재는 그대로 전달해도 안전하지만,
-   *    타입 추론을 돕기 위해 래핑함. (루프 방지는 useEditImages 쪽에서 이미 처리)
-   */
+  /** 6) ref 시그니처 통일 래퍼 (그대로 전달) */
   const registerInputRef = images.registerImageInput;
 
   return (
     <ImagesSection
-      imagesByCard={imagesByCard}
+      /** ✅ 새 API: 폴더 구조 전달 */
+      folders={folders}
+      /** 파일 선택창 열기 */
       onOpenPicker={images.openImagePicker}
-      onChangeFiles={images.onPickFilesToFolder} // (folderIdx, e)
-      registerInputRef={registerInputRef} // (idx) 또는 (idx, el)
-      onAddPhotoFolder={images.addPhotoFolder}
-      onRemovePhotoFolder={images.removePhotoFolder}
+      /** ✅ 레거시 시그니처 그대로 연결 (onAddToFolder 없이도 동작) */
+      onChangeFiles={images.onPickFilesToFolder}
+      /** ref 등록 */
+      registerInputRef={registerInputRef}
+      /** 폴더 조작 */
+      onAddFolder={images.addPhotoFolder}
+      onRemoveFolder={images.removePhotoFolder}
+      /** 제한값 */
       maxPerCard={maxPerCard}
+      /** 가로형 카드 내 이미지 편집 콜백 */
       onChangeCaption={images.onChangeImageCaption}
       onRemoveImage={images.handleRemoveImage}
+      /** 세로형(파일 대기열) */
       fileItems={fileItemsNormalized}
       onAddFiles={images.onAddFiles}
       onChangeFileItemCaption={images.onChangeFileItemCaption}

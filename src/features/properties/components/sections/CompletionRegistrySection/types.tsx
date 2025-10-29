@@ -1,4 +1,3 @@
-// CompletionRegistrySection/types.ts
 import type {
   Grade,
   BuildingType,

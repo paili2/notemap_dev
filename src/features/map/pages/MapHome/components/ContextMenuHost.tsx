@@ -9,8 +9,32 @@ import { useScheduledReservations } from "@/features/survey-reservations/hooks/u
 import type { MergedMarker } from "../hooks/useMergedMarkers";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { useMemo, useRef } from "react";
-import { api } from "@/shared/api/api";
-import { assertNoTruncate } from "@/shared/debug/assertCoords";
+
+/* ───────── 로컬 좌표 디버그(외부 의존 제거) ───────── */
+function assertNoTruncate(tag: string, lat: number, lng: number) {
+  const latStr = String(lat);
+  const lngStr = String(lng);
+  const latDec = latStr.split(".")[1]?.length ?? 0;
+  const lngDec = lngStr.split(".")[1]?.length ?? 0;
+  // eslint-disable-next-line no-console
+  console.debug(`[coords-send:${tag}]`, {
+    lat,
+    lng,
+    latStr,
+    lngStr,
+    latDecimals: latDec,
+    lngDecimals: lngDec,
+  });
+  if (process.env.NODE_ENV !== "production") {
+    if (latDec < 6 || lngDec < 6) {
+      // eslint-disable-next-line no-console
+      console.warn(`[coords-low-precision:${tag}] 소수 자릿수 부족`, {
+        latStr,
+        lngStr,
+      });
+    }
+  }
+}
 
 /** 다양한 입력 형태에서 원본 숫자 lat/lng 추출 */
 function normalizeLL(v: any): { lat: number; lng: number } {
@@ -20,10 +44,7 @@ function normalizeLL(v: any): { lat: number; lng: number } {
   return { lat: Number(v?.lat), lng: Number(v?.lng) };
 }
 
-/**
- * 좌표 → 그룹핑/매칭 전용 키 (소수 5자리 ≈ 1.1m)
- * ⚠️ 이 키를 split/Number로 역파싱해 payload 좌표로 쓰지 말 것!
- */
+/** 좌표 → 그룹핑 키(절대 payload에 역사용 금지) */
 function toGroupingPosKey(m: any): string | undefined {
   const lat =
     typeof m?.lat === "number"
@@ -43,25 +64,11 @@ function toGroupingPosKey(m: any): string | undefined {
   return undefined;
 }
 
-/** 디버깅용: 5/6자리 절삭 모양 감지(느슨) */
+/** 느슨한 절삭 감지 */
 function looksRounded56(n: number): boolean {
   if (!Number.isFinite(n)) return false;
   const m = String(n).match(/\.(\d{5,6})$/);
   return !!m;
-}
-
-/** 예약→등록 승격 시, 드래프트의 원본 좌표 재조회 */
-async function fetchDraftLatLng(id: number) {
-  const { data } = await api.get(`/pin-drafts/${id}`, {
-    withCredentials: true,
-    headers: { "x-no-retry": "1" },
-  });
-  const lat = Number(data?.data?.lat);
-  const lng = Number(data?.data?.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    throw new Error("임시핀 좌표 조회 실패");
-  }
-  return { lat, lng };
 }
 
 export default function ContextMenuHost(props: {
@@ -135,7 +142,6 @@ export default function ContextMenuHost(props: {
     onChangeHideLabelForId,
   } = props;
 
-  // ── Hooks ────────────────────────────────────────────────────────────
   const sr = useScheduledReservations();
   const { refetch } = sr;
   const { toast } = useToast();
@@ -145,7 +151,6 @@ export default function ContextMenuHost(props: {
   const optimisticReservedIdsRef = useRef<Set<string>>(new Set());
   const optimisticReservedPosRef = useRef<Set<string>>(new Set());
 
-  // 파생 계산
   const targetPin = menuTargetId
     ? visibleMarkers.find((m) => String(m.id) === String(menuTargetId))
     : undefined;
@@ -178,12 +183,8 @@ export default function ContextMenuHost(props: {
       (reservedPosSet.has(posKeyOfTarget) ||
         optimisticReservedPosRef.current.has(posKeyOfTarget)));
 
-  // ── 가드 ──────────────────────────────────────────────────────────────
-  if (!open || !mapInstance || !kakaoSDK || !menuAnchor) {
-    return null;
-  }
+  if (!open || !mapInstance || !kakaoSDK || !menuAnchor) return null;
 
-  // ── 좌표: 원본 숫자 그대로 사용 ──────────────────────────────────────
   type LatLngRO = Readonly<{ lat: number; lng: number }>;
   const anchorPos: LatLngRO = { lat: menuAnchor.lat, lng: menuAnchor.lng };
   assertNoTruncate("ContextMenuHost:anchorPos", anchorPos.lat, anchorPos.lng);
@@ -229,7 +230,6 @@ export default function ContextMenuHost(props: {
     pin.kind === "question" &&
     String(pin.id) !== "__draft__";
 
-  // ✅ 상세보기 id: __visit__* 는 상세보기 불가 → __draft__로 넘겨 버튼 비활성 유도
   const propertyIdForView =
     menuTargetId && String(menuTargetId).startsWith("__visit__")
       ? "__draft__"
@@ -237,7 +237,6 @@ export default function ContextMenuHost(props: {
       ? String(menuTargetId)
       : "__draft__";
 
-  // ── 예약 로직 ─────────────────────────────────────────────────────────
   const reserveDefault = async (
     args:
       | { visitId: string; dateISO: string }
@@ -251,7 +250,6 @@ export default function ContextMenuHost(props: {
         }
   ) => {
     try {
-      // 1) 기존 임시핀 id 기반
       if ("visitId" in args) {
         const pinDraftId = Number(args.visitId);
         if (!Number.isFinite(pinDraftId))
@@ -275,7 +273,6 @@ export default function ContextMenuHost(props: {
         return;
       }
 
-      // 2) 좌표 기반(새 임시핀 생성 후 예약)
       const { lat, lng, title, roadAddress, jibunAddress, dateISO } = args;
 
       if (looksRounded56(lat) || looksRounded56(lng)) {
@@ -373,7 +370,7 @@ export default function ContextMenuHost(props: {
       }
       kakao={kakaoSDK}
       map={mapInstance}
-      position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)} // ✅ 원본 좌표
+      position={new kakaoSDK.maps.LatLng(menuAnchor.lat, menuAnchor.lng)}
       roadAddress={menuRoadAddr ?? undefined}
       jibunAddress={menuJibunAddr ?? undefined}
       propertyId={propertyIdForView}
@@ -391,53 +388,23 @@ export default function ContextMenuHost(props: {
           onCloseMenu?.();
           return;
         }
-        // 1) 먼저 상세보기 state 올리고
         onViewFromMenu?.(sid);
-        // 2) 메뉴 닫기는 다음 틱(마이크로태스크/프레임)으로 미룸
-        //    - React 배치로 뷰모달 열림이 롤백되는 현상 방지
         Promise.resolve().then(() => onCloseMenu?.());
-        // or: setTimeout(() => onCloseMenu?.(), 0)
-        // or: requestAnimationFrame(() => onCloseMenu?.())
       }}
       onCreate={async () => {
-        // 신규등록: 앵커 원본 / 예약→등록: 드래프트 원본 재조회
-        if (menuTargetId && String(menuTargetId).startsWith("__visit__")) {
-          const draftId = Number(String(menuTargetId).replace("__visit__", ""));
-          try {
-            const { lat, lng } = await fetchDraftLatLng(draftId);
-            if (looksRounded56(lat) || looksRounded56(lng)) {
-              console.warn(
-                "[ContextMenuHost] WARN: fetchDraftLatLng() 결과가 절삭 형태.",
-                { lat, lng }
-              );
-            }
-            assertNoTruncate("ContextMenuHost:onCreate:visit", lat, lng);
-            onCreateFromMenu?.({ lat, lng });
-          } catch {
-            assertNoTruncate(
-              "ContextMenuHost:onCreate:fallback",
-              menuAnchor.lat,
-              menuAnchor.lng
-            );
-            onCreateFromMenu?.({ lat: menuAnchor.lat, lng: menuAnchor.lng });
-          }
-        } else {
-          if (
-            looksRounded56(menuAnchor.lat) ||
-            looksRounded56(menuAnchor.lng)
-          ) {
-            console.warn(
-              "[ContextMenuHost] WARN: menuAnchor 좌표가 절삭 형태. 상위 경로 점검.",
-              menuAnchor
-            );
-          }
-          assertNoTruncate(
-            "ContextMenuHost:onCreate:anchor",
-            menuAnchor.lat,
-            menuAnchor.lng
+        // ✅ 더 이상 /pin-drafts/:id 조회 안 함
+        const basePos = targetPin?.position
+          ? normalizeLL(targetPin.position)
+          : anchorPos;
+
+        if (looksRounded56(basePos.lat) || looksRounded56(basePos.lng)) {
+          console.warn(
+            "[ContextMenuHost] WARN: onCreate 좌표가 절삭 형태. 공급 경로 점검.",
+            basePos
           );
-          onCreateFromMenu?.({ lat: menuAnchor.lat, lng: menuAnchor.lng });
         }
+        assertNoTruncate("ContextMenuHost:onCreate", basePos.lat, basePos.lng);
+        onCreateFromMenu?.({ lat: basePos.lat, lng: basePos.lng });
       }}
       onPlan={() => {
         onPlanFromMenu?.({ lat: menuAnchor.lat, lng: menuAnchor.lng });

@@ -1,30 +1,8 @@
-import { api } from "./api";
-
 /* =========================
  * Types
  * ========================= */
-export type UploadedFileMeta = {
-  url?: string;
-  storageKey?: string;
-  key?: string;
-  fileKey?: string;
-  path?: string;
-  filename?: string;
-  size?: number;
-  mimeType?: string;
-};
 
-/** 서버 실제 응답 형태 */
-type UploadResponseOk = {
-  message?: string;
-  data: {
-    urls: string[]; // S3 접근 가능한 최종 URL 들
-    domain: "map" | "contracts" | "board" | "profile" | "etc";
-    userId: number;
-  };
-};
-
-type PinPhotoId = number | string;
+export type PinPhotoId = number | string;
 
 export type PinPhoto = {
   id: PinPhotoId;
@@ -35,67 +13,102 @@ export type PinPhoto = {
 };
 
 /* =========================
- * Upload
+ * /photo-groups CRUD  (신규 명세)
  * ========================= */
 
-/** 업로드: multipart/form-data로 /photo/upload?domain=map (기본값 map) */
-export async function uploadPhotos(
-  files: File[] | FileList,
-  opts?: { domain?: "map" | "contracts" | "board" | "profile" | "etc" },
-  signal?: AbortSignal
-): Promise<UploadedFileMeta[]> {
-  const fd = new FormData();
-  Array.from(files as File[]).forEach((f) => fd.append("files", f));
+type CreatePhotoGroupReq = {
+  /** 서버가 요구: 반드시 number */
+  pinId: number | string;
+  /** URL-safe 문자열(하이픈 등 OK) */
+  groupId: string;
+  /** 업로드 후 최종 접근 가능한 URL 배열 */
+  urls: string[];
+  /** 각 url의 정렬 순서 */
+  sortOrders?: number[];
+  /** true면 이번 요청에 포함된 전부 대표로 설정 */
+  isCover?: boolean;
+};
 
-  const domain = opts?.domain ?? "map";
+type UpdatePhotoGroupReq = {
+  /** 그룹 표시 이름 등 확장 여지. 현재 정렬만 가정 */
+  sortOrder?: number;
+  /** 대표 그룹 지정 등 확장 여지 */
+  isCover?: boolean;
+};
 
-  // ✅ Content-Type은 지정하지 않음(axios가 boundary 자동 설정)
-  const { data } = await api.post<UploadResponseOk>(
-    `/photo/upload?domain=${encodeURIComponent(domain)}`,
-    fd,
+export async function listPhotoGroupsByPin(
+  pinId: number | string,
+  init?: RequestInit
+): Promise<any[]> {
+  const idNum = Number(pinId);
+  if (!Number.isFinite(idNum))
+    throw new Error("listPhotoGroupsByPin: pinId must be number");
+  const res = await fetch(
+    `/photo-groups/${encodeURIComponent(String(idNum))}`,
     {
-      withCredentials: true, // 세션/쿠키 필요 시
-      signal,
+      method: "GET",
+      credentials: "include",
+      ...init,
     }
   );
-
-  const urls = data?.data?.urls;
-  if (!Array.isArray(urls) || urls.length === 0) {
-    throw new Error(data?.message || "사진 업로드 실패");
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`사진 그룹 조회 실패: ${res.status} ${msg}`);
   }
-
-  // 기존 사용처 호환을 위해 meta 형태로 매핑
-  const metas: UploadedFileMeta[] = urls.map((u) => ({ url: u }));
-  return metas;
+  const data = await res.json().catch(() => ({}));
+  return (data?.data ?? data) as any[];
 }
 
-/* ───────────────────────────────────────────── */
-const PUBLIC_BASE = ""; // 필요시 CDN 주소로 교체
+/** ✅ 새 명세: POST /photo-groups  (pinId + groupId + urls + sortOrders + isCover) */
+export async function createGroupPhotos(
+  body: CreatePhotoGroupReq,
+  init?: RequestInit
+): Promise<PinPhoto[]> {
+  const pinIdNum = Number(body.pinId);
+  if (!Number.isFinite(pinIdNum))
+    throw new Error("createGroupPhotos: pinId must be number");
 
-export function metaToUrl(m: UploadedFileMeta): string {
-  if (m.url) return m.url;
-  const key = m.storageKey ?? m.key ?? m.fileKey ?? m.path;
-  if (!key) throw new Error("업로드 응답에 url/key가 없습니다.");
-  return PUBLIC_BASE
-    ? `${PUBLIC_BASE}/${String(key).replace(/^\/+/, "")}`
-    : String(key);
+  const res = await fetch(`/photo-groups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ ...body, pinId: pinIdNum }),
+    ...init,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`사진 그룹 생성 실패: ${res.status} ${msg}`);
+  }
+  const data = await res.json().catch(() => ({}));
+  return (data?.data ?? data) as PinPhoto[];
 }
 
-/** 업로드 후 URL 배열만 필요하면 이 함수 사용 */
-export async function uploadPhotosAndGetUrls(
-  files: File[] | FileList,
-  opts?: { domain?: "map" | "contracts" | "board" | "profile" | "etc" },
-  signal?: AbortSignal
-): Promise<string[]> {
-  const metas = await uploadPhotos(files, opts, signal);
-  return metas.map(metaToUrl);
+/** PATCH /photo-groups/:groupId (그룹 메타 수정—필요 시 사용) */
+export async function updatePhotoGroup(
+  groupId: string,
+  dto: UpdatePhotoGroupReq,
+  init?: RequestInit
+): Promise<any> {
+  const res = await fetch(`/photo-groups/${encodeURIComponent(groupId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(dto ?? {}),
+    ...init,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(`사진 그룹 수정 실패: ${res.status} ${msg}`);
+  }
+  const data = await res.json().catch(() => ({}));
+  return data?.data ?? data;
 }
 
 /* =========================
- * /photos CRUD
+ * /photos CRUD  (그룹 내 사진 조작: 유지)
  * ========================= */
 
-/* 목록 조회: GET /photos/:groupId */
+/** 목록 조회: GET /photos/:groupId */
 export async function listGroupPhotos(
   groupId: string,
   init?: RequestInit
@@ -113,16 +126,16 @@ export async function listGroupPhotos(
   return (data?.data ?? data) as PinPhoto[];
 }
 
-/* 등록: POST /photos/:groupId */
-type CreateGroupPhotosBody = {
-  urls: string[]; // 업로드 후 받은 URL 배열
-  isCover?: boolean; // 전부 대표 설정 여부(선택)
-  sortOrders?: number[]; // 각 URL의 정렬 순서(선택)
+/** 등록: POST /photos/:groupId  (이전 방식 유지용) */
+type CreatePhotosInGroupBody = {
+  urls: string[];
+  isCover?: boolean;
+  sortOrders?: number[];
 };
 
-export async function createGroupPhotos(
+export async function createPhotosInGroup(
   groupId: string,
-  body: CreateGroupPhotosBody,
+  body: CreatePhotosInGroupBody,
   init?: RequestInit
 ): Promise<PinPhoto[]> {
   const res = await fetch(`/photos/${encodeURIComponent(groupId)}`, {
@@ -140,7 +153,7 @@ export async function createGroupPhotos(
   return (data?.data ?? data) as PinPhoto[];
 }
 
-/* 수정: PATCH /photos (여러 장 동시 수정 가능) */
+/** 수정: PATCH /photos (여러 장 동시 수정 가능, 필요한 필드만 보냄) */
 type UpdatePhotosBody = {
   photoIds: string[]; // 수정 대상 사진 IDs
   isCover?: boolean; // 대표 여부 토글
@@ -167,7 +180,7 @@ export async function updatePhotos(
   return (data?.data ?? data) as PinPhoto[];
 }
 
-/* 삭제: DELETE /photos */
+/** 삭제: DELETE /photos */
 export async function deletePhotos(
   photoIds: string[],
   init?: RequestInit

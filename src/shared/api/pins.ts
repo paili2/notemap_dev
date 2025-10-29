@@ -5,8 +5,33 @@ import {
 import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
 import { buildSearchQuery } from "./utils/query";
-import { assertNoTruncate } from "@/shared/debug/assertCoords";
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
+
+/* ───────────── 로컬 좌표 디버그 유틸(외부 의존 제거) ───────────── */
+function assertNoTruncate(tag: string, lat: number, lng: number) {
+  const latStr = String(lat);
+  const lngStr = String(lng);
+  const latDec = latStr.split(".")[1]?.length ?? 0;
+  const lngDec = lngStr.split(".")[1]?.length ?? 0;
+  // eslint-disable-next-line no-console
+  console.debug(`[coords-send:${tag}]`, {
+    lat,
+    lng,
+    latStr,
+    lngStr,
+    latDecimals: latDec,
+    lngDecimals: lngDec,
+  });
+  if (process.env.NODE_ENV !== "production") {
+    if (latDec < 6 || lngDec < 6) {
+      // eslint-disable-next-line no-console
+      console.warn(`[coords-low-precision:${tag}] 소수 자릿수 부족`, {
+        latStr,
+        lngStr,
+      });
+    }
+  }
+}
 
 /* ───────────── 유틸 ───────────── */
 function makeIdempotencyKey() {
@@ -101,7 +126,6 @@ type CreatePinResponse = {
   success: boolean;
   path: string;
   message?: string;
-  // 서버가 lat/lng를 함께 내려주면 추적에 활용 (optional)
   data: {
     id: string | number;
     matchedDraftId: number | null;
@@ -160,7 +184,6 @@ function sanitizeDirections(
           ? (d as any).direction
           : "";
       const t = String(label ?? "");
-      // 디버깅을 쉽게 하려면 trim을 제거할 수도 있음. (지금은 최소한의 정리만)
       const normalized = t.trim();
       return normalized
         ? ({ direction: normalized } as CreatePinDirectionDto)
@@ -205,8 +228,8 @@ function sanitizeAreaGroups(
       title: title.slice(0, 50),
       exclusiveMinM2: exMin,
       exclusiveMaxM2: exMax,
-      actualMinM2: actMin, // ✅ 항상 number
-      actualMaxM2: actMax, // ✅ 항상 number
+      actualMinM2: actMin,
+      actualMaxM2: actMax,
       sortOrder:
         Number.isFinite(Number(g.sortOrder)) && Number(g.sortOrder) >= 0
           ? Number(g.sortOrder)
@@ -231,11 +254,11 @@ export async function createPin(
   dto: CreatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string; matchedDraftId: number | null }> {
-  // ✅ directions: sanitizeDirections 대신 "그대로 매핑" (중복/제한 없음)
+  // ✅ directions: 원형 보존(필요시 trim 추가 가능)
   const dirs = Array.isArray(dto.directions)
     ? dto.directions.map((d) =>
         typeof d === "string"
-          ? { direction: d } // 디버그를 위해 원형 보존 (필요시 .trim() 추가 가능)
+          ? { direction: d }
           : { direction: String((d as any)?.direction ?? "") }
       )
     : undefined;
@@ -243,7 +266,7 @@ export async function createPin(
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
 
-  // 디버그 로그 (원본 vs 전송 예정)
+  // 디버그 로그
   // eslint-disable-next-line no-console
   console.log("[createPin][A] dto.directions:", dto.directions);
   // eslint-disable-next-line no-console
@@ -252,7 +275,7 @@ export async function createPin(
     Array.isArray(dirs) ? dirs.map((x) => x.direction) : dirs
   );
 
-  // 동일 입력 빠른 연속 호출 흡수 (좌표는 round6로 근사) — 전송에는 사용하지 않음
+  // 동일 입력 빠른 연속 호출 흡수(좌표는 round6 근사) — 전송에는 사용하지 않음
   const preview = {
     lat: round6(dto.lat),
     lng: round6(dto.lng),
@@ -300,8 +323,7 @@ export async function createPin(
     throw new Error("lng가 유효한 숫자가 아닙니다.");
 
   const payload = {
-    // 좌표는 원본 정밀도 그대로 (단, 유효성만 보장)
-    lat: latNum,
+    lat: latNum, // 원본 정밀도 유지
     lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
@@ -321,7 +343,6 @@ export async function createPin(
       ? { pinDraftId: Number(dto.pinDraftId) }
       : {}),
 
-    // completionDate: 값 있을 때만 전송
     ...(typeof dto.completionDate === "string" &&
     dto.completionDate.trim() !== ""
       ? { completionDate: dto.completionDate }
@@ -357,17 +378,14 @@ export async function createPin(
 
     ...(dto.options ? { options: sanitizeOptions(dto.options) } : {}),
 
-    // ✅ directions: [{direction:"…"}[]] 형태로만 전송 (중복/제한 없음)
     ...(dirs ? { directions: dirs } : {}),
-
-    // ✅ areaGroups: sanitize 후 전송
     ...(groups ? { areaGroups: groups } : {}),
   } as const;
 
   // 전송 직전 좌표 추적
   assertNoTruncate("createPin", payload.lat, payload.lng);
 
-  // 단일비행 요청 객체 생성/보관
+  // 단일비행 요청
   const request = api.post<CreatePinResponse>("/pins", payload, {
     withCredentials: true,
     headers: {
@@ -377,7 +395,6 @@ export async function createPin(
     },
     maxRedirects: 0,
     signal,
-    // (선택) 상태코드 직접 분기
     validateStatus: () => true,
   });
   G[KEY_HASH] = h;
@@ -397,7 +414,7 @@ export async function createPin(
       throw e;
     }
 
-    // 서버가 좌표를 내려주면 비교해서 잘렸는지 경고
+    // 서버 좌표가 오면 비교
     const savedLat = (data as any)?.data?.lat;
     const savedLng = (data as any)?.data?.lng;
     if (
@@ -440,7 +457,7 @@ export async function updatePin(
   const has = (k: keyof UpdatePinDto) =>
     Object.prototype.hasOwnProperty.call(dto, k);
 
-  // directions: 전달되었을 때만 전송 (빈배열 허용, null -> 빈배열)
+  // directions: 전달되었을 때만
   let directionsPayload: CreatePinDirectionDto[] | undefined;
   if (has("directions")) {
     if (dto.directions === null) directionsPayload = [];
@@ -448,7 +465,7 @@ export async function updatePin(
       directionsPayload = sanitizeDirections(dto.directions) ?? [];
   }
 
-  // areaGroups: 전달되었을 때만 전송 (빈배열 허용, null -> 빈배열)
+  // areaGroups: 전달되었을 때만
   let areaGroupsPayload: CreatePinAreaGroupDto[] | undefined;
   if (has("areaGroups")) {
     if (Array.isArray(dto.areaGroups)) {
@@ -458,13 +475,13 @@ export async function updatePin(
     }
   }
 
-  // units: 전달되었을 때만 전송 (빈배열 허용, null -> 빈배열)
+  // units: 전달되었을 때만
   let unitsPayload: any[] | undefined;
   if (has("units")) {
     unitsPayload = Array.isArray(dto.units) ? dto.units : [];
   }
 
-  // options: 객체면 sanitize, null이면 null 그대로(삭제)
+  // options: 객체면 sanitize, null이면 삭제
   let optionsPayload: CreatePinOptionsDto | null | undefined;
   if (has("options")) {
     optionsPayload =
@@ -472,7 +489,6 @@ export async function updatePin(
   }
 
   const payload: any = {
-    // ✅ 좌표는 전달된 경우에만, 그리고 유효할 때만 전송 (Number.isFinite)
     ...(has("lat") && isFiniteNum(dto.lat)
       ? { lat: Number(dto.lat as any) }
       : {}),
@@ -499,7 +515,6 @@ export async function updatePin(
       ? { contactSubPhone: (dto.contactSubPhone ?? "").toString() }
       : {}),
 
-    // ✅ PATCH에서 completionDate는 빈값이면 **전송하지 않음**
     ...(has("completionDate")
       ? typeof dto.completionDate === "string" &&
         dto.completionDate.trim() !== ""
@@ -517,7 +532,6 @@ export async function updatePin(
 
     ...(has("totalParkingSlots")
       ? {
-          // 0 허용 / null이면 제거 의미
           totalParkingSlots:
             dto.totalParkingSlots === null
               ? null
@@ -556,7 +570,7 @@ export async function updatePin(
     ...(has("units") ? { units: unitsPayload } : {}),
   };
 
-  // 전송 직전 좌표 추적 (lat/lng가 payload에 있는 경우만, 둘 다 유효할 때만)
+  // 전송 직전 좌표 추적(있을 때만)
   safeAssertNoTruncate("updatePin", payload.lat, payload.lng);
 
   try {
@@ -624,8 +638,7 @@ export async function createPinDraft(
     throw new Error("lng가 유효한 숫자가 아닙니다.");
 
   const payload = {
-    // ⛳ 임시핀도 전송은 원본 좌표 그대로(정밀도 보존)
-    lat: latNum,
+    lat: latNum, // 원본 정밀도 유지
     lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
   };
@@ -651,7 +664,7 @@ export async function createPinDraft(
     throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
   }
 
-  // 서버가 좌표를 내려주면 비교해서 잘렸는지 경고
+  // 서버 좌표가 오면 비교
   const savedLat = (data as any)?.data?.lat;
   const savedLng = (data as any)?.data?.lng;
   if (
