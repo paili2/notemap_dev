@@ -53,7 +53,7 @@ export default function PropertyCreateModalBody({
   const {
     imageFolders,
     fileItems,
-    registerImageInput,
+    registerImageInput: registerImageInputRaw,
     openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
@@ -64,6 +64,18 @@ export default function PropertyCreateModalBody({
     onChangeFileItemCaption,
     handleRemoveFileItem,
   } = usePropertyImages();
+
+  /** ✅ 타입 오버로드 어댑터: (idx) => (el)=>void 또는 (idx, el)=>void 둘 다 지원 */
+  const registerImageInputCompat: {
+    (idx: number): (el: HTMLInputElement | null) => void;
+    (idx: number, el: HTMLInputElement | null): void;
+  } = ((idx: number, el?: HTMLInputElement | null) => {
+    if (arguments.length === 1) {
+      return (nextEl: HTMLInputElement | null) =>
+        registerImageInputRaw(idx, nextEl);
+    }
+    return registerImageInputRaw(idx, el as HTMLInputElement | null);
+  }) as any;
 
   // ✅ 예약/드래프트 스토어 액션 (즉시 반영 핵심)
   const { removeByReservationId, removeByPinDraftId } =
@@ -108,7 +120,6 @@ export default function PropertyCreateModalBody({
     try {
       if (!f.title.trim()) return;
 
-      // 좌표는 반드시 외부에서 고정 주입된 값만 사용
       const latNum = Number(initialLat);
       const lngNum = Number(initialLng);
       if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
@@ -118,21 +129,17 @@ export default function PropertyCreateModalBody({
 
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
-      // KST YYYY-MM-DD로 통일 (서버/기존 코드와 일관)
       const effectiveCompletionDate =
         typeof f.completionDate === "string" && f.completionDate.trim() !== ""
           ? f.completionDate
           : todayYmdKST();
 
-      // ✅ areaGroups: 엄격 변환 후 buildAreaGroups로 생성
       const strictBase = toStrictAreaSet(f.baseAreaSet);
       const strictExtras = (
         Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
       ).map(toStrictAreaSet);
       const areaGroups = buildAreaGroups(strictBase, strictExtras);
 
-      // ✅ buildCreatePayload에도 totalParkingSlots 및 options 전달(프론트 보관용)
-      //    ⛑ base/extra를 엄격 타입으로 변환해서 타입 에러 해결
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -149,8 +156,8 @@ export default function PropertyCreateModalBody({
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
-        baseAreaSet: strictBase, // ← 변환값 사용
-        extraAreaSets: strictExtras, // ← 변환값 사용
+        baseAreaSet: strictBase,
+        extraAreaSets: strictExtras,
         elevator: f.elevator,
         registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
@@ -176,11 +183,9 @@ export default function PropertyCreateModalBody({
         lng: lngNum,
       });
 
-      // ✅ 드래프트/예약 정보 보존
       const reservationId = (f as any).reservationId;
       const explicitPinDraftId = (f as any).pinDraftId;
 
-      // ✅ /pins 옵션 매핑 (선택 라벨 → boolean) + extraOptionsText
       const selected: string[] = Array.isArray(f.options) ? f.options : [];
       const has = (label: string) => selected.includes(label);
       const extraOptionsTextRaw = String(f.optionEtc ?? "").trim();
@@ -197,7 +202,6 @@ export default function PropertyCreateModalBody({
           : {}),
       };
 
-      // ✅ NEW: 향 -> directions 문자열 배열로 매핑
       const directions: string[] = Array.isArray((f as any).aspects)
         ? Array.from(
             new Set(
@@ -208,7 +212,6 @@ export default function PropertyCreateModalBody({
           )
         : [];
 
-      // ✅ /pins DTO로 매핑
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
@@ -216,7 +219,7 @@ export default function PropertyCreateModalBody({
         name: f.title ?? "임시 매물",
         contactMainLabel: (f.officeName ?? "").trim() || "대표",
         contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
-        completionDate: effectiveCompletionDate, // YYYY-MM-DD
+        completionDate: effectiveCompletionDate,
         buildingType: (f as any).buildingType ?? null,
         totalHouseholds: toNum(f.totalHouseholds) ?? null,
         registrationTypeId: toNum((f as any).registrationTypeId) ?? null,
@@ -227,25 +230,17 @@ export default function PropertyCreateModalBody({
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
-
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         options: pinOptions,
         directions,
-
-        // 🔥 areaGroups는 length 체크 후 확실히 포함
         ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
-
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
           : {}),
       } as any;
 
-      // ✅ 핀 생성 (/pins)
-      const { id: pinId, matchedDraftId /*, lat, lng*/ } = await createPin(
-        pinDto
-      );
+      const { id: pinId, matchedDraftId } = await createPin(pinDto);
 
-      // ✅ 예약 정리(서버) + 스토어 즉시 반영(로컬)
       const pinDraftId = explicitPinDraftId ?? matchedDraftId;
 
       try {
@@ -276,12 +271,10 @@ export default function PropertyCreateModalBody({
         }
       }
 
-      // 🔥 드래프트 제거 즉시 반영
       if (pinDraftId != null) {
         removeByPinDraftId?.(String(pinDraftId));
       }
 
-      // ✅ 부모에 결과 전달
       await Promise.resolve(
         onSubmit?.({
           pinId: String(pinId),
@@ -326,12 +319,13 @@ export default function PropertyCreateModalBody({
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
         <HeaderContainer form={f} onClose={onClose} />
 
-        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min_h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer
             images={{
               imageFolders,
               fileItems,
-              registerImageInput,
+              /** ⬇️ 기대 타입과 일치하도록 오버로드 어댑터 전달 */
+              registerImageInput: registerImageInputCompat,
               openImagePicker,
               onPickFilesToFolder,
               addPhotoFolder,
@@ -355,7 +349,6 @@ export default function PropertyCreateModalBody({
               REGISTRY_LIST={REGISTRY_LIST}
             />
             <AspectsContainer form={f} />
-            {/* ⛑ AreaSetsContainer에 엄격 타입으로 어댑팅해서 전달 */}
             <AreaSetsContainer
               form={{
                 baseAreaSet: toStrictAreaSet(f.baseAreaSet),
