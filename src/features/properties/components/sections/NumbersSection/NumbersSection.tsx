@@ -3,12 +3,16 @@
 import NumberField from "./NumberField";
 
 type NumbersSectionProps = {
+  /** 총 개동(동 수) */
   totalBuildings: string;
   setTotalBuildings: (v: string) => void;
+  /** 총 층수 */
   totalFloors: string;
   setTotalFloors: (v: string) => void;
+  /** 총 세대수(단지 전체) */
   totalHouseholds: string;
   setTotalHouseholds: (v: string) => void;
+  /** 잔여 세대(분양/임대 잔여) */
   remainingHouseholds: string;
   setRemainingHouseholds: (v: string) => void;
 };
@@ -24,7 +28,7 @@ export default function NumbersSection({
   setRemainingHouseholds,
 }: NumbersSectionProps) {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <NumberField
         label="총 개동"
         value={totalBuildings}

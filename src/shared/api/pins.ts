@@ -81,7 +81,15 @@ export type CreatePinDto = {
 
   completionDate?: string | null;
   buildingType?: string | null;
+
+  /** 단지/주택 수 */
   totalHouseholds?: number | string | null;
+  /** ✅ 총 개동(동 수) */
+  totalBuildings?: number | string | null;
+  /** ✅ 총 층수 */
+  totalFloors?: number | string | null;
+  /** ✅ 잔여 세대 */
+  remainingHouseholds?: number | string | null;
 
   /** ✅ 총 주차대수 (0 허용) */
   totalParkingSlots?: number | string | null;
@@ -106,6 +114,9 @@ export type CreatePinDto = {
 
   /** ✅ 면적 그룹 */
   areaGroups?: CreatePinAreaGroupDto[];
+
+  /** ✅ 최저 실입(정수 금액, 서버: number|null) */
+  minRealMoveInCost?: number | string | null;
 };
 
 export type UpdatePinDto = Partial<CreatePinDto> & {
@@ -271,7 +282,7 @@ export async function createPin(
   console.log("[createPin][A] dto.directions:", dto.directions);
   // eslint-disable-next-line no-console
   console.log(
-    "[createPin][B] payload.directions:",
+    "[createPin][B] payload.directions:]",
     Array.isArray(dirs) ? dirs.map((x) => x.direction) : dirs
   );
 
@@ -310,6 +321,7 @@ export async function createPin(
       : undefined,
     directionsLen: Array.isArray(dto.directions) ? dto.directions.length : 0,
     areaGroupsLen: Array.isArray(groups) ? groups.length : 0,
+    // 미리보기엔 굳이 단지 숫자 3종/최저실입은 안 넣어도 됨
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -353,6 +365,17 @@ export async function createPin(
       ? { totalHouseholds: Number(dto.totalHouseholds) }
       : {}),
 
+    /** ✅ 추가: 단지 숫자 3종 */
+    ...(dto.totalBuildings != null
+      ? { totalBuildings: Number(dto.totalBuildings) }
+      : {}),
+    ...(dto.totalFloors != null
+      ? { totalFloors: Number(dto.totalFloors) }
+      : {}),
+    ...(dto.remainingHouseholds != null
+      ? { remainingHouseholds: Number(dto.remainingHouseholds) }
+      : {}),
+
     // ✅ 0도 전송되도록 null/undefined만 제외
     ...(dto.totalParkingSlots !== null && dto.totalParkingSlots !== undefined
       ? { totalParkingSlots: Number(dto.totalParkingSlots) }
@@ -380,6 +403,16 @@ export async function createPin(
 
     ...(dirs ? { directions: dirs } : {}),
     ...(groups ? { areaGroups: groups } : {}),
+
+    /** ✅ 최저 실입(정수 금액) */
+    ...(Object.prototype.hasOwnProperty.call(dto, "minRealMoveInCost")
+      ? {
+          minRealMoveInCost:
+            dto.minRealMoveInCost === null
+              ? null
+              : Number(dto.minRealMoveInCost),
+        }
+      : {}),
   } as const;
 
   // 전송 직전 좌표 추적
@@ -530,6 +563,27 @@ export async function updatePin(
         }
       : {}),
 
+    /** ✅ 추가: 단지 숫자 3종 */
+    ...(has("totalBuildings")
+      ? {
+          totalBuildings:
+            dto.totalBuildings == null ? null : Number(dto.totalBuildings),
+        }
+      : {}),
+    ...(has("totalFloors")
+      ? {
+          totalFloors: dto.totalFloors == null ? null : Number(dto.totalFloors),
+        }
+      : {}),
+    ...(has("remainingHouseholds")
+      ? {
+          remainingHouseholds:
+            dto.remainingHouseholds == null
+              ? null
+              : Number(dto.remainingHouseholds),
+        }
+      : {}),
+
     ...(has("totalParkingSlots")
       ? {
           totalParkingSlots:
@@ -568,6 +622,16 @@ export async function updatePin(
     ...(has("directions") ? { directions: directionsPayload } : {}),
     ...(has("areaGroups") ? { areaGroups: areaGroupsPayload } : {}),
     ...(has("units") ? { units: unitsPayload } : {}),
+
+    /** ✅ 최저 실입(정수 금액) PATCH 지원 */
+    ...(has("minRealMoveInCost")
+      ? {
+          minRealMoveInCost:
+            dto.minRealMoveInCost == null
+              ? null
+              : Number(dto.minRealMoveInCost),
+        }
+      : {}),
   };
 
   // 전송 직전 좌표 추적(있을 때만)

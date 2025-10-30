@@ -1,3 +1,4 @@
+// src/features/map/lib/createMarker.ts (또는 기존 경로 그대로)
 import { PIN_MARKER, LABEL, HITBOX, Z } from "@/features/map/lib/constants";
 import { getPinUrl } from "@/features/pins/lib/assets";
 import type { PinKind } from "@/features/pins/types";
@@ -6,24 +7,28 @@ import {
   applyLabelStyles,
   applyOrderBadgeToLabel,
 } from "./style";
+import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 
-export function createMarker(
-  kakao: any,
-  pos: any,
-  opts: {
-    isDraft: boolean;
-    key: string;
-    kind: PinKind;
-    title?: string | null;
-  }
-) {
+type CreateMarkerOpts = {
+  isDraft: boolean;
+  key: string;
+  kind: PinKind; // 기존 파라미터 유지
+  title?: string | null;
+  badge?: string | null; // ✅ 서버에서 온 배지(예: "R3", "R4_TERRACE")
+};
+
+export function createMarker(kakao: any, pos: any, opts: CreateMarkerOpts) {
   const mkOptions: any = {
     position: pos,
     title: opts.title ?? opts.key,
     zIndex: opts.isDraft ? Z.DRAFT_PIN : 0,
   };
 
-  const iconUrl = getPinUrl(opts.kind);
+  // ✅ badge → PinKind 매핑(있으면 우선 사용)
+  const mappedKind = mapBadgeToPinKind(opts.badge);
+  const effectiveKind: PinKind = (mappedKind ?? opts.kind) as PinKind;
+
+  const iconUrl = getPinUrl(effectiveKind);
   if (iconUrl && typeof iconUrl === "string") {
     const markerSize = new kakao.maps.Size(
       PIN_MARKER.size.w,
@@ -46,7 +51,6 @@ export function createMarker(
  * @param labelGapPx 라벨-핀 간격(px)
  * @param order 0-based 예약 순번(라벨 배지로 1-based로 표기). number가 아닐 경우 배지 미표시
  */
-
 export function createLabelOverlay(
   kakao: any,
   pos: any,
@@ -74,7 +78,7 @@ export function createLabelOverlay(
       ) as HTMLSpanElement | null;
       if (!titleEl) return;
       const now = titleEl.textContent ?? "";
-      if (now !== want) titleEl.textContent = want; // ✨ 전체 비우지 않음
+      if (now !== want) titleEl.textContent = want;
     });
     mo.observe(labelEl, { characterData: true, subtree: true });
   } catch {}

@@ -42,23 +42,25 @@ function formatPriceMan(v: string | number | null | undefined): string {
 
 interface CompletionRegistryViewProps {
   completionDate?: string | Date | null;
-  salePrice?: string | number | null;
   registry?: Registry;
   slopeGrade?: Grade;
   structureGrade?: Grade;
+  /** ✅ 최저 실입 (정수, 만원 단위) */
+  minRealMoveInCost?: number | null;
 }
 
 export default function CompletionRegistryView({
   completionDate,
-  salePrice,
   registry,
   slopeGrade,
   structureGrade,
+  minRealMoveInCost,
 }: CompletionRegistryViewProps) {
   const ymd = toYmd(completionDate);
 
   return (
     <div className="space-y-4">
+      {/* 경사도 / 구조 */}
       <div className="grid grid-cols-2 items-center">
         <Field label="경사도" align="center">
           <Pill text={slopeGrade ?? "-"} />
@@ -68,6 +70,7 @@ export default function CompletionRegistryView({
         </Field>
       </div>
 
+      {/* 준공일 / 등기 */}
       <div className="grid grid-cols-2 items-center">
         <Field label="준공일" align="center">
           <div className="h-9 flex items-center text-sm">{ymd ?? "-"}</div>
@@ -77,10 +80,11 @@ export default function CompletionRegistryView({
         </Field>
       </div>
 
-      <Field label="최저실입" align="center">
+      {/* ✅ 최저 실입만 표시 */}
+      <Field label="최저 실입" align="center">
         <div className="flex items-center gap-3">
-          <div className="h-9 flex items-center text-sm">
-            {formatPriceMan(salePrice)}
+          <div className="h-9 flex items-center text-sm font-medium">
+            {formatPriceMan(minRealMoveInCost)}
           </div>
           <span className="text-sm text-gray-500">만원</span>
         </div>

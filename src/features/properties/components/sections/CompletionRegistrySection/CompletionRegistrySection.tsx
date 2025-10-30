@@ -3,7 +3,7 @@
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import PillRadioGroup from "@/components/atoms/PillRadioGroup";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type {
   Grade,
@@ -11,7 +11,7 @@ import type {
 } from "@/features/properties/types/property-domain";
 import type { CompletionRegistrySectionProps } from "./types";
 
-/* ───────── 상수/타입 ───────── */
+/** ───────── 상수/타입 ───────── */
 const GRADES = ["상", "중", "하"] as const;
 
 // UI 라벨(버튼) 고정 튜플
@@ -22,8 +22,7 @@ type UIBuildingType = (typeof UI_BUILDING_TYPES)[number];
 const mapLabelToBackend = (v?: UIBuildingType | null): BuildingType | null => {
   if (!v) return null;
   if (v === "근/생") return "근생";
-  if (v === "도/생") return "도/생" as any; // 프로젝트에 "도/생"을 enum으로 허용한 경우
-  // "주택" | "APT" | "OP" 그대로 사용
+  if (v === "도/생") return "도/생" as any;
   return v as unknown as BuildingType;
 };
 const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
@@ -34,7 +33,7 @@ const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
   return undefined;
 };
 
-/* ───────── 유틸 ───────── */
+/** ───────── 유틸 ───────── */
 const toYmd = (s?: string | null) =>
   typeof s === "string" && s.length >= 10 ? s.slice(0, 10) : (s ?? "") || "";
 
@@ -49,19 +48,30 @@ const finalizeYmd = (raw: string) => {
   return raw;
 };
 
+// 숫자 문자열 정규화
+const onlyDigits = (s: string) => s.replace(/[^\d]/g, "");
+
 export default function CompletionRegistrySection({
   completionDate,
   setCompletionDate,
+  // (레거시) salePrice: 과거에 최저실입으로 쓰던 필드
   salePrice,
   setSalePrice,
+  // (신규) 최저 실입 정수 금액
+  minRealMoveInCost,
+  setMinRealMoveInCost,
   slopeGrade,
   setSlopeGrade,
   structureGrade,
   setStructureGrade,
   buildingType,
   setBuildingType,
-}: CompletionRegistrySectionProps) {
-  // 준공일 로컬 상태(타이핑 쾌적성)
+}: CompletionRegistrySectionProps & {
+  /** ✅ 신규 필드(선택): 최저 실입 정수 금액 */
+  minRealMoveInCost?: number | string | null;
+  setMinRealMoveInCost?: (v: number | string | null) => void;
+}) {
+  /** 준공일 로컬 상태(타이핑 쾌적성) */
   const [localDate, setLocalDate] = useState<string>(toYmd(completionDate));
   useEffect(() => setLocalDate(toYmd(completionDate)), [completionDate]);
 
@@ -71,8 +81,28 @@ export default function CompletionRegistrySection({
     setLocalDate(toYmd(v));
   }, [localDate, setCompletionDate]);
 
-  // UI 라벨로 변환
+  /** UI 라벨로 변환 */
   const uiBuildingType = mapBackendToLabel(buildingType as any);
+
+  /** ✅ 최저실입: 신규(minRealMoveInCost) 우선, 없으면 레거시(salePrice) 사용 */
+  const priceValue = useMemo(() => {
+    const v = minRealMoveInCost ?? salePrice ?? "";
+    return String(v ?? "");
+  }, [minRealMoveInCost, salePrice]);
+
+  const onChangePrice = useCallback(
+    (raw: string) => {
+      const digits = onlyDigits(raw);
+      if (typeof setMinRealMoveInCost === "function") {
+        // 신규 상태가 있으면 여기에 반영
+        setMinRealMoveInCost(digits === "" ? null : digits);
+      } else if (typeof setSalePrice === "function") {
+        // 레거시 유지
+        setSalePrice(digits);
+      }
+    },
+    [setMinRealMoveInCost, setSalePrice]
+  );
 
   return (
     <div className="space-y-4">
@@ -134,14 +164,14 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
-      {/* 3행: 최저실입 */}
+      {/* 3행: 최저실입(만원) → 신규 필드 우선, 레거시와 호환 */}
       <Field label="최저실입" align="center">
         <div className="flex items-center gap-3">
           <Input
             type="text"
             inputMode="numeric"
-            value={String(salePrice ?? "")}
-            onChange={(e) => setSalePrice(e.target.value.replace(/[^\d]/g, ""))}
+            value={priceValue}
+            onChange={(e) => onChangePrice(e.target.value)}
             placeholder="예: 5000"
             className="h-9 w-40"
             aria-label="최저실입(만원)"

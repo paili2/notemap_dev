@@ -27,22 +27,32 @@ type Args = {
   title: string;
   address: string;
   officePhone: string;
+  /** UI에서 선택하는 주차유형 라벨(선택값 허용) */
   parkingType: string | null;
   completionDate: string;
+
+  /** ⚠️ UI에서는 최저실입 입력 필드(문자열).
+   *   DTO 전송 시엔 minRealMoveInCost(정수/null)로 매핑됨.
+   *   저장 필수값 아님 → here: 필수 검사에서 제외
+   */
   salePrice: string;
+
   // 숫자
   totalBuildings: string;
   totalFloors: string;
   totalHouseholds: string;
   remainingHouseholds: string;
+
   // 옵션
   options: string[];
   etcChecked: boolean;
   optionEtc: string;
+
   // 기타
   unitLinesLen: number;
   listingStars: number;
   aspects: AspectRowLite[];
+
   // 느슨한 타입 사용
   baseAreaSet: LooseAreaSet;
   extraAreaSets: LooseAreaSet[];
@@ -58,9 +68,9 @@ export function useCreateValidation({
   title,
   address,
   officePhone,
-  parkingType,
+  parkingType, // 선택값 허용 → 필수 검사에서 제외
   completionDate,
-  salePrice,
+  salePrice, // 최저실입 → 필수 검사에서 제외
   totalBuildings,
   totalFloors,
   totalHouseholds,
@@ -146,19 +156,20 @@ export function useCreateValidation({
 
   /* 최종 저장 가능 여부 */
   const isSaveEnabled = useMemo(() => {
+    // 🔹 숫자 4종 모두 필수로 유지(기존 정책 유지)
     const numbersOk =
       filled(totalBuildings) &&
       filled(totalFloors) &&
       filled(totalHouseholds) &&
       filled(remainingHouseholds);
 
+    // 🔹 주차유형(parkingType), 최저실입(salePrice)은 필수 아님
     const basicOk =
       filled(title) &&
       filled(address) &&
       filled(officePhone) &&
-      filled(parkingType ?? "") &&
       filled(completionDate) &&
-      filled(salePrice) &&
+      // 면적 한 종류 이상은 입력(전용/공급 범위 혹은 units)
       (hasExclusiveAny || hasRealAny || hasUnitsAny);
 
     return (
@@ -173,9 +184,8 @@ export function useCreateValidation({
     title,
     address,
     officePhone,
-    parkingType,
     completionDate,
-    salePrice,
+    // 제외: parkingType, salePrice
     hasExclusiveAny,
     hasRealAny,
     hasUnitsAny,

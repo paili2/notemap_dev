@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { useHeaderFields } from "./slices/useHeaderFields";
 import { useBasicInfo } from "./slices/useBasicInfo";
-import { useNumbers } from "./slices/useNumbers";
+import { useNumbers } from "./slices/useNumbers"; // ⬅ 총개동/총층수/총세대/잔여세대 상태 포함
 import { useParking } from "./slices/useParking";
 import { useGrades } from "./slices/useGrades";
 import { useAspects } from "./slices/useAspects";
@@ -11,21 +11,25 @@ import { useAreaSets } from "./slices/useAreaSets";
 import { useUnitLines } from "./slices/useUnitLines";
 import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
+
+// NOTE: 프로젝트마다 경로가 다를 수 있음.
+// properties 쪽 dtoUtils에 sanitizeAreaGroups가 있다면 그쪽으로 경로를 맞추는 걸 권장.
 import { sanitizeAreaGroups } from "@/features/map/components/MapCreateModalHost/dtoUtils";
 
 type Args = { initialAddress?: string };
 
 /**
- * 폼을 슬라이스별 상태/액션으로 구성해서 한 번에 노출해 주는 훅.
- * - 각 슬라이스의 state와 actions를 납작하게 merge
- * - 저장 가능 여부(isSaveEnabled)만 별도로 계산해 노출
- * - 🔥 면적 데이터는 base+extras를 합쳐 areaSetsCombined, 그리고 areaGroups(정규화 완료)까지 제공
+ * useCreateForm
+ * - 각 슬라이스 state/actions를 납작하게 병합하여 한 번에 노출
+ * - 저장 가능 여부 isSaveEnabled 도 반환
+ * - 면적 base+extras 합친 areaSetsCombined, 정규화된 areaGroups, on-demand 계산기 getAreaGroups 제공
+ * - ✅ Numbers 슬라이스(총개동/총층수/총세대/잔여세대)를 포함하므로 새 필드들이 payload에 실릴 준비 완료
  */
 export function useCreateForm({ initialAddress }: Args) {
-  // 1) 슬라이스 호출
+  // 1) 슬라이스 합류
   const header = useHeaderFields();
   const basic = useBasicInfo({ initialAddress });
-  const nums = useNumbers();
+  const nums = useNumbers(); // ⬅ totalBuildings / totalFloors / totalHouseholds / remainingHouseholds
   const parking = useParking(); // parkingType, totalParkingSlots, parkingTypeId, registrationTypeId
   const grades = useGrades();
   const aspects = useAspects();
@@ -33,12 +37,12 @@ export function useCreateForm({ initialAddress }: Args) {
   const units = useUnitLines();
   const opts = useOptionsMemos();
 
-  // 2) 유효성 계산 (슬라이스 state만 합쳐 전달)
+  // 2) 유효성: 슬라이스 state만 합쳐서 전달
   const { isSaveEnabled } = useCreateValidation({
     ...header.state,
     ...basic.state,
-    ...nums.state,
-    ...parking.state, // ← 여기엔 totalParkingSlots가 포함됨
+    ...nums.state, // ⬅ 새 숫자 필드들 포함
+    ...parking.state, // totalParkingSlots 포함
     ...grades.state,
     ...aspects.state,
     ...areas.state,
@@ -46,7 +50,7 @@ export function useCreateForm({ initialAddress }: Args) {
     ...opts.state,
   });
 
-  // 3) areaSets 파생값: base + extra를 합친 통합 배열
+  // 3) areaSets 파생값: base + extra 통합
   const areaSetsCombined = useMemo(() => {
     const base = (areas.state as any)?.baseAreaSet;
     const extras = (areas.state as any)?.extraAreaSets;
@@ -56,22 +60,25 @@ export function useCreateForm({ initialAddress }: Args) {
     return list;
   }, [areas.state]);
 
-  // 4) areaGroups (DTO용 최종 형태) 메모 + on-demand 계산기
+  // 4) areaGroups (DTO 최종형) + on-demand 계산기
   const areaGroups = useMemo(
     () => sanitizeAreaGroups(areaSetsCombined),
     [areaSetsCombined]
   );
-  const getAreaGroups = () => sanitizeAreaGroups(areaSetsCombined);
+  const getAreaGroups = useCallback(
+    () => sanitizeAreaGroups(areaSetsCombined),
+    [areaSetsCombined]
+  );
 
-  // 5) state + actions 합쳐서 안정적 참조로 반환
+  // 5) 병합 반환
   return useMemo(() => {
     const noop = (() => {}) as any;
 
-    // buildingType은 보통 Basic 슬라이스에서 관리한다고 가정
+    // buildingType은 Basic 슬라이스에서 보통 관리
     const buildingType = (basic.state as any).buildingType ?? null;
     const setBuildingType = (basic.actions as any).setBuildingType ?? noop;
 
-    // registrationTypeId / parkingTypeId 는 Parking 슬라이스에서 관리
+    // registrationTypeId / parkingTypeId는 Parking 슬라이스에서 관리
     const registrationTypeId =
       (parking.state as any).registrationTypeId ?? null;
     const setRegistrationTypeId =
@@ -81,10 +88,10 @@ export function useCreateForm({ initialAddress }: Args) {
     const setParkingTypeId = (parking.actions as any).setParkingTypeId ?? noop;
 
     return {
-      // actions 먼저 펼치기
+      // actions
       ...header.actions,
       ...basic.actions,
-      ...nums.actions,
+      ...nums.actions, // ⬅ 총개동/총층수/총세대/잔여세대 setter 노출
       ...parking.actions,
       ...grades.actions,
       ...aspects.actions,
@@ -92,18 +99,18 @@ export function useCreateForm({ initialAddress }: Args) {
       ...units.actions,
       ...opts.actions,
 
-      // state도 함께 노출
+      // state
       ...header.state,
       ...basic.state,
-      ...nums.state,
-      ...parking.state, // parkingType / totalParkingSlots / registrationTypeId / parkingTypeId
+      ...nums.state, // ⬅ 총개동/총층수/총세대/잔여세대 값 노출
+      ...parking.state,
       ...grades.state,
       ...aspects.state,
       ...areas.state,
       ...units.state,
       ...opts.state,
 
-      // ✅ 브릿지 노출(없는 프로젝트에서도 타입 보장)
+      // 브릿지 노출(타 프로젝트 호환 대비)
       buildingType,
       setBuildingType,
       registrationTypeId,
@@ -111,10 +118,10 @@ export function useCreateForm({ initialAddress }: Args) {
       parkingTypeId,
       setParkingTypeId,
 
-      // ✅ 면적 파생값
-      areaSetsCombined, // base+extra 합친 UI용 원천 데이터
-      areaGroups, // DTO 최종형(정규화 완료) – 바로 /pins payload에 붙여 쓰기
-      getAreaGroups, // 필요 시 즉시 계산용 함수
+      // 면적 파생값
+      areaSetsCombined,
+      areaGroups,
+      getAreaGroups,
 
       // 유효성
       isSaveEnabled,

@@ -46,14 +46,15 @@ function toViewPatchFromEdit(
     ...(p as any),
     publicMemo: toUndef(anyP.publicMemo),
     secretMemo: toUndef(anyP.secretMemo),
-    salePrice: toUndef(anyP.salePrice),
     completionDate: toUndef(anyP.completionDate),
     parkingType: toUndef(anyP.parkingType),
+    // 신규 필드도 넘어오면 반영(무시해도 무관하지만 안전망)
+    minRealMoveInCost: toUndef(anyP.minRealMoveInCost),
   };
 }
 
 /**
- * ❗ 훅을 항상 같은 순서로 호출하기 위해 data가 없을 때도
+ * 훅을 항상 같은 순서로 호출하기 위해 data가 없을 때도
  * 안전한 더미 객체를 만들어 넣습니다.
  */
 const EMPTY_VIEW: PropertyViewDetails = {} as unknown as PropertyViewDetails;
@@ -62,7 +63,7 @@ export default function PropertyViewModal({
   open,
   onClose,
   data,
-  onSave, // 저장 콜백(뷰 관점 패치)
+  onSave,
   onDelete,
 }: {
   open: boolean;
@@ -143,11 +144,7 @@ export default function PropertyViewModal({
   const headingId = "property-view-modal-heading";
   const descId = "property-view-modal-desc";
 
-  /**
-   * ✅ 훅은 항상 호출
-   * - data가 없을 때는 EMPTY_VIEW를 전달하여 훅 호출 순서를 보장
-   * - 실제 화면 렌더는 hasData로 가드
-   */
+  /** 훅은 항상 호출 (빈 더미를 넣어 순서 보장) */
   const formInput = useMemo(
     () => ({ open, data: (data ?? EMPTY_VIEW) as PropertyViewDetails }),
     [open, data]
@@ -235,14 +232,19 @@ export default function PropertyViewModal({
                   />
                   <ParkingViewContainer
                     parkingType={f.parkingType}
-                    totalParkingSlots={f.totalParkingSlots}
+                    totalParkingSlots={
+                      (f as any).totalParkingSlots ??
+                      (data as any)?.totalParkingSlots ??
+                      (data as any)?.parkingCount ??
+                      undefined
+                    }
                   />
                   <CompletionRegistryViewContainer
                     completionDate={f.completionDateText}
-                    salePrice={f.salePrice}
                     registry={f.registry}
                     slopeGrade={f.slopeGrade}
                     structureGrade={f.structureGrade}
+                    minRealMoveInCost={(f as any).minRealMoveInCost}
                   />
                   {/* 방위/면적은 서버 값 → 어댑터 → useViewForm → 여기로 */}
                   <AspectsViewContainer details={data!} />
@@ -322,7 +324,7 @@ export default function PropertyViewModal({
               </div>
             </>
           ) : (
-            // 🔹 데이터 없을 때 로딩 화면
+            // 데이터 없을 때 로딩 화면
             <>
               <div className="sticky top-0 z-10 bg-white border-b">
                 <div className="flex items-center justify-between px-4 py-3">

@@ -34,7 +34,7 @@ export type CreatePayload = {
   directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
-  salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
+  // salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
   parkingType?: string; // 예: "자주식", "답사지 확인"
   /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;

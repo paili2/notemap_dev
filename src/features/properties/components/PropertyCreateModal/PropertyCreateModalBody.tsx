@@ -1,3 +1,4 @@
+// src/features/properties/create/PropertyCreateModalBody.tsx
 "use client";
 
 import { useRef, useState, useCallback } from "react";
@@ -14,10 +15,6 @@ import { usePropertyImages } from "./hooks/usePropertyImages";
 import { buildCreatePayload } from "./lib/buildCreatePayload";
 import { useCreateForm } from "./hooks/useCreateForm/useCreateForm";
 
-// ⛔️ REGISTRY_LIST import 제거
-// import { REGISTRY_LIST } from "@/features/properties/types/property-domain";
-
-// UI 컨테이너
 import HeaderContainer from "./ui/HeaderContainer";
 import ImagesContainer from "./ui/ImagesContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
@@ -31,15 +28,11 @@ import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import { mapPinKindToBadge } from "../../lib/badge";
 
-// ✅ /pins 호출 유틸과 api 클라이언트 임포트
 import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
-// ⛳️ areaGroups는 buildAreaGroups로 생성 (sanitizeAreaGroups 사용 X)
 import { buildAreaGroups } from "@/features/properties/lib/area";
-
-// 🔐 AreaSetsSection이 기대하는 엄격 타입
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
@@ -67,7 +60,6 @@ export default function PropertyCreateModalBody({
     handleRemoveFileItem,
   } = usePropertyImages();
 
-  /** ✅ 타입 오버로드 어댑터: (idx) => (el)=>void 또는 (idx, el)=>void 둘 다 지원 */
   const registerImageInputCompat: {
     (idx: number): (el: HTMLInputElement | null) => void;
     (idx: number, el: HTMLInputElement | null): void;
@@ -79,7 +71,6 @@ export default function PropertyCreateModalBody({
     return registerImageInputRaw(idx, el as HTMLInputElement | null);
   }) as any;
 
-  // ✅ 예약/드래프트 스토어 액션 (즉시 반영 핵심)
   const { removeByReservationId, removeByPinDraftId } =
     useScheduledReservations();
 
@@ -101,7 +92,6 @@ export default function PropertyCreateModalBody({
     return Number.isFinite(n) ? n : undefined;
   };
 
-  // ⛑ 느슨한 AreaSet -> 엄격한 AreaSet 변환 (undefined를 빈 문자열로 보정)
   const toStrictAreaSet = (s: any): StrictAreaSet => ({
     title: String(s?.title ?? ""),
     exMinM2: String(s?.exMinM2 ?? ""),
@@ -142,6 +132,7 @@ export default function PropertyCreateModalBody({
       ).map(toStrictAreaSet);
       const areaGroups = buildAreaGroups(strictBase, strictExtras);
 
+      // (참고) payload는 내부 상태/뷰 갱신용으로 유지
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -157,12 +148,10 @@ export default function PropertyCreateModalBody({
         parkingType: f.parkingType,
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
-        salePrice: f.salePrice,
+        salePrice: f.salePrice, // 내부 상태용(필요 시 유지)
         baseAreaSet: strictBase,
         extraAreaSets: strictExtras,
         elevator: f.elevator,
-        // ⛔️ 등기 제거
-        // registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
         totalBuildings: f.totalBuildings,
@@ -220,11 +209,23 @@ export default function PropertyCreateModalBody({
         lng: lngNum,
         addressLine: f.address ?? "",
         name: f.title ?? "임시 매물",
-        contactMainLabel: (f.officeName ?? "").trim() || "대표",
+
+        // ✅ 연락처: 라벨 없이 폰만 전송
         contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
+        contactSubPhone:
+          (f.officePhone2 ?? "").trim() !== ""
+            ? (f.officePhone2 ?? "").trim()
+            : undefined,
+
         completionDate: effectiveCompletionDate,
         buildingType: (f as any).buildingType ?? null,
+
+        // ✅ 숫자 전송 (빈문자 제외, 0 허용)
         totalHouseholds: toNum(f.totalHouseholds) ?? null,
+        totalBuildings: toNum(f.totalBuildings) ?? null,
+        totalFloors: toNum(f.totalFloors) ?? null,
+        remainingHouseholds: toNum(f.remainingHouseholds) ?? null,
+
         registrationTypeId: toNum((f as any).registrationTypeId) ?? null,
         parkingTypeId: toNum((f as any).parkingTypeId) ?? null,
         slopeGrade: f.slopeGrade ?? null,
@@ -233,9 +234,15 @@ export default function PropertyCreateModalBody({
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
+
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
+
         options: pinOptions,
         directions,
+
+        /** ✅ 최저 실입(정수 금액) */
+        minRealMoveInCost: toIntOrNull(f.salePrice),
+
         ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
@@ -327,7 +334,6 @@ export default function PropertyCreateModalBody({
             images={{
               imageFolders,
               fileItems,
-              /** ⬇️ 기대 타입과 일치하도록 오버로드 어댑터 전달 */
               registerImageInput: registerImageInputCompat,
               openImagePicker,
               onPickFilesToFolder,
@@ -347,7 +353,6 @@ export default function PropertyCreateModalBody({
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
             <ParkingContainer form={f} />
-            {/* ⛔️ REGISTRY_LIST prop 제거 */}
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer

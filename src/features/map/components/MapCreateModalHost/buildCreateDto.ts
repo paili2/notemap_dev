@@ -171,6 +171,19 @@ export function buildCreateDto(
       const n = toFinite((payload as any)?.totalParkingSlots);
       return n !== undefined ? { totalParkingSlots: n } : {};
     })(),
+    // ✅ 새 필드 3종
+    (() => {
+      const n = toFinite((payload as any)?.totalBuildings);
+      return n !== undefined ? { totalBuildings: n } : {};
+    })(),
+    (() => {
+      const n = toFinite((payload as any)?.totalFloors);
+      return n !== undefined ? { totalFloors: n } : {};
+    })(),
+    (() => {
+      const n = toFinite((payload as any)?.remainingHouseholds);
+      return n !== undefined ? { remainingHouseholds: n } : {};
+    })(),
     (payload as any)?.parkingGrade
       ? { parkingGrade: (payload as any).parkingGrade }
       : {},

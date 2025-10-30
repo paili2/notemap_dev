@@ -65,11 +65,17 @@ export function useViewForm({
         ""
     );
 
+    // ✅ 최저 실입(정수, 만원 단위)
+    const minRealMoveInCost =
+      d?.minRealMoveInCost === null || d?.minRealMoveInCost === undefined
+        ? undefined
+        : Number(d.minRealMoveInCost);
+
     return {
       // 헤더/기본
       title: d.title ?? "",
       listingStars: d.listingStars ?? 0,
-      elevator: d.elevator as "O" | "X" | undefined, // 미지정 허용
+      elevator: d.elevator as "O" | "X" | undefined,
       address: d.address ?? "",
       officePhone,
       officePhone2,
@@ -80,14 +86,16 @@ export function useViewForm({
       totalHouseholds: d.totalHouseholds,
       remainingHouseholds: d.remainingHouseholds,
 
-      // 주차/등급/등기/가격/준공
+      // 주차/등급/등기/준공
       parkingType: (d as any)?.parkingType,
-      totalParkingSlots, // ✅ 사용
+      totalParkingSlots,
       slopeGrade: d.slopeGrade,
       structureGrade: d.structureGrade,
       registry: d.registry,
-      salePrice: d.salePrice,
       completionDateText,
+
+      // ✅ 금액
+      minRealMoveInCost,
 
       // 구조 라인
       unitLines: Array.isArray(d.unitLines) ? d.unitLines : undefined,
@@ -136,14 +144,14 @@ export function useViewForm({
 
       // 주차
       parkingType: view.parkingType,
-      totalParkingSlots: view.totalParkingSlots, // ✅ 컨테이너에 그대로 전달
+      totalParkingSlots: view.totalParkingSlots,
 
-      // 준공/등기/매매
+      // 준공/등기/등급/최저실입
       completionDateText: view.completionDateText,
-      salePrice: view.salePrice,
       registry: view.registry,
       slopeGrade: view.slopeGrade,
       structureGrade: view.structureGrade,
+      minRealMoveInCost: view.minRealMoveInCost, // ✅ 노출
 
       // 구조 라인
       unitLines: view.unitLines,

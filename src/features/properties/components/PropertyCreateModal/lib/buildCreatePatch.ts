@@ -61,8 +61,7 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
     id,
     title: payload.title,
     address: payload.address,
-    priceText: payload.salePrice ?? undefined,
-    // 스키마에 없으면 아래 두 속성은 제거하세요.
+    // priceText: payload.salePrice ?? undefined,
     status: (payload as any).status,
     dealStatus: (payload as any).dealStatus,
 
@@ -80,7 +79,6 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
       listingStars: payload.listingStars ?? 0,
       elevator: payload.elevator,
 
-      // ✅ 이름 일관화: parkingCount → totalParkingSlots
       totalParkingSlots: (payload as any).parkingCount,
 
       parkingType: payload.parkingType,

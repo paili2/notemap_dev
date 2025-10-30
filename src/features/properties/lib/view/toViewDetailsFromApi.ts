@@ -1,5 +1,6 @@
 import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
+import { mapBadgeToPinKind } from "../badge";
 
 /** 서버 핀 상세 타입 */
 export type ApiPin = {
@@ -13,7 +14,11 @@ export type ApiPin = {
 
   buildingType?: "APT" | "OP" | "주택" | "근생" | string | null;
 
+  /** ✅ 숫자 필드들 */
+  totalBuildings?: number | null;
+  totalFloors?: number | null;
   totalHouseholds?: number | null;
+  remainingHouseholds?: number | null;
   totalParkingSlots?: number | null;
   parkingTypeId?: number | null;
 
@@ -22,7 +27,16 @@ export type ApiPin = {
 
   hasElevator?: boolean | null;
 
-  /** ✅ 메모 필드 (서버 → 뷰) */
+  /** ✅ 연락처(서버 → 뷰) */
+  contactMainLabel?: string | null;
+  contactMainPhone?: string | null;
+  contactSubLabel?: string | null;
+  contactSubPhone?: string | null;
+
+  /** ✅ 금액(서버 → 뷰) */
+  minRealMoveInCost?: number | null; // 최저 실입(정수)
+
+  /** ✅ 메모(서버 → 뷰) */
   publicMemo?: string | null;
   privateMemo?: string | null;
 
@@ -71,7 +85,7 @@ function toOrientationRows(
   dirs?: ApiPin["directions"]
 ): OrientationRow[] | undefined {
   if (!Array.isArray(dirs) || dirs.length === 0) return undefined;
-  // ✅ 중복 제거/슬라이스 없이, 들어온 순서를 그대로 보존
+  // ✅ 중복/순서 보존
   const raw = dirs.map((d) => toStr(d?.direction).trim()).filter(Boolean);
   return raw.map((dir, i) => ({
     ho: i + 1,
@@ -187,8 +201,16 @@ export function toViewDetailsFromApi(
 
   const view: PropertyViewDetails = {
     id: String(api.id),
+
+    /** ✅ 서버 badge → 핀 종류로 역매핑 (PinKind | undefined) */
+    pinKind: mapBadgeToPinKind(api.badge),
+
     title: api.name ?? api.badge ?? undefined,
     address: api.addressLine ?? undefined,
+
+    /** ✅ 연락처 매핑 */
+    officePhone: api.contactMainPhone ?? undefined,
+    officePhone2: api.contactSubPhone ?? undefined,
 
     listingStars: 0,
     elevator: boolToOX(api.hasElevator),
@@ -198,7 +220,11 @@ export function toViewDetailsFromApi(
     registry: registryLabel as any,
 
     /** 숫자/주차 */
+    totalBuildings: api.totalBuildings ?? undefined,
+    totalFloors: api.totalFloors ?? undefined,
     totalHouseholds: api.totalHouseholds ?? undefined,
+    remainingHouseholds: api.remainingHouseholds ?? undefined,
+    /** ⛔️ 레거시 키 유지: 내부 훅에서 totalParkingSlots로 병합 사용 */
     parkingCount: api.totalParkingSlots ?? undefined,
     parkingType: mapParkingType(api.parkingTypeId),
 
@@ -228,15 +254,18 @@ export function toViewDetailsFromApi(
     publicMemo: api.publicMemo ?? undefined,
     secretMemo: api.privateMemo ?? undefined,
 
-    /** 나머지 초기화 */
+    /** ✅ 최저 실입(정수 금액) */
+    minRealMoveInCost: api.minRealMoveInCost ?? undefined,
+
+    /** 초기화(미디어/기타) */
     images: [],
     imageCards: [],
     fileItems: [],
     unitLines: undefined,
-    totalBuildings: undefined,
-    totalFloors: undefined,
-    remainingHouseholds: undefined,
+
+    /** 레거시 금액은 뷰에 표시하지 않음 */
     salePrice: undefined,
+
     type: undefined,
     createdByName: undefined,
     createdAt: undefined,

@@ -25,15 +25,11 @@ export default function MapCanvas(props: {
 }) {
   const {
     appKey,
-    kakaoSDK,
-    mapInstance,
     markers,
     fitAllOnce,
     poiKinds,
     pinsLoading,
     pinsError,
-    menuOpen,
-    menuAnchor,
     hideLabelForId,
     onMarkerClick,
     onOpenMenu,

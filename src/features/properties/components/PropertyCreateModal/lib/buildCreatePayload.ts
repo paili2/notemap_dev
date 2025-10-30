@@ -99,6 +99,7 @@ type BuildArgs = {
   slopeGrade?: Grade;
   structureGrade?: Grade;
 
+  /** ✅ 단지 관련 숫자(문자 입력 허용) */
   totalBuildings: string;
   totalFloors: string;
   totalHouseholds: string;
@@ -146,7 +147,7 @@ export function buildCreatePayload(args: BuildArgs) {
     parkingType,
     totalParkingSlots,
     completionDate,
-    salePrice,
+    // salePrice, // 서버 스펙 확정 후 활성화
 
     baseAreaSet: baseAreaSetRaw,
     extraAreaSets: extraAreaSetsRaw,
@@ -155,6 +156,7 @@ export function buildCreatePayload(args: BuildArgs) {
     registryOne,
     slopeGrade,
     structureGrade,
+
     totalBuildings,
     totalFloors,
     totalHouseholds,
@@ -178,6 +180,7 @@ export function buildCreatePayload(args: BuildArgs) {
     lng,
 
     pinKind,
+    pinDraftId,
   } = args;
 
   const baseAreaSet = toStrictAreaSet(baseAreaSetRaw);
@@ -197,7 +200,7 @@ export function buildCreatePayload(args: BuildArgs) {
     aspect3,
   } = buildOrientationFields(aspects);
 
-  // ✅ 핵심: o.value를 기준으로, 중복 제거/슬라이스 없이 모두 전송
+  // ✅ 핵심: o.value를 기준으로, 중복 제거 없이 모두 전송
   const directions =
     Array.isArray(orientations) && orientations.length > 0
       ? orientations
@@ -205,12 +208,6 @@ export function buildCreatePayload(args: BuildArgs) {
           .filter((v) => v.length > 0)
           .map((direction) => ({ direction }))
       : undefined;
-
-  // ✅ 요청 직전 로깅
-  if (directions) {
-    // eslint-disable-next-line no-console
-    console.log("[payload directions]", directions.length, directions);
-  }
 
   /* 2) 면적 패킹 (레거시 호환) */
   const exclusiveArea = setPack(
@@ -260,10 +257,10 @@ export function buildCreatePayload(args: BuildArgs) {
 
   const imageFoldersStored: StoredMediaItem[][] = imageFolders.map((card) =>
     card.map(({ idbKey, url, name, caption }) => ({
-      ...(idbKey ? { idbKey: idbKey } : {}),
-      ...(url ? { url: url } : {}),
-      ...(name ? { name: name } : {}),
-      ...(caption ? { caption: caption } : {}),
+      ...(idbKey ? { idbKey } : {}),
+      ...(url ? { url } : {}),
+      ...(name ? { name } : {}),
+      ...(caption ? { caption } : {}),
     }))
   );
 
@@ -337,6 +334,7 @@ export function buildCreatePayload(args: BuildArgs) {
     roomNo,
     structure,
 
+    // 연락처 통일 키
     contactMainLabel: officeName?.trim() || "문의",
     contactMainPhone: officePhone,
     ...(officePhone2 && officePhone2.trim() !== ""
@@ -357,18 +355,15 @@ export function buildCreatePayload(args: BuildArgs) {
     orientations, // 내부 유지
     ...(directions ? { directions } : {}), // ✅ 백엔드 전송
 
-    salePrice,
-
     // 주차 타입은 값 있을 때만 전송
-    ...(parkingType != null && String(parkingType).trim() !== ""
-      ? { parkingType: String(parkingType) }
-      : {}),
+    ...(s(parkingType) ? { parkingType: s(parkingType) } : {}),
 
     // 총 주차 대수: null 제외(0 허용)
     ...(normalizedTotalParkingSlots === null
       ? {}
       : { totalParkingSlots: normalizedTotalParkingSlots }),
 
+    // 날짜는 빈값이면 오늘(KST)
     completionDate: effectiveCompletionDate,
 
     /* 면적 (레거시 호환) */
@@ -383,7 +378,7 @@ export function buildCreatePayload(args: BuildArgs) {
     listingStars,
     elevator,
 
-    // 숫자 변환 적용
+    // ✅ 단지 숫자들: 문자열/빈값 → 제외, 숫자면 포함
     ...(toNum(totalBuildings) !== undefined
       ? { totalBuildings: toNum(totalBuildings)! }
       : {}),
@@ -442,7 +437,7 @@ export function buildCreatePayload(args: BuildArgs) {
       ? { lng: typeof lng === "number" ? lng : Number(String(lng).trim()) }
       : {}),
 
-    pinDraftId: args.pinDraftId ?? null,
+    pinDraftId: pinDraftId ?? null,
   };
 
   return payload;

@@ -58,6 +58,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
+  // ✅ 신규 숫자 필드들(문자 입력 허용)
   const [totalBuildings, setTotalBuildings] = useState("");
   const [totalFloors, setTotalFloors] = useState("");
   const [totalHouseholds, setTotalHouseholds] = useState("");
@@ -178,7 +179,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const injectedOnceRef = useRef(false);
   useEffect(() => {
-    if (!initialData) return;
+    if (!initialData || injectedOnceRef.current) return;
     injectedOnceRef.current = true;
 
     setPinKind(normalized.pinKind);
@@ -208,10 +209,13 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setSlopeGrade(normalized.slopeGrade);
     setStructureGrade(normalized.structureGrade);
 
-    setTotalBuildings(normalized.totalBuildings);
-    setTotalFloors(normalized.totalFloors);
-    setTotalHouseholds(normalized.totalHouseholds);
-    setRemainingHouseholds(normalized.remainingHouseholds);
+    // ✅ 신규 숫자 필드 초기 주입(문자 형태 유지)
+    setTotalBuildings((normalized.totalBuildings ?? "") as unknown as string);
+    setTotalFloors((normalized.totalFloors ?? "") as unknown as string);
+    setTotalHouseholds((normalized.totalHouseholds ?? "") as unknown as string);
+    setRemainingHouseholds(
+      (normalized.remainingHouseholds ?? "") as unknown as string
+    );
 
     setOptions(normalized.options);
     setOptionEtc(normalized.optionEtc);
@@ -279,6 +283,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     [aspects]
   );
 
+  // ✅ 저장 가능 여부: 숫자 필드 포함 체크
   const isSaveEnabled = useMemo<boolean>(() => {
     const numbersOk =
       filled(totalBuildings) &&
@@ -417,6 +422,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       baseAreaSet,
       extraAreaSets,
       elevator,
+      registry,
       slopeGrade,
       structureGrade,
       totalBuildings,
@@ -429,7 +435,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       publicMemo,
       secretMemo,
       unitLines,
-      registry,
       buildingType,
     ]
   );
@@ -495,6 +500,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     () => ({ buildOrientation, packAreas }),
     [buildOrientation, packAreas]
   );
+
   return {
     // flat fields (읽기용 상태)
     ...state,
@@ -503,8 +509,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     // flat derived/헬퍼
     ...derived,
     ...helpers,
+
+    // 레거시 호환 브릿지
     registryOne: registry,
     setRegistryOne: setRegistry,
+
+    // 구조적 접근도 가능하도록 원본 객체도 노출
     state,
     actions,
     derived,

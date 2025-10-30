@@ -1,7 +1,10 @@
+// src/features/map/components/MapView/hooks/useMergedMarkers.ts
 import { useMemo } from "react";
 import type { MapMarker } from "../../../types/map";
 import type { PinKind } from "@/features/pins/types";
+import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 
+/** kakao LatLng/Point 등 다양한 포맷을 좌표 객체로 정규화 */
 function toNumericPos(pos: any) {
   if (!pos) return pos;
   if (typeof pos.lat === "number" && typeof pos.lng === "number") return pos;
@@ -36,16 +39,20 @@ export function useMergedMarkers(params: {
   localMarkers: MapMarker[];
   serverPoints?: Array<{
     id: string | number;
-    title?: string;
+    title?: string | null;
     lat: number;
     lng: number;
+    /** ✅ 서버가 내려주는 뱃지 (예: "R3", "R4_TERRACE", "SURVEY_SCHEDULED" 등) */
+    badge?: string | null;
   }>;
   serverDrafts?: Array<{
     id: string | number;
-    title?: string;
+    title?: string | null;
     lat: number;
     lng: number;
     draftState?: "BEFORE" | "SCHEDULED";
+    /** (선택) 드래프트에도 배지가 있을 수 있으면 포함 */
+    badge?: string | null;
   }>;
   menuOpen: boolean;
   menuAnchor?: { lat: number; lng: number } | null;
@@ -77,19 +84,32 @@ export function useMergedMarkers(params: {
 
   // 2) 실제 지도에 뿌릴 마커 배열 (아이콘/타입 포함)
   const serverViewMarkers: MapMarker[] = useMemo(() => {
-    const normals: MapMarker[] = (serverPoints ?? []).map((p) => ({
-      id: String(p.id),
-      title: p.title ?? "",
-      position: { lat: p.lat, lng: p.lng },
-      kind: "1room" as PinKind,
-    }));
+    const normals: MapMarker[] = (serverPoints ?? []).map((p) => {
+      // ✅ 서버 badge -> 내부 PinKind 매핑
+      const kindFromBadge = mapBadgeToPinKind(p.badge);
+      const kind: PinKind = (kindFromBadge ?? "1room") as PinKind;
 
-    const drafts: MapMarker[] = (serverDrafts ?? []).map((d) => ({
-      id: `__visit__${String(d.id)}`, // 임시핀은 __visit__ 접두사로 구분
-      title: d.title ?? "답사예정",
-      position: { lat: d.lat, lng: d.lng },
-      kind: "question" as PinKind,
-    }));
+      return {
+        id: String(p.id),
+        title: p.title ?? "",
+        position: { lat: p.lat, lng: p.lng },
+        kind,
+      };
+    });
+
+    const drafts: MapMarker[] = (serverDrafts ?? []).map((d) => {
+      // 드래프트에도 배지가 있다면 반영, 없으면 기본적으로 question
+      const kindFromBadge = mapBadgeToPinKind(d.badge);
+      const fallback: PinKind = "question";
+      const kind: PinKind = (kindFromBadge ?? fallback) as PinKind;
+
+      return {
+        id: `__visit__${String(d.id)}`, // 임시핀은 __visit__ 접두사로 구분
+        title: d.title ?? "답사예정",
+        position: { lat: d.lat, lng: d.lng },
+        kind,
+      };
+    });
 
     return [...normals, ...drafts];
   }, [serverPoints, serverDrafts]);
