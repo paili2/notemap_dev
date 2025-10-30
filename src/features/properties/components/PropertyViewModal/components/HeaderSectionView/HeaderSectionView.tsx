@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyViewModal/components/HeaderSectionView/HeaderSectionView.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -10,7 +11,7 @@ import StarMeter from "../../ui/StarMeter";
 
 export default function HeaderSectionView({
   title,
-  listingStars,
+  parkingGrade,
   elevator, // "O" | "X" | undefined
   pinKind = "1room",
   onClose,
@@ -20,10 +21,14 @@ export default function HeaderSectionView({
 }: HeaderSectionViewProps) {
   const pinSrc = useMemo(() => getPinUrl(pinKind), [pinKind]);
 
+  // ✅ 문자열/숫자 변환: "3" → 3, undefined/null → 0
   const rating = useMemo(() => {
-    const v = Number.isFinite(Number(listingStars)) ? Number(listingStars) : 0;
-    return Math.max(0, Math.min(5, v));
-  }, [listingStars]);
+    const n =
+      typeof parkingGrade === "number"
+        ? parkingGrade
+        : Number.parseInt(String(parkingGrade ?? "0"), 10);
+    return Math.max(0, Math.min(5, Number.isFinite(n) ? n : 0));
+  }, [parkingGrade]);
 
   // 표기용 매물명 (공백 제거 → 빈 값이면 "-")
   const displayTitle = useMemo(() => {
@@ -80,15 +85,13 @@ export default function HeaderSectionView({
         {/* 제목: 줄바꿈 없이 말줄임 */}
         <div className="flex-1 min-w-0 text-xl text-slate-900">
           <div className="h-9 md:h-10 flex items-center px-2 md:px-3 rounded-md bg-white">
-            {/* aria-labelledby로 연결될 수 있도록 id 부여(옵션) */}
             <span
               id={headingId}
               className="truncate text-lg font-medium"
-              title={displayTitle} // ✅ 긴 제목 툴팁
+              title={displayTitle}
             >
               {displayTitle}
             </span>
-            {/* 보조 설명을 SR-only로 제공(옵션) */}
             {descId && (
               <span id={descId} className="sr-only">
                 매물 상세 보기 모달

@@ -1,3 +1,4 @@
+// src/features/properties/lib/adapters/toViewDetailsFromApi.ts
 import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
 import { mapBadgeToPinKind } from "../badge";
@@ -25,6 +26,8 @@ export type ApiPin = {
   slopeGrade?: string | null;
   structureGrade?: string | null;
 
+  /** ✅ 매물평점 (서버 문자열 "1"~"5" 또는 null) */
+  parkingGrade?: string | null;
   hasElevator?: boolean | null;
 
   /** ✅ 연락처(서버 → 뷰) */
@@ -187,6 +190,16 @@ function mapAreaGroups(api: ApiPin) {
   };
 }
 
+/** 서버 "parkingGrade" 문자열 정규화 → ""|"1"|"2"|"3"|"4"|"5"|undefined */
+function normalizeParkingGrade(s?: string | null) {
+  const v = (s ?? "").trim();
+  return v === "1" || v === "2" || v === "3" || v === "4" || v === "5"
+    ? v
+    : v === ""
+    ? ""
+    : undefined;
+}
+
 /* ───────────── 메인 변환 함수 ───────────── */
 export function toViewDetailsFromApi(
   api: ApiPin
@@ -198,6 +211,17 @@ export function toViewDetailsFromApi(
     BUILDING_TYPE_LABEL[String(api.buildingType ?? "")] ??
     api.buildingType ??
     undefined;
+
+  // ⭐ parkingGrade/별점 변환
+  const pg = normalizeParkingGrade(api.parkingGrade);
+  const stars = pg ? Number(pg) : 0;
+
+  // 주차 대수(표준/레거시 동시 세팅)
+  const tps =
+    typeof api.totalParkingSlots === "number" &&
+    Number.isFinite(api.totalParkingSlots)
+      ? api.totalParkingSlots
+      : undefined;
 
   const view: PropertyViewDetails = {
     id: String(api.id),
@@ -212,7 +236,10 @@ export function toViewDetailsFromApi(
     officePhone: api.contactMainPhone ?? undefined,
     officePhone2: api.contactSubPhone ?? undefined,
 
-    listingStars: 0,
+    /** ✅ 별점: 서버 문자열과 숫자 동시 보관 */
+    parkingGrade: pg, // "1"~"5" | "" | undefined
+    listingStars: stars,
+
     elevator: boolToOX(api.hasElevator),
 
     /** 준공/등기 */
@@ -224,8 +251,11 @@ export function toViewDetailsFromApi(
     totalFloors: api.totalFloors ?? undefined,
     totalHouseholds: api.totalHouseholds ?? undefined,
     remainingHouseholds: api.remainingHouseholds ?? undefined,
-    /** ⛔️ 레거시 키 유지: 내부 훅에서 totalParkingSlots로 병합 사용 */
-    parkingCount: api.totalParkingSlots ?? undefined,
+
+    /** ✅ 표준 키 직접 세팅 + 레거시 키 병행 세팅 */
+    totalParkingSlots: tps ?? null,
+    parkingCount: tps ?? undefined,
+
     parkingType: mapParkingType(api.parkingTypeId),
 
     /** 등급 */

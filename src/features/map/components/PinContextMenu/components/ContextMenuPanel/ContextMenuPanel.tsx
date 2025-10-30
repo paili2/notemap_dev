@@ -35,6 +35,36 @@ function mapDraftState(s?: string | null) {
   return { planned, reserved };
 }
 
+/** __visit__/__reserved__/__plan__/__planned__ 형태에서 숫자 ID 추출 */
+function extractDraftIdFromPropertyId(
+  propertyId?: string | number | null
+): number | undefined {
+  if (propertyId == null) return undefined;
+  const raw = String(propertyId).trim();
+  if (!raw) return undefined;
+
+  const m = raw.match(
+    /^(?:__visit__|__reserved__|__plan__|__planned__)(\d+)$/i
+  );
+  if (m && m[1]) {
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** kakao LatLng | POJO 모두 지원 */
+function getLatLng(pos: ContextMenuPanelProps["position"]) {
+  if (typeof (pos as any)?.getLat === "function") {
+    return {
+      lat: (pos as any).getLat() as number,
+      lng: (pos as any).getLng() as number,
+    };
+  }
+  return { lat: (pos as any).lat as number, lng: (pos as any).lng as number };
+}
+
 export default function ContextMenuPanel({
   roadAddress,
   jibunAddress,
@@ -50,6 +80,8 @@ export default function ContextMenuPanel({
   onCreate,
   onPlan,
   onReserve,
+  /** ✅ 컨테이너에서 내려주는 현재 좌표 */
+  position,
 }: ContextMenuPanelProps) {
   const headingId = useId();
   const descId = useId();
@@ -190,7 +222,24 @@ export default function ContextMenuPanel({
     Promise.resolve().then(() => onClose());
   }, [onView, onClose, propertyId, canView]);
 
-  // ✅ Hover 시 프리페치: 훅은 바디 최상위에서만, 핸들러는 클로저의 qc 사용
+  // ✅ 신규 등록/정보 입력 시 pinDraftId + lat/lng 함께 전달
+  const handleCreateClick = useCallback(() => {
+    const pinDraftId = extractDraftIdFromPropertyId(propertyId);
+    const { lat, lng } = getLatLng(position);
+
+    onCreate?.({
+      latFromPin: lat,
+      lngFromPin: lng,
+      fromPinDraftId: pinDraftId,
+      address: roadAddress ?? jibunAddress ?? null,
+      roadAddress: roadAddress ?? null,
+      jibunAddress: jibunAddress ?? null,
+    });
+
+    onClose();
+  }, [onCreate, onClose, propertyId, roadAddress, jibunAddress, position]);
+
+  // ✅ Hover 시 프리페치
   const handleHoverPrefetch = useCallback(() => {
     if (!canView) return;
     const idStr = String(propertyId);
@@ -276,7 +325,7 @@ export default function ContextMenuPanel({
             type="button"
             variant="default"
             size="lg"
-            onClick={onCreate}
+            onClick={handleCreateClick}
             className="w-full"
           >
             매물 정보 입력
@@ -311,7 +360,7 @@ export default function ContextMenuPanel({
             type="button"
             variant="default"
             size="lg"
-            onClick={onCreate}
+            onClick={handleCreateClick}
             className="w-full"
           >
             이 위치로 신규 등록

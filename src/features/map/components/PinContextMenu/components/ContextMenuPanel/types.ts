@@ -1,6 +1,7 @@
 import type {
   PlanRequestPayload,
   ReserveRequestPayload,
+  CreateFromPinArgs,
 } from "../PinContextMenu/types";
 
 /* ---------------------------------- */
@@ -73,6 +74,7 @@ export type ContextMenuPanelProps = {
   /** 매물명(선택) */
   propertyTitle?: string | null;
 
+  /** 서버 드래프트 상태(raw) */
   draftState?: string;
 
   /**
@@ -95,19 +97,31 @@ export type ContextMenuPanelProps = {
   /** 공통 콜백 */
   onClose: () => void;
   onView: (id: string) => void;
-  onCreate: () => void;
+
+  /**
+   * ✅ 신규 등록/정보 입력 트리거
+   * - 전역 타입(CreateFromPinArgs)으로 통일
+   * - 패널에서 좌표/드래프트 id/주소 힌트를 채워 전달
+   */
+  onCreate?: (payload: CreateFromPinArgs) => void;
 
   /** 컨테이너가 필요 필드를 보강하여 사용 */
   onPlan?: (opts?: Partial<PlanRequestPayload>) => void | Promise<void>;
+
+  /** 예약 처리(컨테이너에서 실제 처리) */
+  onReserve?: (payload?: ReserveRequestPayload) => void | Promise<void>;
+
+  /**
+   * ✅ 패널 내부에서 좌표가 필요하므로 컨테이너에서 내려준다
+   * - kakao.maps.LatLng 인터페이스 사용 (getLat/getLng)
+   */
+  position: kakao.maps.LatLng;
 
   /**
    * 지도 컨테이너 DOM (다른 핀 클릭 시 즉시 전환 등에서 포커스/바깥클릭 제어에 사용)
    * - 필요 없으면 생략 가능
    */
   mapContainer?: HTMLElement | null;
-
-  /** 예약 처리(컨테이너에서 실제 처리) */
-  onReserve?: (payload?: ReserveRequestPayload) => void | Promise<void>;
 };
 
 /* ---------------------------------- */
@@ -126,9 +140,17 @@ type BasePanelProps = {
 
   onClose: () => void;
   onView: (id: string) => void;
-  onCreate: () => void;
+
+  /** 신규 등록 */
+  onCreate?: (payload: CreateFromPinArgs) => void;
+
+  /** 예정/예약 */
   onPlan?: (opts?: Partial<PlanRequestPayload>) => void | Promise<void>;
   onReserve?: (payload?: ReserveRequestPayload) => void | Promise<void>;
+
+  /** ✅ strict 모드에도 동일하게 position 필요 */
+  position: kakao.maps.LatLng;
+
   mapContainer?: HTMLElement | null;
 };
 

@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -191,7 +192,8 @@ export default function PropertyViewModal({
               <div className="sticky top-0 z-10 bg-white border-b">
                 <HeaderViewContainer
                   title={f.title}
-                  listingStars={f.listingStars}
+                  /* ⭐ listingStars → parkingGrade 로 변경 */
+                  parkingGrade={f.parkingGrade}
                   elevator={f.elevator}
                   pinKind={f.pinKind}
                   onClose={onClose}
@@ -348,7 +350,7 @@ export default function PropertyViewModal({
                   <span className="animate-pulse text-base">
                     상세 정보를 불러오는 중…
                   </span>
-                  <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
+                  <div className="h-1.5 w-48 rounded bg-slate-2 00 overflow-hidden">
                     <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
                   </div>
                 </div>

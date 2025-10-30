@@ -19,11 +19,15 @@ export type PropertyViewDetails = {
 
   // 메타
   listingGrade?: Grade;
-  /** 표시 등급(별점). 기본 0으로 사용되는 경우가 많음 */
-  listingStars: number;
+
+  /** ✅ 서버 원본: "1"~"5" | "" (미선택) */
+  parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
+
+  /** ✅ 별 표시용 숫자(0~5). 어댑터에서 parkingGrade → 숫자로 채워줌 */
+  listingStars?: number;
 
   /** ✅ 핀 종류(서버 badge 역매핑 결과). 없을 수 있음 */
-  pinKind?: PinKind; // ← string 제거로 안전성 강화
+  pinKind?: PinKind;
 
   title?: string;
   elevator?: "O" | "X";

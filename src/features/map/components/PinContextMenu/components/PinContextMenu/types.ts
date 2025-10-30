@@ -48,6 +48,9 @@ export type CreateFromPinArgs = {
   fromPinDraftId?: number;
   /** 초기 주소 힌트(도로명/지번 중 하나) */
   address?: string | null;
+  roadAddress?: string | null;
+  jibunAddress?: string | null;
+  pinDraftId?: number;
 };
 
 /** PinContextMenu 컴포넌트 props */

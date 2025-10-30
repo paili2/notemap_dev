@@ -31,6 +31,8 @@ type MapCreateModalHostProps = {
     matchedDraftId?: string | number | null;
     lat: number;
     lng: number;
+    /** 🔹 옵션: 생성때의 payload 스냅샷 전달 */
+    payload?: any;
   }) => void;
 };
 
@@ -162,6 +164,7 @@ export default function MapCreateModalHost({
             matchedDraftId,
             lat: pos.lat,
             lng: pos.lng,
+            payload, // 🔹 전달
           });
 
           toastBus?.success?.(

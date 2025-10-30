@@ -27,7 +27,7 @@ export default function PropertyEditModalBody({
   onClose,
   onSubmit,
   initialData,
-  embedded = false, // ✅ ViewModal 안에서 내용만 교체할 때 true
+  embedded = false,
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const propertyId = String((initialData as any)?.id ?? "");
 
@@ -65,7 +65,7 @@ export default function PropertyEditModalBody({
   // 폼 훅 (항상 동일한 순서로 호출)
   const f = useEditForm({ initialData });
 
-  // ✅ ParkingContainer에 맞춘 어댑터: parkingCount 제거, totalParkingSlots만 사용
+  // ✅ ParkingContainer 어댑터
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
       parkingType: f.parkingType || null,
@@ -99,7 +99,7 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
-    // ✅ buildUpdatePayload 에 id 전달 X (payload에는 id 없음)
+    // ✅ parkingGrade 사용, listingStars 제거(레거시 삭제)
     const payload = buildUpdatePayload({
       title: f.title,
       address: f.address,
@@ -111,7 +111,7 @@ export default function PropertyEditModalBody({
       roomNo: f.roomNo,
       structure: f.structure,
 
-      listingStars: f.listingStars,
+      parkingGrade: f.parkingGrade, // ⭐ 매물평점(별 1~5, 문자열)
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
@@ -127,7 +127,6 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
 
       elevator: f.elevator,
-      // 서버 DTO가 registryOne 키를 쓴다면 이대로 유지
       registryOne: f.registry,
       slopeGrade: f.slopeGrade,
       structureGrade: f.structureGrade,
@@ -161,7 +160,7 @@ export default function PropertyEditModalBody({
     onClose();
   }, [f, imageFolders, verticalImages, onSubmit, onClose]);
 
-  // ✅ embedded 모드: 오버레이/포지셔닝 없이 “바디만” 렌더
+  // ✅ embedded 모드
   if (embedded) {
     return (
       <div className="flex flex-col h-full">
@@ -188,7 +187,6 @@ export default function PropertyEditModalBody({
           <div className="space-y-4 md:space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {/* ⬇️ 어댑터로 전달 */}
             <ParkingContainer form={parkingForm} />
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
@@ -209,7 +207,7 @@ export default function PropertyEditModalBody({
     );
   }
 
-  // 기본(standalone) 모달 렌더
+  // 기본 모달
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -241,7 +239,6 @@ export default function PropertyEditModalBody({
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {/* ⬇️ 어댑터로 전달 */}
             <ParkingContainer form={parkingForm} />
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />

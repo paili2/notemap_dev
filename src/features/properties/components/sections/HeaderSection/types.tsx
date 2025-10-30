@@ -1,22 +1,19 @@
-export interface HeaderSectionProps {
-  // 제목
+import { PinKind } from "@/features/pins/types";
+
+export type HeaderSectionProps = {
   title: string;
   setTitle: (v: string) => void;
 
-  // 별점(1~5)
-  listingStars: number;
-  setListingStars: (n: number) => void;
+  /** '1'~'5' 또는 '' */
+  parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
+  setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
 
-  // 엘리베이터 O/X
   elevator: "O" | "X";
   setElevator: (v: "O" | "X") => void;
 
-  // 닫기
-  onClose?: () => void;
+  pinKind: PinKind;
+  setPinKind: (v: PinKind) => void;
 
-  /** placeholder로 보여줄 힌트(선택) — 수정모달에서 기존 제목을 힌트로 쓰고 싶을 때 */
+  onClose: () => void;
   placeholderHint?: string;
-
-  /** 새로고침 동작 (선택) */
-  onRefreshStars?: () => void;
-}
+};

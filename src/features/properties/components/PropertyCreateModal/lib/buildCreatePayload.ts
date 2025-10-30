@@ -68,6 +68,9 @@ const toStrictAreaSet = (raw: LooseAreaSet | StrictAreaSet): StrictAreaSet => ({
   realMaxPy: String((raw as any)?.realMaxPy ?? ""),
 });
 
+/** 별점 문자열 타입 */
+type StarStr = "" | "1" | "2" | "3" | "4" | "5";
+
 /** ---------- 빌더 Args ---------- */
 type BuildArgs = {
   title: string;
@@ -82,7 +85,9 @@ type BuildArgs = {
 
   badge?: string | null;
 
-  listingStars: number;
+  /** ✅ 매물평점: '1' ~ '5' | '' */
+  parkingGrade: StarStr;
+
   parkingType: string | null;
 
   /** ✅ 총 주차 대수 (0 허용) */
@@ -143,7 +148,7 @@ export function buildCreatePayload(args: BuildArgs) {
 
     badge,
 
-    listingStars,
+    parkingGrade, // ✅ 변경: listingStars 제거
     parkingType,
     totalParkingSlots,
     completionDate,
@@ -375,7 +380,9 @@ export function buildCreatePayload(args: BuildArgs) {
     /* 신규: 면적 그룹 */
     ...(areaGroups.length ? { areaGroups } : {}),
 
-    listingStars,
+    // ⭐ 매물평점(문자열) — 빈 문자열이면 제외
+    ...(parkingGrade ? { parkingGrade } : {}),
+
     elevator,
 
     // ✅ 단지 숫자들: 문자열/빈값 → 제외, 숫자면 포함

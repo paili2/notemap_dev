@@ -1,4 +1,3 @@
-// src/features/map/components/MapView/hooks/useMergedMarkers.ts
 import { useMemo } from "react";
 import type { MapMarker } from "../../../types/map";
 import type { PinKind } from "@/features/pins/types";

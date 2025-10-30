@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyViewModal/hooks/useViewForm.ts
 "use client";
 
 import { useMemo, useState } from "react";
@@ -71,10 +72,16 @@ export function useViewForm({
         ? undefined
         : Number(d.minRealMoveInCost);
 
+    // ⭐ 주차등급(parkingGrade) 정규화: string|number → 0~5 사이 정수
+    const parkingGradeRaw: any = (d as any)?.parkingGrade;
+    const parkingGrade = Number.isFinite(Number(parkingGradeRaw))
+      ? Math.max(0, Math.min(5, Math.round(Number(parkingGradeRaw))))
+      : undefined;
+
     return {
       // 헤더/기본
       title: d.title ?? "",
-      listingStars: d.listingStars ?? 0,
+      parkingGrade, // ← ⭐ listingStars 대신 사용
       elevator: d.elevator as "O" | "X" | undefined,
       address: d.address ?? "",
       officePhone,
@@ -121,7 +128,7 @@ export function useViewForm({
     () => ({
       // 헤더
       title: view.title,
-      listingStars: view.listingStars,
+      parkingGrade: view.parkingGrade, // ← ⭐ 필드 교체
       elevator: view.elevator,
       pinKind,
 
@@ -151,7 +158,7 @@ export function useViewForm({
       registry: view.registry,
       slopeGrade: view.slopeGrade,
       structureGrade: view.structureGrade,
-      minRealMoveInCost: view.minRealMoveInCost, // ✅ 노출
+      minRealMoveInCost: view.minRealMoveInCost,
 
       // 구조 라인
       unitLines: view.unitLines,

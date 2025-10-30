@@ -26,6 +26,16 @@ const toNumericStringOrUndefined = (v: string | number | null | undefined) => {
   return s.length ? s : undefined;
 };
 
+/** '1' | '2' | '3' | '4' | '5' | '' | undefined → '1'~'5' | undefined */
+const toParkingGradeOrUndefined = (
+  v: "" | "1" | "2" | "3" | "4" | "5" | null | undefined
+): "1" | "2" | "3" | "4" | "5" | undefined => {
+  if (!v) return undefined;
+  return (["1", "2", "3", "4", "5"] as const).includes(v as any)
+    ? (v as any)
+    : undefined;
+};
+
 type BuildUpdateArgs = {
   // 기본
   title?: string;
@@ -39,7 +49,8 @@ type BuildUpdateArgs = {
   structure?: string;
 
   // 평점/주차/준공/매매
-  listingStars?: number | null;
+  /** ⭐ 매물평점: '1' | '2' | '3' | '4' | '5' | '' */
+  parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
   parkingType?: string | null;
   /** ✅ 신규 메인: 총 주차대수 */
   totalParkingSlots?: number | string | null;
@@ -47,7 +58,7 @@ type BuildUpdateArgs = {
   salePrice?: string | number | null;
 
   // 면적
-  baseAreaSet?: AreaSet;
+  baseAreaSet?: AreaSet; // (참고용: 아래 pack된 값들만 실제 전송)
   extraAreaSets?: AreaSet[];
   exclusiveArea?: string;
   realArea?: string;
@@ -141,9 +152,10 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
   // ✅ salePrice는 서버 DTO가 string 기대 → 문자열로 정규화
   const salePriceStr = toNumericStringOrUndefined(a.salePrice);
 
-  // ✅ listingStars: null은 보내지 않음(= undefined)
-  const listingStarsVal =
-    typeof a.listingStars === "number" ? a.listingStars : undefined;
+  // ✅ parkingGrade 문자열 정규화
+  const parkingGradeVal = toParkingGradeOrUndefined(
+    a.parkingGrade ?? undefined
+  );
 
   const patch: UpdatePayload = {
     // 기본
@@ -179,8 +191,12 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
       ? { completionDate: a.completionDate }
       : {}),
 
-    // 평점/엘리베이터
-    ...(a.listingStars !== undefined ? { listingStars: listingStarsVal } : {}),
+    // ⭐ 평점/엘리베이터
+    ...(a.parkingGrade !== undefined && parkingGradeVal !== undefined
+      ? { parkingGrade: parkingGradeVal }
+      : a.parkingGrade !== undefined
+      ? { parkingGrade: undefined } // '' 등 비정상은 제거(보내지 않음)
+      : {}),
     ...(a.elevator !== undefined ? { elevator: a.elevator } : {}),
 
     // 숫자 필드(문자/숫자 혼용 허용)

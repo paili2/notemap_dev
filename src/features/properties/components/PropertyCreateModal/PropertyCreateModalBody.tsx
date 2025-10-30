@@ -1,4 +1,4 @@
-// src/features/properties/create/PropertyCreateModalBody.tsx
+// src/features/properties/components/PropertyCreateModal/PropertyCreateModalBody.tsx
 "use client";
 
 import { useRef, useState, useCallback } from "react";
@@ -132,6 +132,9 @@ export default function PropertyCreateModalBody({
       ).map(toStrictAreaSet);
       const areaGroups = buildAreaGroups(strictBase, strictExtras);
 
+      // ⭐ parkingGrade → listingStars(number) 변환
+      const listingStarsNum = f.parkingGrade ? Number(f.parkingGrade) : 0;
+
       // (참고) payload는 내부 상태/뷰 갱신용으로 유지
       const payload = buildCreatePayload({
         title: f.title,
@@ -144,32 +147,42 @@ export default function PropertyCreateModalBody({
         floor: f.floor,
         roomNo: f.roomNo,
         structure: f.structure,
-        listingStars: f.listingStars,
+
+        parkingGrade: f.parkingGrade,
+
         parkingType: f.parkingType,
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice, // 내부 상태용(필요 시 유지)
+
         baseAreaSet: strictBase,
         extraAreaSets: strictExtras,
+
         elevator: f.elevator,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
+
         totalBuildings: f.totalBuildings,
         totalFloors: f.totalFloors,
         totalHouseholds: f.totalHouseholds,
         remainingHouseholds: f.remainingHouseholds,
+
         buildingType: (f as any).buildingType ?? null,
         registrationTypeId: (f as any).registrationTypeId ?? null,
         parkingTypeId: (f as any).parkingTypeId ?? null,
+
         options: f.options,
         etcChecked: f.etcChecked,
         optionEtc: f.optionEtc,
         publicMemo: f.publicMemo,
         secretMemo: f.secretMemo,
+
         aspects: f.aspects,
         unitLines: f.unitLines,
+
         imageFolders,
         fileItems,
+
         pinKind: f.pinKind,
         lat: latNum,
         lng: lngNum,
@@ -207,6 +220,7 @@ export default function PropertyCreateModalBody({
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
+        parkingGrade: f.parkingGrade || undefined,
         addressLine: f.address ?? "",
         name: f.title ?? "임시 매물",
 

@@ -1,15 +1,20 @@
+// src/features/properties/components/create/ui/HeaderContainer.tsx
 "use client";
 
 import HeaderSection from "../../sections/HeaderSection/HeaderSection";
 import { PinKind } from "@/features/pins/types";
 
+/** 최신 버전 폼 타입 */
 type HeaderForm = {
   title: string;
   setTitle: (v: string) => void;
-  listingStars: number;
-  setListingStars: (v: number) => void;
+
+  parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
+  setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
+
   elevator: "O" | "X";
   setElevator: (v: "O" | "X") => void;
+
   pinKind: PinKind;
   setPinKind: (v: PinKind) => void;
 };
@@ -25,12 +30,11 @@ export default function HeaderContainer({
     <HeaderSection
       title={form.title}
       setTitle={form.setTitle}
-      listingStars={form.listingStars}
-      setListingStars={form.setListingStars}
+      parkingGrade={form.parkingGrade}
+      setParkingGrade={form.setParkingGrade}
       elevator={form.elevator}
       setElevator={form.setElevator}
       onClose={onClose}
-      onRefreshStars={() => form.setListingStars(0)}
       pinKind={form.pinKind}
       setPinKind={form.setPinKind}
     />

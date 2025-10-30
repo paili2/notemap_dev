@@ -19,6 +19,8 @@ import type {
 } from "./types";
 import { BuildingType } from "@/features/properties/types/property-domain";
 
+type StarStr = "" | "1" | "2" | "3" | "4" | "5";
+
 export function useEditForm({ initialData }: UseEditFormArgs) {
   /* ========== 상태 ========== */
   const [pinKind, setPinKind] = useState<PinKind>("1room");
@@ -34,7 +36,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [aspects, setAspects] = useState<AspectRowLite[]>(EMPTY_ASPECTS);
 
-  const [listingStars, setListingStars] = useState(0);
+  // ⭐ 매물평점(별 1~5) – 문자열 보관
+  const [parkingGrade, setParkingGrade] = useState<StarStr>("");
+
   const [parkingType, setParkingType] = useState("");
   const [totalParkingSlots, setTotalParkingSlots] = useState<string>("");
   const [completionDate, setCompletionDate] = useState("");
@@ -137,7 +141,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setRoomNo("");
     setStructure("3룸");
     setAspects(EMPTY_ASPECTS);
-    setListingStars(0);
+    setParkingGrade(""); // ⭐
     setParkingType("");
     setTotalParkingSlots("");
     setCompletionDate("");
@@ -193,7 +197,10 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setRoomNo(normalized.roomNo);
     setStructure(normalized.structure);
 
-    setListingStars(normalized.listingStars);
+    // ⭐ parkingGrade만 주입 (레거시 listingStars는 사용하지 않음)
+    const pg = (normalized as any)?.parkingGrade as StarStr | undefined;
+    setParkingGrade(pg && ["1", "2", "3", "4", "5"].includes(pg) ? pg : "");
+
     setParkingType(normalized.parkingType ?? "");
     setTotalParkingSlots((normalized as any).totalParkingSlots ?? "");
     setCompletionDate(normalized.completionDate);
@@ -283,7 +290,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     [aspects]
   );
 
-  // ✅ 저장 가능 여부: 숫자 필드 포함 체크
+  // ✅ 저장 가능 여부: parkingGrade 반영(레거시 listingStars 제거)
   const isSaveEnabled = useMemo<boolean>(() => {
     const numbersOk =
       filled(totalBuildings) &&
@@ -301,12 +308,14 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       hasExclusiveAny &&
       hasRealAny;
 
+    const gradeOk = parkingGrade !== "";
+
     return (
       basicOk &&
       numbersOk &&
       optionsValid &&
       unitLines.length > 0 &&
-      listingStars > 0 &&
+      gradeOk &&
       aspectsValid
     );
   }, [
@@ -324,7 +333,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     remainingHouseholds,
     optionsValid,
     unitLines.length,
-    listingStars,
+    parkingGrade,
     aspectsValid,
   ]);
 
@@ -379,7 +388,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       roomNo,
       structure,
       aspects,
-      listingStars,
+      parkingGrade, // ⭐
       parkingType,
       totalParkingSlots,
       completionDate,
@@ -414,7 +423,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       roomNo,
       structure,
       aspects,
-      listingStars,
+      parkingGrade,
       parkingType,
       totalParkingSlots,
       completionDate,
@@ -455,7 +464,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       removeAspect,
       setAspectDir,
       setAspects,
-      setListingStars,
+      setParkingGrade, // ⭐
       setParkingType,
       setTotalParkingSlots,
       setCompletionDate,

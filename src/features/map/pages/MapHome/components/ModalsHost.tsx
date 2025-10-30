@@ -23,12 +23,15 @@ export default function ModalsHost(props: {
     appendItem: (it: any) => void;
     selectAndOpenView: (id: string) => void;
     resetAfterCreate: () => void;
-    /** ✅ 매물 생성 직후 호출되어 draft 숨김 + refetch 트리거 */
+    /** ✅ 매물 생성 직후 호출되어 draft 숨김 + refetch 트리거
+     *  payload는 선택적(과거 코드와의 호환)
+     */
     onAfterCreate: (args: {
       pinId: string;
       matchedDraftId?: string | number | null;
       lat: number;
       lng: number;
+      payload?: any; // ← 추가
     }) => void;
   };
 

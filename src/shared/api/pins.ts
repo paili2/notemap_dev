@@ -6,6 +6,8 @@ import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
 import { buildSearchQuery } from "./utils/query";
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
+import type { PinKind } from "@/features/pins/types";
+import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 
 /* ───────────── 로컬 좌표 디버그 유틸(외부 의존 제거) ───────────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {
@@ -99,7 +101,10 @@ export type CreatePinDto = {
   parkingGrade?: string | null;
   slopeGrade?: string | null;
   structureGrade?: string | null;
+
+  /** 서버 배지(내부 pinKind → mapPinKindToBadge로 변환 가능) */
   badge?: string | null;
+
   publicMemo?: string | null;
   privateMemo?: string | null;
   isOld?: boolean;
@@ -117,6 +122,8 @@ export type CreatePinDto = {
 
   /** ✅ 최저 실입(정수 금액, 서버: number|null) */
   minRealMoveInCost?: number | string | null;
+
+  pinKind?: PinKind | null;
 };
 
 export type UpdatePinDto = Partial<CreatePinDto> & {
@@ -260,6 +267,13 @@ function safeAssertNoTruncate(origin: string, lat?: any, lng?: any) {
   }
 }
 
+/* 🔹 export: draft id 보정 유틸 */
+export function coercePinDraftId(v: any): number | undefined {
+  if (v == null || String(v) === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /* ───────────── 핀 생성 (/pins) ───────────── */
 export async function createPin(
   dto: CreatePinDto,
@@ -277,14 +291,14 @@ export async function createPin(
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
 
-  // 디버그 로그
-  // eslint-disable-next-line no-console
-  console.log("[createPin][A] dto.directions:", dto.directions);
-  // eslint-disable-next-line no-console
-  console.log(
-    "[createPin][B] payload.directions:]",
-    Array.isArray(dirs) ? dirs.map((x) => x.direction) : dirs
-  );
+  // ✅ badge 자동 해석: dto.badge 없고 pinKind가 들어온 경우 매핑
+  const pinKind: PinKind | undefined =
+    (dto as any)?.pinKind != null
+      ? ((dto as any).pinKind as PinKind)
+      : undefined;
+  const resolvedBadge =
+    (dto.badge ?? null) ||
+    (pinKind ? mapPinKindToBadge(pinKind) ?? null : null);
 
   // 동일 입력 빠른 연속 호출 흡수(좌표는 round6 근사) — 전송에는 사용하지 않음
   const preview = {
@@ -292,10 +306,7 @@ export async function createPin(
     lng: round6(dto.lng),
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
-    pinDraftId:
-      dto.pinDraftId == null || String(dto.pinDraftId) === ""
-        ? undefined
-        : Number(dto.pinDraftId),
+    pinDraftId: coercePinDraftId(dto.pinDraftId),
     totalParkingSlots:
       dto.totalParkingSlots === 0 || dto.totalParkingSlots
         ? Number(dto.totalParkingSlots)
@@ -321,7 +332,7 @@ export async function createPin(
       : undefined,
     directionsLen: Array.isArray(dto.directions) ? dto.directions.length : 0,
     areaGroupsLen: Array.isArray(groups) ? groups.length : 0,
-    // 미리보기엔 굳이 단지 숫자 3종/최저실입은 안 넣어도 됨
+    badge: resolvedBadge ?? undefined,
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -351,8 +362,8 @@ export async function createPin(
       ? { contactSubPhone: String(dto.contactSubPhone).trim() }
       : {}),
 
-    ...(dto.pinDraftId != null && String(dto.pinDraftId) !== ""
-      ? { pinDraftId: Number(dto.pinDraftId) }
+    ...(coercePinDraftId(dto.pinDraftId) !== undefined
+      ? { pinDraftId: coercePinDraftId(dto.pinDraftId)! }
       : {}),
 
     ...(typeof dto.completionDate === "string" &&
@@ -390,7 +401,10 @@ export async function createPin(
     ...(dto.parkingGrade ? { parkingGrade: dto.parkingGrade } : {}),
     ...(dto.slopeGrade ? { slopeGrade: dto.slopeGrade } : {}),
     ...(dto.structureGrade ? { structureGrade: dto.structureGrade } : {}),
-    ...(dto.badge ? { badge: dto.badge } : {}),
+
+    // ✅ badge 우선 적용(없으면 전송 생략)
+    ...(resolvedBadge ? { badge: resolvedBadge } : {}),
+
     ...(dto.publicMemo ? { publicMemo: dto.publicMemo } : {}),
     ...(dto.privateMemo ? { privateMemo: dto.privateMemo } : {}),
     ...(typeof dto.isOld === "boolean" ? { isOld: dto.isOld } : {}),

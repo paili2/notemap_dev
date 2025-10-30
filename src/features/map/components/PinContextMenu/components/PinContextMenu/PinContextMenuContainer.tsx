@@ -16,8 +16,6 @@ import {
   createSurveyReservation,
   fetchUnreservedDrafts,
 } from "@/shared/api/surveyReservations";
-import { useRouter } from "next/navigation";
-import { usePropertyViewModal } from "@/features/properties/hooks/useEditForm/usePropertyViewModal";
 import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
@@ -118,9 +116,6 @@ export default function PinContextMenuContainer(props: Props) {
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
 
-  const router = useRouter();
-  const viewModal = usePropertyViewModal();
-
   const handleView = () => {
     const id = String(propertyId ?? "");
     if (!id || id === "__draft__" || id.startsWith("__visit__")) return;
@@ -135,20 +130,29 @@ export default function PinContextMenuContainer(props: Props) {
     [kakao, target]
   );
 
-  const handleCreateClick = React.useCallback(() => {
+  /** 현재 위치 근처 메타 */
+  const metaAtPos = React.useMemo(() => {
+    if (!mergedMeta) return undefined;
     const lat = position.getLat();
     const lng = position.getLng();
-    const fromPinDraftId = extractDraftIdFromPin(pin);
+    const EPS = 1e-5;
+    return mergedMeta.find(
+      (m) => Math.abs(m.lat - lat) < EPS && Math.abs(m.lng - lng) < EPS
+    );
+  }, [mergedMeta, position]);
 
-    onCreate?.({
-      latFromPin: lat,
-      lngFromPin: lng,
-      fromPinDraftId,
-      address: (roadAddress ?? jibunAddress ?? null) as string | null,
-    });
-
-    onClose?.();
-  }, [onCreate, onClose, position, pin, roadAddress, jibunAddress]);
+  /** ✅ draftState 해석 (UI 표기용) */
+  const resolvedDraftState = React.useMemo<string | undefined>(() => {
+    const fromMeta =
+      metaAtPos?.source === "draft" ? metaAtPos?.draftState : undefined;
+    const fromPin =
+      (pin as any)?.draft?.draftState ??
+      (pin as any)?.draft?.state ??
+      (pin as any)?.draftState ??
+      undefined;
+    const v = (fromMeta ?? fromPin) as unknown;
+    return typeof v === "string" ? v : undefined;
+  }, [metaAtPos, pin]);
 
   /** 기본 판정 */
   const base = useDerivedPinState({
@@ -166,30 +170,6 @@ export default function PinContextMenuContainer(props: Props) {
     planned = false;
     listed = false;
   }
-
-  /** 현재 위치 근처 메타 */
-  const metaAtPos = React.useMemo(() => {
-    if (!mergedMeta) return undefined;
-    const lat = position.getLat();
-    const lng = position.getLng();
-    const EPS = 1e-5;
-    return mergedMeta.find(
-      (m) => Math.abs(m.lat - lat) < EPS && Math.abs(m.lng - lng) < EPS
-    );
-  }, [mergedMeta, position]);
-
-  /** ✅ draftState 해석 */
-  const resolvedDraftState = React.useMemo<string | undefined>(() => {
-    const fromMeta =
-      metaAtPos?.source === "draft" ? metaAtPos?.draftState : undefined;
-    const fromPin =
-      (pin as any)?.draft?.draftState ??
-      (pin as any)?.draft?.state ??
-      (pin as any)?.draftState ??
-      undefined;
-    const v = (fromMeta ?? fromPin) as unknown;
-    return typeof v === "string" ? v : undefined;
-  }, [metaAtPos, pin]);
 
   /** ⭐ 낙관적 planned 반영 */
   const posK = React.useMemo(
@@ -325,7 +305,7 @@ export default function PinContextMenuContainer(props: Props) {
 
     // 2) 메타(클러스터 병합 정보)에서
     const metaDraftId =
-      metaAtPos?.source === "draft" ? (metaAtPos as any)?.draftId : undefined;
+      metaAtPos?.source === "draft" ? (metaAtPos as any)?.id : undefined;
     if (typeof metaDraftId === "number") return metaDraftId;
 
     // 3) propertyId에 숫자 형태가 포함된 경우 (예: "__plan__123")
@@ -336,7 +316,7 @@ export default function PinContextMenuContainer(props: Props) {
       if (Number.isFinite(n)) return n;
     }
 
-    // 4) 최후 보조: before 목록에서 좌표/주소로 추정 (이 호출은 보조일 뿐)
+    // 4) 최후 보조: before 목록에서 좌표/주소로 추정
     try {
       const before = await fetchUnreservedDrafts();
       const lat = position.getLat();
@@ -371,9 +351,7 @@ export default function PinContextMenuContainer(props: Props) {
           propertyId,
           pos: [position.getLat(), position.getLng()],
         });
-        // 실패 시, 기존 로직으로 fallback 하고 싶다면 아래 주석 해제:
-        // return handleReserve();
-        return; // ← 요구사항: POST만 보장. draftId 없으면 중단.
+        return; // draftId 없으면 중단.
       }
 
       await createSurveyReservation({
@@ -396,6 +374,62 @@ export default function PinContextMenuContainer(props: Props) {
       setReserving(false);
     }
   };
+
+  /** ✅ 신규 등록/정보 입력: pinDraftId 있으면 함께 전달 (lat/lng 필수 포함) */
+  const handleCreateClick = React.useCallback(async () => {
+    const lat = position.getLat();
+    const lng = position.getLng();
+
+    // 1) 핀 객체에서
+    let pinDraftId = extractDraftIdFromPin(pin);
+
+    // 2) 메타(해당 좌표에 draft 소스가 있으면 그 id)
+    if (pinDraftId == null && metaAtPos?.source === "draft") {
+      const n = Number((metaAtPos as any)?.id);
+      if (Number.isFinite(n)) pinDraftId = n;
+    }
+
+    // 3) propertyId에 포함된 숫자 패턴 (예: "__visit__123")
+    if (pinDraftId == null) {
+      const idStr = String(propertyId ?? "");
+      const m = idStr.match(/(\d{1,})$/);
+      if (m) {
+        const n = Number(m[1]);
+        if (Number.isFinite(n)) pinDraftId = n;
+      }
+    }
+
+    onCreate?.({
+      latFromPin: lat,
+      lngFromPin: lng,
+      fromPinDraftId: pinDraftId, // 없으면 undefined로 넘어감
+      address: roadAddress ?? jibunAddress ?? null,
+      roadAddress: roadAddress ?? null,
+      jibunAddress: jibunAddress ?? null,
+    });
+
+    // 오버레이 정리 & 닫기
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try {
+          const anyWin = globalThis as any;
+          if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
+            anyWin.__cleanupOverlaysAtPos(lat, lng);
+          }
+        } catch {}
+      });
+    });
+    onClose?.();
+  }, [
+    onCreate,
+    onClose,
+    position,
+    pin,
+    metaAtPos,
+    propertyId,
+    roadAddress,
+    jibunAddress,
+  ]);
 
   const xAnchor = 0.5;
   const yAnchor = 1;
@@ -435,6 +469,8 @@ export default function PinContextMenuContainer(props: Props) {
               showFav={listed}
               onAddFav={onAddFav}
               favActive={favActive}
+              /** ✅ 필수 prop: 패널에도 현재 좌표 전달 */
+              position={position}
             />
             <div
               aria-hidden="true"
