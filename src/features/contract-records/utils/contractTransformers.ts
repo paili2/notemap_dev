@@ -6,7 +6,7 @@ export function transformSalesContractToCreateRequest(
   data: SalesContractData
 ): CreateContractRequest {
   // 최소한의 필수 필드만 전송
-  const request = {
+  const request: CreateContractRequest = {
     brokerageFee: Number(data.financialInfo.brokerageFee) || 0,
     vat: Number(data.financialInfo.vat) || 0,
     brokerageTotal: Number(data.financialInfo.totalBrokerageFee) || 0,
@@ -14,6 +14,9 @@ export function transformSalesContractToCreateRequest(
     supportAmount: Number(data.financialInfo.totalSupportAmount) || 0,
     isTaxed: Boolean(data.financialInfo.taxStatus === "taxable"),
     grandTotal: Number(data.totalCalculation) || 0,
+    // 고객 정보 추가
+    customerName: data.customerInfo.name || undefined,
+    customerPhone: data.customerInfo.contact || undefined,
   };
 
   console.log("변환된 요청 데이터 상세:", request);
@@ -31,15 +34,10 @@ export function transformContractResponseToSalesContract(
       name: contract.customerName || "",
       contact: contract.customerPhone || "",
     },
-    salesManager: contract.distributorName
-      ? {
-          name: contract.distributorName,
-          contact: contract.distributorPhone || "",
-        }
-      : undefined,
+    salesManager: undefined, // 백엔드에 없음
     salesPerson: {
-      name: contract.salespersonName || "",
-      contact: contract.salespersonPhone || "",
+      name: contract.salesperson?.name || "",
+      contact: contract.salesperson?.phone || "",
     },
     financialInfo: {
       brokerageFee: contract.brokerageFee,
@@ -56,8 +54,13 @@ export function transformContractResponseToSalesContract(
     staffAllocations: [], // 백엔드에 별도 테이블 필요
     contractImages: [], // 백엔드에 별도 테이블 필요
     totalCalculation: contract.grandTotal,
-    contractDate: contract.createdAt,
-    status: "completed", // 기본값
+    contractDate: contract.contractDate,
+    status:
+      contract.status === "done"
+        ? "completed"
+        : contract.status === "canceled"
+        ? "cancelled"
+        : "pending",
     createdAt: contract.createdAt,
     updatedAt: contract.createdAt,
   };
@@ -72,12 +75,17 @@ export function transformContractResponseToContractData(
     contractNumber: `CONTRACT-${contract.id}`,
     customerName: contract.customerName || "",
     customerContact: contract.customerPhone || "",
-    salesPerson: contract.salespersonName || "",
+    salesPerson: contract.salesperson?.name || "",
     salesPersonSalary: 0, // 백엔드에 없음, 기본값
     totalCalculation: contract.grandTotal,
-    contractDate: contract.createdAt,
+    contractDate: contract.contractDate,
     amount: contract.grandTotal,
-    status: "completed" as const,
+    status:
+      contract.status === "done"
+        ? ("completed" as const)
+        : contract.status === "canceled"
+        ? ("cancelled" as const)
+        : ("pending" as const),
     createdAt: contract.createdAt,
   };
 }

@@ -6,10 +6,18 @@ export type ContractResponse = {
   pinId: number | null;
   customerName: string | null;
   customerPhone: string | null;
-  distributorName: string | null;
-  distributorPhone: string | null;
-  salespersonName: string | null;
-  salespersonPhone: string | null;
+  salesperson?: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+  } | null;
+  salespersonId: string | null;
+  createdBy?: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+  } | null;
+  createdById: string | null;
   brokerageFee: number;
   vat: number;
   brokerageTotal: number;
@@ -18,6 +26,8 @@ export type ContractResponse = {
   isTaxed: boolean;
   calcMemo: string | null;
   grandTotal: number;
+  contractDate: string;
+  status: "ongoing" | "done" | "canceled";
   createdAt: string;
 };
 
@@ -31,10 +41,8 @@ export type CreateContractRequest = {
   pinId?: number;
   customerName?: string;
   customerPhone?: string;
-  distributorName?: string;
-  distributorPhone?: string;
-  salespersonName?: string;
-  salespersonPhone?: string;
+  salespersonAccountId?: string;
+  createdByAccountId?: string;
   brokerageFee: number;
   vat: number;
   brokerageTotal: number;
@@ -44,6 +52,12 @@ export type CreateContractRequest = {
   calcMemo?: string;
   grandTotal: number;
   urls?: string[];
+  contractDate?: string;
+  status?: "ongoing" | "done" | "canceled";
+  assignees?: Array<{
+    accountId: string;
+    percentage: number;
+  }>;
 };
 
 export type UpdateContractRequest = Partial<CreateContractRequest>;
@@ -94,6 +108,8 @@ export async function getContracts(
     return response.data.data;
   } catch (error: any) {
     console.error("계약 목록 API 호출 실패:", error);
+    console.error("에러 상세:", error?.response?.data);
+    console.error("에러 메시지들:", error?.response?.data?.messages);
     throw error;
   }
 }

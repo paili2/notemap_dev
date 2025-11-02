@@ -26,22 +26,15 @@ interface StaffAllocationSectionProps {
   onStaffAllocationsChange: (allocations: StaffAllocation[]) => void;
   totalCalculation: number;
   totalRebate: number;
+  teamMembers?: Array<{ accountId: string; name: string | null }>;
 }
-
-// 직원 목록 (예시)
-const employeeList = [
-  { id: "emp1", name: "김철수", department: "영업팀" },
-  { id: "emp2", name: "이영희", department: "마케팅팀" },
-  { id: "emp3", name: "박민수", department: "영업팀" },
-  { id: "emp4", name: "정수진", department: "기획팀" },
-  { id: "emp5", name: "최동훈", department: "영업팀" },
-];
 
 export function StaffAllocationSection({
   staffAllocations,
   onStaffAllocationsChange,
   totalCalculation,
   totalRebate,
+  teamMembers = [],
 }: StaffAllocationSectionProps) {
   // 총 퍼센티지 계산
   const getTotalPercentage = () => {
@@ -73,12 +66,14 @@ export function StaffAllocationSection({
   };
 
   const handleEmployeeSelect = (staffId: string, employeeId: string) => {
-    const selectedEmployee = employeeList.find((emp) => emp.id === employeeId);
+    const selectedEmployee = teamMembers.find(
+      (emp) => emp.accountId === employeeId
+    );
     if (selectedEmployee) {
       onStaffAllocationsChange(
         staffAllocations.map((staff) =>
           staff.id === staffId
-            ? { ...staff, name: selectedEmployee.name }
+            ? { ...staff, name: selectedEmployee.name || "" }
             : staff
         )
       );
@@ -260,8 +255,8 @@ export function StaffAllocationSection({
                     <Select
                       value={
                         staff.name
-                          ? employeeList.find((emp) => emp.name === staff.name)
-                              ?.id || ""
+                          ? teamMembers.find((emp) => emp.name === staff.name)
+                              ?.accountId || ""
                           : ""
                       }
                       onValueChange={(value) =>
@@ -272,9 +267,9 @@ export function StaffAllocationSection({
                         <SelectValue placeholder="사원 선택" />
                       </SelectTrigger>
                       <SelectContent>
-                        {employeeList.map((employee) => (
-                          <SelectItem key={employee.id} value={employee.id}>
-                            {employee.name} ({employee.department})
+                        {teamMembers.map((employee) => (
+                          <SelectItem key={employee.accountId} value={employee.accountId}>
+                            {employee.name || "이름 없음"}
                           </SelectItem>
                         ))}
                       </SelectContent>
