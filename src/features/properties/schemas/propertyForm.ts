@@ -14,6 +14,18 @@ export const asIntOrNull = z.preprocess((v) => {
 }, z.number().int().nonnegative().nullable());
 
 /* ────────────────────────────────────────────────────────────
+ * Unit line schema (UI 전용 → build 단계에서 서버 DTO로 매핑)
+ * ──────────────────────────────────────────────────────────── */
+export const unitLineSchema = z.object({
+  rooms: asIntOrNull.optional(), // 0 허용, 빈값은 null
+  baths: asIntOrNull.optional(),
+  hasLoft: z.boolean().optional().default(false),
+  hasTerrace: z.boolean().optional().default(false),
+  minPrice: asIntOrNull.optional(), // 가격 범위: 빈값은 null
+  maxPrice: asIntOrNull.optional(),
+});
+
+/* ────────────────────────────────────────────────────────────
  * Form Schema
  * ──────────────────────────────────────────────────────────── */
 export const propertyFormSchema = z.object({
@@ -43,6 +55,9 @@ export const propertyFormSchema = z.object({
 
   publicMemo: z.string().optional(),
   privateMemo: z.string().optional(), // (secretMemo로 마이그레이션 중이면 폼에는 유지)
+
+  /** ✅ 유닛 라인: UI에서 입력한 라인들을 그대로 들고 있다가 build 단계에서 서버용 units로 변환 */
+  unitLines: z.array(unitLineSchema).default([]),
 });
 
 export type PropertyStatus = z.infer<typeof propertyFormSchema>["status"];
@@ -55,6 +70,7 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   isPublished: true,
   totalParkingSlots: null,
   options: [],
+  unitLines: [], // ✅ 기본값 추가
 };
 
 /* ────────────────────────────────────────────────────────────

@@ -38,6 +38,14 @@ const toFinite = (v: any) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+/** 정수 또는 null (빈문자/undefined → null) */
+const toIntOrNull = (v: any): number | null => {
+  const s = String(v ?? "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
 /** 주소 폴백: 좌표 문자열은 표시용이며, 절대 역파싱해서 좌표로 쓰지 말 것 */
 const resolveAddressLine = (
   payload: CreatePayload,
@@ -234,6 +242,32 @@ export function buildCreateDto(
     (payload as any)?.areaSets ?? (payload as any)?.areaGroups
   );
   if (areaGroups) dto.areaGroups = areaGroups;
+
+  /* ✅ units: payload.units 또는 unitLines → 서버 스펙으로 변환 */
+  const rawUnits = (payload as any)?.units;
+  const rawUnitLines = (payload as any)?.unitLines;
+
+  if (Array.isArray(rawUnits) && rawUnits.length > 0) {
+    // 이미 서버 스펙 형태로 온 경우(예: buildCreatePayload에서 생성)
+    dto.units = rawUnits.map((u: any) => ({
+      rooms: toIntOrNull(u.rooms),
+      baths: toIntOrNull(u.baths),
+      hasLoft: !!u.hasLoft,
+      hasTerrace: !!u.hasTerrace,
+      minPrice: toIntOrNull(u.minPrice),
+      maxPrice: toIntOrNull(u.maxPrice),
+    }));
+  } else if (Array.isArray(rawUnitLines) && rawUnitLines.length > 0) {
+    // UI 라인 -> 서버 스펙으로 매핑
+    dto.units = rawUnitLines.map((u: any) => ({
+      rooms: toIntOrNull(u.rooms),
+      baths: toIntOrNull(u.baths),
+      hasLoft: !!u.hasLoft,
+      hasTerrace: !!u.hasTerrace,
+      minPrice: toIntOrNull(u.minPrice),
+      maxPrice: toIntOrNull(u.maxPrice),
+    }));
+  }
 
   // 빈 문자열 name은 제거 (이중 안전망)
   if (typeof dto.name === "string" && dto.name.trim().length === 0) {

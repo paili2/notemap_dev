@@ -132,9 +132,6 @@ export default function PropertyCreateModalBody({
       ).map(toStrictAreaSet);
       const areaGroups = buildAreaGroups(strictBase, strictExtras);
 
-      // ⭐ parkingGrade → listingStars(number) 변환
-      const listingStarsNum = f.parkingGrade ? Number(f.parkingGrade) : 0;
-
       // (참고) payload는 내부 상태/뷰 갱신용으로 유지
       const payload = buildCreatePayload({
         title: f.title,
@@ -178,7 +175,7 @@ export default function PropertyCreateModalBody({
         secretMemo: f.secretMemo,
 
         aspects: f.aspects,
-        unitLines: f.unitLines,
+        unitLines: f.unitLines, // ← 내부 상태 유지(서버 전송에는 사용하지 않음)
 
         imageFolders,
         fileItems,
@@ -216,6 +213,52 @@ export default function PropertyCreateModalBody({
             )
           )
         : [];
+
+      // 🔹 UnitLine(UI) -> UnitsItemDto(API) 매핑
+      //    UI 필드: rooms, baths, duplex(복층), terrace(테라스), primary(최소), secondary(최대)
+      const unitsDto =
+        Array.isArray((f as any).unitLines) && (f as any).unitLines.length > 0
+          ? (f as any).unitLines
+              // ✅ 타입 명시 (UnitLine 타입 사용 권장)
+              .map(
+                (u: {
+                  rooms?: number | string | null;
+                  baths?: number | string | null;
+                  duplex?: boolean;
+                  terrace?: boolean;
+                  primary?: number | string | null;
+                  secondary?: number | string | null;
+                }) => ({
+                  rooms:
+                    u?.rooms === "" || u?.rooms == null
+                      ? undefined
+                      : Number(u.rooms),
+                  baths:
+                    u?.baths === "" || u?.baths == null
+                      ? undefined
+                      : Number(u.baths),
+                  hasLoft: !!u?.duplex,
+                  hasTerrace: !!u?.terrace,
+                  minPrice:
+                    u?.primary === "" || u?.primary == null
+                      ? undefined
+                      : Number(String(u.primary).replace(/[^0-9.-]/g, "")),
+                  maxPrice:
+                    u?.secondary === "" || u?.secondary == null
+                      ? undefined
+                      : Number(String(u.secondary).replace(/[^0-9.-]/g, "")),
+                })
+              )
+              .filter(
+                (unit) =>
+                  unit.rooms != null ||
+                  unit.baths != null ||
+                  unit.minPrice != null ||
+                  unit.maxPrice != null ||
+                  unit.hasLoft ||
+                  unit.hasTerrace
+              )
+          : [];
 
       const pinDto: CreatePinDto = {
         lat: latNum,
@@ -261,6 +304,9 @@ export default function PropertyCreateModalBody({
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
           : {}),
+
+        // ✅ 서버 요구 스키마로 전송
+        ...(unitsDto.length > 0 ? { units: unitsDto } : {}),
       } as any;
 
       const { id: pinId, matchedDraftId } = await createPin(pinDto);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FilterSearch } from "../../../FilterSearch";
 import { MapMenuKey } from "../../../components/MapMenu";
 import { useRoadview } from "../../../hooks/useRoadview";
@@ -24,15 +24,12 @@ import type {
   PinSearchParams,
   PinSearchResult,
 } from "@/features/pins/types/pin-search";
-import { searchPins } from "@/shared/api/pins";
+import { searchPins, togglePinDisabled } from "@/shared/api/pins";
 
 /* ✅ 상세보기 데이터 패칭 & 뷰모델 변환 */
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
-
-/* ✅ 비활성/활성 토글 API (PATCH /pins/disable/:id) */
-import { togglePinDisabled } from "@/shared/api/pins";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -219,7 +216,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     setViewOpenLocal(true);
     setViewDataLocal(null);
     try {
-      // ⬇️ RAW로 가져와서 어댑터에 태움
       const apiPin = await getPinRaw(pinId);
       setViewDataLocal(toViewDetailsFromApi(apiPin));
     } catch (e) {
@@ -697,9 +693,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [kakaoSDK, mapInstance, onSubmitSearch]
   );
 
-  /* ✅ 삭제(=비활성) 로컬 fallback 핸들러:
-     - 상위에서 onDeleteFromView를 주면 그걸 사용
-     - 아니면 여기서 /pins/disable/:id PATCH 호출 */
+  /* ✅ 삭제(=비활성) 로컬 fallback 핸들러 */
   const handleDeleteFromView = useCallback(async () => {
     if (typeof onDeleteFromView === "function") {
       await onDeleteFromView();
@@ -711,11 +705,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
     try {
       await togglePinDisabled(String(id), true);
-      // 뷰포트 핀 새로고침 + 모달 닫기
       await refreshViewportPins();
       setViewOpenLocal(false);
     } catch (e) {
-      // eslint-disable-next-line no-console
       console.error("[disable-pin] 실패:", e);
     }
   }, [onDeleteFromView, selectedViewItem, viewDataLocal, refreshViewportPins]);
@@ -756,7 +748,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         favById={favById}
         siteReservations={siteReservations}
         onCloseMenu={onCloseMenu}
-        /* 🔑 합성된 핸들러로 전달 (상위가 주면 상위, 아니면 로컬) */
         onViewFromMenu={(id) => handleViewFromMenu(String(id))}
         onCreateFromMenu={onCreateFromMenu}
         onPlanFromMenu={onPlanFromMenu}
@@ -836,13 +827,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        /* ✅ 우선순위: 상위 selectedViewItem → 로컬(viewDataLocal) */
         viewOpen={viewOpenLocal || !!selectedViewItem}
         selectedViewItem={selectedViewItem ?? viewDataLocal ?? null}
         onCloseView={() => setViewOpenLocal(false)}
-        /* 기존 전달 값 유지 */
         onSaveViewPatch={onSaveViewPatch}
-        /* ⬇️ 삭제 콜백: 상위 제공 없으면 로컬 fallback로 비활성 PATCH */
         onDeleteFromView={handleDeleteFromView}
         createOpen={createOpen}
         prefillAddress={prefillAddress}

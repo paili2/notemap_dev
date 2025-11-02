@@ -3,6 +3,24 @@ import { ImageItem } from "./media";
 import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
 
 /* ------------------------------------------------------------------ */
+/* Units (구조별 입력) DTO                                             */
+/* ------------------------------------------------------------------ */
+export type UnitsDto = {
+  /** 방 개수 (정수, 0 이상, 미입력 시 null) */
+  rooms?: number | null;
+  /** 욕실 개수 (정수, 0 이상, 미입력 시 null) */
+  baths?: number | null;
+  /** 다락 유무 */
+  hasLoft?: boolean | null;
+  /** 테라스 유무 */
+  hasTerrace?: boolean | null;
+  /** 최소 가격 (정수, 0 이상, 미입력 시 null) */
+  minPrice?: number | null;
+  /** 최대 가격 (정수, 0 이상, 미입력 시 null) */
+  maxPrice?: number | null;
+};
+
+/* ------------------------------------------------------------------ */
 /* Create DTO                                                          */
 /* ------------------------------------------------------------------ */
 export type CreatePayload = {
@@ -66,7 +84,12 @@ export type CreatePayload = {
   privateMemo?: string | null; // 과거 호환
 
   registry?: Registry;
+
+  /** ✅ UI 보존용 (폼의 원본 라인) */
   unitLines?: UnitLine[];
+
+  /** ✅ 구조별 입력(units) — 서버 전송용: 항상 배열(빈 배열 허용) */
+  units?: UnitsDto[];
 
   // 이미지
   images?: string[];
@@ -142,7 +165,13 @@ export type UpdatePayload = {
   publicMemo?: string | null;
   secretMemo?: string | null;
   registry?: Registry;
+
+  /** ✅ UI 보존용 (폼의 원본 라인) */
   unitLines?: UnitLine[];
+
+  /** ✅ 구조별 입력(units) — 서버 전송용: 항상 배열(빈 배열 허용) */
+  units?: UnitsDto[];
+
   images?: string[];
 
   // 면적(레거시 문자열)

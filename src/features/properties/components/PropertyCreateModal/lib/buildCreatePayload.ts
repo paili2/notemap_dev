@@ -36,6 +36,11 @@ const toIntOrNull = (v: unknown) => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
+const toInt = (v: unknown) => {
+  const n = toNum(v);
+  return n === undefined ? undefined : Math.trunc(n);
+};
+
 const s = (v: unknown) => String(v ?? "").trim();
 
 /** 느슨한 AreaSet (필드가 일부 비어 있을 수 있음) */
@@ -133,6 +138,37 @@ type BuildArgs = {
   pinDraftId?: number | string | null;
 };
 
+/** units 정규화: 서버가 원할 법한 프리미티브만 남기고 숫자/불리언 정리 */
+function normalizeUnits(lines: UnitLine[] | undefined | null) {
+  if (!Array.isArray(lines)) return [];
+  return lines.map((u: any) => {
+    const out: Record<string, any> = {};
+
+    // 숫자 계열(있으면 정규화)
+    if (u.rooms !== undefined) out.rooms = toInt(u.rooms) ?? null;
+    if (u.baths !== undefined) out.baths = toInt(u.baths) ?? null;
+    if (u.minPrice !== undefined) out.minPrice = toInt(u.minPrice) ?? null;
+    if (u.maxPrice !== undefined) out.maxPrice = toInt(u.maxPrice) ?? null;
+    if (u.deposit !== undefined) out.deposit = toInt(u.deposit) ?? null;
+    if (u.rent !== undefined) out.rent = toInt(u.rent) ?? null;
+    if (u.maintenanceFee !== undefined)
+      out.maintenanceFee = toInt(u.maintenanceFee) ?? null;
+    if (u.supplyM2 !== undefined) out.supplyM2 = toNum(u.supplyM2);
+    if (u.exclusiveM2 !== undefined) out.exclusiveM2 = toNum(u.exclusiveM2);
+
+    // 불리언 계열
+    if (u.hasLoft !== undefined) out.hasLoft = !!u.hasLoft;
+    if (u.hasTerrace !== undefined) out.hasTerrace = !!u.hasTerrace;
+
+    // 라벨/유형
+    if (u.type !== undefined) out.type = s(u.type);
+    if (u.label !== undefined) out.label = s(u.label);
+
+    // 비어 있으면 최소한의 형태 유지
+    return out;
+  });
+}
+
 export function buildCreatePayload(args: BuildArgs) {
   const {
     title,
@@ -176,7 +212,8 @@ export function buildCreatePayload(args: BuildArgs) {
     publicMemo,
     secretMemo,
     aspects,
-    unitLines, // ⬅️ 여기서 받아온다
+    unitLines, // ⬅️ 받아온다 (UI)
+
     imageFolders,
     fileItems,
 
@@ -260,12 +297,14 @@ export function buildCreatePayload(args: BuildArgs) {
     );
 
   const imageFoldersStored: StoredMediaItem[][] = imageFolders.map((card) =>
-    card.map(({ idbKey, url, name, caption }) => ({
-      ...(idbKey ? { idbKey } : {}),
-      ...(url ? { url } : {}),
-      ...(name ? { name } : {}),
-      ...(caption ? { caption } : {}),
-    }))
+    card.map(
+      ({ idbKey: _idbKey, url: _url, name: _name, caption: _caption }) => ({
+        ...(_idbKey ? { idbKey: _idbKey } : {}),
+        ...(_url ? { url: _url } : {}),
+        ...(_name ? { name: _name } : {}),
+        ...(_caption ? { caption: _caption } : {}),
+      })
+    )
   );
 
   const imagesFlatStrings: string[] = imageFolders
@@ -275,30 +314,30 @@ export function buildCreatePayload(args: BuildArgs) {
 
   const imageCardCounts = imageFolders.map((card) => card.length);
 
-  const verticalImagesStored: StoredMediaItem[] = fileItems.map((f) => ({
-    ...(f.idbKey ? { idbKey: f.idbKey } : {}),
-    ...(f.url ? { url: f.url } : {}),
-    ...(f.name ? { name: f.name } : {}),
-    ...(f.caption ? { caption: f.caption } : {}),
-  }));
+  const verticalImagesStored: StoredMediaItem[] = fileItems.map(
+    ({ idbKey: _idbKey, url: _url, name: _name, caption: _caption }) => ({
+      ...(_idbKey ? { idbKey: _idbKey } : {}),
+      ...(_url ? { url: _url } : {}),
+      ...(_name ? { name: _name } : {}),
+      ...(_caption ? { caption: _caption } : {}),
+    })
+  );
 
-  const verticalImagesUI: {
-    url: string;
-    name: string;
-    caption?: string;
-    idbKey?: string;
-  }[] = fileItems
+  const verticalImagesUI = fileItems
     .filter((f) => !!f.url)
-    .map((f) => ({
-      url: f.url as string,
-      name: f.name ?? "",
-      ...(f.caption ? { caption: f.caption } : {}),
-      ...(f.idbKey ? { idbKey: f.idbKey } : {}),
+    .map(({ idbKey: _idbKey, url: _url, name: _name, caption: _caption }) => ({
+      url: _url as string,
+      name: _name ?? "",
+      ...(_caption ? { caption: _caption } : {}),
+      ...(_idbKey ? { idbKey: _idbKey } : {}),
     }));
 
   /* 4) 최종 payload */
   const safeBadge = s(badge);
   const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
+
+  // ✅ 서버 전송용 units: 항상 포함(비어있으면 []), 타입은 배열
+  const unitsForServer = normalizeUnits(unitLines);
 
   const payload: CreatePayload & {
     imageFolders: StoredMediaItem[][];
@@ -327,8 +366,8 @@ export function buildCreatePayload(args: BuildArgs) {
     lng?: number;
 
     /** ✅ 서버용 필드 */
-    units?: any[];
-    /** 유지용(UI) */
+    units: any[]; // 항상 존재 ([])
+    /** ✅ UI 유지용 */
     unitLines?: UnitLine[];
   } = {
     /* 기본 */
@@ -415,10 +454,8 @@ export function buildCreatePayload(args: BuildArgs) {
     // ✅ UI 보존용
     unitLines,
 
-    // ✅ 서버 전송용 (스키마 동일 가정; 다르면 여기서 매핑)
-    ...(Array.isArray(unitLines) && unitLines.length
-      ? { units: unitLines.map((u) => ({ ...u })) }
-      : {}),
+    // ✅ 서버 전송용(항상 포함)
+    units: unitsForServer,
 
     /* 이미지/파일 */
     imageFolders: imageFoldersStored,

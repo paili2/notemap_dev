@@ -52,6 +52,14 @@ const round6 = (n: string | number) => {
 };
 const isFiniteNum = (v: any) => Number.isFinite(Number(v));
 
+/* 숫자 정규화: 정수 또는 null */
+const toIntOrNull = (v: any): number | null => {
+  const s = String(v ?? "").trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
 /* ───────────── DTO (export!) ───────────── */
 export type CreatePinOptionsDto = {
   hasAircon?: boolean;
@@ -67,6 +75,16 @@ export type CreatePinOptionsDto = {
 
 export type CreatePinDirectionDto = {
   direction: string;
+};
+
+/** 구조별 입력(units) 아이템 */
+export type UnitsItemDto = {
+  rooms?: number | null;
+  baths?: number | null;
+  hasLoft?: boolean | null;
+  hasTerrace?: boolean | null;
+  minPrice?: number | null;
+  maxPrice?: number | null;
 };
 
 export type CreatePinDto = {
@@ -121,6 +139,9 @@ export type CreatePinDto = {
   /** ✅ 면적 그룹 */
   areaGroups?: CreatePinAreaGroupDto[];
 
+  /** ✅ 구조별 입력 (배열) */
+  units?: UnitsItemDto[];
+
   /** ✅ 최저 실입(정수 금액, 서버: number|null) */
   minRealMoveInCost?: number | string | null;
 
@@ -138,7 +159,7 @@ export type UpdatePinDto = Partial<CreatePinDto> & {
   areaGroups?: CreatePinAreaGroupDto[] | null;
 
   /** 전달되면 전체 교체 (빈 배열도 허용), null이면 전부 삭제로 취급 */
-  units?: any[] | null;
+  units?: UnitsItemDto[] | null;
 };
 
 type CreatePinResponse = {
@@ -259,6 +280,26 @@ function sanitizeAreaGroups(
   return out;
 }
 
+/* ✅ units sanitize: 정수/boolean 캐스팅 + 음수 0 가드, 빈배열 → [] */
+function sanitizeUnits(
+  list?: UnitsItemDto[] | null
+): UnitsItemDto[] | undefined {
+  if (!Array.isArray(list)) return undefined;
+
+  const nz = (n: number | null) => (n != null && n < 0 ? 0 : n);
+
+  const mapped = list.map((u) => ({
+    rooms: nz(toIntOrNull(u?.rooms)),
+    baths: nz(toIntOrNull(u?.baths)),
+    hasLoft: !!u?.hasLoft,
+    hasTerrace: !!u?.hasTerrace,
+    minPrice: nz(toIntOrNull(u?.minPrice)),
+    maxPrice: nz(toIntOrNull(u?.maxPrice)),
+  }));
+
+  return mapped;
+}
+
 /* ───────────── 내부 헬퍼: 부분 좌표 PATCH 안전 검사 ───────────── */
 function safeAssertNoTruncate(origin: string, lat?: any, lng?: any) {
   const latOk = Number.isFinite(Number(lat));
@@ -280,19 +321,16 @@ export async function createPin(
   dto: CreatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string; matchedDraftId: number | null }> {
-  // ✅ directions: 원형 보존(필요시 trim 추가 가능)
-  const dirs = Array.isArray(dto.directions)
-    ? dto.directions.map((d) =>
-        typeof d === "string"
-          ? { direction: d }
-          : { direction: String((d as any)?.direction ?? "") }
-      )
-    : undefined;
+  // ✅ directions: sanitizeDirections로 일관 처리
+  const dirs = sanitizeDirections(dto.directions);
 
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
 
-  // ✅ badge 자동 해석: dto.badge 없고 pinKind가 들어온 경우 매핑
+  // ✅ units 정규화
+  const units = sanitizeUnits(dto.units);
+
+  // ✅ badge 자동 해석
   const pinKind: PinKind | undefined =
     (dto as any)?.pinKind != null
       ? ((dto as any).pinKind as PinKind)
@@ -331,9 +369,10 @@ export async function createPin(
           x: (dto.options.extraOptionsText ?? "").trim().slice(0, 32),
         }
       : undefined,
-    directionsLen: Array.isArray(dto.directions) ? dto.directions.length : 0,
+    directionsLen: Array.isArray(dirs) ? dirs.length : 0,
     areaGroupsLen: Array.isArray(groups) ? groups.length : 0,
     badge: resolvedBadge ?? undefined,
+    unitsLen: Array.isArray(units) ? units.length : 0,
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -418,6 +457,9 @@ export async function createPin(
 
     ...(dirs ? { directions: dirs } : {}),
     ...(groups ? { areaGroups: groups } : {}),
+
+    /** ✅ 구조별 입력: sanitize 후 포함 (빈배열이면 []) */
+    ...(Array.isArray(units) ? { units } : {}),
 
     /** ✅ 최저 실입(정수 금액) */
     ...(Object.prototype.hasOwnProperty.call(dto, "minRealMoveInCost")
@@ -523,10 +565,11 @@ export async function updatePin(
     }
   }
 
-  // units: 전달되었을 때만
-  let unitsPayload: any[] | undefined;
+  // units: 전달되었을 때만 (sanitize)
+  let unitsPayload: UnitsItemDto[] | undefined;
   if (has("units")) {
-    unitsPayload = Array.isArray(dto.units) ? dto.units : [];
+    unitsPayload =
+      dto.units === null ? [] : sanitizeUnits(dto.units ?? []) ?? [];
   }
 
   // options: 객체면 sanitize, null이면 삭제
