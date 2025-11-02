@@ -8,6 +8,7 @@ import { buildSearchQuery } from "./utils/query";
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
 import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
+import type { AxiosRequestConfig } from "axios";
 
 /* ───────────── 로컬 좌표 디버그 유틸(외부 의존 제거) ───────────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {
@@ -687,6 +688,40 @@ export async function updatePin(
     e.responseData = resp ?? err?.response;
     throw e;
   }
+}
+
+/* ───────────── 핀 비활성/활성 (/pins/disable/:id) ───────────── */
+export type ToggleDisableDto = { isDisabled: boolean };
+export type ToggleDisableRes = {
+  id: string;
+  isDisabled: boolean;
+  changed: boolean;
+};
+
+/** [PATCH] /pins/disable/:id — 핀 활성/비활성 변경 */
+export async function togglePinDisabled(
+  id: string | number,
+  isDisabled: boolean,
+  config?: AxiosRequestConfig
+): Promise<ToggleDisableRes> {
+  const { data } = await api.patch<ApiEnvelope<ToggleDisableRes>>(
+    `/pins/disable/${encodeURIComponent(String(id))}`,
+    { isDisabled } satisfies ToggleDisableDto,
+    { withCredentials: true, ...(config ?? {}) }
+  );
+
+  if (!data?.success || !data?.data) {
+    // ApiEnvelope엔 message 필드가 없으므로, 존재할 수도 있는 서버 단일 메시지는 any 캐스팅으로만 접근
+    const single = (data as any)?.message as string | undefined;
+    const msg =
+      (Array.isArray(data?.messages) && data!.messages!.join("\n")) ||
+      single ||
+      "상태 변경 실패";
+    const e = new Error(msg) as any;
+    e.responseData = data;
+    throw e;
+  }
+  return data.data;
 }
 
 /* ───────────── 임시핀 (/pin-drafts) ───────────── */

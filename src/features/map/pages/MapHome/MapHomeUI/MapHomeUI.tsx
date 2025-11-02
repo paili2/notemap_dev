@@ -31,6 +31,9 @@ import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
+/* ✅ 비활성/활성 토글 API (PATCH /pins/disable/:id) */
+import { togglePinDisabled } from "@/shared/api/pins";
+
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
   const q = qRaw.trim().replace(/\s+/g, " ");
@@ -184,7 +187,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     draftPin,
     selectedPos,
     onSaveViewPatch,
-    onDeleteFromView,
+    onDeleteFromView, // ⬅️ 상위 제공 시 우선 사용
     createHostHandlers,
     hideLabelForId,
     onOpenMenu,
@@ -527,7 +530,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         return;
       }
 
-      const places = new kakaoSDK.maps.services.Places();
+      const placesSvc = new kakaoSDK.maps.services.Places();
       const biasCenter = mapInstance.getCenter?.();
       const biasOpt: any = biasCenter
         ? {
@@ -543,7 +546,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           query
         );
 
-        places.keywordSearch(
+        placesSvc.keywordSearch(
           query,
           (res: any[], status: string) => {
             if (status !== kakaoSDK.maps.services.Status.OK || !res?.length)
@@ -572,7 +575,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const stationKeyword = (stationName ? `${stationName}역` : raw).trim();
       const koreaRect = "124.0,33.0,132.0,39.0" as const;
 
-      places.categorySearch(
+      placesSvc.categorySearch(
         "SW8",
         (catRes: any[], catStatus: string) => {
           const exact =
@@ -619,7 +622,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
                     return setCenterOnly(sLat, sLng);
                   return setCenterOnly(Number(best.y), Number(best.x));
                 }
-                places.keywordSearch(
+                placesSvc.keywordSearch(
                   queries[i],
                   (exRes: any[], exStatus: string) => {
                     if (
@@ -644,7 +647,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
             const display =
               stationName || String(st.place_name).replace(/역$/, "");
-            places.keywordSearch(
+            placesSvc.keywordSearch(
               `${display}역 출구`,
               (exRes: any[], exStatus: string) => {
                 if (
@@ -671,7 +674,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
           if (exact) return afterStationFound(exact);
 
-          places.keywordSearch(
+          placesSvc.keywordSearch(
             stationKeyword,
             (stRes: any[], stStatus: string) => {
               if (
@@ -693,6 +696,29 @@ export function MapHomeUI(props: MapHomeUIProps) {
     },
     [kakaoSDK, mapInstance, onSubmitSearch]
   );
+
+  /* ✅ 삭제(=비활성) 로컬 fallback 핸들러:
+     - 상위에서 onDeleteFromView를 주면 그걸 사용
+     - 아니면 여기서 /pins/disable/:id PATCH 호출 */
+  const handleDeleteFromView = useCallback(async () => {
+    if (typeof onDeleteFromView === "function") {
+      await onDeleteFromView();
+      return;
+    }
+    const id =
+      (selectedViewItem as any)?.id ?? (viewDataLocal as any)?.id ?? null;
+    if (!id) return;
+
+    try {
+      await togglePinDisabled(String(id), true);
+      // 뷰포트 핀 새로고침 + 모달 닫기
+      await refreshViewportPins();
+      setViewOpenLocal(false);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[disable-pin] 실패:", e);
+    }
+  }, [onDeleteFromView, selectedViewItem, viewDataLocal, refreshViewportPins]);
 
   return (
     <div className="fixed inset-0">
@@ -816,7 +842,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onCloseView={() => setViewOpenLocal(false)}
         /* 기존 전달 값 유지 */
         onSaveViewPatch={onSaveViewPatch}
-        onDeleteFromView={onDeleteFromView}
+        /* ⬇️ 삭제 콜백: 상위 제공 없으면 로컬 fallback로 비활성 PATCH */
+        onDeleteFromView={handleDeleteFromView}
         createOpen={createOpen}
         prefillAddress={prefillAddress}
         draftPin={draftPin}

@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -25,6 +24,9 @@ import { CreatePayload, UpdatePayload } from "../../types/property-dto";
 
 import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
+
+/* 🔗 비활성화 API */
+import { togglePinDisabled } from "@/shared/api/pins";
 
 /* ───────── null → undefined 보정 ───────── */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -72,9 +74,11 @@ export default function PropertyViewModal({
   /** 로딩 동안 null 허용 */
   data?: PropertyViewDetails | null;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
+  /** 삭제 클릭 시 후처리가 필요하면 콜백을 넘겨 주세요(리스트 갱신 등). */
   onDelete?: () => void | Promise<void>;
 }) {
   const [mode, setMode] = useState<"view" | "edit">("view");
+  const [deleting, setDeleting] = useState(false);
 
   // 포커스/키보드 트랩용
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +142,29 @@ export default function PropertyViewModal({
   const onContentPointerDown = useCallback((e: React.PointerEvent) => {
     eat(e);
   }, []);
+
+  // 삭제(=비활성화) 처리
+  const handleDisable = useCallback(async () => {
+    if (!data?.id || deleting) return;
+    if (!confirm("정말 삭제(비활성화)할까요?")) return;
+
+    try {
+      setDeleting(true);
+      await togglePinDisabled(String(data.id), true);
+      // 선택: 부모에서 목록/상세 갱신
+      await onDelete?.();
+      onClose();
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.responseData?.message ||
+        "비활성화 요청에 실패했습니다.";
+      // eslint-disable-next-line no-alert
+      alert(msg);
+    } finally {
+      setDeleting(false);
+    }
+  }, [data?.id, deleting, onDelete, onClose]);
 
   if (!open) return null;
 
@@ -296,21 +323,21 @@ export default function PropertyViewModal({
                       수정
                     </button>
 
-                    {onDelete && (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm("정말 삭제할까요?")) return;
-                          await onDelete();
-                        }}
-                        className="items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex"
-                        aria-label="삭제"
-                        title="삭제"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        삭제
-                      </button>
-                    )}
+                    {/* 삭제 → 비활성화 */}
+                    <button
+                      type="button"
+                      onClick={handleDisable}
+                      disabled={deleting || !data?.id}
+                      className={cn(
+                        "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
+                        deleting && "opacity-60 cursor-not-allowed"
+                      )}
+                      aria-label="삭제"
+                      title="삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deleting ? "비활성화 중…" : "삭제"}
+                    </button>
                   </div>
 
                   <button
@@ -350,7 +377,7 @@ export default function PropertyViewModal({
                   <span className="animate-pulse text-base">
                     상세 정보를 불러오는 중…
                   </span>
-                  <div className="h-1.5 w-48 rounded bg-slate-2 00 overflow-hidden">
+                  <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
                     <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
                   </div>
                 </div>

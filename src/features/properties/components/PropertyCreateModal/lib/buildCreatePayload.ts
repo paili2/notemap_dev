@@ -22,7 +22,6 @@ import { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dt
 import { buildAreaGroups } from "@/features/properties/lib/area";
 
 /** ---------- 공통 유틸 ---------- */
-
 const toNum = (v: unknown) => {
   if (v === null || v === undefined) return undefined;
   const s = String(v).trim();
@@ -121,7 +120,7 @@ type BuildArgs = {
   secretMemo: string;
 
   aspects: AspectRowLite[];
-  unitLines: UnitLine[];
+  unitLines: UnitLine[]; // UI 내부 명칭
 
   imageFolders: ImageItem[][];
   fileItems: ImageItem[];
@@ -148,11 +147,11 @@ export function buildCreatePayload(args: BuildArgs) {
 
     badge,
 
-    parkingGrade, // ✅ 변경: listingStars 제거
+    parkingGrade, // ✅ listingStars 제거
     parkingType,
     totalParkingSlots,
     completionDate,
-    // salePrice, // 서버 스펙 확정 후 활성화
+    // salePrice,
 
     baseAreaSet: baseAreaSetRaw,
     extraAreaSets: extraAreaSetsRaw,
@@ -177,7 +176,7 @@ export function buildCreatePayload(args: BuildArgs) {
     publicMemo,
     secretMemo,
     aspects,
-    unitLines,
+    unitLines, // ⬅️ 여기서 받아온다
     imageFolders,
     fileItems,
 
@@ -326,6 +325,11 @@ export function buildCreatePayload(args: BuildArgs) {
     pinDraftId?: number | string | null;
     lat?: number;
     lng?: number;
+
+    /** ✅ 서버용 필드 */
+    units?: any[];
+    /** 유지용(UI) */
+    unitLines?: UnitLine[];
   } = {
     /* 기본 */
     title,
@@ -408,7 +412,13 @@ export function buildCreatePayload(args: BuildArgs) {
     privateMemo: secretMemo,
     registry: registryOne,
 
+    // ✅ UI 보존용
     unitLines,
+
+    // ✅ 서버 전송용 (스키마 동일 가정; 다르면 여기서 매핑)
+    ...(Array.isArray(unitLines) && unitLines.length
+      ? { units: unitLines.map((u) => ({ ...u })) }
+      : {}),
 
     /* 이미지/파일 */
     imageFolders: imageFoldersStored,
