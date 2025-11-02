@@ -35,6 +35,7 @@ import { useScheduledReservations } from "@/features/survey-reservations/hooks/u
 import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
+import type { UnitLine } from "@/features/properties/types/property-domain";
 
 export default function PropertyCreateModalBody({
   onClose,
@@ -150,7 +151,7 @@ export default function PropertyCreateModalBody({
         parkingType: f.parkingType,
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
-        salePrice: f.salePrice, // 내부 상태용(필요 시 유지)
+        salePrice: f.salePrice, // 내부 상태용
 
         baseAreaSet: strictBase,
         extraAreaSets: strictExtras,
@@ -175,7 +176,7 @@ export default function PropertyCreateModalBody({
         secretMemo: f.secretMemo,
 
         aspects: f.aspects,
-        unitLines: f.unitLines, // ← 내부 상태 유지(서버 전송에는 사용하지 않음)
+        unitLines: f.unitLines, // 내부 상태 유지 (전송용 아님)
 
         imageFolders,
         fileItems,
@@ -214,50 +215,26 @@ export default function PropertyCreateModalBody({
           )
         : [];
 
-      // 🔹 UnitLine(UI) -> UnitsItemDto(API) 매핑
-      //    UI 필드: rooms, baths, duplex(복층), terrace(테라스), primary(최소), secondary(최대)
+      /** ✅ UnitLine(UI) → UnitsItemDto(API) 매핑
+       *  - UI: rooms, baths, duplex, terrace, primary(min), secondary(max)
+       *  - 상태 키는 `unitLines`가 표준. 혹시 모를 호환을 위해 `units`도 폴백.
+       */
+      const sourceUnits: UnitLine[] = Array.isArray((f as any).unitLines)
+        ? (f as any).unitLines
+        : Array.isArray((f as any).units)
+        ? (f as any).units
+        : [];
+
       const unitsDto =
-        Array.isArray((f as any).unitLines) && (f as any).unitLines.length > 0
-          ? (f as any).unitLines
-              // ✅ 타입 명시 (UnitLine 타입 사용 권장)
-              .map(
-                (u: {
-                  rooms?: number | string | null;
-                  baths?: number | string | null;
-                  duplex?: boolean;
-                  terrace?: boolean;
-                  primary?: number | string | null;
-                  secondary?: number | string | null;
-                }) => ({
-                  rooms:
-                    u?.rooms === "" || u?.rooms == null
-                      ? undefined
-                      : Number(u.rooms),
-                  baths:
-                    u?.baths === "" || u?.baths == null
-                      ? undefined
-                      : Number(u.baths),
-                  hasLoft: !!u?.duplex,
-                  hasTerrace: !!u?.terrace,
-                  minPrice:
-                    u?.primary === "" || u?.primary == null
-                      ? undefined
-                      : Number(String(u.primary).replace(/[^0-9.-]/g, "")),
-                  maxPrice:
-                    u?.secondary === "" || u?.secondary == null
-                      ? undefined
-                      : Number(String(u.secondary).replace(/[^0-9.-]/g, "")),
-                })
-              )
-              .filter(
-                (unit) =>
-                  unit.rooms != null ||
-                  unit.baths != null ||
-                  unit.minPrice != null ||
-                  unit.maxPrice != null ||
-                  unit.hasLoft ||
-                  unit.hasTerrace
-              )
+        sourceUnits.length > 0
+          ? sourceUnits.map((unit: UnitLine) => ({
+              rooms: toIntOrNull((unit as any)?.rooms),
+              baths: toIntOrNull((unit as any)?.baths),
+              hasLoft: !!(unit as any)?.duplex,
+              hasTerrace: !!(unit as any)?.terrace,
+              minPrice: toIntOrNull((unit as any)?.primary),
+              maxPrice: toIntOrNull((unit as any)?.secondary),
+            }))
           : [];
 
       const pinDto: CreatePinDto = {
