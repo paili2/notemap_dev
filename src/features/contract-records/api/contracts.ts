@@ -66,11 +66,10 @@ export async function createContract(
   try {
     console.log("계약 생성 API 호출:", data);
 
-    // 다른 엔드포인트 시도
     const response = await api.post<{
       message: string;
       data: { id: number };
-    }>("/dashboard/contracts", data);
+    }>("/contracts", data);
 
     console.log("계약 생성 API 응답:", response.data);
     return response.data.data;

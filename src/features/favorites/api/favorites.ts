@@ -108,6 +108,21 @@ export type ReorderItemsRequest = {
   }>;
 };
 
+export async function reorderItems(data: ReorderItemsRequest): Promise<void> {
+  try {
+    console.log("즐겨찾기 아이템 순서 변경:", data);
+    const response = await api.patch<{ message: string }>(
+      "/item/reorder",
+      data
+    );
+    console.log("즐겨찾기 아이템 순서 변경 응답:", response.data);
+  } catch (error: any) {
+    console.error("즐겨찾기 아이템 순서 변경 실패:", error);
+    console.error("에러 상세:", error?.response?.data);
+    throw error;
+  }
+}
+
 // 즐겨찾기 아이템 추가/수정
 export type UpsertFavoriteItemRequest = {
   groupId?: string; // 기존 그룹에 추가할 경우

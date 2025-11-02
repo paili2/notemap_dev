@@ -8,7 +8,7 @@ import AccountsListPage from "@/features/users/components/_AccountsListPage";
 import { UnassignedEmployeesModal } from "@/features/unassigned-employees";
 
 import type { RoleKey, UserRow } from "@/features/users/types";
-import type { TeamMemberDetail } from "@/features/teams/api";
+import type { TeamMemberDetail } from "@/features/teams/api/teams";
 import {
   useRemoveTeamMember,
   useAssignTeamMember,
