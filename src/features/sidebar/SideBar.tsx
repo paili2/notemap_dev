@@ -14,6 +14,8 @@ import { useScheduledReservations } from "../survey-reservations/hooks/useSchedu
 import { useReorderReservations } from "../survey-reservations/hooks/useReorderReservations";
 import { useCancelReservation } from "../survey-reservations/hooks/useCancelReservation";
 import { useSignout } from "../auth/hooks/useSignout";
+import { useQuery } from "@tanstack/react-query";
+import { getProfile } from "../users/api/account";
 
 export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
   // 0) 안전 기본값
@@ -42,6 +44,13 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
 
   // ✅ 로그아웃 훅
   const { mutate: doSignout, isPending: isSigningOut } = useSignout();
+
+  // ✅ 프로필 정보 가져오기
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: getProfile,
+    staleTime: 10 * 60 * 1000, // 10분
+  });
 
   // 2) 파생 리스트
   const listItems: ListItem[] = useMemo(
@@ -96,7 +105,7 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
 
         <div className="flex justify-between items-center p-2 border-t border-gray-200">
           <span className="text-base font-medium text-gray-700">
-            사용자 계정
+            {profile?.account?.name || "사용자 계정"}
           </span>
           <Button
             variant="ghost"
