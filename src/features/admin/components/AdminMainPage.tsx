@@ -18,16 +18,29 @@ import {
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { getProfile } from "@/features/users/api/account";
 
 export function AdminMainPage() {
+  // 프로필 정보 가져오기
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: getProfile,
+    staleTime: 10 * 60 * 1000, // 10분
+  });
+
   const quickActions = [
-    {
-      title: "팀 관리(관리자)",
-      description: "전체 팀 목록 및 관리",
-      href: "/admin/team-management",
-      icon: Users,
-      color: "bg-blue-500",
-    },
+    ...(profile?.role === "admin"
+      ? [
+          {
+            title: "팀 관리(관리자)",
+            description: "전체 팀 목록 및 관리",
+            href: "/admin/team-management",
+            icon: Users,
+            color: "bg-blue-500",
+          },
+        ]
+      : []),
     {
       title: "팀 관리",
       description: "팀원 정보 조회 및 관리",

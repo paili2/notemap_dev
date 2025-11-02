@@ -29,7 +29,7 @@ import {
 import { Plus, Calendar as CalendarIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getTeams } from "@/features/teams/api/teams";
+import { getTeams } from "@/features/teams";
 import {
   createAccount,
   createEmployeeInfo,

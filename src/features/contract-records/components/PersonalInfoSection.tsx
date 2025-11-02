@@ -8,13 +8,6 @@ import {
 } from "@/components/atoms/Card/Card";
 import { Input } from "@/components/atoms/Input/Input";
 import { Label } from "@/components/atoms/Label/Label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/atoms/Select/Select";
 import type { PersonInfo } from "../types/contract-records";
 
 interface PersonalInfoSectionProps {
@@ -23,15 +16,6 @@ interface PersonalInfoSectionProps {
   onCustomerInfoChange: (info: PersonInfo) => void;
   onSalesPersonChange: (info: PersonInfo) => void;
 }
-
-// 담당자 목록 (실제로는 API에서 가져올 데이터)
-const STAFF_LIST = [
-  { id: "1", name: "김영업" },
-  { id: "2", name: "이영업" },
-  { id: "3", name: "박영업" },
-  { id: "4", name: "최영업" },
-  { id: "5", name: "정영업" },
-];
 
 export function PersonalInfoSection({
   customerInfo,
@@ -100,36 +84,17 @@ export function PersonalInfoSection({
         <CardContent className="p-3 pt-1">
           <div className="space-y-1">
             <Label
-              htmlFor="sales-person"
+              htmlFor="sales-person-name"
               className="text-xs text-muted-foreground"
             >
-              담당자 선택
+              담당자
             </Label>
-            <Select
+            <Input
+              id="sales-person-name"
               value={salesPerson.name}
-              onValueChange={(value) => {
-                const selectedStaff = STAFF_LIST.find(
-                  (staff) => staff.name === value
-                );
-                if (selectedStaff) {
-                  onSalesPersonChange({
-                    name: selectedStaff.name,
-                    contact: "", // 연락처는 빈 문자열로 설정
-                  });
-                }
-              }}
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue placeholder="담당자를 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {STAFF_LIST.map((staff) => (
-                  <SelectItem key={staff.id} value={staff.name}>
-                    {staff.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              readOnly
+              className="h-7 text-xs bg-muted"
+            />
           </div>
         </CardContent>
       </Card>

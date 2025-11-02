@@ -1,5 +1,42 @@
 import { api } from "@/shared/api/api";
 
+// 프로필 정보 조회
+export type ProfileResponse = {
+  credentialId: string;
+  email: string;
+  role: "admin" | "manager" | "staff";
+  disabled: boolean;
+  profileCompleted: boolean;
+  account: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    emergencyContact: string | null;
+    addressLine: string | null;
+    bankName: string | null;
+    bankAccountNo: string | null;
+    photoUrl: string | null;
+    positionRank: string;
+    docUrlResidentRegistration: string | null;
+    docUrlResidentAbstract: string | null;
+    docUrlIdCard: string | null;
+    docUrlFamilyRelation: string | null;
+  } | null;
+};
+
+export async function getProfile(): Promise<ProfileResponse> {
+  try {
+    const response = await api.get<{
+      message: string;
+      data: ProfileResponse;
+    }>("/dashboard/accounts/me/profile");
+    return response.data.data;
+  } catch (error: any) {
+    console.error("프로필 조회 실패:", error);
+    throw error;
+  }
+}
+
 // 첫 번째 API: 계정 생성 (credentials)
 export type CreateAccountRequest = {
   email: string;

@@ -21,6 +21,10 @@ import { ContractImageSection } from "./ContractImageSection";
 import { createContract } from "../api/contracts";
 import { transformSalesContractToCreateRequest } from "../utils/contractTransformers";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { getProfile } from "@/features/users/api/account";
+import { api } from "@/shared/api/api";
+import { getTeams } from "@/features/teams";
 
 // 기본 데이터
 const defaultData: SalesContractData = {
@@ -75,12 +79,82 @@ export function SalesContractRecordsModal({
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
+  // 프로필 정보 가져오기
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: getProfile,
+    staleTime: 10 * 60 * 1000, // 10분
+  });
+
+  // 내 팀 멤버 가져오기
+  const { data: myTeamMembers } = useQuery({
+    queryKey: ["my-team-members"],
+    queryFn: async () => {
+      try {
+        // 프로필에서 accountId 가져오기
+        const accountId = profile?.account?.id;
+        if (!accountId) return [];
+
+        // 팀 목록 가져오기
+        const teams = await getTeams();
+        if (teams.length === 0) return [];
+
+        // 각 팀의 상세 조회를 통해 내가 속한 팀 찾기
+        for (const team of teams) {
+          try {
+            const teamDetailResponse = await api.get<{
+              message: string;
+              data: {
+                id: string;
+                name: string;
+                members: Array<{
+                  accountId: string;
+                  name: string | null;
+                }>;
+              };
+            }>(`/dashboard/accounts/teams/${team.id}`);
+
+            const isMyTeam = teamDetailResponse.data.data.members.some(
+              (member) => String(member.accountId) === String(accountId)
+            );
+
+            if (isMyTeam) {
+              return teamDetailResponse.data.data.members;
+            }
+          } catch (error) {
+            console.error(`팀 ${team.id} 조회 실패:`, error);
+            continue;
+          }
+        }
+        return [];
+      } catch (error) {
+        console.error("팀 멤버 조회 실패:", error);
+        return [];
+      }
+    },
+    enabled: !!profile?.account?.id,
+    staleTime: 10 * 60 * 1000, // 10분
+  });
+
   // 초기 데이터가 변경되면 상태 업데이트
   useEffect(() => {
     if (initialData) {
       setData(initialData);
     }
   }, [initialData]);
+
+  // 프로필 정보가 로드되면 담당자 정보 자동 채우기
+  useEffect(() => {
+    if (profile && !initialData && isOpen) {
+      setData((prevData) => ({
+        ...prevData,
+        salesPerson: {
+          name: profile.account?.name || "",
+          contact: profile.account?.phone || "",
+        },
+      }));
+    }
+  }, [profile, initialData, isOpen]);
 
   // 데이터 변경 핸들러
   const handleDataChange = (newData: SalesContractData) => {
@@ -258,6 +332,7 @@ export function SalesContractRecordsModal({
               onStaffAllocationsChange={handleStaffAllocationsChange}
               totalCalculation={data.totalCalculation}
               totalRebate={data.financialInfo.totalRebate}
+              teamMembers={myTeamMembers || []}
             />
 
             {/* 계약 이미지 */}

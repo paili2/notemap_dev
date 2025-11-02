@@ -3,14 +3,11 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Table, SearchBar, processTableData } from "@/features/table";
 import type { ContractData } from "../types";
-import type { SalesContractData } from "@/features/contract-records/types/contract-records";
-import { mockContracts } from "../data/mockContracts";
 import {
   contractTableColumns,
   searchKeys,
   paginationConfig,
 } from "../utils/tableConfig";
-import { transformSalesContractToContract } from "../utils/dataTransformer";
 import { getContracts } from "@/features/contract-records/api/contracts";
 import { transformContractResponseToContractData } from "@/features/contract-records/utils/contractTransformers";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 export function ContractManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(false);
   const [contracts, setContracts] = useState<ContractData[]>([]);
   const [isLoadingContracts, setIsLoadingContracts] = useState(true);
   const { toast } = useToast();
@@ -73,13 +69,6 @@ export function ContractManagement() {
     // TODO: 계약 상세 페이지로 이동
   };
 
-  // 새로운 계약 추가 함수 (contract-records에서 호출될 예정)
-  const addNewContract = (salesContractData: SalesContractData) => {
-    const newContract = transformSalesContractToContract(salesContractData);
-    setContracts((prevContracts) => [newContract, ...prevContracts]);
-    // API에서 다시 로드
-    loadContracts();
-  };
 
   // 계약 상태 업데이트 함수
   const updateContractStatus = (
