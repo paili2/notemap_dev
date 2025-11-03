@@ -1,4 +1,3 @@
-// ✅ src/shared/api/photos.ts
 import { api } from "@/shared/api/api";
 import type { AxiosRequestConfig } from "axios";
 import type {
@@ -7,6 +6,18 @@ import type {
   PinPhotoGroup,
   CreatePinPhotoDto,
 } from "@/shared/api/types/pinPhotos";
+
+/* ─────────────────────────────────────────────
+ * 내부 공용 유틸
+ * ───────────────────────────────────────────── */
+const toKey = (v: IdLike) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : v;
+};
+const assertArray = <T>(v: unknown, msg: string): T[] => {
+  if (!v || !Array.isArray(v)) throw new Error(msg);
+  return v as T[];
+};
 
 /* =========================
  * /photo-groups CRUD (조회만)
@@ -17,17 +28,18 @@ export async function listPhotoGroupsByPin(
   pinId: IdLike,
   config?: AxiosRequestConfig
 ): Promise<PinPhotoGroup[]> {
-  const pinIdNum = Number(pinId);
-  const pinKey = Number.isFinite(pinIdNum) ? pinIdNum : pinId;
+  const pinKey = toKey(pinId);
 
   const { data } = await api.get<{ data?: PinPhotoGroup[]; message?: string }>(
     `/photo-groups/${encodeURIComponent(String(pinKey))}`,
     { withCredentials: true, ...(config ?? {}) }
   );
-  if (!data?.data) {
-    throw new Error(data?.message || "사진 그룹 조회 실패");
-  }
-  return data.data as PinPhotoGroup[];
+
+  const groups = assertArray<PinPhotoGroup>(
+    data?.data,
+    data?.message || "사진 그룹 조회 실패"
+  );
+  return groups;
 }
 
 /* =========================
@@ -39,17 +51,18 @@ export async function listGroupPhotos(
   groupId: IdLike,
   config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
-  const gidNum = Number(groupId);
-  const gidKey = Number.isFinite(gidNum) ? gidNum : groupId;
+  const gidKey = toKey(groupId);
 
   const { data } = await api.get<{ data?: PinPhoto[]; message?: string }>(
     `/photos/${encodeURIComponent(String(gidKey))}`,
     { withCredentials: true, ...(config ?? {}) }
   );
-  if (!data?.data) {
-    throw new Error(data?.message || "사진 목록 조회 실패");
-  }
-  return data.data as PinPhoto[];
+
+  const photos = assertArray<PinPhoto>(
+    data?.data,
+    data?.message || "사진 목록 조회 실패"
+  );
+  return photos;
 }
 
 /* ─────────────────────────────────────────────
@@ -77,12 +90,16 @@ export async function createPhotosInGroup(
   body: CreatePinPhotoDto, // { urls: string[], sortOrders?: number[], isCover?: boolean }
   config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
+  // 가벼운 사전 검증: urls 필수
+  if (!body?.urls?.length) {
+    throw new Error("사진 등록 실패: urls가 비어 있습니다.");
+  }
+
   const key = createKey(groupId, body);
   const existed = inflightCreate.get(key);
   if (existed) return existed;
 
-  const gidNum = Number(groupId);
-  const gidKey = Number.isFinite(gidNum) ? gidNum : groupId;
+  const gidKey = toKey(groupId);
 
   const work = (async () => {
     const { data } = await api.post<{ data?: PinPhoto[]; message?: string }>(
@@ -90,10 +107,12 @@ export async function createPhotosInGroup(
       body,
       { withCredentials: true, ...(config ?? {}) }
     );
-    if (!data?.data) {
-      throw new Error(data?.message || "사진 등록 실패");
-    }
-    return data.data as PinPhoto[];
+
+    const photos = assertArray<PinPhoto>(
+      data?.data,
+      data?.message || "사진 등록 실패"
+    );
+    return photos;
   })();
 
   inflightCreate.set(key, work);
@@ -118,15 +137,26 @@ export async function updatePhotos(
   body: UpdatePhotosBody,
   config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
+  // moveGroupId 숫자 보정
+  const normalizedBody: UpdatePhotosBody = {
+    ...body,
+    moveGroupId:
+      body.moveGroupId === null || body.moveGroupId === undefined
+        ? body.moveGroupId ?? null
+        : toKey(body.moveGroupId),
+  };
+
   const { data } = await api.patch<{ data?: PinPhoto[]; message?: string }>(
     `/photos`,
-    body,
+    normalizedBody,
     { withCredentials: true, ...(config ?? {}) }
   );
-  if (!data?.data) {
-    throw new Error(data?.message || "사진 수정 실패");
-  }
-  return data.data as PinPhoto[];
+
+  const photos = assertArray<PinPhoto>(
+    data?.data,
+    data?.message || "사진 수정 실패"
+  );
+  return photos;
 }
 
 /** 일괄 삭제: DELETE /photos */
@@ -142,8 +172,10 @@ export async function deletePhotos(
     withCredentials: true,
     ...(config ?? {}),
   });
-  if (!data?.data) {
+
+  const result = data?.data;
+  if (!result || typeof result.affected !== "number") {
     throw new Error(data?.message || "사진 삭제 실패");
   }
-  return data.data as { affected: number };
+  return result;
 }

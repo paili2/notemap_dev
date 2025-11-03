@@ -1,4 +1,3 @@
-// src/features/properties/components/create/ui/HeaderContainer.tsx
 "use client";
 
 import HeaderSection from "../../sections/HeaderSection/HeaderSection";

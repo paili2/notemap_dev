@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/hooks/useViewForm.ts
 "use client";
 
 import { useMemo, useState } from "react";
@@ -27,10 +26,14 @@ export function useViewForm({
   // 메모 탭 상태
   const [memoTab, setMemoTab] = useState<MemoTab>("KN");
 
-  // 이미지 하이드레이션
-  const { preferCards, cardsHydrated, filesHydrated, legacyImagesHydrated } =
-    useViewImagesHydration({ open, data: data as any });
+  // 🔁 pinId 추정(명시적 필드 우선 → id 폴백)
+  const pinId = (data as any)?.pinId ?? (data as any)?.id ?? null;
 
+  // 이미지 하이드레이션 (서버 → refs → 레거시, 서버 우선)
+  const { preferCards, cardsHydrated, filesHydrated, legacyImagesHydrated } =
+    useViewImagesHydration({ open, data: data as any, pinId });
+
+  // 섹션 컴포가 cards를 우선 쓰는지 여부에 따라 레거시 flat 이미지 전달 여부 결정
   const imagesProp = preferCards ? undefined : legacyImagesHydrated;
 
   // 메타 파생 (pinKind / 면적 타이틀)

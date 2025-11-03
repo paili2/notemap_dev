@@ -1,4 +1,3 @@
-// src/features/map/lib/createMarker.ts (또는 기존 경로 그대로)
 import { PIN_MARKER, LABEL, HITBOX, Z } from "@/features/map/lib/constants";
 import { getPinUrl } from "@/features/pins/lib/assets";
 import type { PinKind } from "@/features/pins/types";

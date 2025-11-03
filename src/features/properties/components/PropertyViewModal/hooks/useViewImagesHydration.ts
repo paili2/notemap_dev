@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { hydrateRefsToMedia } from "@/lib/media/refs";
+import { listPhotoGroupsByPin, listGroupPhotos } from "@/shared/api/photos";
 
 type AnyImg = {
   url?: string | null;
@@ -37,11 +38,17 @@ function normCard(card: AnyCard): HydratedImg[] {
 export function useViewImagesHydration({
   open,
   data,
+  pinId: pinIdArg,
 }: {
   open: boolean;
   data: any;
+  /** 명시적 pinId가 있으면 사용, 없으면 data에서 추정 */
+  pinId?: number | string;
 }) {
-  // 1) 서버/레거시 스키마 정규화
+  /* 0) pinId 추정 */
+  const pinId = pinIdArg ?? data?.pinId ?? data?.id ?? null;
+
+  /* 1) 서버/레거시 스키마 정규화(로컬) */
   const normalized = useMemo(() => {
     const fromImageFolders: HydratedImg[][] = Array.isArray(data?.imageFolders)
       ? (data.imageFolders as AnyCard[]).map(normCard)
@@ -83,7 +90,7 @@ export function useViewImagesHydration({
     };
   }, [data]);
 
-  // 2) refs 있으면 IndexedDB 등에서 재-하이드레이션 (저장 직후/새로고침 복원)
+  /* 2) refs 있으면 IndexedDB 등에서 재-하이드레이션 (저장 직후/새로고침 복원) */
   const [_cardsFromRefs, setCardsFromRefs] = useState<HydratedImg[][]>([]);
   const [_filesFromRefs, setFilesFromRefs] = useState<HydratedImg[]>([]);
 
@@ -122,7 +129,7 @@ export function useViewImagesHydration({
     return () => {
       cancelled = true;
     };
-    // 🔧 저장 직후 refs가 바뀌면 즉시 재-하이드레이션되도록 의존성에 refs를 포함
+    // 저장 직후 refs가 바뀌면 즉시 재-하이드레이션
   }, [
     open,
     data?.id,
@@ -132,14 +139,72 @@ export function useViewImagesHydration({
     data?.view?._fileItemRefs,
   ]);
 
-  // 3) 우선순위: refs 결과(있으면 우선) → normalized
-  const cardsHydrated = _cardsFromRefs.length
-    ? _cardsFromRefs
-    : normalized.cardsBase;
+  /* 3) 서버에서 사진 그룹/사진 조회 (열렸을 때만) */
+  const [_cardsFromServer, setCardsFromServer] = useState<HydratedImg[][]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    // 열려 있고 pinId가 확인될 때만 호출
+    if (!open || !pinId) {
+      setCardsFromServer([]);
+      return;
+    }
 
-  const filesHydrated = _filesFromRefs.length
-    ? _filesFromRefs
-    : normalized.filesBase;
+    (async () => {
+      try {
+        // 그룹 목록
+        const groups = await listPhotoGroupsByPin(pinId);
+        if (!groups?.length) {
+          if (!cancelled) setCardsFromServer([]);
+          return;
+        }
+
+        // 각 그룹의 사진 병렬 조회
+        const photosList = await Promise.all(
+          groups.map((g) =>
+            listGroupPhotos(g.id as any).catch(() => [] as any[])
+          )
+        );
+
+        const serverCards: HydratedImg[][] = groups
+          .map((g, idx) => {
+            const items = (photosList[idx] ?? []) as Array<{
+              url: string;
+              sortOrder?: number;
+            }>;
+            return items
+              .slice()
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map((p) => ({
+                url: p.url,
+                name: "",
+              }));
+          })
+          .filter((arr) => arr.length > 0);
+
+        if (!cancelled) {
+          setCardsFromServer(serverCards);
+        }
+      } catch (e) {
+        console.warn("[useViewImagesHydration] server fetch failed:", e);
+        if (!cancelled) setCardsFromServer([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, pinId]);
+
+  /* 4) 우선순위: 서버 → refs → normalized */
+  const cardsHydrated =
+    _cardsFromServer.length > 0
+      ? _cardsFromServer
+      : _cardsFromRefs.length > 0
+      ? _cardsFromRefs
+      : normalized.cardsBase;
+
+  const filesHydrated =
+    _filesFromRefs.length > 0 ? _filesFromRefs : normalized.filesBase;
 
   const preferCards = cardsHydrated.length > 0;
 

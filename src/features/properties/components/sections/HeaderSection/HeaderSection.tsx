@@ -1,4 +1,3 @@
-// HeaderSection.tsx
 "use client";
 
 import { RefreshCw } from "lucide-react";

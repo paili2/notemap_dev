@@ -1,4 +1,3 @@
-// ✅ src/shared/api/photoGroups.ts
 import { api } from "@/shared/api/api";
 import type { AxiosError, AxiosRequestConfig } from "axios";
 
@@ -6,7 +5,7 @@ import type { AxiosError, AxiosRequestConfig } from "axios";
 export type PinPhotoGroup = {
   id: string | number;
   pinId: string | number;
-  title: string; // ← 항상 존재하도록 강제
+  title: string; // 항상 존재
   sortOrder?: number | null;
   createdAt?: string;
   updatedAt?: string;
@@ -14,8 +13,8 @@ export type PinPhotoGroup = {
 
 /** 생성 DTO (백엔드에서 받는 필드들) */
 export type CreatePinPhotoGroupDto = {
-  pinId: number | string; // ✅ 필수
-  title?: string; // ← 보내지 않으면 400, 기본값 처리 필요
+  pinId: number | string; // 필수
+  title?: string; // 미전송 시 400 → 기본값 처리
   sortOrder?: number | null;
 };
 
@@ -25,7 +24,7 @@ export type UpdatePinPhotoGroupDto = {
   sortOrder?: number | null;
 };
 
-const is409 = (e: any) => {
+const is409 = (e: unknown) => {
   const err = e as AxiosError<any>;
   return !!(err?.response && err.response.status === 409);
 };
@@ -63,8 +62,9 @@ function keyOfCreate(dto: {
 }
 
 /** POST /photo-groups
- *  ⚠️ 'title'은 필수 → 기본값을 만들어 항상 전송
- *  ✅ 중복 호출(클릭/이펙트 2회 등) 방지 및 409(중복) 복구
+ *  - 'title' 필수 → 기본값 생성해 항상 전송
+ *  - 중복 클릭/이펙트로 같은 요청이 겹칠 때 dedupe
+ *  - 서버 409(중복) 시: 목록 조회로 동일 항목 찾아 반환
  */
 export async function createPhotoGroup(
   dto: CreatePinPhotoGroupDto,
@@ -75,7 +75,7 @@ export async function createPhotoGroup(
     ? Number(dto.pinId)
     : dto.pinId;
 
-  // 백엔드가 MinLength(1) 요구 → 기본값 생성
+  // 백엔드 MinLength(1) 요구 → 기본값 생성
   const fallbackTitle =
     typeof dto.sortOrder === "number"
       ? `카드 ${dto.sortOrder + 1}`
@@ -111,7 +111,7 @@ export async function createPhotoGroup(
       }
       return data.data;
     } catch (e) {
-      // 🔁 서버가 중복(409)일 경우: 목록을 조회해 같은 title/sortOrder를 찾아 반환
+      // 서버 중복(409) → 동일 title/sortOrder 매칭 반환 시도
       if (is409(e)) {
         const groups = await listPhotoGroupsByPin(pinId, config).catch(
           () => []
@@ -122,7 +122,7 @@ export async function createPhotoGroup(
             const want = (payload.sortOrder ?? null) as number | null;
             return String(g.title) === title && so === want;
           }) ||
-          // sortOrder가 없을 때는 title만으로 fallback 매칭
+          // sortOrder 없이 생성한 경우 title만으로 fallback
           (groups as PinPhotoGroup[]).find((g) => String(g.title) === title);
         if (match) return match;
       }

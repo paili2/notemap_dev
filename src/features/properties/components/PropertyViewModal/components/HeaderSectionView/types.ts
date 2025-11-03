@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/HeaderSectionView/types.ts
 import type { MutableRefObject } from "react";
 import { PinKind } from "@/features/pins/types";
 

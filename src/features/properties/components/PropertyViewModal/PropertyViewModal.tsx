@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -190,6 +191,7 @@ export default function PropertyViewModal({
         className="absolute inset-0 bg-black/40"
         onClick={onDimClick}
         aria-label="닫기"
+        title="닫기"
       />
 
       {/* Wrapper: 모바일 풀스크린 / 데스크탑 카드 */}
@@ -241,6 +243,7 @@ export default function PropertyViewModal({
               >
                 <div className="space-y-4">
                   <DisplayImagesContainer
+                    // 서버/refs/레거시 우선순위로 가공된 cards/images/files
                     cards={f.cardsHydrated}
                     images={f.imagesProp}
                     files={f.filesHydrated}
@@ -377,7 +380,7 @@ export default function PropertyViewModal({
                   <span className="animate-pulse text-base">
                     상세 정보를 불러오는 중…
                   </span>
-                  <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
+                  <div className="h-1.5 w-48 rounded bg-slate-2 00 overflow-hidden">
                     <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
                   </div>
                 </div>
@@ -388,7 +391,7 @@ export default function PropertyViewModal({
           // 편집 모드 (hasData일 때만 렌더)
           hasData && (
             <PropertyEditModalBody
-              key={String(data!.id ?? "edit")}
+              key={String((data as any)?.id ?? "edit")}
               embedded
               initialData={data!}
               onClose={() => setMode("view")}

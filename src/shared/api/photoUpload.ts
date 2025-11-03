@@ -1,4 +1,3 @@
-// src/shared/api/photoUpload.ts
 import { api } from "@/shared/api/api";
 
 /** 업로드 도메인 */

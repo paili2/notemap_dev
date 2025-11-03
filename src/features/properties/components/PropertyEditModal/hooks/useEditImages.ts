@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyCreateModal/hooks/useEditImages.ts
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";

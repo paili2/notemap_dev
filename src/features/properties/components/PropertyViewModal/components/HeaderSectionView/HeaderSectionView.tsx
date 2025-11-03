@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/HeaderSectionView/HeaderSectionView.tsx
 "use client";
 
 import { useMemo } from "react";

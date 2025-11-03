@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/ui/HeaderViewContainer.tsx
 "use client";
 
 import type { MutableRefObject } from "react";
