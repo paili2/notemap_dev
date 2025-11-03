@@ -1,3 +1,4 @@
+// src/features/properties/lib/view/toViewDetailsFromApi.ts
 import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
 import { mapBadgeToPinKind } from "../badge";
@@ -65,6 +66,7 @@ export type ApiPin = {
     sortOrder?: number | null;
   }> | null;
 
+  /** ✅ 구조별 입력(노트는 서버만 보유, 뷰로는 미노출) */
   units?: Array<{
     rooms?: number | null;
     baths?: number | null;
@@ -199,6 +201,49 @@ function normalizeParkingGrade(s?: string | null) {
     : undefined;
 }
 
+/** ✅ units 정규화(숫자/불리언 캐스팅, note 제거) */
+function mapUnits(apiUnits?: ApiPin["units"]):
+  | Array<{
+      rooms: number;
+      baths: number;
+      hasLoft: boolean;
+      hasTerrace: boolean;
+      minPrice?: number | null;
+      maxPrice?: number | null;
+    }>
+  | undefined {
+  if (!Array.isArray(apiUnits) || apiUnits.length === 0) return undefined;
+
+  const toIntOrUndef = (x: any): number | undefined => {
+    if (typeof x === "number" && Number.isFinite(x)) return Math.trunc(x);
+    if (typeof x === "string") {
+      const n = Number(x.replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? Math.trunc(n) : undefined;
+    }
+    return undefined;
+  };
+
+  const toBool = (x: any): boolean =>
+    x === true ||
+    x === "true" ||
+    x === 1 ||
+    x === "1" ||
+    x === "Y" ||
+    x === "y";
+
+  return apiUnits.map((u) => ({
+    rooms: toIntOrUndef(u?.rooms) ?? 0,
+    baths: toIntOrUndef(u?.baths) ?? 0,
+    hasLoft: toBool(u?.hasLoft),
+    hasTerrace: toBool(u?.hasTerrace),
+    minPrice:
+      u?.minPrice == null ? undefined : toIntOrUndef(u?.minPrice) ?? null,
+    maxPrice:
+      u?.maxPrice == null ? undefined : toIntOrUndef(u?.maxPrice) ?? null,
+    // note는 버림
+  }));
+}
+
 /* ───────────── 메인 변환 함수 ───────────── */
 export function toViewDetailsFromApi(
   api: ApiPin
@@ -221,6 +266,9 @@ export function toViewDetailsFromApi(
     Number.isFinite(api.totalParkingSlots)
       ? api.totalParkingSlots
       : undefined;
+
+  // ✅ 신규: units 맵핑(뷰로 그대로 넘김; note 제외)
+  const units = mapUnits(api.units);
 
   const view: PropertyViewDetails = {
     id: String(api.id),
@@ -286,11 +334,16 @@ export function toViewDetailsFromApi(
     /** ✅ 최저 실입(정수 금액) */
     minRealMoveInCost: api.minRealMoveInCost ?? undefined,
 
-    /** 초기화(미디어/기타) */
+    /** 미디어/기타 초기화 */
     images: [],
     imageCards: [],
     fileItems: [],
+
+    /** 레거시 라인은 그대로(없으면 undefined) */
     unitLines: undefined,
+
+    /** ✅ 구조별 입력 */
+    units,
 
     /** 레거시 금액은 뷰에 표시하지 않음 */
     salePrice: undefined,

@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -288,7 +287,11 @@ export default function PropertyViewModal({
                     baseAreaTitle={f.baseAreaTitleView}
                     extraAreaTitles={f.extraAreaTitlesView}
                   />
-                  <StructureLinesListContainer lines={f.unitLines} />
+                  {/* ✅ units 우선 표시(없으면 내부에서 lines로 폴백) */}
+                  <StructureLinesListContainer
+                    lines={f.unitLines}
+                    units={(f as any).units}
+                  />
                   <OptionsBadgesContainer
                     options={f.options}
                     optionEtc={f.optionEtc}
@@ -380,7 +383,7 @@ export default function PropertyViewModal({
                   <span className="animate-pulse text-base">
                     상세 정보를 불러오는 중…
                   </span>
-                  <div className="h-1.5 w-48 rounded bg-slate-2 00 overflow-hidden">
+                  <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
                     <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
                   </div>
                 </div>

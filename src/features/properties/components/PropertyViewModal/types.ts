@@ -14,6 +14,16 @@ type ImageRefLite = {
   caption?: string;
 };
 
+/* ✅ 구조별 입력(뷰 전용) */
+export type UnitView = {
+  rooms: number;
+  baths: number;
+  hasLoft: boolean;
+  hasTerrace: boolean;
+  minPrice?: number | null;
+  maxPrice?: number | null;
+};
+
 export type PropertyViewDetails = {
   id?: string;
 
@@ -92,8 +102,11 @@ export type PropertyViewDetails = {
   baseAreaTitle?: string;
   extraAreaTitles?: string[];
 
-  // 구조 라인
+  // 구조
+  /** ⛔️ 레거시(구조 라인) */
   unitLines?: UnitLine[];
+  /** ✅ 신버전(구조별 입력) */
+  units?: UnitView[];
 
   // 미디어
   images?: ImageItem[] | string[];

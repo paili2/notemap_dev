@@ -1,4 +1,3 @@
-// src/features/properties/lib/badge.ts (예시 경로)
 import type { PinKind } from "@/features/pins/types";
 
 /** PinKind -> 서버 badge */

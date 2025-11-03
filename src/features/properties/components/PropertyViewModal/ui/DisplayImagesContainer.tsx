@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/ui/DisplayImagesContainer.tsx
 "use client";
 
 import { useMemo } from "react";
