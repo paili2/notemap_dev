@@ -1,201 +1,149 @@
-/* =========================
- * Types
- * ========================= */
-
-export type PinPhotoId = number | string;
-
-export type PinPhoto = {
-  id: PinPhotoId;
-  groupId: string;
-  url: string;
-  sortOrder: number;
-  isCover?: boolean;
-};
+// ✅ src/shared/api/photos.ts
+import { api } from "@/shared/api/api";
+import type { AxiosRequestConfig } from "axios";
+import type {
+  IdLike,
+  PinPhoto,
+  PinPhotoGroup,
+  CreatePinPhotoDto,
+} from "@/shared/api/types/pinPhotos";
 
 /* =========================
- * /photo-groups CRUD  (신규 명세)
+ * /photo-groups CRUD (조회만)
  * ========================= */
 
-type CreatePhotoGroupReq = {
-  /** 서버가 요구: 반드시 number */
-  pinId: number | string;
-  /** URL-safe 문자열(하이픈 등 OK) */
-  groupId: string;
-  /** 업로드 후 최종 접근 가능한 URL 배열 */
-  urls: string[];
-  /** 각 url의 정렬 순서 */
-  sortOrders?: number[];
-  /** true면 이번 요청에 포함된 전부 대표로 설정 */
-  isCover?: boolean;
-};
-
-type UpdatePhotoGroupReq = {
-  /** 그룹 표시 이름 등 확장 여지. 현재 정렬만 가정 */
-  sortOrder?: number;
-  /** 대표 그룹 지정 등 확장 여지 */
-  isCover?: boolean;
-};
-
+/** 목록: GET /photo-groups/:pinId */
 export async function listPhotoGroupsByPin(
-  pinId: number | string,
-  init?: RequestInit
-): Promise<any[]> {
-  const idNum = Number(pinId);
-  if (!Number.isFinite(idNum))
-    throw new Error("listPhotoGroupsByPin: pinId must be number");
-  const res = await fetch(
-    `/photo-groups/${encodeURIComponent(String(idNum))}`,
-    {
-      method: "GET",
-      credentials: "include",
-      ...init,
-    }
+  pinId: IdLike,
+  config?: AxiosRequestConfig
+): Promise<PinPhotoGroup[]> {
+  const pinIdNum = Number(pinId);
+  const pinKey = Number.isFinite(pinIdNum) ? pinIdNum : pinId;
+
+  const { data } = await api.get<{ data?: PinPhotoGroup[]; message?: string }>(
+    `/photo-groups/${encodeURIComponent(String(pinKey))}`,
+    { withCredentials: true, ...(config ?? {}) }
   );
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 그룹 조회 실패: ${res.status} ${msg}`);
+  if (!data?.data) {
+    throw new Error(data?.message || "사진 그룹 조회 실패");
   }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as any[];
-}
-
-/** ✅ 새 명세: POST /photo-groups  (pinId + groupId + urls + sortOrders + isCover) */
-export async function createGroupPhotos(
-  body: CreatePhotoGroupReq,
-  init?: RequestInit
-): Promise<PinPhoto[]> {
-  const pinIdNum = Number(body.pinId);
-  if (!Number.isFinite(pinIdNum))
-    throw new Error("createGroupPhotos: pinId must be number");
-
-  const res = await fetch(`/photo-groups`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ ...body, pinId: pinIdNum }),
-    ...init,
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 그룹 생성 실패: ${res.status} ${msg}`);
-  }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as PinPhoto[];
-}
-
-/** PATCH /photo-groups/:groupId (그룹 메타 수정—필요 시 사용) */
-export async function updatePhotoGroup(
-  groupId: string,
-  dto: UpdatePhotoGroupReq,
-  init?: RequestInit
-): Promise<any> {
-  const res = await fetch(`/photo-groups/${encodeURIComponent(groupId)}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(dto ?? {}),
-    ...init,
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 그룹 수정 실패: ${res.status} ${msg}`);
-  }
-  const data = await res.json().catch(() => ({}));
-  return data?.data ?? data;
+  return data.data as PinPhotoGroup[];
 }
 
 /* =========================
- * /photos CRUD  (그룹 내 사진 조작: 유지)
+ * 그룹 내 사진 CRUD
  * ========================= */
 
-/** 목록 조회: GET /photos/:groupId */
+/** 목록: GET /photos/:groupId  */
 export async function listGroupPhotos(
-  groupId: string,
-  init?: RequestInit
+  groupId: IdLike,
+  config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
-  const res = await fetch(`/photos/${encodeURIComponent(groupId)}`, {
-    method: "GET",
-    credentials: "include",
-    ...init,
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 목록 조회 실패: ${res.status} ${msg}`);
+  const gidNum = Number(groupId);
+  const gidKey = Number.isFinite(gidNum) ? gidNum : groupId;
+
+  const { data } = await api.get<{ data?: PinPhoto[]; message?: string }>(
+    `/photos/${encodeURIComponent(String(gidKey))}`,
+    { withCredentials: true, ...(config ?? {}) }
+  );
+  if (!data?.data) {
+    throw new Error(data?.message || "사진 목록 조회 실패");
   }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as PinPhoto[];
+  return data.data as PinPhoto[];
 }
 
-/** 등록: POST /photos/:groupId  (이전 방식 유지용) */
-type CreatePhotosInGroupBody = {
-  urls: string[];
-  isCover?: boolean;
-  sortOrders?: number[];
-};
+/* ─────────────────────────────────────────────
+ * In-flight dedupe for createPhotosInGroup
+ * 동일 (groupId, urls, sortOrders, isCover) 재호출 방지
+ * ───────────────────────────────────────────── */
+type InflightKey = string;
+type InflightEntry = Promise<PinPhoto[]>;
+const inflightCreate = new Map<InflightKey, InflightEntry>();
 
+function createKey(groupId: IdLike, body: CreatePinPhotoDto): InflightKey {
+  const gid = String(groupId);
+  const urlsSig = Array.isArray(body.urls) ? body.urls.join(",") : "";
+  const soSig = Array.isArray(body.sortOrders) ? body.sortOrders.join(",") : "";
+  const cover = body.isCover ? "1" : "0";
+  return `${gid}::${urlsSig}::${soSig}::${cover}`;
+}
+
+/** 등록(여러 장): POST /photos/:groupId
+ *  - 업로드는 /photo/upload?domain=map 에서 먼저 수행 → urls[] 획득
+ *  - 여기서는 그 urls를 그룹에 등록
+ */
 export async function createPhotosInGroup(
-  groupId: string,
-  body: CreatePhotosInGroupBody,
-  init?: RequestInit
+  groupId: IdLike,
+  body: CreatePinPhotoDto, // { urls: string[], sortOrders?: number[], isCover?: boolean }
+  config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
-  const res = await fetch(`/photos/${encodeURIComponent(groupId)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-    ...init,
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 등록 실패: ${res.status} ${msg}`);
+  const key = createKey(groupId, body);
+  const existed = inflightCreate.get(key);
+  if (existed) return existed;
+
+  const gidNum = Number(groupId);
+  const gidKey = Number.isFinite(gidNum) ? gidNum : groupId;
+
+  const work = (async () => {
+    const { data } = await api.post<{ data?: PinPhoto[]; message?: string }>(
+      `/photos/${encodeURIComponent(String(gidKey))}`,
+      body,
+      { withCredentials: true, ...(config ?? {}) }
+    );
+    if (!data?.data) {
+      throw new Error(data?.message || "사진 등록 실패");
+    }
+    return data.data as PinPhoto[];
+  })();
+
+  inflightCreate.set(key, work);
+  try {
+    return await work;
+  } finally {
+    inflightCreate.delete(key);
   }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as PinPhoto[];
 }
 
-/** 수정: PATCH /photos (여러 장 동시 수정 가능, 필요한 필드만 보냄) */
-type UpdatePhotosBody = {
-  photoIds: string[]; // 수정 대상 사진 IDs
-  isCover?: boolean; // 대표 여부 토글
-  sortOrder?: number; // 단건 정렬 변경
-  moveGroupId?: string | null; // 그룹 이동
+/** 일괄 수정: PATCH /photos
+ * - 필요한 값만 보냄: isCover, sortOrder, moveGroupId
+ */
+export type UpdatePhotosBody = {
+  photoIds: IdLike[];
+  isCover?: boolean;
+  sortOrder?: number;
+  moveGroupId?: IdLike | null;
 };
 
 export async function updatePhotos(
   body: UpdatePhotosBody,
-  init?: RequestInit
+  config?: AxiosRequestConfig
 ): Promise<PinPhoto[]> {
-  const res = await fetch(`/photos`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(body),
-    ...init,
-  });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 수정 실패: ${res.status} ${msg}`);
+  const { data } = await api.patch<{ data?: PinPhoto[]; message?: string }>(
+    `/photos`,
+    body,
+    { withCredentials: true, ...(config ?? {}) }
+  );
+  if (!data?.data) {
+    throw new Error(data?.message || "사진 수정 실패");
   }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as PinPhoto[];
+  return data.data as PinPhoto[];
 }
 
-/** 삭제: DELETE /photos */
+/** 일괄 삭제: DELETE /photos */
 export async function deletePhotos(
-  photoIds: string[],
-  init?: RequestInit
+  photoIds: IdLike[],
+  config?: AxiosRequestConfig
 ): Promise<{ affected: number }> {
-  const res = await fetch(`/photos`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ photoIds }),
-    ...init,
+  const { data } = await api.delete<{
+    data?: { affected: number };
+    message?: string;
+  }>(`/photos`, {
+    data: { photoIds }, // axios delete 본문 전송 시 data 키 사용
+    withCredentials: true,
+    ...(config ?? {}),
   });
-  if (!res.ok) {
-    const msg = await res.text().catch(() => "");
-    throw new Error(`사진 삭제 실패: ${res.status} ${msg}`);
+  if (!data?.data) {
+    throw new Error(data?.message || "사진 삭제 실패");
   }
-  const data = await res.json().catch(() => ({}));
-  return (data?.data ?? data) as { affected: number };
+  return data.data as { affected: number };
 }

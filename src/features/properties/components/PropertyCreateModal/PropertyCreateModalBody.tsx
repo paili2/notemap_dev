@@ -1,7 +1,6 @@
-// src/features/properties/components/PropertyCreateModal/PropertyCreateModalBody.tsx
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import type { PropertyCreateModalProps } from "./types";
@@ -37,6 +36,12 @@ import type { AreaSet as StrictAreaSet } from "@/features/properties/components/
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import type { UnitLine } from "@/features/properties/types/property-domain";
 
+/* ───────────── 미디어 영속화 단계 API ───────────── */
+import { createPhotoGroup } from "@/shared/api/photoGroups";
+import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
+import { createPhotosInGroup } from "@/shared/api/photos";
+import type { ImageItem } from "@/features/properties/types/media";
+
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -61,32 +66,184 @@ export default function PropertyCreateModalBody({
     handleRemoveFileItem,
   } = usePropertyImages();
 
-  const registerImageInputCompat: {
-    (idx: number): (el: HTMLInputElement | null) => void;
-    (idx: number, el: HTMLInputElement | null): void;
-  } = ((idx: number, el?: HTMLInputElement | null) => {
-    if (arguments.length === 1) {
-      return (nextEl: HTMLInputElement | null) =>
-        registerImageInputRaw(idx, nextEl);
-    }
-    return registerImageInputRaw(idx, el as HTMLInputElement | null);
-  }) as any;
+  /** ───── ref 콜백 안정화 + detach 처리 + 지연 등록 ───── */
+  type RefEntry = {
+    cb: (el: HTMLInputElement | null) => void;
+    lastNode: HTMLInputElement | null;
+  };
+  const refCache = useRef<Map<number, RefEntry>>(new Map());
 
-  const { removeByReservationId, removeByPinDraftId } =
-    useScheduledReservations();
+  const deferredRegister = (idx: number, node: HTMLInputElement) => {
+    queueMicrotask(() => {
+      const cur = refCache.current.get(idx);
+      if (cur?.lastNode === node) {
+        registerImageInputRaw(idx, node);
+      }
+    });
+  };
+
+  const registerImageInputCompat = useCallback(
+    ((idx: number, el?: HTMLInputElement | null) => {
+      if (arguments.length === 2) {
+        const entry =
+          refCache.current.get(idx) ??
+          ({ cb: () => void 0, lastNode: null } as RefEntry);
+        const node = el ?? null;
+
+        if (node === null) {
+          if (entry.lastNode !== null) {
+            entry.lastNode = null;
+            refCache.current.set(idx, entry);
+          }
+          return;
+        }
+        if (entry.lastNode === node) return;
+        entry.lastNode = node;
+        refCache.current.set(idx, entry);
+        deferredRegister(idx, node);
+        return;
+      }
+
+      let entry = refCache.current.get(idx);
+      if (!entry) {
+        const stable = (node: HTMLInputElement | null) => {
+          const cur =
+            refCache.current.get(idx) ??
+            ({ cb: stable, lastNode: null } as RefEntry);
+          if (node === null) {
+            if (cur.lastNode !== null) {
+              cur.lastNode = null;
+              refCache.current.set(idx, cur);
+            }
+            return;
+          }
+          if (cur.lastNode === node) return;
+          cur.lastNode = node;
+          refCache.current.set(idx, cur);
+          deferredRegister(idx, node);
+        };
+        entry = { cb: stable, lastNode: null };
+        refCache.current.set(idx, entry);
+      }
+      return entry.cb;
+    }) as {
+      (idx: number): (el: HTMLInputElement | null) => void;
+      (idx: number, el: HTMLInputElement | null): void;
+    },
+    [registerImageInputRaw]
+  );
+
+  /** ───── 이미지 핸들러 안정 래퍼 ───── */
+  type ImageHandlers = {
+    openImagePicker: typeof openImagePicker;
+    onPickFilesToFolder: typeof onPickFilesToFolder;
+    addPhotoFolder: typeof addPhotoFolder;
+    removePhotoFolder: typeof removePhotoFolder;
+    onChangeImageCaption: typeof onChangeImageCaption;
+    handleRemoveImage: typeof handleRemoveImage;
+    onAddFiles: typeof onAddFiles;
+    onChangeFileItemCaption: typeof onChangeFileItemCaption;
+    handleRemoveFileItem: typeof handleRemoveFileItem;
+  };
+
+  const handlersRef = useRef<ImageHandlers>({
+    openImagePicker,
+    onPickFilesToFolder,
+    addPhotoFolder,
+    removePhotoFolder,
+    onChangeImageCaption,
+    handleRemoveImage,
+    onAddFiles,
+    onChangeFileItemCaption,
+    handleRemoveFileItem,
+  });
+
+  useEffect(() => {
+    handlersRef.current = {
+      openImagePicker,
+      onPickFilesToFolder,
+      addPhotoFolder,
+      removePhotoFolder,
+      onChangeImageCaption,
+      handleRemoveImage,
+      onAddFiles,
+      onChangeFileItemCaption,
+      handleRemoveFileItem,
+    };
+  }, [
+    openImagePicker,
+    onPickFilesToFolder,
+    addPhotoFolder,
+    removePhotoFolder,
+    onChangeImageCaption,
+    handleRemoveImage,
+    onAddFiles,
+    onChangeFileItemCaption,
+    handleRemoveFileItem,
+  ]);
+
+  const stable_openImagePicker = useCallback(
+    (...args: Parameters<ImageHandlers["openImagePicker"]>) =>
+      handlersRef.current.openImagePicker(...args),
+    []
+  );
+  const stable_onPickFilesToFolder = useCallback(
+    (...args: Parameters<ImageHandlers["onPickFilesToFolder"]>) =>
+      handlersRef.current.onPickFilesToFolder(...args),
+    []
+  );
+  const stable_addPhotoFolder = useCallback(
+    (...args: Parameters<ImageHandlers["addPhotoFolder"]>) =>
+      handlersRef.current.addPhotoFolder(...args),
+    []
+  );
+  const stable_removePhotoFolder = useCallback(
+    (...args: Parameters<ImageHandlers["removePhotoFolder"]>) =>
+      handlersRef.current.removePhotoFolder(...args),
+    []
+  );
+  const stable_onChangeImageCaption = useCallback(
+    (...args: Parameters<ImageHandlers["onChangeImageCaption"]>) =>
+      handlersRef.current.onChangeImageCaption(...args),
+    []
+  );
+  const stable_handleRemoveImage = useCallback(
+    (...args: Parameters<ImageHandlers["handleRemoveImage"]>) =>
+      handlersRef.current.handleRemoveImage(...args),
+    []
+  );
+  const stable_onAddFiles = useCallback(
+    (...args: Parameters<ImageHandlers["onAddFiles"]>) =>
+      handlersRef.current.onAddFiles(...args),
+    []
+  );
+  const stable_onChangeFileItemCaption = useCallback(
+    (...args: Parameters<ImageHandlers["onChangeFileItemCaption"]>) =>
+      handlersRef.current.onChangeFileItemCaption(...args),
+    []
+  );
+  const stable_handleRemoveFileItem = useCallback(
+    (...args: Parameters<ImageHandlers["handleRemoveFileItem"]>) =>
+      handlersRef.current.handleRemoveFileItem(...args),
+    []
+  );
+
+  // 예약/드래프트 정리 함수는 한 번만 구조분해(별칭)
+  const {
+    removeByReservationId: removeReservation,
+    removeByPinDraftId: removeDraft,
+  } = useScheduledReservations();
 
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // 숫자 → 정수 또는 null (""/undefined/null → null, 0 허용)
-  const toIntOrNull = (v: any) => {
+  const toIntOrNull = (v: unknown) => {
     if (v === "" || v === null || v === undefined) return null;
     const n = Number(v);
     return Number.isFinite(n) ? Math.trunc(n) : null;
   };
 
-  // 숫자 → number 또는 undefined (빈문자/NaN은 undefined)
-  const toNum = (v: any) => {
+  const toNum = (v: unknown) => {
     const s = String(v ?? "").trim();
     if (s === "") return undefined;
     const n = Number(s);
@@ -104,6 +261,116 @@ export default function PropertyCreateModalBody({
     realMinPy: String(s?.realMinPy ?? ""),
     realMaxPy: String(s?.realMaxPy ?? ""),
   });
+
+  /* ───────────── 업로드 대상 선별 & File 변환 ───────────── */
+  const isUploadable = (u?: string) =>
+    !!u && (/^blob:/.test(u) || /^data:/.test(u));
+
+  const imageItemToFile = useCallback(
+    async (img: ImageItem, fallbackName: string) => {
+      const src = img?.dataUrl ?? img?.url ?? "";
+      if (!isUploadable(src)) return null;
+      const resp = await fetch(src);
+      const blob = await resp.blob();
+      const ext =
+        (blob.type && blob.type.split("/")[1]) ||
+        (img?.name?.split(".").pop() ?? "jpg");
+      const name =
+        (img?.name && img.name.trim()) || `${fallbackName}.${ext || "jpg"}`;
+      return new File([blob], name, {
+        type: blob.type || "application/octet-stream",
+      });
+    },
+    []
+  );
+
+  /** 중복 방지: 카드별/세로파일 업로드 1회 보장 */
+  const processedCardSetRef = useRef<Set<number>>(new Set());
+  const processedVerticalRef = useRef<boolean>(false);
+
+  /** 카드 하나: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
+  const persistOneCard = useCallback(
+    async (pinId: string | number, folderIdx: number) => {
+      // ✅ 같은 카드에 대해 중복 호출 방지
+      if (processedCardSetRef.current.has(folderIdx)) return;
+      processedCardSetRef.current.add(folderIdx);
+
+      const groupImages = imageFolders[folderIdx] ?? [];
+      try {
+        const filePromises = groupImages.map((img, i) =>
+          imageItemToFile(img, `card-${folderIdx + 1}-${i + 1}`)
+        );
+        const files = (await Promise.all(filePromises)).filter(
+          (f): f is File => !!f
+        );
+
+        if (files.length === 0) return;
+
+        // 1) 업로드
+        const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });
+        if (!urls.length) return;
+
+        // 2) 그룹 생성
+        const group = await createPhotoGroup({
+          pinId,
+          title: `카드 ${folderIdx + 1}`,
+          sortOrder: folderIdx,
+        });
+
+        // 3) 그룹에 사진 등록
+        const sortOrders = urls.map((_, i) => i);
+        await createPhotosInGroup(String(group.id), {
+          urls,
+          sortOrders,
+          isCover: folderIdx === 0,
+        });
+      } catch (err) {
+        console.warn("[persistOneCard] failed at folder", folderIdx, err);
+        // 실패 시 재시도를 원하면 processedCardSetRef.current.delete(folderIdx);
+      }
+    },
+    [imageFolders, imageItemToFile]
+  );
+
+  /** 세로 파일: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
+  const persistVerticalFiles = useCallback(
+    async (pinId: string | number) => {
+      // ✅ 세로 파일 업로드는 1회만
+      if (processedVerticalRef.current) return;
+      processedVerticalRef.current = true;
+
+      try {
+        const filePromises = fileItems.map((it, i) =>
+          imageItemToFile(it, `file-${i + 1}`)
+        );
+        const files = (await Promise.all(filePromises)).filter(
+          (f): f is File => !!f
+        );
+
+        if (files.length === 0) return;
+
+        const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });
+        if (!urls.length) return;
+
+        const group = await createPhotoGroup({
+          pinId,
+          title: "세로 파일",
+          sortOrder: imageFolders?.length ?? 0,
+        });
+
+        const sortOrders = urls.map((_, i) => i);
+        await createPhotosInGroup(String(group.id), {
+          urls,
+          sortOrders,
+          isCover: false,
+        });
+      } catch (err) {
+        console.warn("[persistVerticalFiles] failed", err);
+        // 실패 시 재시도 의도가 있으면 processedVerticalRef.current = false;
+      }
+    },
+    [fileItems, imageFolders?.length, imageItemToFile]
+  );
 
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
@@ -133,7 +400,6 @@ export default function PropertyCreateModalBody({
       ).map(toStrictAreaSet);
       const areaGroups = buildAreaGroups(strictBase, strictExtras);
 
-      // (참고) payload는 내부 상태/뷰 갱신용으로 유지
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -151,7 +417,7 @@ export default function PropertyCreateModalBody({
         parkingType: f.parkingType,
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
         completionDate: effectiveCompletionDate,
-        salePrice: f.salePrice, // 내부 상태용
+        salePrice: f.salePrice,
 
         baseAreaSet: strictBase,
         extraAreaSets: strictExtras,
@@ -176,7 +442,7 @@ export default function PropertyCreateModalBody({
         secretMemo: f.secretMemo,
 
         aspects: f.aspects,
-        unitLines: f.unitLines, // 내부 상태 유지 (전송용 아님)
+        unitLines: f.unitLines,
 
         imageFolders,
         fileItems,
@@ -199,7 +465,6 @@ export default function PropertyCreateModalBody({
         hasDryer: has("건조기"),
         hasBidet: has("비데"),
         hasAirPurifier: has("공기청정기") || has("공기순환기"),
-        isDirectLease: has("직영임대") || has("직영 임대"),
         ...(extraOptionsTextRaw
           ? { extraOptionsText: extraOptionsTextRaw.slice(0, 255) }
           : {}),
@@ -215,10 +480,6 @@ export default function PropertyCreateModalBody({
           )
         : [];
 
-      /** ✅ UnitLine(UI) → UnitsItemDto(API) 매핑
-       *  - UI: rooms, baths, duplex, terrace, primary(min), secondary(max)
-       *  - 상태 키는 `unitLines`가 표준. 혹시 모를 호환을 위해 `units`도 폴백.
-       */
       const sourceUnits: UnitLine[] = Array.isArray((f as any).unitLines)
         ? (f as any).unitLines
         : Array.isArray((f as any).units)
@@ -243,23 +504,17 @@ export default function PropertyCreateModalBody({
         parkingGrade: f.parkingGrade || undefined,
         addressLine: f.address ?? "",
         name: f.title ?? "임시 매물",
-
-        // ✅ 연락처: 라벨 없이 폰만 전송
         contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
         contactSubPhone:
           (f.officePhone2 ?? "").trim() !== ""
             ? (f.officePhone2 ?? "").trim()
             : undefined,
-
         completionDate: effectiveCompletionDate,
         buildingType: (f as any).buildingType ?? null,
-
-        // ✅ 숫자 전송 (빈문자 제외, 0 허용)
         totalHouseholds: toNum(f.totalHouseholds) ?? null,
         totalBuildings: toNum(f.totalBuildings) ?? null,
         totalFloors: toNum(f.totalFloors) ?? null,
         remainingHouseholds: toNum(f.remainingHouseholds) ?? null,
-
         registrationTypeId: toNum((f as any).registrationTypeId) ?? null,
         parkingTypeId: toNum((f as any).parkingTypeId) ?? null,
         slopeGrade: f.slopeGrade ?? null,
@@ -268,32 +523,37 @@ export default function PropertyCreateModalBody({
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
-
         totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
-
         options: pinOptions,
         directions,
-
-        /** ✅ 최저 실입(정수 금액) */
         minRealMoveInCost: toIntOrNull(f.salePrice),
-
         ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
         ...(explicitPinDraftId != null
           ? { pinDraftId: String(explicitPinDraftId) }
           : {}),
-
-        // ✅ 서버 요구 스키마로 전송
         ...(unitsDto.length > 0 ? { units: unitsDto } : {}),
       } as any;
 
+      // 1) 핀 생성
       const { id: pinId, matchedDraftId } = await createPin(pinDto);
 
-      const pinDraftId = explicitPinDraftId ?? matchedDraftId;
+      // 2) 사진/파일 영속화 (중복 방지 가드와 함께)
+      try {
+        for (let i = 0; i < (imageFolders?.length ?? 0); i++) {
+          // 순차 처리(동시 처리 원하면 Promise.all로 바꾸되, 가드는 그대로 유지)
+          await persistOneCard(pinId, i);
+        }
+        await persistVerticalFiles(pinId);
+      } catch (mediaErr) {
+        console.warn("[PropertyCreate] media persist failed:", mediaErr);
+      }
 
+      // 3) 예약/드래프트 정리
+      const pinDraftId = explicitPinDraftId ?? matchedDraftId;
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);
-          removeByReservationId?.(String(reservationId));
+          removeReservation?.(String(reservationId));
         } else if (pinDraftId != null) {
           const listRes = await api.get("/survey-reservations/scheduled");
           const arr = Array.isArray(listRes.data?.data)
@@ -308,7 +568,7 @@ export default function PropertyCreateModalBody({
           );
           if (target?.id != null) {
             await api.delete(`/survey-reservations/${target.id}`);
-            removeByReservationId?.(String(target.id));
+            removeReservation?.(String(target.id));
           }
         }
       } catch (err: any) {
@@ -319,7 +579,7 @@ export default function PropertyCreateModalBody({
       }
 
       if (pinDraftId != null) {
-        removeByPinDraftId?.(String(pinDraftId));
+        removeDraft?.(String(pinDraftId));
       }
 
       await Promise.resolve(
@@ -352,9 +612,44 @@ export default function PropertyCreateModalBody({
     onClose,
     initialLat,
     initialLng,
-    removeByReservationId,
-    removeByPinDraftId,
+    persistOneCard,
+    persistVerticalFiles,
+    removeReservation,
+    removeDraft,
   ]);
+
+  const imagesProp = useMemo(
+    () => ({
+      imageFolders,
+      fileItems,
+      registerImageInput: registerImageInputCompat,
+      openImagePicker: stable_openImagePicker,
+      onPickFilesToFolder: stable_onPickFilesToFolder,
+      addPhotoFolder: stable_addPhotoFolder,
+      removePhotoFolder: stable_removePhotoFolder,
+      onChangeImageCaption: stable_onChangeImageCaption,
+      handleRemoveImage: stable_handleRemoveImage,
+      onAddFiles: stable_onAddFiles,
+      onChangeFileItemCaption: stable_onChangeFileItemCaption,
+      handleRemoveFileItem: stable_handleRemoveFileItem,
+      maxFiles: MAX_FILES,
+      maxPerCard: MAX_PER_CARD,
+    }),
+    [
+      imageFolders,
+      fileItems,
+      registerImageInputCompat,
+      stable_openImagePicker,
+      stable_onPickFilesToFolder,
+      stable_addPhotoFolder,
+      stable_removePhotoFolder,
+      stable_onChangeImageCaption,
+      stable_handleRemoveImage,
+      stable_onAddFiles,
+      stable_onChangeFileItemCaption,
+      stable_handleRemoveFileItem,
+    ]
+  );
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -367,24 +662,7 @@ export default function PropertyCreateModalBody({
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          <ImagesContainer
-            images={{
-              imageFolders,
-              fileItems,
-              registerImageInput: registerImageInputCompat,
-              openImagePicker,
-              onPickFilesToFolder,
-              addPhotoFolder,
-              removePhotoFolder,
-              onChangeImageCaption,
-              handleRemoveImage,
-              onAddFiles,
-              onChangeFileItemCaption,
-              handleRemoveFileItem,
-              maxFiles: MAX_FILES,
-              maxPerCard: MAX_PER_CARD,
-            }}
-          />
+          <ImagesContainer images={imagesProp} />
 
           <div className="space-y-6">
             <BasicInfoContainer form={f} />

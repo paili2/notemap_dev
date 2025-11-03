@@ -15,24 +15,33 @@ export async function fetchPinsByBBox(params: {
   neLng: number;
   draftState?: "before" | "scheduled" | "all"; // ← 선택
 }) {
-  const r6 = (n: number) => Math.round(Number(n) * 1e6) / 1e6;
-
-  // ✅ 기본은 쿼리에서 'draftState'를 아예 빼버림
-  const safe: Record<string, any> = {
-    swLat: r6(params.swLat),
-    swLng: r6(params.swLng),
-    neLat: r6(params.neLat),
-    neLng: r6(params.neLng),
+  // ❗ 좌표는 절대 자르지 않고 원본 정밀도로 그대로 전송
+  // (NaN 가드만 수행)
+  const toNum = (v: number) => {
+    const n = Number(v);
+    if (!Number.isFinite(n)) {
+      throw new Error("fetchPinsByBBox: bounds 값이 유효한 숫자가 아닙니다.");
+    }
+    return n;
   };
+
+  const safe: Record<string, any> = {
+    swLat: toNum(params.swLat),
+    swLng: toNum(params.swLng),
+    neLat: toNum(params.neLat),
+    neLng: toNum(params.neLng),
+  };
+
   if (params.draftState) {
-    // 서버가 대문자를 요구한다면 여기서 toUpperCase()
-    safe.draftState = params.draftState; // 또는 params.draftState.toUpperCase()
+    // 서버가 대문자 요구 시: params.draftState.toUpperCase()
+    safe.draftState = params.draftState;
   }
 
   const ac = new AbortController();
   const res = await getPinsMapOnce(safe, ac.signal);
   const data = res.data;
 
+  // 응답 좌표도 정밀도 유지: 숫자 캐스팅만 (자르지 않음)
   data.data.points = (data.data.points ?? []).map((p: any) => ({
     ...p,
     lat: Number(p.lat),

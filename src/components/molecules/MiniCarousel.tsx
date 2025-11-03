@@ -34,30 +34,51 @@ export default function MiniCarousel({
   >({});
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
 
-  const hasImages = Array.isArray(images) && images.length > 0;
+  const len = Array.isArray(images) ? images.length : 0;
+  const hasImages = len > 0;
 
-  // 이미지 배열이 바뀌면 인덱스/에러 상태 정리
+  // images 변경 시 인덱스 클램프 + 필요할 때만 상위 통지
   React.useEffect(() => {
     if (!hasImages) return;
     setIdx((cur) => {
-      const clamped = Math.max(0, Math.min(cur, images.length - 1));
+      const clamped = Math.max(0, Math.min(cur, len - 1));
       if (clamped !== cur) onIndexChange?.(clamped);
       return clamped;
     });
     setErrorByIndex({});
-  }, [hasImages, images.length, onIndexChange]);
+  }, [hasImages, len, onIndexChange]);
 
-  const go = (n: number) => {
-    if (!hasImages) return;
-    const len = images.length;
-    const next = ((n % len) + len) % len;
-    setIdx(next);
-    onIndexChange?.(next);
-  };
-  const prev = () => go(idx - 1);
-  const next = () => go(idx + 1);
+  // 인덱스 이동: functional 업데이트로 안정화
+  const goTo = React.useCallback(
+    (target: number) => {
+      if (!hasImages) return;
+      const next = ((target % len) + len) % len;
+      setIdx((cur) => {
+        if (cur === next) return cur; // 동일 인덱스면 무시
+        onIndexChange?.(next);
+        return next;
+      });
+    },
+    [hasImages, len, onIndexChange]
+  );
 
-  // 좌/우 키보드 네비
+  const goDelta = React.useCallback(
+    (delta: number) => {
+      if (!hasImages) return;
+      setIdx((cur) => {
+        const next = (((cur + delta) % len) + len) % len;
+        if (cur === next) return cur;
+        onIndexChange?.(next);
+        return next;
+      });
+    },
+    [hasImages, len, onIndexChange]
+  );
+
+  const prev = React.useCallback(() => goDelta(-1), [goDelta]);
+  const next = React.useCallback(() => goDelta(1), [goDelta]);
+
+  // 좌/우 키보드 네비(리스너 재등록 최소화)
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -67,8 +88,7 @@ export default function MiniCarousel({
     };
     el.addEventListener("keydown", onKey);
     return () => el.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, images.length]);
+  }, [prev, next]);
 
   const aspectClass =
     aspect === "video"
@@ -101,7 +121,14 @@ export default function MiniCarousel({
   };
 
   return (
-    <div ref={wrapRef} tabIndex={0} className={wrapClasses}>
+    <div
+      ref={wrapRef}
+      tabIndex={0}
+      className={wrapClasses}
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="이미지 캐러셀"
+    >
       {/* Slides */}
       <div className="absolute inset-0 overflow-hidden rounded-md">
         {hasImages &&
@@ -164,7 +191,7 @@ export default function MiniCarousel({
       </div>
 
       {/* 좌/우 화살표 */}
-      {hasImages && images.length > 1 && (
+      {hasImages && len > 1 && (
         <>
           <button
             type="button"
@@ -202,15 +229,14 @@ export default function MiniCarousel({
       )}
 
       {/* Dots */}
-      {showDots && hasImages && images.length > 1 && (
+      {showDots && hasImages && len > 1 && (
         <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1.5">
           {images.map((_, i) => (
             <button
               key={i}
               type="button"
               onClick={() => {
-                setIdx(i);
-                onIndexChange?.(i);
+                if (i !== idx) goTo(i);
               }}
               aria-label={`go-${i}`}
               className={[
@@ -225,14 +251,14 @@ export default function MiniCarousel({
       )}
 
       {/* 1 / N 인덱스 배지 */}
-      {showIndex && hasImages && images.length > 1 && (
+      {showIndex && hasImages && len > 1 && (
         <div
           className={[
             "absolute z-10 rounded-md bg-black/55 text-white text-xs px-2 py-0.5",
             indexPos,
           ].join(" ")}
         >
-          {idx + 1} / {images.length}
+          {idx + 1} / {len}
         </div>
       )}
     </div>

@@ -1,7 +1,9 @@
+// src/shared/api/photoUpload.ts
 import { api } from "@/shared/api/api";
 
 /** 업로드 도메인 */
 export type UploadDomain = "map" | "contracts" | "board" | "profile" | "etc";
+const DOMAINS: UploadDomain[] = ["map", "contracts", "board", "profile", "etc"];
 
 /** 허용 확장자 / 용량 / 분할 업로드 설정 */
 export const ALLOWED_FILE_EXTS = new Set<string>([
@@ -41,14 +43,14 @@ export type UploadedFileMeta = {
   mimeType?: string;
 };
 
-/** 백엔드 응답 타입 (Nest 코드 기준) */
+/** 백엔드 응답 타입 (Nest 코드 기준 추정) */
 type UploadResponseOk = {
   message?: string;
   data: {
     urls: string[];
-    keys?: string[]; // ⬅ optional 로 완화
+    keys?: string[]; // 옵션
     domain: UploadDomain;
-    userId: string; // 백엔드 구현이 string 반환이므로 string으로 통일
+    userId: string; // 서버가 string으로 반환
   };
 };
 
@@ -57,24 +59,32 @@ const toExt = (f: File): string => {
   return n.includes(".") ? n.split(".").pop()!.toLowerCase() : "";
 };
 
+const clampRemain = (remain: number) => (remain < 0 ? 0 : remain);
+
 /** 카드 잔여 용량(remain) 고려한 유효성 검사 */
 export function validateFiles(
-  files: File[],
+  files: File[] | FileList,
   remain: number
 ): { ok: File[]; skipped: { file: File; reason: string }[] } {
+  const list = Array.from(files as File[]);
   const ok: File[] = [];
   const skipped: { file: File; reason: string }[] = [];
-  for (const f of files) {
-    if (ok.length >= remain) {
+  const limit = clampRemain(remain);
+
+  for (const f of list) {
+    if (ok.length >= limit) {
       skipped.push({
         file: f,
         reason: `카드당 최대 ${MAX_FILES_PER_CARD}장 제한`,
       });
       continue;
     }
-    const ext = toExt(f);
+    const ext = toExt(f).toLowerCase();
     if (!ALLOWED_FILE_EXTS.has(ext)) {
-      skipped.push({ file: f, reason: `허용되지 않은 확장자 (.${ext})` });
+      skipped.push({
+        file: f,
+        reason: `허용되지 않은 확장자 (.${ext || "?"})`,
+      });
       continue;
     }
     if (f.size > MAX_SIZE_BYTES) {
@@ -95,44 +105,155 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
+function ensureDomain(d?: UploadDomain): UploadDomain {
+  const dom = (d ?? "map") as UploadDomain;
+  return (DOMAINS as string[]).includes(dom) ? dom : "map";
+}
+
+/* ---------- In-flight dedupe (동일 파일세트+도메인 중복호출 방지) ---------- */
+type InflightEntry = {
+  promise: Promise<UploadedFileMeta[]>;
+  controller: AbortController;
+};
+const inflight = new Map<string, InflightEntry>();
+
+function filesSignature(domain: UploadDomain, files: File[]): string {
+  // 이름/사이즈/mtime을 키로 사용 (내용 해시는 비용 큼)
+  const sig = files
+    .map((f) => `${f.name}:${f.size}:${(f as any).lastModified ?? ""}`)
+    .join("|");
+  return `${domain}::${sig}`;
+}
+
+function linkAbort(source?: AbortSignal): AbortController {
+  const ctrl = new AbortController();
+  if (source) {
+    const onAbort = () => ctrl.abort(source.reason);
+    if (source.aborted) ctrl.abort(source.reason);
+    else source.addEventListener("abort", onAbort, { once: true });
+  }
+  return ctrl;
+}
+
 /** /photo/upload 멀티파트 업로드(요청당 10장 자동 분할) → 메타 배열 반환 */
 export async function uploadPhotos(
   files: File[] | FileList,
-  opts?: { domain?: UploadDomain },
+  opts?: {
+    domain?: UploadDomain;
+    /** 0~1의 진행률 (배치 기준 누적) */
+    onProgress?: (progress: number) => void;
+  },
   signal?: AbortSignal
 ): Promise<UploadedFileMeta[]> {
   const all: File[] = Array.from(files as File[]);
-  const domain: UploadDomain = opts?.domain ?? "map";
-  const batches = chunk<File>(all, MAX_FILES_PER_REQUEST);
+  const domain: UploadDomain = ensureDomain(opts?.domain);
+  if (all.length === 0) return [];
 
-  const metas: UploadedFileMeta[] = [];
-  for (const batch of batches) {
-    const fd = new FormData();
-    batch.forEach((f: File) => fd.append("files", f));
-
-    const { data } = await api.post<UploadResponseOk>(
-      `/photo/upload?domain=${encodeURIComponent(domain)}`,
-      fd,
-      { withCredentials: true, signal }
-    );
-
-    const urls: string[] = Array.isArray(data?.data?.urls)
-      ? data.data.urls
-      : [];
-    metas.push(...urls.map((u: string) => ({ url: u })));
+  // ⛳ 중복 호출 디듀프: 동일 세트면 기존 Promise 재사용
+  const key = filesSignature(domain, all);
+  const existed = inflight.get(key);
+  if (existed) {
+    return existed.promise;
   }
-  return metas;
+
+  const controller = linkAbort(signal);
+
+  const batches = chunk<File>(all, MAX_FILES_PER_REQUEST);
+  const totalBatches = batches.length;
+  const metas: UploadedFileMeta[] = [];
+
+  // 배치별 진행률 누적 계산
+  const report = (batchIndex: number, inner = 1) => {
+    if (!opts?.onProgress) return;
+    const base = batchIndex / totalBatches;
+    const step = (1 / totalBatches) * inner;
+    const p = Math.min(1, base + step);
+    opts.onProgress(p);
+  };
+
+  const work = (async () => {
+    try {
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const fd = new FormData();
+        batch.forEach((f: File) => fd.append("files", f));
+
+        const { data } = await api.post<UploadResponseOk>(
+          `/photo/upload?domain=${encodeURIComponent(domain)}`,
+          fd,
+          {
+            withCredentials: true,
+            signal: controller.signal,
+            onUploadProgress: (e) => {
+              if (!opts?.onProgress || !e.total) return;
+              const inner = Math.min(1, e.loaded / e.total);
+              report(i, inner);
+            },
+          }
+        );
+
+        const ok = data?.data;
+        const urls: string[] = Array.isArray(ok?.urls) ? ok!.urls : [];
+        const keysArr: string[] = Array.isArray(ok?.keys) ? ok!.keys : [];
+
+        // ✅ keys 길이 불일치/부재를 안전 처리
+        urls.forEach((u, idx) => {
+          const k = keysArr[idx]; // 없으면 undefined
+          metas.push({
+            url: u,
+            key: k,
+            fileKey: k,
+            storageKey: k,
+          });
+        });
+
+        // 배치 완료시 진행률 갱신(안내용)
+        report(i + 1, 0);
+      }
+      // 최종 100%
+      if (opts?.onProgress) opts.onProgress(1);
+      return metas;
+    } catch (err: any) {
+      // 부분 성공분은 반환하되, 에러는 위로
+      (err as any).partial = metas;
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "사진 업로드 중 오류가 발생했습니다.";
+      const e = new Error(msg) as any;
+      e.cause = err;
+      e.partial = metas;
+      throw e;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+
+  inflight.set(key, { promise: work, controller });
+  return work;
 }
 
 /** URL 배열만 필요할 때 */
 export async function uploadPhotosAndGetUrls(
   files: File[] | FileList,
-  opts?: { domain?: UploadDomain },
+  opts?: {
+    domain?: UploadDomain;
+    onProgress?: (progress: number) => void;
+  },
   signal?: AbortSignal
 ): Promise<string[]> {
   const metas = await uploadPhotos(files, opts, signal);
-  // 타입가드로 정확히 string[] 반환
   return metas
     .map((m: UploadedFileMeta) => m.url)
     .filter((u: string | undefined): u is string => typeof u === "string");
+}
+
+/** 편의: 단일 파일 업로드 */
+export async function uploadOnePhoto(
+  file: File,
+  opts?: { domain?: UploadDomain; onProgress?: (p: number) => void },
+  signal?: AbortSignal
+): Promise<UploadedFileMeta | null> {
+  const [meta] = await uploadPhotos([file], opts, signal);
+  return meta ?? null;
 }

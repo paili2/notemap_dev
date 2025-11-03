@@ -46,7 +46,7 @@ export default function PropertyEditModalBody({
     };
   }, [initialData]);
 
-  // 이미지 훅
+  // 이미지 훅 (서버 연동 필드 포함)
   const {
     imageFolders,
     verticalImages,
@@ -60,9 +60,78 @@ export default function PropertyEditModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
+
+    // ⬇️ 서버 상태/액션들 추가로 구조분해
+    groups,
+    photosByGroup,
+    mediaLoading,
+    mediaError,
+    reloadGroups,
+    uploadToGroup,
+    createGroupAndUpload,
+    makeCover,
+    reorder,
+    moveToGroup,
+    deletePhotos,
   } = useEditImages({ propertyId, initial: initialImages });
 
-  // 폼 훅 (항상 동일한 순서로 호출)
+  // ImagesContainer에 넘길 통합 prop (두 레이아웃에서 공통 사용)
+  const imagesProp = useMemo(
+    () => ({
+      imageFolders,
+      verticalImages,
+      registerImageInput,
+      openImagePicker,
+      onPickFilesToFolder,
+      addPhotoFolder,
+      removePhotoFolder,
+      onChangeImageCaption,
+      handleRemoveImage,
+      onAddFiles,
+      onChangeFileItemCaption,
+      handleRemoveFileItem,
+
+      // 서버 상태/액션 모두 전달
+      groups,
+      photosByGroup,
+      mediaLoading,
+      mediaError,
+      reloadGroups,
+      uploadToGroup,
+      createGroupAndUpload,
+      makeCover,
+      reorder,
+      moveToGroup,
+      deletePhotos,
+    }),
+    [
+      imageFolders,
+      verticalImages,
+      registerImageInput,
+      openImagePicker,
+      onPickFilesToFolder,
+      addPhotoFolder,
+      removePhotoFolder,
+      onChangeImageCaption,
+      handleRemoveImage,
+      onAddFiles,
+      onChangeFileItemCaption,
+      handleRemoveFileItem,
+      groups,
+      photosByGroup,
+      mediaLoading,
+      mediaError,
+      reloadGroups,
+      uploadToGroup,
+      createGroupAndUpload,
+      makeCover,
+      reorder,
+      moveToGroup,
+      deletePhotos,
+    ]
+  );
+
+  // 폼 훅
   const f = useEditForm({ initialData });
 
   // ✅ ParkingContainer 어댑터
@@ -70,7 +139,6 @@ export default function PropertyEditModalBody({
     () => ({
       parkingType: f.parkingType || null,
       setParkingType: (v) => f.setParkingType(v ?? ""),
-
       totalParkingSlots:
         f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
       setTotalParkingSlots: (v) => f.setTotalParkingSlots(v ?? ""),
@@ -99,7 +167,6 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
-    // ✅ parkingGrade 사용, listingStars 제거(레거시 삭제)
     const payload = buildUpdatePayload({
       title: f.title,
       address: f.address,
@@ -111,7 +178,7 @@ export default function PropertyEditModalBody({
       roomNo: f.roomNo,
       structure: f.structure,
 
-      parkingGrade: f.parkingGrade, // ⭐ 매물평점(별 1~5, 문자열)
+      parkingGrade: f.parkingGrade,
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
@@ -167,23 +234,7 @@ export default function PropertyEditModalBody({
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          <ImagesContainer
-            images={{
-              imageFolders,
-              verticalImages,
-              registerImageInput,
-              openImagePicker,
-              onPickFilesToFolder,
-              addPhotoFolder,
-              removePhotoFolder,
-              onChangeImageCaption,
-              handleRemoveImage,
-              onAddFiles,
-              onChangeFileItemCaption,
-              handleRemoveFileItem,
-            }}
-          />
-
+          <ImagesContainer images={imagesProp} />
           <div className="space-y-4 md:space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
@@ -219,22 +270,7 @@ export default function PropertyEditModalBody({
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          <ImagesContainer
-            images={{
-              imageFolders,
-              verticalImages,
-              registerImageInput,
-              openImagePicker,
-              onPickFilesToFolder,
-              addPhotoFolder,
-              removePhotoFolder,
-              onChangeImageCaption,
-              handleRemoveImage,
-              onAddFiles,
-              onChangeFileItemCaption,
-              handleRemoveFileItem,
-            }}
-          />
+          <ImagesContainer images={imagesProp} />
 
           <div className="space-y-6">
             <BasicInfoContainer form={f} />

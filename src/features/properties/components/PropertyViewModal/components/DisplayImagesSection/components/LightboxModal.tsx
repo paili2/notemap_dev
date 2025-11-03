@@ -2,7 +2,7 @@
 
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import type { ImageItem } from "@/features/properties/types/media";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -23,25 +23,40 @@ export default function LightboxModal({
   withThumbnails = false,
   title,
 }: Props) {
-  // 항상 호출되는 훅들 (조건부 return보다 위!)
-  const [index, setIndex] = useState(initialIndex);
+  /* ---------- 상태 ---------- */
+  const len = Array.isArray(images) ? images.length : 0;
+  const hasImages = len > 0;
 
+  // 현재 인덱스
+  const [index, setIndex] = useState(() => {
+    const i = Number.isFinite(initialIndex) ? initialIndex : 0;
+    return Math.max(0, Math.min(i, Math.max(0, len - 1)));
+  });
+
+  // open 또는 images/initialIndex 변경 시 인덱스 초기화(클램프)
   useEffect(() => {
-    if (open) setIndex(initialIndex);
-  }, [open, initialIndex]);
+    if (!open) return;
+    const clamped = Math.max(
+      0,
+      Math.min(
+        Number.isFinite(initialIndex) ? initialIndex : 0,
+        Math.max(0, len - 1)
+      )
+    );
+    setIndex(clamped);
+  }, [open, initialIndex, len]);
 
-  const prev = useCallback(
-    () =>
-      setIndex((i) =>
-        images.length ? (i - 1 + images.length) % images.length : 0
-      ),
-    [images.length]
-  );
-  const next = useCallback(
-    () => setIndex((i) => (images.length ? (i + 1) % images.length : 0)),
-    [images.length]
-  );
+  const prev = useCallback(() => {
+    if (!hasImages) return;
+    setIndex((i) => (((i - 1 + len) % len) + len) % len);
+  }, [hasImages, len]);
 
+  const next = useCallback(() => {
+    if (!hasImages) return;
+    setIndex((i) => (((i + 1) % len) + len) % len);
+  }, [hasImages, len]);
+
+  // Esc / 좌우 화살표
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -53,7 +68,7 @@ export default function LightboxModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose, prev, next]);
 
-  /** 드래그/스와이프 상태 (항상 위에서 선언) */
+  /* ---------- 드래그/스와이프 ---------- */
   const startXRef = useRef<number | null>(null);
   const startYRef = useRef<number | null>(null);
   const lastXRef = useRef<number | null>(null);
@@ -61,15 +76,15 @@ export default function LightboxModal({
   const lockedDirRef = useRef<"x" | "y" | null>(null);
   const threshold = 50; // px
 
-  const dragStart = (x: number, y: number) => {
+  const dragStart = useCallback((x: number, y: number) => {
     startXRef.current = x;
     startYRef.current = y;
     lastXRef.current = x;
     draggingRef.current = true;
     lockedDirRef.current = null;
-  };
+  }, []);
 
-  const dragMove = (x: number, y: number) => {
+  const dragMove = useCallback((x: number, y: number) => {
     if (
       !draggingRef.current ||
       startXRef.current == null ||
@@ -80,17 +95,16 @@ export default function LightboxModal({
     const dx = x - startXRef.current;
     const dy = y - startYRef.current;
 
-    // 방향 잠금: 처음 크게 움직인 방향으로 확정
+    // 처음 크게 움직인 축을 잠금
     if (!lockedDirRef.current) {
       if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
         lockedDirRef.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
       }
     }
-
     lastXRef.current = x;
-  };
+  }, []);
 
-  const dragEnd = () => {
+  const dragEnd = useCallback(() => {
     if (
       !draggingRef.current ||
       startXRef.current == null ||
@@ -112,22 +126,33 @@ export default function LightboxModal({
     startXRef.current = null;
     startYRef.current = null;
     lastXRef.current = null;
-  };
+  }, [prev, next]);
 
-  if (!open || !images?.length) return null;
+  if (!open || !hasImages) return null;
 
-  const fitClass = objectFit === "cover" ? "object-cover" : "object-contain";
-  const safeIndex = Math.min(Math.max(index, 0), images.length - 1);
+  const safeIndex = useMemo(
+    () => Math.max(0, Math.min(index, len - 1)),
+    [index, len]
+  );
   const cur = images[safeIndex];
 
-  const albumTitle =
-    (title && title.trim()) ||
-    images[0]?.caption?.trim?.() ||
-    images[0]?.name?.trim?.() ||
-    "";
+  const albumTitle = useMemo(() => {
+    const t =
+      (title && title.trim()) ||
+      images[0]?.caption?.trim?.() ||
+      images[0]?.name?.trim?.() ||
+      "";
+    return t;
+  }, [title, images]);
 
+  const fitClass = objectFit === "cover" ? "object-cover" : "object-contain";
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   const thumbColWidth = 112; // px (w-28)
+
+  const gridTemplateColumns = useMemo(
+    () => (withThumbnails && len > 1 ? `${thumbColWidth}px 1fr` : "1fr"),
+    [withThumbnails, len]
+  );
 
   return (
     <div
@@ -153,20 +178,11 @@ export default function LightboxModal({
       {/* 본문 */}
       <div className="relative px-4 pb-4 flex-1" onClick={stop}>
         <div
-          className={
-            withThumbnails && images.length > 1
-              ? "grid gap-4 items-stretch"
-              : "grid gap-4 items-stretch"
-          }
-          style={{
-            gridTemplateColumns:
-              withThumbnails && images.length > 1
-                ? `${thumbColWidth}px 1fr`
-                : "1fr",
-          }}
+          className="grid gap-4 items-stretch"
+          style={{ gridTemplateColumns }}
         >
           {/* 왼쪽 썸네일 컬럼 */}
-          {withThumbnails && images.length > 1 && (
+          {withThumbnails && len > 1 && (
             <div className="w-28">
               <div className="max-h-[78vh] overflow-y-auto pr-1 scrollbar-hide">
                 <div className="flex flex-col gap-2">
@@ -207,7 +223,7 @@ export default function LightboxModal({
             </div>
           )}
 
-          {/* 메인 이미지 영역: 세로 중앙 정렬 */}
+          {/* 메인 이미지 영역 */}
           {/* 모바일 세로 스크롤 유지 + 가로 제스처만 감지 위해 touch-action: pan-y */}
           <div
             className="relative h-[78vh] flex items-center justify-center select-none touch-pan-y"
@@ -227,7 +243,7 @@ export default function LightboxModal({
             }}
             onTouchEnd={dragEnd}
           >
-            {images.length > 1 && (
+            {len > 1 && (
               <>
                 <button
                   onClick={prev}
@@ -256,18 +272,16 @@ export default function LightboxModal({
             />
 
             {/* 카운터 */}
-            <div className="absolute top-3 right-3 md:right-6 rounded bg-black/60 text-white text-xs px-2 py-0.5">
-              {safeIndex + 1} / {images.length}
-            </div>
+            {len > 1 && (
+              <div className="absolute top-3 right-3 md:right-6 rounded bg-black/60 text-white text-xs px-2 py-0.5">
+                {safeIndex + 1} / {len}
+              </div>
+            )}
           </div>
 
           {/* 제목 */}
           {albumTitle && (
-            <div
-              className={
-                withThumbnails && images.length > 1 ? "col-start-2" : ""
-              }
-            >
+            <div className={withThumbnails && len > 1 ? "col-start-2" : ""}>
               <div
                 className="text-center text-white text-lg whitespace-pre-wrap break-words px-2"
                 title={albumTitle}

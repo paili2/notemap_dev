@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyCreateModal/hooks/useEditImages.ts
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -11,6 +12,30 @@ import {
   hydrateFlatUsingCounts,
   hydrateVertical,
 } from "@/features/properties/lib/media/hydrate";
+
+/* ───────── 서버 연동 import (경로 정정) ───────── */
+import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
+import {
+  listGroupPhotos,
+  createPhotosInGroup,
+  updatePhotos,
+  deletePhotos as apiDeletePhotos,
+} from "@/shared/api/photos";
+import {
+  listPhotoGroupsByPin as apiListPhotoGroupsByPin,
+  createPhotoGroup as apiCreatePhotoGroup,
+} from "@/shared/api/photoGroups";
+import type {
+  IdLike,
+  PinPhoto,
+  PinPhotoGroup,
+} from "@/shared/api/types/pinPhotos";
+
+/* ───────── 유틸: 파일 시그니처(디듀프 키 생성용) ───────── */
+const filesSignature = (files: File[] | FileList) =>
+  Array.from(files as File[])
+    .map((f) => `${f.name}:${f.size}:${(f as any).lastModified ?? ""}`)
+    .join("|");
 
 type UseEditImagesArgs = {
   /** 기존 데이터 id (이미지 키 prefix 용) */
@@ -34,10 +59,18 @@ type UseEditImagesArgs = {
 };
 
 export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
-  // 좌측 카드형
+  // 좌측 카드형(로컬 미리보기)
   const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]);
-  // 우측 세로
+  // 우측 세로(로컬 미리보기)
   const [verticalImages, setVerticalImages] = useState<ImageItem[]>([]);
+
+  /* ───────── (선택) 서버 상태: 그룹/사진 목록 ───────── */
+  const [groups, setGroups] = useState<PinPhotoGroup[] | null>(null);
+  const [photosByGroup, setPhotosByGroup] = useState<
+    Record<string, PinPhoto[]>
+  >({});
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
 
   // 초기 하이드레이션
   useEffect(() => {
@@ -51,15 +84,13 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         return;
       }
 
-      // ───────────── 카드형 (레퍼런스 → 최신/레거시 → 평면) ─────────────
+      // ───────── 카드형 ─────────
       const cardRefs = initial._imageCardRefs;
 
       if (Array.isArray(cardRefs) && cardRefs.length > 0) {
-        // ✅ 1) refs 최우선
         const hydrated = await hydrateCards(cardRefs, MAX_PER_CARD);
         if (mounted) setImageFolders(hydrated);
       } else {
-        // ✅ 2) 최신/레거시 2D
         const foldersRaw =
           initial.imageFolders ??
           initial.imagesByCard ??
@@ -73,7 +104,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           );
           if (mounted) setImageFolders(hydrated);
         } else {
-          // ✅ 3) 레거시 1D + (선택) 카드 개수
           const flat = Array.isArray(initial.images)
             ? (initial.images as AnyImageRef[])
             : null;
@@ -91,7 +121,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         }
       }
 
-      // ───────────── 세로형 (레퍼런스 → 최신/레거시) ─────────────
+      // ───────── 세로형 ─────────
       const fileRefs = initial._fileItemRefs;
       if (Array.isArray(fileRefs) && fileRefs.length > 0) {
         const hydrated = await hydrateVertical(
@@ -121,10 +151,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     };
   }, [initial]);
 
-  /* ───────────── input refs (안정화) ─────────────
-     - 동일 DOM 노드면 무시하여 불필요한 업데이트 방지
-     - 인라인 콜백을 피하기 위해 인덱스별 콜백을 캐시
-  */
+  /* ───────── input refs (안정화) ───────── */
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const inputRefCallbacks = useRef<
     Array<((el: HTMLInputElement | null) => void) | null>
@@ -134,7 +161,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   const getRegisterImageInput = useCallback((idx: number) => {
     if (inputRefCallbacks.current[idx]) return inputRefCallbacks.current[idx]!;
     const cb = (el: HTMLInputElement | null) => {
-      // 동일 참조면 아무 것도 안 함
       if (imageInputRefs.current[idx] === el) return;
       imageInputRefs.current[idx] = el;
     };
@@ -144,8 +170,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   /**
    * 과거 사용 호환: ref={(el)=>registerImageInput(idx, el)} 도 지원
-   * - el 인자가 있으면 직접 세팅
-   * - el 인자가 없으면 getRegisterImageInput(idx)를 돌려줌
    */
   const registerImageInput = useCallback(
     (idx: number, el?: HTMLInputElement | null) => {
@@ -235,7 +259,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   // 카드형: 폴더 추가/삭제
   const addPhotoFolder = useCallback(() => {
     setImageFolders((prev) => [...prev, []]);
-    // ref 콜백/실제 ref 배열도 인덱스에 맞춰 확장되므로 별도 처리 불필요
   }, []);
 
   const removePhotoFolder = useCallback(
@@ -256,7 +279,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         const next = prev.map((arr) => [...arr]);
         next.splice(folderIdx, 1);
 
-        // ref/콜백 배열도 동일하게 정렬 유지
+        // ref/콜백 배열도 정리
         imageInputRefs.current.splice(folderIdx, 1);
         inputRefCallbacks.current.splice(folderIdx, 1);
 
@@ -315,10 +338,151 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /* ─────────────────────────────
+   * 서버 연동 유틸(선택 호출)
+   * ───────────────────────────── */
+
+  /** pinId별 reload 디듀프 (동시 다발 호출 방지) */
+  const reloadMapRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  /** pinId로 그룹+사진 전부 재로딩 → groups/photosByGroup 상태 채움 */
+  const reloadGroups = useCallback(async (pinId: IdLike) => {
+    const key = String(pinId);
+    const existing = reloadMapRef.current.get(key);
+    if (existing) return existing;
+
+    const work = (async () => {
+      setMediaLoading(true);
+      setMediaError(null);
+      try {
+        const list = await apiListPhotoGroupsByPin(pinId);
+        const mapped: Record<string, PinPhoto[]> = {};
+        await Promise.all(
+          (list ?? []).map(async (g) => {
+            const ps = await listGroupPhotos(g.id);
+            mapped[String(g.id)] = ps ?? [];
+          })
+        );
+        setGroups(list ?? []);
+        setPhotosByGroup(mapped);
+      } catch (e: any) {
+        setMediaError(e?.message || "사진 그룹 로딩 실패");
+      } finally {
+        setMediaLoading(false);
+        reloadMapRef.current.delete(key);
+      }
+    })();
+
+    reloadMapRef.current.set(key, work);
+    return work;
+  }, []);
+
+  /** 업로드→/photos 등록 in-flight 디듀프 (그룹+파일 세트 기준) */
+  const uploadInFlightRef = useRef<Map<string, Promise<PinPhoto[]>>>(new Map());
+
+  /** 기존 그룹에 파일 업로드 → URL 획득 → /photos/:groupId 등록 */
+  const uploadToGroup = useCallback(
+    async (
+      groupId: IdLike,
+      files: File[] | FileList,
+      opts?: { domain?: "map" | "contracts" | "board" | "profile" | "etc" }
+    ) => {
+      if (!files || Array.from(files as File[]).length === 0) return [];
+
+      const sig = filesSignature(files);
+      const key = `${String(groupId)}::${sig}`;
+      const existed = uploadInFlightRef.current.get(key);
+      if (existed) return existed;
+
+      const work = (async () => {
+        const urls = await uploadPhotosAndGetUrls(files, {
+          domain: opts?.domain ?? "map",
+        });
+        if (!urls.length) return [];
+        const created = await createPhotosInGroup(groupId, {
+          urls,
+          sortOrders: urls.map((_, i) => i),
+        });
+        return created;
+      })();
+
+      uploadInFlightRef.current.set(key, work);
+      try {
+        return await work;
+      } finally {
+        uploadInFlightRef.current.delete(key);
+      }
+    },
+    []
+  );
+
+  /** 그룹 생성→업로드→등록 end-to-end 디듀프 (pinId+title+sortOrder+files) */
+  const createAndUploadRef = useRef<
+    Map<string, Promise<{ group: PinPhotoGroup; photos: PinPhoto[] }>>
+  >(new Map());
+
+  /** 새 그룹 생성 → 업로드 → 등록 (title/정렬 선택) */
+  const createGroupAndUpload = useCallback(
+    async (
+      pinId: IdLike,
+      title: string,
+      files: File[] | FileList,
+      sortOrder?: number | null
+    ) => {
+      const sig = files ? filesSignature(files) : "";
+      const key = `${String(pinId)}::${title}::${String(
+        sortOrder ?? ""
+      )}::${sig}`;
+      const existed = createAndUploadRef.current.get(key);
+      if (existed) return existed;
+
+      const work = (async () => {
+        const group = await apiCreatePhotoGroup({
+          pinId,
+          title,
+          sortOrder: sortOrder ?? null,
+        });
+        const photos = files ? await uploadToGroup(group.id, files) : [];
+        return { group, photos };
+      })();
+
+      createAndUploadRef.current.set(key, work);
+      try {
+        return await work;
+      } finally {
+        createAndUploadRef.current.delete(key);
+      }
+    },
+    [uploadToGroup]
+  );
+
+  /** 대표(커버) 지정 */
+  const makeCover = useCallback(async (photoId: IdLike) => {
+    await updatePhotos({ photoIds: [photoId], isCover: true });
+  }, []);
+
+  /** 정렬 변경(단건) */
+  const reorder = useCallback(async (photoId: IdLike, sortOrder: number) => {
+    await updatePhotos({ photoIds: [photoId], sortOrder });
+  }, []);
+
+  /** 그룹 이동(단건/여러장 모두 가능) */
+  const moveToGroup = useCallback(
+    async (photoIds: IdLike[], destGroupId: IdLike) => {
+      await updatePhotos({ photoIds, moveGroupId: destGroupId });
+    },
+    []
+  );
+
+  /** 삭제(여러장) */
+  const deletePhotos = useCallback(async (photoIds: IdLike[]) => {
+    await apiDeletePhotos(photoIds);
+  }, []);
+
   return {
+    /* 로컬 미리보기 상태/액션 */
     imageFolders,
     verticalImages,
-    /** ref={registerImageInput(idx)} 또는 ref={(el)=>registerImageInput(idx, el)} 모두 지원 */
     registerImageInput,
     openImagePicker,
     onPickFilesToFolder,
@@ -329,6 +493,21 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
+
+    /* 서버 상태(선택) */
+    groups,
+    photosByGroup,
+    mediaLoading,
+    mediaError,
+
+    /* 서버 액션(선택) */
+    reloadGroups,
+    uploadToGroup,
+    createGroupAndUpload,
+    makeCover,
+    reorder,
+    moveToGroup,
+    deletePhotos,
   };
 }
 
