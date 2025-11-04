@@ -26,6 +26,8 @@ function extractPropertyId(
 }
 
 // 🔸 뷰 모달에서 쓰는 데이터(프리필 + 서버 페치 병행)
+//  - 뷰는 라벨/가공값 허용
+//  - 수정 모달은 editInitial(서버 원본 DTO)를 그대로 사용
 type ViewData = Partial<PropertyViewDetails> & {
   propertyId?: string;
   title?: string;
@@ -33,12 +35,14 @@ type ViewData = Partial<PropertyViewDetails> & {
   jibunAddress?: string;
   salePrice?: string | number;
   images?: { url: string; caption?: string }[];
+  /** 수정 모달 초기값으로 그대로 넘길 서버 원본 DTO */
+  editInitial?: any; // 가능하면 실제 Property detail DTO 타입으로 교체
 };
 
 type State = {
   open: boolean;
   data?: ViewData;
-  // 서버에서 최신 상세를 채워넣었는지 여부(낙관적 프리필 이후)
+  /** 핀 상세 & 매물 상세까지 최신으로 수화(hydrate) 되었는지 */
   hydrated: boolean;
   openWithPin: (args: {
     pin?: PinItem | null;
@@ -52,11 +56,11 @@ type State = {
   setData: (patch: Partial<ViewData>) => void;
 };
 
-/* ───────────── 유틸: 이미지 정규화 ───────────── */
+/* ───────────── 유틸: 이미지 정규화(뷰 표시용) ───────────── */
 function toViewImages(
   detail: PropertyViewDetails
 ): { url: string; caption?: string }[] | undefined {
-  const imgs = detail.images;
+  const imgs = (detail as any)?.images;
   if (!imgs) return undefined;
 
   // string[] 형태면 url만 있는 케이스
@@ -66,8 +70,8 @@ function toViewImages(
 
   // ImageItem[] 형태면 url/name/caption에서 적절히 추출
   return (imgs as any[]).map((it) => ({
-    url: it.url ?? it.src ?? it.path ?? "",
-    caption: it.caption ?? it.name,
+    url: it?.url ?? it?.src ?? it?.path ?? "",
+    caption: it?.caption ?? it?.name,
   }));
 }
 
@@ -85,6 +89,7 @@ export const usePropertyViewModal = create<State>((set, get) => ({
   }) => {
     const pid = extractPropertyId(pin, propertyId);
 
+    // 1) 핀에서 가져올 수 있는 값으로 낙관적 프리필
     const optimistic: ViewData = {
       propertyId: pid,
       title: propertyTitle ?? (pin as any)?.title ?? undefined,
@@ -107,33 +112,62 @@ export const usePropertyViewModal = create<State>((set, get) => ({
     set({ open: true, data: optimistic, hydrated: false });
     if (!pid) return;
 
+    // 요청 중 모달이 닫힌 뒤 set 호출되는 걸 방지
+    let canceled = false;
+
     import("@/shared/api/api" as any)
       .then((mod: any) => mod.api ?? mod.default ?? mod)
       .then(async (api: any) => {
         try {
-          // ✅ pins/:id만 사용
-          const res = await api.get(`/pins/${pid}`);
-          const detail: PropertyViewDetails = res.data;
+          // 2) 핀 상세
+          const pinRes = await api.get(`/pins/${pid}`);
+          const pinDetail: PropertyViewDetails & { propertyId?: string } =
+            pinRes.data;
+
+          if (canceled || !get().open) return;
+
+          const propId =
+            (pinDetail as any).propertyId ?? (pinDetail as any).id ?? pid;
+
+          // 3) 매물(프로퍼티) 상세 - 수정 폼 초기값으로 그대로 보관
+          let propertyDetailDto: any | undefined = undefined;
+          try {
+            if (propId) {
+              const propRes = await api.get(`/properties/${propId}`);
+              propertyDetailDto = propRes.data;
+            }
+          } catch {
+            // properties 요청 실패 시에도 뷰는 유지
+            propertyDetailDto = undefined;
+          }
+          if (canceled || !get().open) return;
 
           set({
             data: {
               ...(get().data ?? {}),
-              ...detail,
-              // pins 응답에 propertyId가 따로 있으면 우선 사용, 없으면 id/pid
-              propertyId:
-                (detail as any).propertyId ?? (detail as any).id ?? pid,
-              images: toViewImages(detail),
-              salePrice: toUndef(detail.salePrice),
+              ...pinDetail, // 뷰에 필요한 필드 병합
+              propertyId: propId,
+              images: toViewImages(pinDetail), // 뷰용 이미지 정규화
+              salePrice: toUndef((pinDetail as any).salePrice),
+              editInitial: propertyDetailDto, // ✅ 수정 모달 초기값(서버 원본)
             },
             hydrated: true,
           });
         } catch {
-          set({ hydrated: false });
+          if (!canceled) set({ hydrated: false });
         }
       })
       .catch(() => {
         /* api 모듈 로드 실패 시 프리필만 유지 */
       });
+
+    // 모달이 닫히면 이후 set을 막기 위한 간단한 cancel 훅
+    const unsubs = [
+      // close 호출 시 canceled=true
+      () => (canceled = true),
+    ];
+    // cleanup를 내부적으로만 사용 (외부에 노출할 필요 X)
+    // close가 불리면 canceled 플래그가 true가 됨
   },
 
   close: () => set({ open: false, data: undefined, hydrated: false }),

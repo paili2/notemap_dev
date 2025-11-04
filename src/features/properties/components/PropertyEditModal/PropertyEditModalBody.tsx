@@ -27,8 +27,67 @@ import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import ImagesContainer from "./ui/ImagesContainer";
 import { buildUpdatePayload } from "./lib/buildUpdatePayload";
+import { updatePin, UpdatePinDto } from "@/shared/api/pins";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
+
+/** 숫자/문자 헬퍼 */
+const N = (v: any): number | undefined => {
+  if (v === "" || v === null || v === undefined) return undefined;
+  const n = Number(String(v).replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
+};
+const S = (v: any): string | undefined => {
+  const t = typeof v === "string" ? v.trim() : "";
+  return t ? t : undefined;
+};
+
+/** 폼 → 최소 PATCH (사용자가 손댄 것만 보냄) */
+function toPinPatch(f: ReturnType<typeof useEditForm>): UpdatePinDto {
+  const contactMainPhone = S(f.officePhone);
+  const contactSubPhone = S(f.officePhone2);
+  const minRealMoveInCost = N(f.salePrice);
+
+  const units = (f.unitLines ?? [])
+    .map((u) => {
+      const rooms = N(u?.rooms);
+      const baths = N(u?.baths);
+      const hasLoft = !!u?.duplex;
+      const hasTerrace = !!u?.terrace;
+      const minPrice = N((u as any)?.primary);
+      const maxPrice = N((u as any)?.secondary);
+
+      const hasAny =
+        rooms != null ||
+        baths != null ||
+        hasLoft ||
+        hasTerrace ||
+        minPrice != null ||
+        maxPrice != null;
+
+      return hasAny
+        ? {
+            rooms: rooms ?? null,
+            baths: baths ?? null,
+            hasLoft,
+            hasTerrace,
+            minPrice: minPrice ?? null,
+            maxPrice: maxPrice ?? null,
+          }
+        : null;
+    })
+    .filter(Boolean) as NonNullable<UpdatePinDto["units"]>;
+
+  const out: Partial<UpdatePinDto> = {};
+
+  if (contactMainPhone !== undefined) out.contactMainPhone = contactMainPhone;
+  if (contactSubPhone !== undefined) out.contactSubPhone = contactSubPhone;
+  if (minRealMoveInCost !== undefined)
+    out.minRealMoveInCost = minRealMoveInCost;
+  if (units.length > 0) out.units = units;
+
+  return out as UpdatePinDto; // OK
+}
 
 export default function PropertyEditModalBody({
   onClose,
@@ -38,16 +97,14 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const propertyId = String((initialData as any)?.id ?? "");
 
-  /** 초기 이미지 세팅(가로 카드 + 세로 카드 모두 수집, 별칭들도 호환) */
+  /** 초기 이미지 세팅 */
   const initialImages = useMemo(() => {
     if (!initialData) return null;
     const v = (initialData as any).view ?? (initialData as any);
     return {
-      imageFolders: v?.imageFolders ?? v?.imageCards ?? null, // 가로 카드들
-      images: v?.images ?? null, // 평면(레거시)
+      imageFolders: v?.imageFolders ?? v?.imageCards ?? null,
+      images: v?.images ?? null,
       imageCardCounts: v?.imageCardCounts ?? null,
-
-      // 세로 카드(여러 별칭 호환)
       verticalImages:
         v?.verticalImages ?? v?.imagesVertical ?? v?.fileItems ?? null,
       imagesVertical: v?.imagesVertical ?? null,
@@ -55,7 +112,7 @@ export default function PropertyEditModalBody({
     };
   }, [initialData]);
 
-  /** 이미지 훅(업로드/그룹/커버/정렬 등 서버 연동 포함) */
+  /** 이미지 훅 */
   const {
     imageFolders,
     verticalImages,
@@ -69,7 +126,6 @@ export default function PropertyEditModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
-
     groups,
     photosByGroup,
     mediaLoading,
@@ -83,7 +139,6 @@ export default function PropertyEditModalBody({
     deletePhotos,
   } = useEditImages({ propertyId, initial: initialImages });
 
-  /** ImagesContainer 통합 prop */
   const imagesProp = useMemo(
     () => ({
       imageFolders,
@@ -98,7 +153,6 @@ export default function PropertyEditModalBody({
       onAddFiles,
       onChangeFileItemCaption,
       handleRemoveFileItem,
-
       groups,
       photosByGroup,
       mediaLoading,
@@ -141,7 +195,7 @@ export default function PropertyEditModalBody({
   /** 폼 훅 */
   const f = useEditForm({ initialData });
 
-  /** ✅ ParkingContainer 지연 마운트(첫 프레임 지나고) */
+  /** ✅ ParkingContainer 지연 마운트 */
   const [mountParking, setMountParking] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMountParking(true));
@@ -153,19 +207,16 @@ export default function PropertyEditModalBody({
     (v: string | null) => f.setParkingType(v ?? ""),
     [f.setParkingType]
   );
-
   const setTotalParkingSlotsProxy = useCallback(
     (v: string | null) => f.setTotalParkingSlots(v ?? ""),
     [f.setTotalParkingSlots]
   );
 
-  /** ✅ ParkingContainer 어댑터(값/함수 모두 고정) */
+  /** ✅ ParkingContainer 어댑터 */
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
       parkingType: f.parkingType || null,
       setParkingType: setParkingTypeProxy,
-
-      // 내부는 string 상태지만, UI에서 빈값은 null로 보여주고 저장시 buildUpdatePayload가 정규화
       totalParkingSlots:
         f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
       setTotalParkingSlots: setTotalParkingSlotsProxy,
@@ -182,8 +233,24 @@ export default function PropertyEditModalBody({
 
   /** 저장 */
   const save = useCallback(async () => {
-    if (!f.title.trim()) return;
+    if (!f.title.trim()) {
+      alert("이름(제목)을 입력하세요.");
+      return;
+    }
 
+    // 1) 서버 최소 PATCH
+    try {
+      const dto = toPinPatch(f);
+      if (Object.keys(dto).length > 0) {
+        await updatePin(propertyId, dto);
+      }
+    } catch (e: any) {
+      console.error("[PATCH /pins/:id] 실패:", e);
+      alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
+      return;
+    }
+
+    // 2) 로컬 view 갱신(기존 동작)
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
       f.buildOrientation();
     const {
@@ -196,7 +263,6 @@ export default function PropertyEditModalBody({
     } = f.packAreas();
 
     const payload = buildUpdatePayload({
-      // 기본
       title: f.title,
       address: f.address,
       officeName: f.officeName,
@@ -207,14 +273,13 @@ export default function PropertyEditModalBody({
       roomNo: f.roomNo,
       structure: f.structure,
 
-      // 주차/준공/가격/평점
+      // 이하 전부 로컬 상태 업데이트용(서버 PATCH와 무관)
       parkingGrade: f.parkingGrade,
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
       salePrice: f.salePrice,
 
-      // 면적
       baseAreaSet: f.baseAreaSet,
       extraAreaSets: f.extraAreaSets,
       exclusiveArea,
@@ -224,26 +289,22 @@ export default function PropertyEditModalBody({
       baseAreaTitleOut,
       extraAreaTitlesOut,
 
-      // 등기/등급/엘리베이터
       elevator: f.elevator,
       registryOne: f.registry,
       slopeGrade: f.slopeGrade,
       structureGrade: f.structureGrade,
 
-      // 숫자
       totalBuildings: f.totalBuildings,
       totalFloors: f.totalFloors,
       totalHouseholds: f.totalHouseholds,
       remainingHouseholds: f.remainingHouseholds,
 
-      // 옵션/메모
       options: f.options,
       etcChecked: f.etcChecked,
       optionEtc: f.optionEtc,
       publicMemo: f.publicMemo,
       secretMemo: f.secretMemo,
 
-      // 향/유닛
       orientations,
       aspect: aspect ?? "",
       aspectNo: Number(aspectNo ?? 0),
@@ -252,17 +313,15 @@ export default function PropertyEditModalBody({
       aspect3,
       unitLines: f.unitLines,
 
-      // 이미지(가로 카드 + 세로 카드; buildUpdatePayload에서 URL 평면화/중복제거)
       imageFolders,
       verticalImages,
 
-      // 기타
       pinKind: f.pinKind,
     });
 
     await onSubmit?.(payload as any);
     onClose();
-  }, [f, imageFolders, verticalImages, onSubmit, onClose]);
+  }, [f, propertyId, onSubmit, onClose, imageFolders, verticalImages]);
 
   /* ========== embedded 레이아웃 ========== */
   if (embedded) {
@@ -275,8 +334,7 @@ export default function PropertyEditModalBody({
           <div className="space-y-4 md:space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm} />}{" "}
-            {/* ✅ 지연 마운트 */}
+            {mountParking && <ParkingContainer form={parkingForm} />}
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />
@@ -313,8 +371,7 @@ export default function PropertyEditModalBody({
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm} />}{" "}
-            {/* ✅ 지연 마운트 */}
+            {mountParking && <ParkingContainer form={parkingForm} />}
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />

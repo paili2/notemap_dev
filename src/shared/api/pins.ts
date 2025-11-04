@@ -117,7 +117,10 @@ export type CreatePinDto = {
 
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
-  parkingGrade?: string | null;
+
+  /** ✅ 서버가 1~5를 기대 — 숫자 or 숫자문자열 or null */
+  parkingGrade?: number | string | null;
+
   slopeGrade?: string | null;
   structureGrade?: string | null;
 
@@ -438,7 +441,19 @@ export async function createPin(
     ...(dto.parkingTypeId != null
       ? { parkingTypeId: Number(dto.parkingTypeId) }
       : {}),
-    ...(dto.parkingGrade ? { parkingGrade: dto.parkingGrade } : {}),
+
+    /** ✅ parkingGrade: 1~5만 전송 (무효값이면 전송 안 함) */
+    ...(Object.prototype.hasOwnProperty.call(dto, "parkingGrade")
+      ? dto.parkingGrade === null
+        ? { parkingGrade: null }
+        : (() => {
+            const n = Number(dto.parkingGrade as any);
+            return Number.isInteger(n) && n >= 1 && n <= 5
+              ? { parkingGrade: n }
+              : {};
+          })()
+      : {}),
+
     ...(dto.slopeGrade ? { slopeGrade: dto.slopeGrade } : {}),
     ...(dto.structureGrade ? { structureGrade: dto.structureGrade } : {}),
 
@@ -665,7 +680,20 @@ export async function updatePin(
             dto.parkingTypeId == null ? null : Number(dto.parkingTypeId),
         }
       : {}),
-    ...(has("parkingGrade") ? { parkingGrade: dto.parkingGrade ?? null } : {}),
+
+    /** ✅ parkingGrade: 1~5 범위만 전송, null은 삭제, 무효면 미전송 */
+    ...(has("parkingGrade") && dto.parkingGrade !== undefined
+      ? dto.parkingGrade === null
+        ? { parkingGrade: null }
+        : (() => {
+            const n = Number(dto.parkingGrade as any);
+            if (Number.isInteger(n) && n >= 1 && n <= 5) {
+              return { parkingGrade: String(n) }; // ← 문자열 "1"~"5"
+            }
+            return {}; // 유효하지 않으면 전송 안 함
+          })()
+      : {}),
+
     ...(has("slopeGrade") ? { slopeGrade: dto.slopeGrade ?? null } : {}),
     ...(has("structureGrade")
       ? { structureGrade: dto.structureGrade ?? null }

@@ -21,6 +21,14 @@ import { BuildingType } from "@/features/properties/types/property-domain";
 
 type StarStr = "" | "1" | "2" | "3" | "4" | "5";
 
+/** 변경분만 PATCH하기 위한 최초 스냅샷 타입 */
+type InitialForPatch = {
+  contactMainPhone: string; // 분양사무실 전화
+  contactSubPhone: string; // 분양사무실 보조 전화
+  minRealMoveInCost: string; // 최저 실입(현재 폼의 salePrice 문자열과 매핑)
+  unitLines: UnitLine[]; // 구조별 입력
+};
+
 export function useEditForm({ initialData }: UseEditFormArgs) {
   /* ========== 상태 ========== */
   const [pinKind, setPinKind] = useState<PinKind>("1room");
@@ -175,22 +183,31 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setBuildingType(null);
   }, []);
 
-  /* ========== 초기 주입 ========== */
-  const normalized = useMemo(
-    () => normalizeInitialData(initialData),
-    [initialData]
-  );
+  /* ========== 초기 주입: id 기준 1회 ========== */
+  const initId = initialData?.id ?? null;
 
-  const injectedOnceRef = useRef(false);
+  // id가 바뀔 때만 normalize
+  const normalized = useMemo(() => normalizeInitialData(initialData), [initId]);
 
-  // initialData가 바뀌면 재주입 허용
+  const injectedOnceRef = useRef<null | string | number>(null);
+
+  // ✅ 최초 스냅샷 보관 (변경분만 PATCH 용)
+  const initialForPatchRef = useRef<InitialForPatch>({
+    contactMainPhone: "",
+    contactSubPhone: "",
+    minRealMoveInCost: "",
+    unitLines: [],
+  });
+
+  // id가 바뀔 때만 재주입 허용
   useEffect(() => {
-    injectedOnceRef.current = false;
-  }, [initialData]);
+    injectedOnceRef.current = null;
+  }, [initId]);
 
   useEffect(() => {
-    if (!initialData || injectedOnceRef.current) return;
-    injectedOnceRef.current = true;
+    if (!initId) return; // id 없으면 주입 보류
+    if (injectedOnceRef.current === initId) return;
+    injectedOnceRef.current = initId;
 
     setPinKind(normalized.pinKind);
     setTitle(normalized.title);
@@ -239,7 +256,16 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
     setAspects(normalized.aspects);
     setBuildingType((normalized as any).buildingType ?? null);
-  }, [initialData, normalized]);
+
+    // ✅ 최초 스냅샷 저장
+    initialForPatchRef.current = {
+      contactMainPhone: normalized.officePhone ?? "",
+      contactSubPhone: normalized.officePhone2 ?? "",
+      // 현재 폼에서 '최저실입' = salePrice 로 사용 중
+      minRealMoveInCost: normalized.salePrice ?? "",
+      unitLines: (normalized.unitLines ?? []).map((u) => ({ ...u })),
+    };
+  }, [initId, normalized]); // ← normalized은 initId에만 의존하므로 안전
 
   /* ========== 파생값 ========== */
   const baseHasExclusive = useMemo(
@@ -296,7 +322,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     [aspects]
   );
 
-  // ✅ 저장 가능 여부: parkingGrade 반영(레거시 listingStars 제거)
+  // ✅ 저장 가능 여부
   const isSaveEnabled = useMemo<boolean>(() => {
     const numbersOk =
       filled(totalBuildings) &&
@@ -528,6 +554,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     // 레거시 호환 브릿지
     registryOne: registry,
     setRegistryOne: setRegistry,
+
+    // 🔹 최초 스냅샷(변경분 PATCH용)
+    initialForPatch: initialForPatchRef.current,
 
     // 구조적 접근도 가능하도록 원본 객체도 노출
     state,

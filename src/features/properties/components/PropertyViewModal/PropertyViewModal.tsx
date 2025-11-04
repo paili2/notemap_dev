@@ -50,6 +50,9 @@ function toViewPatchFromEdit(
 
 type Stage = "view" | "edit";
 
+// ✅ editInitial을 지원하기 위해 prop 타입을 살짝 확장
+type ViewDataWithEdit = PropertyViewDetails & { editInitial?: any };
+
 export default function PropertyViewModal({
   open,
   onClose,
@@ -59,7 +62,8 @@ export default function PropertyViewModal({
 }: {
   open: boolean;
   onClose: () => void;
-  data?: PropertyViewDetails | null;
+  /** store에서 내려오는 data(가능하면 editInitial 포함) */
+  data?: ViewDataWithEdit | null;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
@@ -71,8 +75,13 @@ export default function PropertyViewModal({
   const headingId = "property-view-modal-heading";
   const descId = "property-view-modal-desc";
 
-  // edit에 넘길 초기 데이터: id 바뀔 때만 변경
-  const initialForEdit = useMemo(() => (data ? { ...data } : null), [data?.id]);
+  // ✅ 수정 모달에 넘길 초기 데이터: editInitial가 있으면 그걸 우선 사용
+  const initialForEdit = useMemo(() => {
+    if (!data) return null;
+    const base = (data as any).editInitial ?? data; // editInitial 우선
+    // id 변경 감지: key에서 사용해 재마운트 유도
+    return base ? { ...base } : null;
+  }, [data?.id, (data as any)?.editInitial]);
 
   // 공통 핸들러
   const handleDisable = useCallback(async () => {
@@ -113,15 +122,15 @@ export default function PropertyViewModal({
   const portalChild =
     stage === "edit" && hasData && initialForEdit ? (
       <EditStage
-        key={`edit-${String(initialForEdit.id)}`}
-        initialData={initialForEdit}
+        key={`edit-${String((initialForEdit as any).id ?? data?.id ?? "")}`}
+        initialData={initialForEdit as any}
         onClose={onEditClose}
         onSubmit={onEditSubmit}
       />
     ) : (
       <ViewStage
         key="view"
-        data={data ?? null}
+        data={(data as PropertyViewDetails) ?? null}
         headingId={headingId}
         descId={descId}
         onClose={onClose}
@@ -372,11 +381,10 @@ function EditStage({
   onClose,
   onSubmit,
 }: {
-  initialData: PropertyViewDetails;
+  initialData: PropertyViewDetails | any; // editInitial 원본 DTO 허용
   onClose: () => void;
   onSubmit: (p: UpdatePayload & Partial<CreatePayload>) => void | Promise<void>;
 }) {
-  // embedded 제거 → 기본 모달 레이아웃 사용
   return (
     <PropertyEditModalBody
       initialData={initialData}
