@@ -2,15 +2,17 @@
 
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
 import SafeSelect from "@/features/safe/SafeSelect";
 
 type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
+  /** 상위는 number|null 로 내려줌 */
   totalParkingSlots?: number | null;
   setTotalParkingSlots?: (v: number | null) => void;
 
+  /** (옵션) 서버 enum id 동기화가 필요할 때만 사용 */
   parkingTypeId?: number | null;
   setParkingTypeId?: (v: number | null) => void;
   parkingTypeNameToId?: Record<string, number>;
@@ -30,67 +32,111 @@ export default function ParkingSection({
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 
-  const [selectValue, setSelectValue] = useState<string>("");
+  /** 내부 UI 상태(셀렉트 값/커스텀 입력) */
+  const [selectValue, setSelectValue] = useState<string>(""); // "" | Preset | "custom"
   const [custom, setCustom] = useState<string>("");
 
-  const displayCount = useMemo(
+  /** 셀렉트 아이템은 메모해서 불필요한 리렌더 방지 */
+  const selectItems = useMemo(
+    () => [
+      ...PRESETS.map((opt) => ({ value: opt, label: opt })),
+      { value: "custom", label: "직접입력" },
+    ],
+    []
+  );
+
+  /** 숫자 입력 표시값 */
+  const displayCount = useMemo<number | null>(
     () => (typeof totalParkingSlots === "number" ? totalParkingSlots : null),
     [totalParkingSlots]
   );
 
-  // prop → 내부 상태
+  /* ───────────────── prop → 내부 상태 동기화(내부 state만 갱신) ───────────────── */
   useEffect(() => {
+    // parkingType 이 null/빈 → 내부도 초기화
     if (!parkingType) {
-      setSelectValue("");
-      setCustom("");
-      setParkingTypeId?.(null);
+      if (selectValue !== "") setSelectValue("");
+      if (custom !== "") setCustom("");
       return;
     }
+
+    // 프리셋이면 셀렉트만
     if (isPreset(parkingType)) {
-      setSelectValue(parkingType);
-      setCustom("");
-      const id = parkingTypeNameToId[parkingType];
-      setParkingTypeId?.(Number.isFinite(id as any) ? id : null);
+      if (selectValue !== parkingType) setSelectValue(parkingType);
+      if (custom !== "") setCustom("");
       return;
     }
+
+    // "custom" 자체면 셀렉트만 custom 으로
     if (parkingType === "custom") {
-      setSelectValue("custom");
-      setParkingTypeId?.(null);
+      if (selectValue !== "custom") setSelectValue("custom");
       return;
     }
-    setSelectValue("custom");
-    setCustom(parkingType);
-    setParkingTypeId?.(null);
-  }, [parkingType, parkingTypeNameToId, setParkingTypeId]);
 
-  // 내부 → 상위 반영 (동등성 가드는 SafeSelect/유틸 쪽에서 잡음)
-  useEffect(() => {
-    if (selectValue === "custom") {
-      const trimmed = custom.trim();
-      setParkingType(trimmed === "" ? "custom" : trimmed);
-      setParkingTypeId?.(null);
-    } else {
-      const nextType = selectValue === "" ? null : selectValue;
-      setParkingType(nextType);
-      const id =
-        nextType && parkingTypeNameToId[nextType]
-          ? parkingTypeNameToId[nextType]
-          : null;
-      setParkingTypeId?.(id);
-    }
-  }, [
-    selectValue,
-    custom,
-    setParkingType,
-    setParkingTypeId,
-    parkingTypeNameToId,
-  ]);
+    // 실제 커스텀 문자열
+    if (selectValue !== "custom") setSelectValue("custom");
+    if (custom !== parkingType) setCustom(parkingType);
+  }, [parkingType, selectValue, custom]);
 
-  const onChangeCount = (raw: string) => {
-    const onlyDigits = raw.replace(/\D+/g, "");
-    const next = onlyDigits === "" ? null : Number(onlyDigits);
-    setTotalParkingSlots?.(next);
-  };
+  /* ───────────────── 이벤트에서만 상위 반영 ───────────────── */
+
+  // SafeSelect 변경
+  const onChangeSelect = useCallback(
+    (val: string | null) => {
+      const next = val ?? "";
+      if (next === selectValue) return;
+      setSelectValue(next);
+
+      if (next === "") {
+        if (parkingType !== null) setParkingType(null);
+        if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
+        return;
+      }
+
+      if (next === "custom") {
+        // 커스텀 입력으로 전환
+        if (parkingType !== "custom") setParkingType("custom");
+        if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
+        // 기존 custom 텍스트는 유지(원하면 여기서 초기화)
+        return;
+      }
+
+      // 프리셋 선택
+      if (parkingType !== next) setParkingType(next);
+      if (setParkingTypeId) {
+        const id = parkingTypeNameToId[next] ?? null;
+        if ((id ?? null) !== (parkingTypeId ?? null)) setParkingTypeId(id);
+      }
+    },
+    [
+      selectValue,
+      parkingType,
+      parkingTypeId,
+      setParkingType,
+      setParkingTypeId,
+      parkingTypeNameToId,
+    ]
+  );
+
+  // 커스텀 입력 onBlur에서만 상위 반영
+  const onBlurCustom = useCallback(() => {
+    const trimmed = custom.trim();
+    const nextType = trimmed === "" ? "custom" : trimmed;
+    if (parkingType !== nextType) setParkingType(nextType);
+    if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
+  }, [custom, parkingType, parkingTypeId, setParkingType, setParkingTypeId]);
+
+  // 숫자 입력 onChange
+  const onChangeCount = useCallback(
+    (raw: string) => {
+      const onlyDigits = raw.replace(/\D+/g, "");
+      const next = onlyDigits === "" ? null : Number(onlyDigits);
+      if (setTotalParkingSlots && next !== (totalParkingSlots ?? null)) {
+        setTotalParkingSlots(next);
+      }
+    },
+    [setTotalParkingSlots, totalParkingSlots]
+  );
 
   return (
     <div className="grid grid-cols-2 items-center md:grid-cols-3">
@@ -98,15 +144,8 @@ export default function ParkingSection({
         <div className="flex items-center gap-2">
           <SafeSelect
             value={selectValue || null}
-            onChange={(val) => {
-              // SafeSelect가 값 동등성 가드 적용하므로 그대로 세팅
-              setSelectValue(val ?? "");
-              if (val === "custom") setCustom("");
-            }}
-            items={[
-              ...PRESETS.map((opt) => ({ value: opt, label: opt })),
-              { value: "custom", label: "직접입력" },
-            ]}
+            onChange={onChangeSelect}
+            items={selectItems}
             placeholder="선택"
             className="w-28 h-9"
           />
@@ -115,10 +154,12 @@ export default function ParkingSection({
             <Input
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
-              onBlur={() => setCustom((v) => v.trim())}
+              onBlur={onBlurCustom}
               placeholder="예: 지상 병렬 1대"
               className="h-9 flex-1"
-              autoFocus
+              // autoFocus는 포커스 루프의 씨앗이 될 수 있어 기본 off
+              // 필요 시 UI/UX 확인 후 켜세요.
+              // autoFocus
             />
           )}
         </div>

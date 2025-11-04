@@ -194,6 +194,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onReserveFromMenu,
     /* 상위가 내려주면 우선 사용 */
     onViewFromMenu,
+    /** ⬇️ 기존 onCloseView가 아니라 closeView가 타입에 존재 */
+    closeView,
   } = props;
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
@@ -712,6 +714,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [onDeleteFromView, selectedViewItem, viewDataLocal, refreshViewportPins]);
 
+  /* ✅ 모달 닫기 핸들러: 로컬 상태와 상위 콜백 모두 처리 */
+  const handleCloseView = useCallback(() => {
+    setViewOpenLocal(false);
+    closeView?.(); // ⬅️ MapHomeUIProps에 정의된 이름 사용
+  }, [closeView]);
+
   return (
     <div className="fixed inset-0">
       <MapCanvas
@@ -829,7 +837,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       <ModalsHost
         viewOpen={viewOpenLocal || !!selectedViewItem}
         selectedViewItem={selectedViewItem ?? viewDataLocal ?? null}
-        onCloseView={() => setViewOpenLocal(false)}
+        onCloseView={handleCloseView} // ⬅️ 수정: 로컬 상태 + 상위 closeView 모두 처리
         onSaveViewPatch={onSaveViewPatch}
         onDeleteFromView={handleDeleteFromView}
         createOpen={createOpen}

@@ -37,25 +37,20 @@ export default function MiniCarousel({
   const len = Array.isArray(images) ? images.length : 0;
   const hasImages = len > 0;
 
-  // images 변경 시 인덱스 클램프 + 필요할 때만 상위 통지
+  // images 변경 시 인덱스 클램프 + 에러맵 리셋 (부모 알림은 여기서 하지 않음)
   React.useEffect(() => {
     if (!hasImages) return;
-    setIdx((cur) => {
-      const clamped = Math.max(0, Math.min(cur, len - 1));
-      if (clamped !== cur) onIndexChange?.(clamped);
-      return clamped;
-    });
+    setIdx((cur) => Math.max(0, Math.min(cur, len - 1)));
     setErrorByIndex({});
-  }, [hasImages, len, onIndexChange]);
+  }, [hasImages, len]);
 
-  // 인덱스 이동: functional 업데이트로 안정화
   const goTo = React.useCallback(
     (target: number) => {
       if (!hasImages) return;
       const next = ((target % len) + len) % len;
       setIdx((cur) => {
-        if (cur === next) return cur; // 동일 인덱스면 무시
-        onIndexChange?.(next);
+        if (cur === next) return cur;
+        onIndexChange?.(next); // 변경시에만 상위 통지
         return next;
       });
     },
@@ -78,7 +73,7 @@ export default function MiniCarousel({
   const prev = React.useCallback(() => goDelta(-1), [goDelta]);
   const next = React.useCallback(() => goDelta(1), [goDelta]);
 
-  // 좌/우 키보드 네비(리스너 재등록 최소화)
+  // 좌/우 키보드 네비
   React.useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -96,7 +91,6 @@ export default function MiniCarousel({
       : aspect === "square"
       ? "aspect-square"
       : "";
-
   const wrapClasses = [
     "relative w-full select-none outline-none",
     aspect === "auto" ? "h-full" : aspectClass,
@@ -114,7 +108,6 @@ export default function MiniCarousel({
 
   const indexPos = pos(indexPlacement);
 
-  // 유효한 src 판정
   const toSafeSrc = (raw?: string | null) => {
     const s = (raw ?? "").trim();
     return s.length > 0 ? s : undefined;

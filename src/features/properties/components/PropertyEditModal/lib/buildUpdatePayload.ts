@@ -91,7 +91,7 @@ type BuildUpdateArgs = {
   orientations?:
     | OrientationRow[]
     | Array<{
-        dir?: string; // 간이형 호환
+        dir?: string; // 간이형 호환(미사용)
         weight?: number | null; // 간이형 호환
         ho?: string | number | null;
         value?: number | null;
@@ -104,27 +104,44 @@ type BuildUpdateArgs = {
   unitLines?: UnitLine[];
 
   // 이미지
-  imageFolders?: ImageItem[][];
-  verticalImages?: ImageItem[];
+  imageFolders?: ImageItem[][]; // 가로(카드들)
+  verticalImages?: ImageItem[]; // 세로(단일 카드)
 
   // 기타
   pinKind?: PinKind;
 };
 
 export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
-  // 이미지: 서버가 문자열 배열만 받는 경우를 가정해 url만 추출
-  const imagesFlatStrings: string[] =
-    a.imageFolders
-      ?.flat()
-      .map((f) => f.url)
-      .filter((u): u is string => typeof u === "string" && u.length > 0) ?? [];
+  // ========= 이미지 수집 =========
+  // 가로 카드(여러 그룹) + 세로 카드(단일 배열) → URL 평면화 + 중복 제거
+  const urls: string[] = [];
+  const pushUrl = (u?: string) => {
+    if (!u) return;
+    if (typeof u !== "string") return;
+    const s = u.trim();
+    if (!s) return;
+    if (!urls.includes(s)) urls.push(s);
+  };
 
-  // 옵션/메모
+  // 가로 카드들
+  if (Array.isArray(a.imageFolders)) {
+    for (const group of a.imageFolders) {
+      if (Array.isArray(group)) {
+        for (const img of group) pushUrl(img?.url);
+      }
+    }
+  }
+  // 세로 카드
+  if (Array.isArray(a.verticalImages)) {
+    for (const img of a.verticalImages) pushUrl(img?.url);
+  }
+
+  // ========= 옵션/메모 =========
   const optionEtcFinal = a.etcChecked
     ? (a.optionEtc ?? "").trim()
     : a.optionEtc ?? "";
 
-  // ✅ totalParkingSlots만 사용 (parkingCount 제거)
+  // ✅ totalParkingSlots만 사용 (parkingCount 제거). 0 허용.
   const normalizedTotalParkingSlots =
     a.totalParkingSlots === undefined
       ? undefined
@@ -134,17 +151,17 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
   let orientationsNormalized: OrientationRow[] | undefined;
   if (Array.isArray(a.orientations)) {
     orientationsNormalized = a.orientations.map((o: any) => {
-      // 이미 OrientationRow 형태라면 그대로 보존
+      // OrientationRow 형태 보존
       if ("ho" in o || "value" in o) {
         return {
-          ho: o.ho ?? null,
-          value: o.value ?? null,
+          ho: (o.ho ?? null) as any,
+          value: (o.value ?? null) as any,
         } as OrientationRow;
       }
-      // 간이형(dir/weight 등) → OrientationRow로 변환
+      // 간이형 → OrientationRow
       return {
-        ho: o.ho ?? null,
-        value: o.value ?? o.weight ?? null,
+        ho: (o.ho ?? null) as any,
+        value: (o.value ?? o.weight ?? null) as any,
       } as OrientationRow;
     });
   }
@@ -195,11 +212,11 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
     ...(a.parkingGrade !== undefined && parkingGradeVal !== undefined
       ? { parkingGrade: parkingGradeVal }
       : a.parkingGrade !== undefined
-      ? { parkingGrade: undefined } // '' 등 비정상은 제거(보내지 않음)
+      ? {} // 빈 문자열/잘못된 값이면 보내지 않음
       : {}),
     ...(a.elevator !== undefined ? { elevator: a.elevator } : {}),
 
-    // 숫자 필드(문자/숫자 혼용 허용)
+    // 숫자 필드(문자/숫자 혼용 허용: 서버 DTO가 처리)
     ...(a.totalBuildings !== undefined
       ? { totalBuildings: a.totalBuildings }
       : {}),
@@ -240,7 +257,7 @@ export function buildUpdatePayload(a: BuildUpdateArgs): UpdatePayload {
     ...(a.unitLines !== undefined ? { unitLines: a.unitLines } : {}),
 
     // 이미지(서버가 문자열 배열만 받는 경우)
-    ...(imagesFlatStrings.length ? { images: imagesFlatStrings } : {}),
+    ...(urls.length ? { images: urls } : {}),
   };
 
   return patch;

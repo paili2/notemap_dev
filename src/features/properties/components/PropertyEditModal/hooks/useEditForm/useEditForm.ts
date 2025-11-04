@@ -182,6 +182,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   );
 
   const injectedOnceRef = useRef(false);
+
+  // initialData가 바뀌면 재주입 허용
+  useEffect(() => {
+    injectedOnceRef.current = false;
+  }, [initialData]);
+
   useEffect(() => {
     if (!initialData || injectedOnceRef.current) return;
     injectedOnceRef.current = true;

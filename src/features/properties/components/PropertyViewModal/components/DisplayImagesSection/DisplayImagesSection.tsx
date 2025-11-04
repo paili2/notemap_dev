@@ -1,9 +1,10 @@
+// src/features/properties/components/PropertyViewModal/components/DisplayImagesSection/DisplayImagesSection.tsx
 "use client";
 
 import type { ImageItem } from "@/features/properties/types/media";
-import LightboxModal from "@/features/properties/components/PropertyViewModal/components/DisplayImagesSection/components/LightboxModal";
+import LightboxModal from "./components/LightboxModal";
 import MiniCarousel from "@/components/molecules/MiniCarousel";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CaptionSlot from "./components/CaptionSlot";
 import { AnyImg, DisplayImagesSectionProps } from "./types";
 
@@ -40,6 +41,57 @@ function normList(list?: Array<AnyImg>): ImageItem[] {
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
+/* ───────── 입력 정규화 (제목 무시) ───────── */
+type Group = { items: ImageItem[] };
+
+function normalizeCardGroups(cards?: unknown, images?: unknown): Group[] {
+  const out: Group[] = [];
+  if (Array.isArray(cards)) {
+    if (
+      cards.length > 0 &&
+      typeof cards[0] === "object" &&
+      !Array.isArray(cards[0])
+    ) {
+      (cards as any[]).forEach((c) => {
+        const items = normList(c?.images);
+        out.push({ items });
+      });
+    } else {
+      (cards as any[]).forEach((arr) => {
+        const items = normList(arr);
+        out.push({ items });
+      });
+    }
+  }
+  if (out.length === 0 && Array.isArray(images)) {
+    const legacy = normList(images as AnyImg[]);
+    out.push({ items: legacy });
+  }
+  return out;
+}
+
+function normalizeFileGroups(files?: unknown): Group[] {
+  const out: Group[] = [];
+  if (!Array.isArray(files)) return out;
+
+  const first = files[0];
+  if (first && typeof first === "object" && !Array.isArray(first)) {
+    (files as any[]).forEach((f) => {
+      const items = normList(f?.images);
+      out.push({ items });
+    });
+  } else if (Array.isArray(first)) {
+    (files as any[]).forEach((arr) => {
+      const items = normList(arr);
+      out.push({ items });
+    });
+  } else {
+    const single = normList(files as AnyImg[]);
+    out.push({ items: single });
+  }
+  return out;
+}
+
 /* ───────── 컴포넌트 ───────── */
 export default function DisplayImagesSection({
   cards,
@@ -47,75 +99,97 @@ export default function DisplayImagesSection({
   files,
   showNames = false,
 }: DisplayImagesSectionProps) {
-  /* 1) 카드를 안정적으로 정규화 */
-  const cardGroups = useMemo<ImageItem[][]>(() => {
-    const groups = Array.isArray(cards)
-      ? (cards as AnyImg[][])
-          .map((g) => normList(g))
-          .filter((g) => g.length > 0)
-      : [];
-
-    // 카드가 비었고 legacy images가 있으면 fallback
-    if (groups.length === 0 && Array.isArray(images)) {
-      const legacy = normList(images as AnyImg[]);
-      if (legacy.length) groups.push(legacy);
-    }
-    return groups;
-  }, [cards, images]);
-
-  /* 2) 세로(파일) 카드 정규화 */
-  const fileCard = useMemo<ImageItem[]>(
-    () => normList(files as AnyImg[]),
-    [files]
+  const rawCardGroups = useMemo(
+    () => normalizeCardGroups(cards, images),
+    [cards, images]
   );
-  const hasFileCard = fileCard.length > 0;
+  const rawFileGroups = useMemo(() => normalizeFileGroups(files), [files]);
 
-  /* 3) 라이트박스 상태 */
+  // 아이템 참조 안정화
+  const cacheRef = useRef<Map<string, ImageItem>>(new Map());
+  const stabilizeItems = useCallback((items?: ImageItem[]) => {
+    const src = Array.isArray(items) ? items : [];
+    const next = new Map<string, ImageItem>();
+    const out = src.map((it) => {
+      const key = `${it?.url ?? ""}|${it?.name ?? ""}|${it?.caption ?? ""}`;
+      const prev = cacheRef.current.get(key);
+      const stable = prev ?? it;
+      next.set(key, stable);
+      return stable;
+    });
+    cacheRef.current = next;
+    return out;
+  }, []);
+
+  const cardGroups = useMemo<Group[]>(
+    () => rawCardGroups.map((g) => ({ items: stabilizeItems(g?.items) })),
+    [rawCardGroups, stabilizeItems]
+  );
+  const fileGroups = useMemo<Group[]>(
+    () => rawFileGroups.map((g) => ({ items: stabilizeItems(g?.items) })),
+    [rawFileGroups, stabilizeItems]
+  );
+
+  const hasAny =
+    cardGroups.some((g) => (g.items?.length ?? 0) > 0) ||
+    fileGroups.some((g) => (g.items?.length ?? 0) > 0);
+
+  // 라이트박스
   const [open, setOpen] = useState(false);
   const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
   const [startIndex, setStartIndex] = useState(0);
 
   const openLightbox = useCallback((group: ImageItem[], index = 0) => {
-    setLightboxImages(group);
-    setStartIndex(clamp(index, 0, Math.max(0, group.length - 1)));
+    const safeGroup = Array.isArray(group) ? group : [];
+    setLightboxImages(safeGroup);
+    setStartIndex(clamp(index, 0, Math.max(0, safeGroup.length - 1)));
     setOpen(true);
   }, []);
 
-  /* 4) 각 카드별 현재 인덱스(캐러셀 인덱스) 관리 + 길이 변화 방어 */
+  // 인덱스 상태
   const [cardIdxs, setCardIdxs] = useState<number[]>([]);
   useEffect(() => {
-    setCardIdxs((prev) => {
-      const next = [...prev];
-
-      // 길이 증가 → 0으로 채움
-      if (next.length < cardGroups.length) {
-        next.push(...Array(cardGroups.length - next.length).fill(0));
-      } else if (next.length > cardGroups.length) {
-        // 길이 감소 → 잘라냄
-        next.length = cardGroups.length;
-      }
-
-      // 각 그룹 길이에 맞게 개별 인덱스 클램프
-      for (let i = 0; i < next.length; i++) {
-        const len = cardGroups[i]?.length ?? 0;
-        if (len === 0) next[i] = 0;
-        else next[i] = clamp(next[i] ?? 0, 0, len - 1);
-      }
-      return next;
-    });
-  }, [cardGroups]);
-
-  /* 5) 세로 카드 인덱스 */
-  const [fileIdx, setFileIdx] = useState(0);
-  useEffect(() => {
-    if (!hasFileCard) {
-      setFileIdx(0);
-    } else {
-      setFileIdx((i) => clamp(i, 0, Math.max(0, fileCard.length - 1)));
+    const next = [...cardIdxs];
+    let changed = false;
+    if (next.length !== cardGroups.length) {
+      next.length = cardGroups.length;
+      for (let i = 0; i < cardGroups.length; i++) next[i] = next[i] ?? 0;
+      changed = true;
     }
-  }, [hasFileCard, fileCard.length]);
+    for (let i = 0; i < next.length; i++) {
+      const len = cardGroups[i]?.items?.length ?? 0;
+      const safe = len === 0 ? 0 : clamp(next[i] ?? 0, 0, len - 1);
+      if (safe !== next[i]) {
+        next[i] = safe;
+        changed = true;
+      }
+    }
+    if (changed) setCardIdxs(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardGroups.length, ...cardGroups.map((g) => g.items?.length ?? 0)]);
 
-  if (cardGroups.length === 0 && !hasFileCard) {
+  const [fileIdxs, setFileIdxs] = useState<number[]>([]);
+  useEffect(() => {
+    const next = [...fileIdxs];
+    let changed = false;
+    if (next.length !== fileGroups.length) {
+      next.length = fileGroups.length;
+      for (let i = 0; i < fileGroups.length; i++) next[i] = next[i] ?? 0;
+      changed = true;
+    }
+    for (let i = 0; i < next.length; i++) {
+      const len = fileGroups[i]?.items?.length ?? 0;
+      const safe = len === 0 ? 0 : clamp(next[i] ?? 0, 0, len - 1);
+      if (safe !== next[i]) {
+        next[i] = safe;
+        changed = true;
+      }
+    }
+    if (changed) setFileIdxs(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fileGroups.length, ...fileGroups.map((g) => g.items?.length ?? 0)]);
+
+  if (!hasAny) {
     return (
       <div className="rounded-xl border bg-gray-50/60 p-3">
         <div className="aspect-video rounded-md border bg-white grid place-items-center text-sm text-gray-400">
@@ -129,12 +203,15 @@ export default function DisplayImagesSection({
     <div className="flex flex-col gap-3">
       {/* 가로형 카드들 */}
       {cardGroups.map((group, gi) => {
+        const items = Array.isArray(group.items) ? group.items : [];
+        if (!items.length) return null;
+
         const curIdx = clamp(
           cardIdxs[gi] ?? 0,
           0,
-          Math.max(0, group.length - 1)
+          Math.max(0, items.length - 1)
         );
-        const cur = group[curIdx];
+        const cur = items[curIdx];
         const curCaption = cur?.caption || "";
         const curName = cur?.name?.trim();
 
@@ -145,22 +222,24 @@ export default function DisplayImagesSection({
           >
             <div className="relative aspect-video overflow-hidden rounded-md border bg-white">
               <MiniCarousel
-                images={group}
+                images={items}
                 aspect="video"
                 objectFit="cover"
                 showDots
                 showIndex
                 indexPlacement="top-right"
-                onImageClick={(i) => openLightbox(group, i)}
-                onIndexChange={(i) =>
+                onImageClick={(i) => openLightbox(items, i)}
+                onIndexChange={(i) => {
+                  const want = clamp(i, 0, Math.max(0, items.length - 1));
                   setCardIdxs((prev) => {
-                    const next = [...prev];
-                    next[gi] = clamp(i, 0, Math.max(0, group.length - 1));
+                    const cur = prev[gi] ?? 0;
+                    if (cur === want) return prev;
+                    const next = prev.slice();
+                    next[gi] = want;
                     return next;
-                  })
-                }
+                  });
+                }}
               />
-              {/* 파일명 오버레이(옵션) */}
               {showNames && curName ? (
                 <div className="absolute bottom-2 left-2 max-w-[75%] rounded bg-black/40 text-white text-[11px] px-2 py-0.5 truncate">
                   {curName}
@@ -173,37 +252,59 @@ export default function DisplayImagesSection({
         );
       })}
 
-      {/* 세로(파일) 카드 */}
-      {hasFileCard && (
-        <div className="rounded-xl border bg-gray-50/60 p-3">
-          <div className="relative h-80 overflow-hidden rounded-md border bg-white">
-            <MiniCarousel
-              images={fileCard}
-              aspect="auto"
-              objectFit="cover"
-              showDots
-              showIndex
-              indexPlacement="top-right"
-              onImageClick={(i) => openLightbox(fileCard, i)}
-              onIndexChange={(i) =>
-                setFileIdx(clamp(i, 0, Math.max(0, fileCard.length - 1)))
-              }
-              className="absolute inset-0"
-            />
+      {/* 세로(파일) 카드들 */}
+      {fileGroups.map((group, gi) => {
+        const items = Array.isArray(group.items) ? group.items : [];
+        if (!items.length) return null;
+
+        const curIdx = clamp(
+          fileIdxs[gi] ?? 0,
+          0,
+          Math.max(0, items.length - 1)
+        );
+
+        return (
+          <div
+            key={`file-${gi}`}
+            className="rounded-xl border bg-gray-50/60 p-3"
+          >
+            <div className="relative aspect-[3/4] overflow-hidden rounded-md border bg-white">
+              <MiniCarousel
+                images={items}
+                objectFit="contain"
+                showDots
+                showIndex
+                indexPlacement="top-right"
+                onImageClick={(i) => openLightbox(items, i)}
+                onIndexChange={(i) => {
+                  const want = clamp(i, 0, Math.max(0, items.length - 1));
+                  setFileIdxs((prev) => {
+                    const cur = prev[gi] ?? 0;
+                    if (cur === want) return prev;
+                    const next = prev.slice();
+                    next[gi] = want;
+                    return next;
+                  });
+                }}
+                className="w-full h-full"
+              />
+            </div>
+
+            <CaptionSlot text={items[curIdx]?.caption} />
           </div>
+        );
+      })}
 
-          <CaptionSlot text={fileCard[fileIdx]?.caption} />
-        </div>
-      )}
-
-      <LightboxModal
-        open={open}
-        images={lightboxImages}
-        initialIndex={startIndex}
-        onClose={() => setOpen(false)}
-        objectFit="contain"
-        withThumbnails
-      />
+      {open ? (
+        <LightboxModal
+          open={open}
+          images={lightboxImages}
+          initialIndex={startIndex}
+          onClose={() => setOpen(false)}
+          objectFit="contain"
+          withThumbnails
+        />
+      ) : null}
     </div>
   );
 }

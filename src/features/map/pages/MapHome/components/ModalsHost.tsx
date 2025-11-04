@@ -23,15 +23,13 @@ export default function ModalsHost(props: {
     appendItem: (it: any) => void;
     selectAndOpenView: (id: string) => void;
     resetAfterCreate: () => void;
-    /** ✅ 매물 생성 직후 호출되어 draft 숨김 + refetch 트리거
-     *  payload는 선택적(과거 코드와의 호환)
-     */
+    /** 매물 생성 직후 호출되어 draft 숨김 + refetch 트리거 */
     onAfterCreate: (args: {
       pinId: string;
       matchedDraftId?: string | number | null;
       lat: number;
       lng: number;
-      payload?: any; // ← 추가
+      payload?: any;
     }) => void;
   };
 
@@ -59,19 +57,25 @@ export default function ModalsHost(props: {
     onCloseRoadview,
   } = props;
 
+  // 뷰 모달 표시 가능 여부(선택된 아이템과 open 둘 다 필요)
+  const canShowView = !!viewOpen && !!selectedViewItem;
+
   return (
     <>
-      {viewOpen && selectedViewItem && (
+      {/* 1) View Modal: key로 완전 언마운트 보장 (포커스/refs 루프 방지) */}
+      {canShowView && (
         <PropertyViewModal
-          open
+          key={String(selectedViewItem!.id)} // ★ 인스턴스 리셋을 강제
+          open={true}
           onClose={onCloseView}
-          data={selectedViewItem}
+          data={selectedViewItem!}
           onSave={onSaveViewPatch}
-          onDelete={() => onDeleteFromView(String(selectedViewItem.id))}
+          onDelete={() => onDeleteFromView(String(selectedViewItem!.id))}
         />
       )}
 
-      {createOpen && (
+      {/* 2) Create Modal: View 모달과 동시 포털 겹침 방지(선택적 가드 포함) */}
+      {!canShowView && createOpen && (
         <MapCreateModalHost
           open={createOpen}
           prefillAddress={prefillAddress}
@@ -85,12 +89,15 @@ export default function ModalsHost(props: {
         />
       )}
 
-      <RoadviewHost
-        open={roadviewVisible}
-        onClose={onCloseRoadview}
-        containerRef={roadviewContainerRef}
-        onResize={() => {}}
-      />
+      {/* 3) Roadview: View 모달이 열려있을 땐 숨겨 충돌 방지 */}
+      {!canShowView && (
+        <RoadviewHost
+          open={roadviewVisible}
+          onClose={onCloseRoadview}
+          containerRef={roadviewContainerRef}
+          onResize={() => {}}
+        />
+      )}
     </>
   );
 }
