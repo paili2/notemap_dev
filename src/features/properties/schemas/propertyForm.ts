@@ -1,3 +1,4 @@
+// src/features/properties/schemas/propertyForm.ts
 import { z } from "zod";
 
 /* ────────────────────────────────────────────────────────────
@@ -5,7 +6,7 @@ import { z } from "zod";
  * ──────────────────────────────────────────────────────────── */
 const toNullIfEmpty = (v: unknown) => (v === "" ? null : v);
 
-/** 숫자 또는 null 로 정규화(빈 문자열 → null, 정수화) */
+/** 숫자 또는 null 로 정규화(빈 문자열 → null, 정수화, 음수 불가) */
 export const asIntOrNull = z.preprocess((v) => {
   v = toNullIfEmpty(v);
   if (v === null || v === undefined) return null;
@@ -13,17 +14,49 @@ export const asIntOrNull = z.preprocess((v) => {
   return Number.isFinite(n) ? Math.trunc(n) : v; // 숫자 아니면 그대로 두어 zod가 에러로 잡게
 }, z.number().int().nonnegative().nullable());
 
+/** 별점("", "1"~"5") 정규화:
+ * - 숫자 0 → "" (미선택)
+ * - 숫자 1~5 → "1"~"5"
+ * - 문자열 공백 → ""
+ * - 그 외는 오류
+ */
+export const asStarStr = z.preprocess((v) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") {
+    if (v === 0) return "";
+    if (Number.isFinite(v) && v >= 1 && v <= 5) return String(Math.trunc(v));
+    return v; // zod가 에러 처리
+  }
+  const s = String(v).trim();
+  if (s === "" || s === "0") return "";
+  return s;
+}, z.union([z.literal(""), z.literal("1"), z.literal("2"), z.literal("3"), z.literal("4"), z.literal("5")]));
+
 /* ────────────────────────────────────────────────────────────
  * Unit line schema (UI 전용 → build 단계에서 서버 DTO로 매핑)
  * ──────────────────────────────────────────────────────────── */
-export const unitLineSchema = z.object({
-  rooms: asIntOrNull.optional(), // 0 허용, 빈값은 null
-  baths: asIntOrNull.optional(),
-  hasLoft: z.boolean().optional().default(false),
-  hasTerrace: z.boolean().optional().default(false),
-  minPrice: asIntOrNull.optional(), // 가격 범위: 빈값은 null
-  maxPrice: asIntOrNull.optional(),
-});
+export const unitLineSchema = z
+  .object({
+    rooms: asIntOrNull.optional(), // 0 허용, 빈값은 null
+    baths: asIntOrNull.optional(),
+    hasLoft: z.boolean().optional().default(false),
+    hasTerrace: z.boolean().optional().default(false),
+    minPrice: asIntOrNull.optional(), // 가격 범위: 빈값은 null
+    maxPrice: asIntOrNull.optional(),
+  })
+  // 선택 제약: 두 값이 모두 있을 때 max >= min
+  .refine(
+    (v) =>
+      v.minPrice == null ||
+      v.maxPrice == null ||
+      (typeof v.minPrice === "number" &&
+        typeof v.maxPrice === "number" &&
+        v.maxPrice >= v.minPrice),
+    {
+      message: "최대 가격은 최소 가격보다 크거나 같아야 합니다.",
+      path: ["maxPrice"],
+    }
+  );
 
 /* ────────────────────────────────────────────────────────────
  * Form Schema
@@ -33,19 +66,21 @@ export const propertyFormSchema = z.object({
   status: z.enum(["판매중", "계약완료"]),
   type: z.enum(["아파트", "오피스텔", "빌라", "상가", "토지"]).optional(),
 
-  priceSale: z.string().optional(),
-  priceDeposit: z.string().optional(),
-  priceMonthly: z.string().optional(),
+  // 숫자 입력은 asIntOrNull로 통일: "" -> null, 그 외 숫자만 통과
+  priceSale: asIntOrNull.optional(),
+  priceDeposit: asIntOrNull.optional(),
+  priceMonthly: asIntOrNull.optional(),
 
   area: z.string().optional(),
-  rooms: z.number().int().min(0).optional(),
+  // RHF가 문자열을 넣어줄 수 있으므로 number 대신 asIntOrNull
+  rooms: asIntOrNull.optional(),
 
   address: z.string().min(1, "주소는 필수입니다."),
   detailAddress: z.string().optional(),
 
   description: z.string().optional(),
   isPublished: z.boolean().default(true),
-  imageUrls: z.array(z.string().url()).optional(),
+  imageUrls: z.array(z.string().url()).default([]),
 
   /** ✅ 총 주차 대수 (백엔드 키와 일치) */
   totalParkingSlots: asIntOrNull.optional(),
@@ -58,6 +93,14 @@ export const propertyFormSchema = z.object({
 
   /** ✅ 유닛 라인: UI에서 입력한 라인들을 그대로 들고 있다가 build 단계에서 서버용 units로 변환 */
   unitLines: z.array(unitLineSchema).default([]),
+
+  /** ✅ 엘리베이터: "O" | "X" (UI에서 Segment로 선택) */
+  elevator: z.enum(["O", "X"]).optional(),
+
+  /** ✅ 평점 계열: "", "1"~"5" */
+  parkingGrade: asStarStr.optional().default(""),
+  slopeGrade: asStarStr.optional().default(""),
+  structureGrade: asStarStr.optional().default(""),
 });
 
 export type PropertyStatus = z.infer<typeof propertyFormSchema>["status"];
@@ -68,9 +111,16 @@ export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
  * ──────────────────────────────────────────────────────────── */
 export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   isPublished: true,
+  // 필요 시 기본 상태 지정 원하면 주석 해제
+  // status: "판매중",
   totalParkingSlots: null,
   options: [],
-  unitLines: [], // ✅ 기본값 추가
+  unitLines: [],
+  imageUrls: [],
+  elevator: "O",
+  parkingGrade: "",
+  slopeGrade: "",
+  structureGrade: "",
 };
 
 /* ────────────────────────────────────────────────────────────

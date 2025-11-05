@@ -57,20 +57,25 @@ export default function ModalsHost(props: {
     onCloseRoadview,
   } = props;
 
-  // 뷰 모달 표시 가능 여부(선택된 아이템과 open 둘 다 필요)
-  const canShowView = !!viewOpen && !!selectedViewItem;
+  // id 안전 가드
+  const itemId = (selectedViewItem as any)?.id as string | number | undefined;
+
+  // 뷰 모달 표시 가능 여부(선택된 아이템, open, id 모두 필요)
+  const canShowView = !!viewOpen && !!selectedViewItem && itemId != null;
 
   return (
     <>
       {/* 1) View Modal: key로 완전 언마운트 보장 (포커스/refs 루프 방지) */}
       {canShowView && (
         <PropertyViewModal
-          key={String(selectedViewItem!.id)} // ★ 인스턴스 리셋을 강제
+          key={String(itemId)} // ★ 인스턴스 리셋을 강제
           open={true}
           onClose={onCloseView}
           data={selectedViewItem!}
+          /** ✅ 에디트 초기 주입 키/캐시 안정화를 위해 pinId도 전달 */
+          pinId={itemId!}
           onSave={onSaveViewPatch}
-          onDelete={() => onDeleteFromView(String(selectedViewItem!.id))}
+          onDelete={() => onDeleteFromView(String(itemId!))}
         />
       )}
 

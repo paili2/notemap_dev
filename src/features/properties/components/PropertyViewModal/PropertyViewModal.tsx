@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import type React from "react";
 import { createPortal } from "react-dom";
 import { Trash2, Pencil } from "lucide-react";
 
@@ -24,6 +25,7 @@ import { CreatePayload, UpdatePayload } from "../../types/property-dto";
 import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { togglePinDisabled } from "@/shared/api/pins";
+import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 
 /* ───────── utils ───────── */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -50,20 +52,64 @@ function toViewPatchFromEdit(
 
 type Stage = "view" | "edit";
 
-// ✅ editInitial을 지원하기 위해 prop 타입을 살짝 확장
+/** `editInitial`(서버 원본 DTO)는 내부에서 훅으로 채워주되, 호환을 위해 prop도 허용 */
 type ViewDataWithEdit = PropertyViewDetails & { editInitial?: any };
+
+/* ✅ Edit에 넘길 초기데이터 보장 유틸: id 채움 + {raw,view} 래핑 */
+function ensureInitialForEdit(args: {
+  qData: any;
+  data?: ViewDataWithEdit | null;
+  effectiveId?: string | number | null | undefined;
+}) {
+  const { qData, data, effectiveId } = args;
+  const raw = qData?.raw ?? null;
+  const view = (qData?.view ?? data ?? null) as
+    | PropertyViewDetails
+    | (PropertyViewDetails & { editInitial?: any })
+    | null;
+
+  if (!raw && !view) return null;
+
+  // id 보장 (raw.id → view.id → data.id → effectiveId)
+  const ensuredId =
+    (raw && raw.id) ??
+    (view as any)?.id ??
+    (data as any)?.id ??
+    effectiveId ??
+    null;
+
+  const ensuredView =
+    ensuredId != null ? { ...(view as any), id: ensuredId } : (view as any);
+
+  // 호출부가 editInitial을 이미 넣었다면 그대로 사용
+  const fromProp = (data as any)?.editInitial;
+  if (fromProp && (fromProp.view || fromProp.raw)) {
+    // 그래도 view.id는 보장해 둔다
+    if (fromProp.view && ensuredId != null) {
+      fromProp.view = { ...(fromProp.view ?? {}), id: ensuredId };
+    }
+    return fromProp;
+  }
+
+  // 쿼리로 받은 공용 shape가 있으면 그대로
+  if (raw || qData?.view) return { raw, view: ensuredView };
+
+  // 마지막: view만 있는 경우 { view }로 포장
+  return { view: ensuredView };
+}
 
 export default function PropertyViewModal({
   open,
   onClose,
   data,
+  pinId,
   onSave,
   onDelete,
 }: {
   open: boolean;
   onClose: () => void;
-  /** store에서 내려오는 data(가능하면 editInitial 포함) */
   data?: ViewDataWithEdit | null;
+  pinId?: string | number | null;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
 }) {
@@ -71,25 +117,41 @@ export default function PropertyViewModal({
   const [deleting, setDeleting] = useState(false);
   useBodyScrollLock(open);
 
-  const hasData = !!data;
+  /* ───────── React Query: 단일 소스 상세 ───────── */
+  const effectiveId =
+    pinId ?? (data as any)?.id ?? (data as any)?.propertyId ?? undefined;
+
+  // 모달이 열렸고 id가 있을 때만 fetch
+  const q = usePinDetail(effectiveId as any, !!(open && effectiveId));
+
+  /** 뷰에 표시할 데이터: 쿼리의 view가 우선, 없으면 프리필(data) */
+  const viewData: PropertyViewDetails | null = useMemo(() => {
+    const v = (q.data as any)?.view as PropertyViewDetails | undefined;
+    if (v) return v;
+    return (data as PropertyViewDetails) ?? null;
+  }, [q.data, data]);
+
+  /** 수정 모달에 넘길 원본 DTO (id 보장 + {raw,view} 래핑) */
+  const initialForEdit: any | null = useMemo(() => {
+    return ensureInitialForEdit({ qData: q.data, data, effectiveId });
+  }, [q.data, data, effectiveId]);
+
   const headingId = "property-view-modal-heading";
   const descId = "property-view-modal-desc";
 
-  // ✅ 수정 모달에 넘길 초기 데이터: editInitial가 있으면 그걸 우선 사용
-  const initialForEdit = useMemo(() => {
-    if (!data) return null;
-    const base = (data as any).editInitial ?? data; // editInitial 우선
-    // id 변경 감지: key에서 사용해 재마운트 유도
-    return base ? { ...base } : null;
-  }, [data?.id, (data as any)?.editInitial]);
+  /* ───────── 삭제(비활성화) ───────── */
+  const idForActions =
+    (q.data as any)?.raw?.id ??
+    (data as any)?.id ??
+    (data as any)?.propertyId ??
+    effectiveId;
 
-  // 공통 핸들러
   const handleDisable = useCallback(async () => {
-    if (!data?.id || deleting) return;
+    if (!idForActions || deleting) return;
     if (!confirm("정말 삭제(비활성화)할까요?")) return;
     try {
       setDeleting(true);
-      await togglePinDisabled(String(data.id), true);
+      await togglePinDisabled(String(idForActions), true);
       await onDelete?.();
       onClose();
     } catch (err: any) {
@@ -101,7 +163,7 @@ export default function PropertyViewModal({
     } finally {
       setDeleting(false);
     }
-  }, [data?.id, deleting, onDelete, onClose]);
+  }, [idForActions, deleting, onDelete, onClose]);
 
   const onEditClose = useCallback(() => setStage("view"), []);
   const onEditSubmit = useCallback(
@@ -118,25 +180,30 @@ export default function PropertyViewModal({
 
   if (!open) return null;
 
-  // 포털은 한 번만 만들고, 안의 children만 바꾼다.
   const portalChild =
-    stage === "edit" && hasData && initialForEdit ? (
+    stage === "edit" && initialForEdit ? (
       <EditStage
-        key={`edit-${String((initialForEdit as any).id ?? data?.id ?? "")}`}
-        initialData={initialForEdit as any}
+        key={`edit-${String(
+          (initialForEdit as any)?.raw?.id ??
+            (initialForEdit as any)?.view?.id ??
+            idForActions ??
+            ""
+        )}`}
+        initialData={initialForEdit}
         onClose={onEditClose}
         onSubmit={onEditSubmit}
       />
     ) : (
       <ViewStage
-        key="view"
-        data={(data as PropertyViewDetails) ?? null}
+        key={`view-${String(idForActions ?? "")}`}
+        data={viewData}
         headingId={headingId}
         descId={descId}
         onClose={onClose}
         onClickEdit={() => setStage("edit")}
         onDisable={handleDisable}
         deleting={deleting}
+        loading={!!(open && effectiveId && q.isFetching && !viewData)}
       />
     );
 
@@ -145,7 +212,7 @@ export default function PropertyViewModal({
     : portalChild;
 }
 
-/* ================= View 전용: useViewForm 여기서만 실행 ================= */
+/* ================= View 전용 ================= */
 function ViewStage({
   data,
   headingId,
@@ -154,6 +221,7 @@ function ViewStage({
   onClickEdit,
   onDisable,
   deleting,
+  loading,
 }: {
   data: PropertyViewDetails | null;
   headingId: string;
@@ -162,6 +230,7 @@ function ViewStage({
   onClickEdit: () => void;
   onDisable: () => void;
   deleting: boolean;
+  loading?: boolean;
 }) {
   const hasData = !!data;
   const formInput = useMemo(
@@ -204,6 +273,40 @@ function ViewStage({
   const onContentPointerDown = useCallback((e: React.PointerEvent) => {
     eat(e);
   }, []);
+
+  if (loading && !hasData) {
+    return (
+      <div
+        className="fixed inset-0 z-[99999]"
+        onPointerDownCapture={onContentPointerDown}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        aria-describedby={descId}
+      >
+        <button
+          type="button"
+          className="absolute inset-0 bg-black/40"
+          onClick={onDimClick}
+          aria-label="닫기"
+          title="닫기"
+        />
+        <div
+          className={cn(
+            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+            "bg-white shadow-xl overflow-hidden flex flex-col",
+            "w-screen h-screen max-w-none max-h-none rounded-none",
+            "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
+          )}
+          onKeyDownCapture={(e) => {
+            if (e.key === "Escape") e.stopPropagation();
+          }}
+        >
+          <LoadingSkeleton onClose={onClose} headingId={headingId} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -290,6 +393,7 @@ function ViewStage({
                   structureGrade={f.structureGrade}
                   minRealMoveInCost={(f as any).minRealMoveInCost}
                 />
+                {/* 최신 viewData 기준 전달 필요 → 이 스코프의 최신 값은 data */}
                 <AspectsViewContainer details={data!} />
                 <AreaSetsViewContainer
                   exclusiveArea={f.exclusiveArea}
@@ -387,7 +491,7 @@ function EditStage({
 }) {
   return (
     <PropertyEditModalBody
-      initialData={initialData}
+      initialData={initialData} // ✅ { raw?, view } 형태 또는 { view }만 와도 OK (Edit 쪽에서 정규화 필요)
       onClose={onClose}
       onSubmit={onSubmit}
     />
@@ -425,7 +529,7 @@ function LoadingSkeleton({
           <span className="animate-pulse text-base">
             상세 정보를 불러오는 중…
           </span>
-          <div className="h-1.5 w-48 rounded bg-slate-200 overflow-hidden">
+          <div className="h-1.5 w-48 rounded bg-slate-2 00 overflow-hidden">
             <div className="h-full w-1/2 animate-[loading_1.2s_ease-in-out_infinite] bg-slate-300" />
           </div>
         </div>

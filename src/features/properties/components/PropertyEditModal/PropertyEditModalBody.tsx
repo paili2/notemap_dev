@@ -28,10 +28,11 @@ import MemosContainer from "./ui/MemosContainer";
 import ImagesContainer from "./ui/ImagesContainer";
 import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 import { updatePin, UpdatePinDto } from "@/shared/api/pins";
+import { useQueryClient } from "@tanstack/react-query";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
-/** 숫자/문자 헬퍼 */
+/* ───────── helpers ───────── */
 const N = (v: any): number | undefined => {
   if (v === "" || v === null || v === undefined) return undefined;
   const n = Number(String(v).replace(/[^\d.-]/g, ""));
@@ -42,65 +43,283 @@ const S = (v: any): string | undefined => {
   return t ? t : undefined;
 };
 
-/** 폼 → 최소 PATCH (사용자가 손댄 것만 보냄) */
-function toPinPatch(f: ReturnType<typeof useEditForm>): UpdatePinDto {
-  const contactMainPhone = S(f.officePhone);
-  const contactSubPhone = S(f.officePhone2);
-  const minRealMoveInCost = N(f.salePrice);
+/** 서버 등기/용도 값 → 폼 내부 코드 매핑 */
+function mapRegistry(v: any): string | undefined {
+  if (v == null) return undefined;
+  const s = String(v).trim().toLowerCase();
 
-  const units = (f.unitLines ?? [])
-    .map((u) => {
-      const rooms = N(u?.rooms);
-      const baths = N(u?.baths);
-      const hasLoft = !!u?.duplex;
-      const hasTerrace = !!u?.terrace;
-      const minPrice = N((u as any)?.primary);
-      const maxPrice = N((u as any)?.secondary);
+  if (["house", "housing", "주택"].includes(s)) return "주택";
+  if (["apt", "apartment", "아파트"].includes(s)) return "APT";
+  if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
+  if (
+    ["urban", "urb", "도생", "도시생활형", "도시생활형주택", "도/생"].includes(
+      s
+    )
+  )
+    return "도/생";
+  if (["near", "nearlife", "근생", "근린생활시설", "근/생"].includes(s))
+    return "근/생";
 
-      const hasAny =
-        rooms != null ||
-        baths != null ||
-        hasLoft ||
-        hasTerrace ||
-        minPrice != null ||
-        maxPrice != null;
-
-      return hasAny
-        ? {
-            rooms: rooms ?? null,
-            baths: baths ?? null,
-            hasLoft,
-            hasTerrace,
-            minPrice: minPrice ?? null,
-            maxPrice: maxPrice ?? null,
-          }
-        : null;
-    })
-    .filter(Boolean) as NonNullable<UpdatePinDto["units"]>;
-
-  const out: Partial<UpdatePinDto> = {};
-
-  if (contactMainPhone !== undefined) out.contactMainPhone = contactMainPhone;
-  if (contactSubPhone !== undefined) out.contactSubPhone = contactSubPhone;
-  if (minRealMoveInCost !== undefined)
-    out.minRealMoveInCost = minRealMoveInCost;
-  if (units.length > 0) out.units = units;
-
-  return out as UpdatePinDto; // OK
+  if (["주택", "APT", "OP", "도/생", "근/생"].includes(String(v)))
+    return String(v);
+  if (["residential"].includes(s)) return "주택";
+  if (["commercial"].includes(s)) return "근/생";
+  return undefined;
 }
 
+/* ───────── 서버 PATCH 전용 유틸(변경분만 생성) ───────── */
+const normalizeShallow = (v: any) => {
+  if (v === "" || v === null || v === undefined) return undefined;
+  if (Array.isArray(v) && v.length === 0) return undefined;
+  return v;
+};
+const jsonEq = (a: any, b: any) => {
+  const na = normalizeShallow(a);
+  const nb = normalizeShallow(b);
+  if (na === nb) return true;
+  if (!na || !nb || typeof na !== "object" || typeof nb !== "object")
+    return false;
+  try {
+    return JSON.stringify(na) === JSON.stringify(nb);
+  } catch {
+    return false;
+  }
+};
+
+/** unit 정규화/비교 (서버 전송 규칙: 변경시 전체 배열 전송) */
+type UnitLike = {
+  rooms?: number | string | null;
+  baths?: number | string | null;
+  duplex?: boolean;
+  terrace?: boolean;
+  primary?: number | string | null;
+  secondary?: number | string | null;
+  hasLoft?: boolean;
+  hasTerrace?: boolean;
+  minPrice?: number | string | null;
+  maxPrice?: number | string | null;
+  note?: string | null;
+};
+const bPick = (u: any, ...keys: string[]) => {
+  for (const k of keys) {
+    const v = u?.[k];
+    if (typeof v === "boolean") return v;
+    if (v === 1 || v === "1") return true;
+    if (v === 0 || v === "0") return false;
+  }
+  return false;
+};
+const nPick = <T,>(u: any, ...keys: string[]) => {
+  for (const k of keys) if (u?.[k] !== undefined) return u[k] as T;
+  return undefined as unknown as T;
+};
+const toNumOrNull = (v: any): number | null => {
+  const n = N(v);
+  return n === undefined ? null : n;
+};
+const normUnit = (u?: UnitLike) => {
+  const x: any = u ?? {};
+  return {
+    rooms: toNumOrNull(nPick(x, "rooms")),
+    baths: toNumOrNull(nPick(x, "baths")),
+    hasLoft: bPick(x, "hasLoft", "duplex"),
+    hasTerrace: bPick(x, "hasTerrace", "terrace"),
+    minPrice: toNumOrNull(nPick(x, "minPrice", "primary")),
+    maxPrice: toNumOrNull(nPick(x, "maxPrice", "secondary")),
+    note: nPick<string | null>(x, "note") ?? null,
+  };
+};
+const sameUnit = (a?: UnitLike, b?: UnitLike) => {
+  const A = normUnit(a);
+  const B = normUnit(b);
+  return (
+    A.rooms === B.rooms &&
+    A.baths === B.baths &&
+    A.hasLoft === B.hasLoft &&
+    A.hasTerrace === B.hasTerrace &&
+    A.minPrice === B.minPrice &&
+    A.maxPrice === B.maxPrice &&
+    A.note === B.note
+  );
+};
+const unitsChanged = (prev?: any[], curr?: any[]) => {
+  const P = Array.isArray(prev) ? prev : undefined;
+  const C = Array.isArray(curr) ? curr : undefined;
+  if (!P && !C) return false;
+  if (!P || !C) return true;
+  if (P.length !== C.length) return true;
+  for (let i = 0; i < P.length; i++) if (!sameUnit(P[i], C[i])) return true;
+  return false;
+};
+
+/** 초기 스냅샷: 임의 키 허용(레거시 호환) */
+type InitialSnapshot = { [key: string]: any };
+
+/** 폼 → 서버 최소 PATCH (변경된 것만, units는 묶음 전체전송) */
+function toPinPatch(
+  f: ReturnType<typeof useEditForm>,
+  initial: InitialSnapshot
+): UpdatePinDto {
+  const patch: Partial<UpdatePinDto> = {};
+
+  // ── 등기/용도 → 서버 키: buildingType ──
+  const btInitRaw =
+    (initial as any)?.registry ??
+    (initial as any)?.registryOne ??
+    (initial as any)?.buildingType ??
+    (initial as any)?.type ??
+    (initial as any)?.propertyType;
+
+  // 현재값 후보 (폼 구현이 어떤 키를 쓰든 잡아낸다)
+  const nowRawCandidates = [
+    (f as any).registry,
+    (f as any).registryOne,
+    (f as any).buildingType,
+    (f as any).type,
+    (f as any).propertyType,
+  ];
+
+  // "-", "", null → undefined
+  const asMeaningful = (v: any): string | undefined => {
+    if (v === null || v === undefined) return undefined;
+    const s = String(v).trim();
+    if (!s || s === "-" || s === "—") return undefined;
+    return s;
+  };
+  // 표준화: mapRegistry가 인식하면 그 값, 아니면 공백 아닌 문자열 그대로
+  const normalizeBT = (v: any): string | undefined => {
+    const mapped = mapRegistry(v);
+    if (mapped) return mapped;
+    return asMeaningful(v);
+  };
+
+  const btInit = normalizeBT(btInitRaw);
+  let btNow: string | undefined;
+  for (const c of nowRawCandidates) {
+    const vv = normalizeBT(c);
+    if (vv !== undefined) {
+      btNow = vv;
+      break;
+    }
+  }
+  if (btNow !== undefined && btNow !== btInit) {
+    (patch as any).buildingType = btNow;
+  }
+
+  // ── 경사/구조 ──
+  if (!jsonEq((initial as any)?.slopeGrade, f.slopeGrade)) {
+    (patch as any).slopeGrade = f.slopeGrade ?? undefined;
+  }
+  if (!jsonEq((initial as any)?.structureGrade, f.structureGrade)) {
+    (patch as any).structureGrade = f.structureGrade ?? undefined;
+  }
+
+  // ── 주차 평점(숫자) ──
+  const pgNow =
+    f.parkingGrade && String(f.parkingGrade).trim() !== ""
+      ? Number(f.parkingGrade)
+      : undefined;
+  const pgInitRaw = (initial as any)?.parkingGrade;
+  const pgInit =
+    pgInitRaw && String(pgInitRaw).trim() !== ""
+      ? Number(pgInitRaw)
+      : undefined;
+  if (!jsonEq(pgInit, pgNow) && pgNow !== undefined) {
+    (patch as any).parkingGrade = pgNow;
+  }
+
+  // ── 구조(units): 변경 감지 시 전체 배열 전송 ──
+  const initialUnits = ((initial as any)?.unitLines ??
+    (initial as any)?.units) as any[] | undefined;
+  const currentUnits = (f.unitLines ?? []) as any[];
+
+  if (unitsChanged(initialUnits, currentUnits)) {
+    const units = (currentUnits ?? [])
+      .map((u) => {
+        const n = normUnit(u as UnitLike);
+        const hasAny =
+          n.rooms != null ||
+          n.baths != null ||
+          n.hasLoft ||
+          n.hasTerrace ||
+          n.minPrice != null ||
+          n.maxPrice != null ||
+          (n.note ?? "") !== "";
+        return hasAny
+          ? {
+              rooms: n.rooms,
+              baths: n.baths,
+              hasLoft: n.hasLoft,
+              hasTerrace: n.hasTerrace,
+              minPrice: n.minPrice,
+              maxPrice: n.maxPrice,
+              note: n.note ?? null,
+            }
+          : null;
+      })
+      .filter(Boolean) as NonNullable<UpdatePinDto["units"]>;
+    (patch as any).units = units;
+  }
+
+  return patch as UpdatePinDto;
+}
+
+/* ───────── component ───────── */
 export default function PropertyEditModalBody({
   onClose,
   onSubmit,
   initialData,
   embedded = false,
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
-  const propertyId = String((initialData as any)?.id ?? "");
+  const queryClient = useQueryClient();
 
-  /** 초기 이미지 세팅 */
+  /** 1) initialData 정규화: {raw, view} 래핑 → 평탄화 */
+  const normalizedInitial = useMemo(() => {
+    const src = initialData as any;
+    return src?.raw ?? src?.view ?? src ?? null;
+  }, [initialData]);
+
+  /** 2) 브릿지: 최저실입/등기 값 정규화 */
+  const bridgedInitial = useMemo(() => {
+    const src = normalizedInitial as any;
+    if (!src) return null;
+
+    // 최저실입 → salePrice(문자)
+    const salePrice =
+      src?.salePrice ??
+      (src?.minRealMoveInCost != null
+        ? String(src.minRealMoveInCost)
+        : undefined);
+
+    // 등기 매핑
+    const rawReg =
+      src?.registry ??
+      src?.registryOne ??
+      src?.type ??
+      src?.propertyType ??
+      src?.buildingType;
+    const reg = mapRegistry(rawReg);
+
+    return {
+      ...src,
+      ...(salePrice !== undefined ? { salePrice } : {}),
+      ...(reg !== undefined
+        ? { registry: reg, registryOne: reg, buildingType: reg }
+        : {}),
+    };
+  }, [normalizedInitial]);
+
+  // id 문자열 고정
+  const propertyId = useMemo(() => {
+    const src = initialData as any;
+    const id = src?.id ?? src?.raw?.id ?? src?.view?.id ?? "";
+    return String(id ?? "");
+  }, [initialData]);
+
+  /** 초기 이미지 세팅 (브릿지된 view 기준) */
   const initialImages = useMemo(() => {
-    if (!initialData) return null;
-    const v = (initialData as any).view ?? (initialData as any);
+    const v = bridgedInitial as any;
+    if (!v) return null;
     return {
       imageFolders: v?.imageFolders ?? v?.imageCards ?? null,
       images: v?.images ?? null,
@@ -110,7 +329,7 @@ export default function PropertyEditModalBody({
       imagesVertical: v?.imagesVertical ?? null,
       fileItems: v?.fileItems ?? null,
     };
-  }, [initialData]);
+  }, [bridgedInitial]);
 
   /** 이미지 훅 */
   const {
@@ -192,17 +411,17 @@ export default function PropertyEditModalBody({
     ]
   );
 
-  /** 폼 훅 */
-  const f = useEditForm({ initialData });
+  /** ⬅️ 폼 훅에 bridgedInitial을 넘긴다 */
+  const f = useEditForm({ initialData: bridgedInitial });
 
-  /** ✅ ParkingContainer 지연 마운트 */
+  /** ParkingContainer 지연 마운트 */
   const [mountParking, setMountParking] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMountParking(true));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  /** ✅ 안정 프록시(setter) */
+  /** Parking setters 안정 프록시 */
   const setParkingTypeProxy = useCallback(
     (v: string | null) => f.setParkingType(v ?? ""),
     [f.setParkingType]
@@ -212,7 +431,7 @@ export default function PropertyEditModalBody({
     [f.setTotalParkingSlots]
   );
 
-  /** ✅ ParkingContainer 어댑터 */
+  /** Parking form 어댑터 */
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
       parkingType: f.parkingType || null,
@@ -238,19 +457,22 @@ export default function PropertyEditModalBody({
       return;
     }
 
-    // 1) 서버 최소 PATCH
+    // 1) 서버 최소 PATCH (변경된 것만, units는 변경 시 전체 배열)
     try {
-      const dto = toPinPatch(f);
+      const dto = toPinPatch(f, bridgedInitial as InitialSnapshot);
       if (Object.keys(dto).length > 0) {
         await updatePin(propertyId, dto);
+        // 상세 캐시 무효화
+        queryClient.invalidateQueries({ queryKey: ["pinDetail", propertyId] });
       }
     } catch (e: any) {
-      console.error("[PATCH /pins/:id] 실패:", e);
+      // eslint-disable-next-line no-console
+      console.error("[PATCH /pins/:id] 실패]:", e);
       alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
       return;
     }
 
-    // 2) 로컬 view 갱신(기존 동작)
+    // 2) 로컬 view 갱신 payload (UI 동기화)
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
       f.buildOrientation();
     const {
@@ -273,7 +495,7 @@ export default function PropertyEditModalBody({
       roomNo: f.roomNo,
       structure: f.structure,
 
-      // 이하 전부 로컬 상태 업데이트용(서버 PATCH와 무관)
+      // 로컬 상태 업데이트용
       parkingGrade: f.parkingGrade,
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
@@ -321,7 +543,16 @@ export default function PropertyEditModalBody({
 
     await onSubmit?.(payload as any);
     onClose();
-  }, [f, propertyId, onSubmit, onClose, imageFolders, verticalImages]);
+  }, [
+    f,
+    bridgedInitial,
+    propertyId,
+    onSubmit,
+    onClose,
+    imageFolders,
+    verticalImages,
+    queryClient,
+  ]);
 
   /* ========== embedded 레이아웃 ========== */
   if (embedded) {
@@ -367,7 +598,6 @@ export default function PropertyEditModalBody({
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer images={imagesProp} />
-
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />

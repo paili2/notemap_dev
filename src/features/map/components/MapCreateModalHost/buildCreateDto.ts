@@ -60,6 +60,17 @@ const resolveAddressLine = (
   return a1 || a2 || a3 || a4 || `${pos.lat}, ${pos.lng}`;
 };
 
+/** "1"~"5" 문자열만 허용. 빈 값이면 undefined(=필드 제거). 그 외는 에러 */
+type StarStr = "1" | "2" | "3" | "4" | "5";
+const normalizeStarEnum = (raw: any): StarStr | undefined => {
+  const s = String(raw ?? "").trim();
+  if (!s) return undefined; // 미선택 → 필드 아예 제거
+  if (!/^[1-5]$/.test(s)) {
+    throw new Error("평점 필드는 1~5만 허용됩니다.");
+  }
+  return s as StarStr;
+};
+
 export function buildCreateDto(
   payload: CreatePayload,
   pos: LatLng,
@@ -174,7 +185,7 @@ export function buildCreateDto(
       const n = toFinite((payload as any)?.totalHouseholds);
       return n !== undefined ? { totalHouseholds: n } : {};
     })(),
-    // ✅ 총 주차대수: payload.totalParkingSlots만 사용 (0도 전송)
+    // ✅ 총 주차대수: payload.totalParkingSlots만 사용 (요청에 0도 전송)
     (() => {
       const n = toFinite((payload as any)?.totalParkingSlots);
       return n !== undefined ? { totalParkingSlots: n } : {};
@@ -191,27 +202,30 @@ export function buildCreateDto(
     (() => {
       const n = toFinite((payload as any)?.remainingHouseholds);
       return n !== undefined ? { remainingHouseholds: n } : {};
-    })(),
-    (payload as any)?.parkingGrade
-      ? { parkingGrade: (payload as any).parkingGrade }
-      : {},
-    (payload as any)?.slopeGrade
-      ? { slopeGrade: (payload as any).slopeGrade }
-      : {},
-    (payload as any)?.structureGrade
-      ? { structureGrade: (payload as any).structureGrade }
-      : {},
-    toStr((payload as any)?.publicMemo).trim()
-      ? { publicMemo: sanitizeText((payload as any).publicMemo) }
-      : {},
-    // privateMemo 우선, 없으면 secretMemo 폴백
-    (() => {
-      const priv = toStr((payload as any)?.privateMemo).trim();
-      const sec = toStr((payload as any)?.secretMemo).trim();
-      const val = priv || sec;
-      return val ? { privateMemo: sanitizeText(val) } : {};
     })()
   );
+
+  /* ✅ 평점 계열 정규화 (빈 값 → 제거, 값 있으면 "1"~"5"만 허용) */
+  const pg = normalizeStarEnum((payload as any)?.parkingGrade);
+  if (pg !== undefined) dto.parkingGrade = pg;
+
+  const sg = normalizeStarEnum((payload as any)?.slopeGrade);
+  if (sg !== undefined) dto.slopeGrade = sg;
+
+  const stg = normalizeStarEnum((payload as any)?.structureGrade);
+  if (stg !== undefined) dto.structureGrade = stg;
+
+  // 공개/비공개 메모
+  if (toStr((payload as any)?.publicMemo).trim()) {
+    dto.publicMemo = sanitizeText((payload as any).publicMemo);
+  }
+  // privateMemo 우선, 없으면 secretMemo 폴백
+  (() => {
+    const priv = toStr((payload as any)?.privateMemo).trim();
+    const sec = toStr((payload as any)?.secretMemo).trim();
+    const val = priv || sec;
+    if (val) dto.privateMemo = sanitizeText(val);
+  })();
 
   /* ✅ options: 백엔드 스펙(CreatePinOptionsDto)에 맞춰 항상 포함
      - 없으면 false/빈 문자열 디폴트
@@ -248,7 +262,7 @@ export function buildCreateDto(
   const rawUnitLines = (payload as any)?.unitLines;
 
   if (Array.isArray(rawUnits) && rawUnits.length > 0) {
-    // 이미 서버 스펙 형태로 온 경우(예: buildCreatePayload에서 생성)
+    // 이미 서버 스펙 형태로 온 경우
     dto.units = rawUnits.map((u: any) => ({
       rooms: toIntOrNull(u.rooms),
       baths: toIntOrNull(u.baths),

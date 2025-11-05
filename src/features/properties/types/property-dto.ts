@@ -1,9 +1,21 @@
+// src/features/properties/types/property-dto.ts
 import { CreatePinAreaGroupDto } from "./area-group-dto";
 import { ImageItem } from "./media";
-import { Grade, OrientationRow, Registry, UnitLine } from "./property-domain";
+import { OrientationRow, Registry, UnitLine, Grade } from "./property-domain";
 
 /* ------------------------------------------------------------------ */
-/* Units (구조별 입력) DTO                                             */
+/* Common helpers                                                      */
+/* ------------------------------------------------------------------ */
+export type IdLike = string | number;
+export type Nullable<T> = T | null;
+
+/* ------------------------------------------------------------------ */
+/* 별점/등급: ""(미선택) | "1"~"5"                                     */
+/* ------------------------------------------------------------------ */
+export type StarStr = "" | "1" | "2" | "3" | "4" | "5";
+
+/* ------------------------------------------------------------------ */
+/* Units (구조별 입력) DTO (서버 전송용 shape)                         */
 /* ------------------------------------------------------------------ */
 export type UnitsDto = {
   /** 방 개수 (정수, 0 이상, 미입력 시 null) */
@@ -21,7 +33,7 @@ export type UnitsDto = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Create DTO                                                          */
+/* Create DTO (클라이언트 → 서버)                                      */
 /* ------------------------------------------------------------------ */
 export type CreatePayload = {
   title: string;
@@ -38,8 +50,8 @@ export type CreatePayload = {
 
   // ✅ 빌딩/등록/주차 타입 (id는 number 권장)
   buildingType?: string;
-  registrationTypeId?: number;
-  parkingTypeId?: number;
+  registrationTypeId?: number | null;
+  parkingTypeId?: number | null;
 
   // 향
   aspect?: string;
@@ -52,24 +64,30 @@ export type CreatePayload = {
   directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
-  // salePrice?: string; // 매매가 (서버가 number 허용이면 string | number 로 확장)
+  /** ✅ 서버 PATCH 키와 일치: 최저 실입비(정수/null) */
+  minRealMoveInCost?: number | null;
+  listingStars?: number | null;
   parkingType?: string; // 예: "자주식", "답사지 확인"
-  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
 
   // 설비/등급/날짜
-  listingStars?: number;
   elevator?: "O" | "X";
-  slopeGrade?: Grade;
-  structureGrade?: Grade;
+  /** ✅ 별점 1~5 문자열, 미선택은 "" (전송 시 제거됨) */
+  parkingGrade?: StarStr;
+  /** ✅ 경사 등급: "상" | "중" | "하" (또는 null) */
+  slopeGrade?: Grade | null;
+  /** ✅ 구조 등급: "상" | "중" | "하" (또는 null) */
+  structureGrade?: Grade | null;
   completionDate?: string;
 
-  // 단지 숫자 (유연성 위해 number | string 허용)
+  // 단지 숫자 (유연성 위해 number | string 허용; 서버단에서 정규화)
   totalBuildings?: number | string;
   totalFloors?: number | string;
   totalHouseholds?: number | string;
   remainingHouseholds?: number | string;
 
+  // 연락처
   contactMainLabel?: string;
   contactMainPhone?: string;
   contactSubLabel?: string;
@@ -92,9 +110,9 @@ export type CreatePayload = {
   units?: UnitsDto[];
 
   // 이미지
-  images?: string[];
-  imageCards?: ImageItem[][];
-  fileItems?: ImageItem[];
+  images?: string[]; // 평면형(단일 배열)
+  imageCards?: ImageItem[][]; // 가로 카드(그룹별 배열)
+  fileItems?: ImageItem[]; // 세로 카드
 
   // 면적(레거시 문자열)
   exclusiveArea?: string;
@@ -112,7 +130,7 @@ export type CreatePayload = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Update DTO                                                          */
+/* Update DTO (클라이언트 → 서버, 부분 업데이트)                       */
 /* ------------------------------------------------------------------ */
 export type UpdatePayload = {
   title?: string;
@@ -127,8 +145,8 @@ export type UpdatePayload = {
 
   // ✅ 빌딩/등록/주차 타입
   buildingType?: string;
-  registrationTypeId?: number;
-  parkingTypeId?: number;
+  registrationTypeId?: number | null;
+  parkingTypeId?: number | null;
 
   // 향
   aspect?: string;
@@ -141,19 +159,26 @@ export type UpdatePayload = {
   directions?: Array<{ direction: string } | string>;
 
   // 가격/평점/주차
+  /** 로컬 뷰 패치용으로 남길 수 있음(서버 전송은 보통 minRealMoveInCost 사용) */
   salePrice?: string | number | null;
-  listingStars?: number | null; // Create와 동일 키
+  /** ✅ 서버 PATCH 키와 일치 */
+  minRealMoveInCost?: number | null;
+  listingStars?: number | null;
   parkingType?: string;
-  /** ✅ 백엔드 스펙에 맞춘 필드명: 총 주차 대수 (int, 없으면 null) */
+  /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
 
   // 설비/등급/날짜
   elevator?: "O" | "X";
-  slopeGrade?: Grade;
-  structureGrade?: Grade;
+  /** ✅ 별점 1~5 문자열, 미선택은 "" (전송 시 제거됨) */
+  parkingGrade?: StarStr;
+  /** ✅ 경사 등급: "상" | "중" | "하" (또는 null) */
+  slopeGrade?: Grade | null;
+  /** ✅ 구조 등급: "상" | "중" | "하" (또는 null) */
+  structureGrade?: Grade | null;
   completionDate?: string;
 
-  // 단지 숫자 (유연성 위해 number | string 허용)
+  // 단지 숫자
   totalBuildings?: number | string;
   totalFloors?: number | string;
   totalHouseholds?: number | string;
@@ -172,6 +197,7 @@ export type UpdatePayload = {
   /** ✅ 구조별 입력(units) — 서버 전송용: 항상 배열(빈 배열 허용) */
   units?: UnitsDto[];
 
+  // 이미지
   images?: string[];
 
   // 면적(레거시 문자열)

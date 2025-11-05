@@ -60,6 +60,20 @@ const toIntOrNull = (v: any): number | null => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
+/* 🔐 parkingGrade 정규화(문자열로 보냄): 1~5 → "1".."5", null 유지, 그 외는 undefined(필드 제외) */
+function normalizeParkingGradeStr(
+  v: unknown,
+  fallback?: unknown
+): string | null | undefined {
+  const src = v ?? fallback;
+  if (src === null) return null;
+  const s = String(src ?? "").trim();
+  if (!s) return undefined; // ← 빈 문자열/공백은 필드 제외
+  const n = Number(s);
+  if (Number.isInteger(n) && n >= 1 && n <= 5) return String(n);
+  return undefined;
+}
+
 /* ───────────── DTO (export!) ───────────── */
 export type CreatePinOptionsDto = {
   hasAircon?: boolean;
@@ -118,7 +132,7 @@ export type CreatePinDto = {
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
 
-  /** ✅ 서버가 1~5를 기대 — 숫자 or 숫자문자열 or null */
+  /** ✅ 서버 전달 시 "1"~"5" 문자열 또는 null 권장 (입력은 number|string|null 수용) */
   parkingGrade?: number | string | null;
 
   slopeGrade?: string | null;
@@ -140,10 +154,10 @@ export type CreatePinDto = {
   directions?: Array<CreatePinDirectionDto | string>;
 
   /** ✅ 면적 그룹 */
-  areaGroups?: CreatePinAreaGroupDto[];
+  areaGroups?: CreatePinAreaGroupDto[] | null;
 
   /** ✅ 구조별 입력 (배열) */
-  units?: UnitsItemDto[];
+  units?: UnitsItemDto[] | null;
 
   /** ✅ 최저 실입(정수 금액, 서버: number|null) */
   minRealMoveInCost?: number | string | null;
@@ -333,6 +347,12 @@ export async function createPin(
   // ✅ units 정규화
   const units = sanitizeUnits(dto.units);
 
+  // ✅ parkingGrade: 문자열로 정규화
+  const pg = normalizeParkingGradeStr(
+    (dto as any)?.parkingGrade,
+    (dto as any)?.propertyGrade // ← 등록 폼이 다른 키를 쓸 가능성 대비
+  );
+
   // ✅ badge 자동 해석
   const pinKind: PinKind | undefined =
     (dto as any)?.pinKind != null
@@ -376,6 +396,7 @@ export async function createPin(
     areaGroupsLen: Array.isArray(groups) ? groups.length : 0,
     badge: resolvedBadge ?? undefined,
     unitsLen: Array.isArray(units) ? units.length : 0,
+    // ★ 미리보기에서 굳이 parkingGrade는 넣지 않아도 됨
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -389,7 +410,7 @@ export async function createPin(
     throw new Error("lng가 유효한 숫자가 아닙니다.");
 
   const payload = {
-    lat: latNum, // 원본 정밀도 유지
+    lat: latNum,
     lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
     name: (dto.name ?? "").trim() || "임시 매물",
@@ -419,7 +440,7 @@ export async function createPin(
       ? { totalHouseholds: Number(dto.totalHouseholds) }
       : {}),
 
-    /** ✅ 추가: 단지 숫자 3종 */
+    // 단지 숫자 3종
     ...(dto.totalBuildings != null
       ? { totalBuildings: Number(dto.totalBuildings) }
       : {}),
@@ -430,7 +451,7 @@ export async function createPin(
       ? { remainingHouseholds: Number(dto.remainingHouseholds) }
       : {}),
 
-    // ✅ 0도 전송되도록 null/undefined만 제외
+    // 총 주차대수(0도 허용)
     ...(dto.totalParkingSlots !== null && dto.totalParkingSlots !== undefined
       ? { totalParkingSlots: Number(dto.totalParkingSlots) }
       : {}),
@@ -442,22 +463,17 @@ export async function createPin(
       ? { parkingTypeId: Number(dto.parkingTypeId) }
       : {}),
 
-    /** ✅ parkingGrade: 1~5만 전송 (무효값이면 전송 안 함) */
-    ...(Object.prototype.hasOwnProperty.call(dto, "parkingGrade")
-      ? dto.parkingGrade === null
-        ? { parkingGrade: null }
-        : (() => {
-            const n = Number(dto.parkingGrade as any);
-            return Number.isInteger(n) && n >= 1 && n <= 5
-              ? { parkingGrade: n }
-              : {};
-          })()
+    /** ✅ parkingGrade: 문자열 또는 null만 전송 */
+    ...(pg === null
+      ? { parkingGrade: null }
+      : pg !== undefined
+      ? { parkingGrade: pg }
       : {}),
 
     ...(dto.slopeGrade ? { slopeGrade: dto.slopeGrade } : {}),
     ...(dto.structureGrade ? { structureGrade: dto.structureGrade } : {}),
 
-    // ✅ badge 우선 적용(없으면 전송 생략)
+    // badge
     ...(resolvedBadge ? { badge: resolvedBadge } : {}),
 
     ...(dto.publicMemo ? { publicMemo: dto.publicMemo } : {}),
@@ -473,7 +489,7 @@ export async function createPin(
     ...(dirs ? { directions: dirs } : {}),
     ...(groups ? { areaGroups: groups } : {}),
 
-    /** ✅ 구조별 입력: sanitize 후 포함 (빈배열이면 []) */
+    /** ✅ 구조별 입력 */
     ...(Array.isArray(units) ? { units } : {}),
 
     /** ✅ 최저 실입(정수 금액) */
@@ -487,10 +503,8 @@ export async function createPin(
       : {}),
   } as const;
 
-  // 전송 직전 좌표 추적
   assertNoTruncate("createPin", payload.lat, payload.lng);
 
-  // 단일비행 요청
   const request = api.post<CreatePinResponse>("/pins", payload, {
     withCredentials: true,
     headers: {
@@ -519,7 +533,6 @@ export async function createPin(
       throw e;
     }
 
-    // 서버 좌표가 오면 비교
     const savedLat = (data as any)?.data?.lat;
     const savedLng = (data as any)?.data?.lng;
     if (
@@ -594,6 +607,14 @@ export async function updatePin(
       dto.options === null ? null : sanitizeOptions(dto.options ?? undefined);
   }
 
+  // ✅ update에서도 parkingGrade를 문자열로 정규화
+  const pg = has("parkingGrade")
+    ? normalizeParkingGradeStr(
+        (dto as any)?.parkingGrade,
+        (dto as any)?.propertyGrade
+      )
+    : undefined;
+
   const payload: any = {
     ...(has("lat") && isFiniteNum(dto.lat)
       ? { lat: Number(dto.lat as any) }
@@ -636,7 +657,7 @@ export async function updatePin(
         }
       : {}),
 
-    /** ✅ 추가: 단지 숫자 3종 */
+    // 단지 숫자 3종
     ...(has("totalBuildings")
       ? {
           totalBuildings:
@@ -681,17 +702,11 @@ export async function updatePin(
         }
       : {}),
 
-    /** ✅ parkingGrade: 1~5 범위만 전송, null은 삭제, 무효면 미전송 */
-    ...(has("parkingGrade") && dto.parkingGrade !== undefined
-      ? dto.parkingGrade === null
+    /** ✅ parkingGrade: 정규화 결과(문자열/null)만 전송 */
+    ...(has("parkingGrade") && pg !== undefined
+      ? pg === null
         ? { parkingGrade: null }
-        : (() => {
-            const n = Number(dto.parkingGrade as any);
-            if (Number.isInteger(n) && n >= 1 && n <= 5) {
-              return { parkingGrade: String(n) }; // ← 문자열 "1"~"5"
-            }
-            return {}; // 유효하지 않으면 전송 안 함
-          })()
+        : { parkingGrade: pg }
       : {}),
 
     ...(has("slopeGrade") ? { slopeGrade: dto.slopeGrade ?? null } : {}),
@@ -782,7 +797,6 @@ export async function togglePinDisabled(
   );
 
   if (!data?.success || !data?.data) {
-    // ApiEnvelope엔 message 필드가 없으므로, 존재할 수도 있는 서버 단일 메시지는 any 캐스팅으로만 접근
     const single = (data as any)?.message as string | undefined;
     const msg =
       (Array.isArray(data?.messages) && data!.messages!.join("\n")) ||
@@ -822,12 +836,11 @@ export async function createPinDraft(
     throw new Error("lng가 유효한 숫자가 아닙니다.");
 
   const payload = {
-    lat: latNum, // 원본 정밀도 유지
+    lat: latNum,
     lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
   };
 
-  // 전송 직전 좌표 추적
   assertNoTruncate("createPinDraft", payload.lat, payload.lng);
 
   const request = api.post<CreatePinDraftResponse>("/pin-drafts", payload, {
@@ -848,7 +861,6 @@ export async function createPinDraft(
     throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
   }
 
-  // 서버 좌표가 오면 비교
   const savedLat = (data as any)?.data?.lat;
   const savedLng = (data as any)?.data?.lng;
   if (
@@ -868,7 +880,7 @@ export async function createPinDraft(
   if (draftId == null) {
     const loc = (headers as any)?.location || (headers as any)?.Location;
     if (typeof loc === "string") {
-      const m = loc.match(/\/pin-drafts\/(\d+)(?:$|[/?#])/);
+      const m = loc.match(/\/pin-drafts\/(\d+)(?:$|[\/?#])/);
       if (m) draftId = m[1];
     }
   }

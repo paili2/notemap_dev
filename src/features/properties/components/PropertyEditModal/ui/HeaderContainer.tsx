@@ -1,7 +1,7 @@
 "use client";
 
 import HeaderSection from "../../sections/HeaderSection/HeaderSection";
-import { PinKind } from "@/features/pins/types";
+import type { PinKind } from "../hooks/useEditForm/types";
 
 /** 최신 버전 폼 타입 */
 type HeaderForm = {

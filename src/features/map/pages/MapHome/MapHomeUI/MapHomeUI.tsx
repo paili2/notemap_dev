@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 import { FilterSearch } from "../../../FilterSearch";
 import { MapMenuKey } from "../../../components/MapMenu";
 import { useRoadview } from "../../../hooks/useRoadview";
@@ -30,6 +30,12 @@ import { searchPins, togglePinDisabled } from "@/shared/api/pins";
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+
+/* ⬇️ 추가: 라벨 숨김/복원 직접 호출 */
+import {
+  hideLabelsAround,
+  showLabelsAround,
+} from "@/features/map/lib/labelRegistry";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -66,7 +72,6 @@ function extractExitNo(name: string): number | null {
   return null;
 }
 
-// 출구 선별(강화)
 function pickBestExitStrict(
   data: any[],
   stationName: string,
@@ -149,6 +154,27 @@ function pickBestPlace(
   return data[0];
 }
 
+/* ------------------------------------------------------------ */
+/*                    🔧 EDIT 주입 보장 유틸                     */
+/* ------------------------------------------------------------ */
+
+function ensureViewForEdit(
+  v: PropertyViewDetails | (PropertyViewDetails & { editInitial?: any }) | null
+): (PropertyViewDetails & { editInitial: any }) | null {
+  if (!v) return null;
+
+  const id = (v as any).id ?? (v as any)?.view?.id ?? undefined;
+  const view = { ...(v as any), ...(id != null ? { id } : {}) };
+
+  if ((view as any).editInitial?.view) {
+    return view as any;
+  }
+  return {
+    ...(view as any),
+    editInitial: { view: { ...(view as any) } },
+  } as any;
+}
+
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -177,14 +203,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onMarkerClick,
     onMapReady,
     onViewportChange,
-    /* 상위 상태 유지 전달 (모달·패치 등) */
     createOpen,
     selectedViewItem,
     prefillAddress,
     draftPin,
     selectedPos,
     onSaveViewPatch,
-    onDeleteFromView, // ⬅️ 상위 제공 시 우선 사용
+    onDeleteFromView,
     createHostHandlers,
     hideLabelForId,
     onOpenMenu,
@@ -192,9 +217,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onAddFav,
     favById = {},
     onReserveFromMenu,
-    /* 상위가 내려주면 우선 사용 */
     onViewFromMenu,
-    /** ⬇️ 기존 onCloseView가 아니라 closeView가 타입에 존재 */
     closeView,
   } = props;
 
@@ -209,7 +232,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  /* ✅ 상세보기 모달을 이 컴포넌트에서 직접 관리하는 fallback */
   const [viewOpenLocal, setViewOpenLocal] = useState(false);
   const [viewDataLocal, setViewDataLocal] =
     useState<PropertyViewDetails | null>(null);
@@ -219,14 +241,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
     setViewDataLocal(null);
     try {
       const apiPin = await getPinRaw(pinId);
-      setViewDataLocal(toViewDetailsFromApi(apiPin));
+      const base = toViewDetailsFromApi(apiPin) as PropertyViewDetails;
+      const ensured = ensureViewForEdit({
+        ...base,
+        id: (base as any).id ?? pinId,
+      });
+      setViewDataLocal(ensured as any);
     } catch (e) {
       console.error(e);
       setViewOpenLocal(false);
     }
   }, []);
 
-  /* 🔑 합성: 상위가 주면 그걸 쓰고, 없으면 로컬 fallback */
   const handleViewFromMenu = useCallback(
     (id: string) => {
       if (typeof onViewFromMenu === "function") onViewFromMenu(id);
@@ -249,9 +275,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       );
       try {
         mapInstance.setBounds(bounds);
-      } catch {
-        /* noop */
-      }
+      } catch {}
     },
     [kakaoSDK, mapInstance]
   );
@@ -499,9 +523,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       mapInstance.setLevel(level + 1, { animate: false });
       mapInstance.setLevel(level, { animate: false });
       mapInstance.setCenter(c);
-    } catch {
-      /* noop */
-    }
+    } catch {}
   }, [kakaoSDK, mapInstance]);
 
   /* ===== 검색핸들러 ===== */
@@ -573,7 +595,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const stationKeyword = (stationName ? `${stationName}역` : raw).trim();
       const koreaRect = "124.0,33.0,132.0,39.0" as const;
 
-      placesSvc.categorySearch(
+      const placesSvc2 = placesSvc;
+
+      placesSvc2.categorySearch(
         "SW8",
         (catRes: any[], catStatus: string) => {
           const exact =
@@ -620,7 +644,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
                     return setCenterOnly(sLat, sLng);
                   return setCenterOnly(Number(best.y), Number(best.x));
                 }
-                placesSvc.keywordSearch(
+                placesSvc2.keywordSearch(
                   queries[i],
                   (exRes: any[], exStatus: string) => {
                     if (
@@ -645,7 +669,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
             const display =
               stationName || String(st.place_name).replace(/역$/, "");
-            placesSvc.keywordSearch(
+            placesSvc2.keywordSearch(
               `${display}역 출구`,
               (exRes: any[], exStatus: string) => {
                 if (
@@ -672,7 +696,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
           if (exact) return afterStationFound(exact);
 
-          placesSvc.keywordSearch(
+          placesSvc2.keywordSearch(
             stationKeyword,
             (stRes: any[], stStatus: string) => {
               if (
@@ -695,7 +719,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [kakaoSDK, mapInstance, onSubmitSearch]
   );
 
-  /* ✅ 삭제(=비활성) 로컬 fallback 핸들러 */
   const handleDeleteFromView = useCallback(async () => {
     if (typeof onDeleteFromView === "function") {
       await onDeleteFromView();
@@ -714,11 +737,32 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [onDeleteFromView, selectedViewItem, viewDataLocal, refreshViewportPins]);
 
-  /* ✅ 모달 닫기 핸들러: 로컬 상태와 상위 콜백 모두 처리 */
   const handleCloseView = useCallback(() => {
     setViewOpenLocal(false);
-    closeView?.(); // ⬅️ MapHomeUIProps에 정의된 이름 사용
+    closeView?.();
   }, [closeView]);
+
+  const selectedViewForModal = useMemo(() => {
+    const base = (selectedViewItem ??
+      viewDataLocal ??
+      null) as PropertyViewDetails | null;
+    return ensureViewForEdit(base);
+  }, [selectedViewItem, viewDataLocal]);
+
+  /* 👇👇👇 여기 추가: 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 (검색 경로 포함 보장) */
+  useEffect(() => {
+    if (!mapInstance || !menuAnchor) return;
+    if (menuOpen) {
+      hideLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 40);
+      return () => {
+        showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
+      };
+    } else {
+      // 닫힐 때도 한 번 더 안전 복구
+      showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
+    }
+  }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
+  /* 👆👆👆 */
 
   return (
     <div className="fixed inset-0">
@@ -835,9 +879,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        viewOpen={viewOpenLocal || !!selectedViewItem}
-        selectedViewItem={selectedViewItem ?? viewDataLocal ?? null}
-        onCloseView={handleCloseView} // ⬅️ 수정: 로컬 상태 + 상위 closeView 모두 처리
+        viewOpen={viewOpenLocal || !!selectedViewForModal}
+        selectedViewItem={selectedViewForModal}
+        onCloseView={handleCloseView}
         onSaveViewPatch={onSaveViewPatch}
         onDeleteFromView={handleDeleteFromView}
         createOpen={createOpen}

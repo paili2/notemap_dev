@@ -21,11 +21,14 @@ export default function HeaderSection({
   setPinKind,
 }: HeaderSectionProps) {
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
+
+  // 문자열("1"~"5") ↔ 숫자(0~5) 변환
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="grid grid-cols-[1fr_auto] md:flex md:flex-nowrap items-center gap-3 gap-y-2 px-4 py-4 pr-4 min-w-0">
+        {/* 핀 종류 */}
         <div className="col-span-1 justify-self-start md:order-1 md:flex md:items-center md:gap-2 md:shrink-0">
           <PinTypeSelect
             value={pinKind}
@@ -37,6 +40,7 @@ export default function HeaderSection({
 
         <div className="hidden md:block h-5 w-px bg-gray-200 mx-2 md:order-2 shrink-0" />
 
+        {/* 엘리베이터 */}
         <div className="col-span-1 justify-self-end md:order-7 md:flex md:items-center md:gap-2">
           <span className="text-[18px] font-semibold text-gray-800 pr-2">
             엘리베이터
@@ -46,6 +50,7 @@ export default function HeaderSection({
 
         <div className="hidden md:block h-5 w-px bg-gray-200 mx-2 md:order-4 shrink-0" />
 
+        {/* 매물평점 */}
         <div className="col-span-2 flex items-center gap-2 md:order-3">
           <span className="text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물평점
@@ -53,10 +58,12 @@ export default function HeaderSection({
           <div className="w-[120px] md:w-[200px] leading-none">
             <div className="flex items-center">
               <StarsRating
-                value={gradeNum}
+                value={gradeNum} // 0~5
                 onChange={(n: number) =>
                   setParkingGrade(
-                    String(n) as HeaderSectionProps["parkingGrade"]
+                    n && n >= 1 && n <= 5
+                      ? (String(n) as HeaderSectionProps["parkingGrade"])
+                      : ("" as HeaderSectionProps["parkingGrade"])
                   )
                 }
                 className="leading-none antialiased"
@@ -64,7 +71,9 @@ export default function HeaderSection({
               {gradeNum > 0 && (
                 <Button
                   type="button"
-                  onClick={() => setParkingGrade("")}
+                  onClick={() =>
+                    setParkingGrade("" as HeaderSectionProps["parkingGrade"])
+                  }
                   variant="plain"
                   size="icon"
                   className="ml-1 h-8 w-8 rounded-full"
@@ -79,6 +88,7 @@ export default function HeaderSection({
 
         <div className="hidden md:block h-5 w-px bg-gray-200 mx-2 md:order-6 shrink-0" />
 
+        {/* 매물명 */}
         <div className="col-span-2 flex items-center gap-2 md:order-5 md:flex-1 min-w-0">
           <span className="text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물명

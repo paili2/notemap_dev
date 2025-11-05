@@ -8,10 +8,14 @@ import type {
   UnitLine,
   PinKind,
 } from "./types";
-import type { BuildingType } from "@/features/properties/types/property-domain";
+import {
+  type BuildingType,
+  normalizeBuildingTypeLabelToEnum,
+  BUILDING_TYPES,
+} from "@/features/properties/types/property-domain";
 
+/* ───────────── 유틸 ───────────── */
 type StarStr = "" | "1" | "2" | "3" | "4" | "5";
-
 const asStr = (v: unknown) => (v == null ? "" : String(v));
 const asYMD = (v: unknown) => {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
@@ -33,9 +37,55 @@ const pickOrientation = (o: unknown): OrientationValue | "" =>
     | OrientationValue
     | "";
 
-// ✅ parkingType은 string | null, 주차 대수는 totalParkingSlots만 사용
+/* ───────── Registry 정규화 ─────────
+   서버에서 "확인 필요", "등기완료", "미등기" 등 다양한 표기가 올 수 있어
+   수정모달 셀렉트 옵션(확인필요/완료/미완료)로 일치시켜 줍니다.
+*/
+function normalizeRegistry(v: unknown): Registry | undefined {
+  const s = String(v ?? "").trim();
+  if (!s) return undefined;
+  const n = s
+    .replace(/\s+/g, "") // "확인 필요" -> "확인필요"
+    .replace(/등기완료?$/g, "완료") // "등기완료" -> "완료"
+    .replace(/^미등기$/g, "미완료"); // "미등기" -> "미완료"
+
+  return (["확인필요", "완료", "미완료"] as const).includes(n as any)
+    ? (n as Registry)
+    : undefined;
+}
+
+/* ───────── buildingType 정규화 ─────────
+   - 숫자 id가 오면: 1=주택, 2=APT, 3=OP, 4/5 = 근생
+   - 문자열 라벨/별칭: normalizeBuildingTypeLabelToEnum 사용
+   - 이미 백엔드 enum이면 그대로 유지
+*/
+function normalizeBuildingType(input: unknown): BuildingType | null {
+  if (typeof input === "number") {
+    switch (input) {
+      case 1:
+        return "주택";
+      case 2:
+        return "APT";
+      case 3:
+        return "OP";
+      case 4:
+      case 5:
+        return "근생";
+      default:
+        return null;
+    }
+  }
+  const raw = asStr(input).trim();
+  if (!raw) return null;
+
+  if ((BUILDING_TYPES as readonly string[]).includes(raw)) {
+    return raw as BuildingType;
+  }
+  return normalizeBuildingTypeLabelToEnum(raw);
+}
+
+/* ───────── Normalized 타입 ───────── */
 type Normalized = {
-  // 기본
   pinKind: PinKind;
   title: string;
   address: string;
@@ -47,33 +97,26 @@ type Normalized = {
   roomNo: string;
   structure: string;
 
-  // 별점/주차/준공/매매
-  /** 레거시 숫자 평점(있으면 유지, 없으면 0) */
   listingStars: number;
-  /** 신규: '1' | '2' | '3' | '4' | '5' | '' */
   parkingGrade: StarStr;
   parkingType: string | null;
   totalParkingSlots: string;
   completionDate: string;
   salePrice: string;
 
-  // 면적
   baseArea: AreaSet;
   extraAreas: AreaSet[];
 
-  // 등기/등급
   elevator: "O" | "X";
   registryOne: Registry | undefined;
   slopeGrade: Grade | undefined;
   structureGrade: Grade | undefined;
 
-  // 숫자
   totalBuildings: string;
   totalFloors: string;
   totalHouseholds: string;
   remainingHouseholds: string;
 
-  // 옵션/메모/유닛
   options: string[];
   optionEtc: string;
   etcChecked: boolean;
@@ -81,13 +124,11 @@ type Normalized = {
   secretMemo: string;
   unitLines: UnitLine[];
 
-  // 향
   aspects: AspectRowLite[];
-
-  // 빌딩 타입 (신규 주입)
   buildingType: BuildingType | null;
 };
 
+/* ───────── 메인 Normalizer ───────── */
 export function normalizeInitialData(initialData: any | null): Normalized {
   const d = initialData ?? {};
 
@@ -112,7 +153,6 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     extraReal.length,
     extraTitles.length
   );
-
   const extraSets: AreaSet[] = Array.from({ length: len }, (_, i) => {
     const exi = unpackRange(extraExclusive[i] ?? "");
     const rei = unpackRange(extraReal[i] ?? "");
@@ -132,7 +172,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     };
   }).filter((v): v is AreaSet => Boolean(v));
 
-  // 향(orientations → AspectRowLite[])
+  // 향
   const aspects: AspectRowLite[] =
     Array.isArray(d.orientations) && d.orientations.length
       ? (d.orientations as unknown[]).map((o, idx) => ({
@@ -144,14 +184,12 @@ export function normalizeInitialData(initialData: any | null): Normalized {
           dir: (dir as OrientationValue) ?? "",
         })) as AspectRowLite[]);
 
-  // ✅ parkingType: 공백이면 null
+  // 주차
   const rawParkingType = asStr(d.parkingType).trim();
   const parkingType: string | null = rawParkingType ? rawParkingType : null;
-
-  // ✅ totalParkingSlots: 없으면 빈 문자열
   const totalParkingSlots = asStr(d.totalParkingSlots ?? "");
 
-  // ⭐ parkingGrade: 우선 순위 — d.parkingGrade → d.listingStars → ''
+  // 평점
   const rawPg = asStr(d.parkingGrade).trim();
   const listingStars = asNum(d.listingStars, 0);
   const parkingGrade: StarStr = (["1", "2", "3", "4", "5"] as const).includes(
@@ -162,14 +200,38 @@ export function normalizeInitialData(initialData: any | null): Normalized {
         ? String(listingStars)
         : "") as StarStr);
 
+  // units → unitLines (최소/최대 매매가 primary/secondary로 매핑)
+  const unitLines: UnitLine[] = Array.isArray(d.units)
+    ? (d.units as any[]).map((u) => ({
+        rooms: asNum(u?.rooms ?? 0, 0),
+        baths: asNum(u?.baths ?? 0, 0),
+        duplex: !!u?.hasLoft,
+        terrace: !!u?.hasTerrace,
+        primary:
+          u?.minPrice == null || u?.minPrice === "" ? "" : String(u.minPrice),
+        secondary:
+          u?.maxPrice == null || u?.maxPrice === "" ? "" : String(u.maxPrice),
+      }))
+    : Array.isArray(d.unitLines)
+    ? (d.unitLines as UnitLine[])
+    : [];
+
+  // buildingType 정규화
+  const buildingType: BuildingType | null = normalizeBuildingType(
+    d.buildingType ??
+      d.registrationType ??
+      d.registrationTypeName ??
+      d.registrationTypeId
+  );
+
   return {
     // 기본
     pinKind: (d.pinKind ?? d.kind ?? d.markerKind ?? "1room") as PinKind,
     title: asStr(d.title),
     address: asStr(d.address),
-    officePhone: asStr(d.officePhone),
-    officePhone2: asStr(d.officePhone2),
-    officeName: asStr(d.officeName),
+    officePhone: asStr(d.contactMainPhone ?? d.officePhone),
+    officePhone2: asStr(d.contactSubPhone ?? d.officePhone2),
+    officeName: asStr(d.contactMainLabel ?? d.officeName),
     moveIn: asStr(d.moveIn),
     floor: asStr(d.floor),
     roomNo: asStr(d.roomNo),
@@ -181,7 +243,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     parkingType,
     totalParkingSlots,
     completionDate: asYMD(d.completionDate),
-    salePrice: asStr(d.salePrice),
+    salePrice: asStr(d.salePrice ?? d.minRealMoveInCost),
 
     // 면적
     baseArea: {
@@ -197,9 +259,9 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     },
     extraAreas: extraSets,
 
-    // 등기/등급
+    // 설비/등급/등기
     elevator: (d.elevator as "O" | "X") ?? "O",
-    registryOne: d.registry as Registry | undefined,
+    registryOne: normalizeRegistry(d.registry ?? d.registryOne),
     slopeGrade: d.slopeGrade as Grade | undefined,
     structureGrade: d.structureGrade as Grade | undefined,
 
@@ -214,13 +276,13 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     optionEtc: asStr(d.optionEtc),
     etcChecked: asStr(d.optionEtc).trim().length > 0,
     publicMemo: asStr(d.publicMemo),
-    secretMemo: asStr(d.secretMemo),
-    unitLines: (d.unitLines as UnitLine[]) ?? [],
+    secretMemo: asStr(d.secretMemo ?? d.privateMemo),
+    unitLines,
 
     // 향
     aspects: aspects.length ? aspects : [{ no: 1, dir: "" }],
 
-    // 신규: 빌딩 타입
-    buildingType: (d.buildingType as BuildingType | null | undefined) ?? null,
+    // 빌딩 타입
+    buildingType,
   };
 }

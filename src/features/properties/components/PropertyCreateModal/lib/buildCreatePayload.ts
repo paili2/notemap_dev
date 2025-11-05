@@ -164,7 +164,6 @@ function normalizeUnits(lines: UnitLine[] | undefined | null) {
     if (u.type !== undefined) out.type = s(u.type);
     if (u.label !== undefined) out.label = s(u.label);
 
-    // 비어 있으면 최소한의 형태 유지
     return out;
   });
 }
@@ -183,11 +182,10 @@ export function buildCreatePayload(args: BuildArgs) {
 
     badge,
 
-    parkingGrade, // ✅ listingStars 제거
+    parkingGrade,
     parkingType,
     totalParkingSlots,
     completionDate,
-    // salePrice,
 
     baseAreaSet: baseAreaSetRaw,
     extraAreaSets: extraAreaSetsRaw,
@@ -212,7 +210,7 @@ export function buildCreatePayload(args: BuildArgs) {
     publicMemo,
     secretMemo,
     aspects,
-    unitLines, // ⬅️ 받아온다 (UI)
+    unitLines,
 
     imageFolders,
     fileItems,
@@ -232,16 +230,9 @@ export function buildCreatePayload(args: BuildArgs) {
   const effectiveCompletionDate = s(completionDate) || todayYmdKST();
 
   /* 1) 향/방향 필드 */
-  const {
-    orientations, // OrientationRow[]
-    aspect,
-    aspectNo,
-    aspect1,
-    aspect2,
-    aspect3,
-  } = buildOrientationFields(aspects);
+  const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
+    buildOrientationFields(aspects);
 
-  // ✅ 핵심: o.value를 기준으로, 중복 제거 없이 모두 전송
   const directions =
     Array.isArray(orientations) && orientations.length > 0
       ? orientations
@@ -400,8 +391,8 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(aspect1 ? { aspect1 } : {}),
     ...(aspect2 ? { aspect2 } : {}),
     ...(aspect3 ? { aspect3 } : {}),
-    orientations, // 내부 유지
-    ...(directions ? { directions } : {}), // ✅ 백엔드 전송
+    orientations,
+    ...(directions ? { directions } : {}),
 
     // 주차 타입은 값 있을 때만 전송
     ...(s(parkingType) ? { parkingType: s(parkingType) } : {}),
@@ -423,12 +414,14 @@ export function buildCreatePayload(args: BuildArgs) {
     /* 신규: 면적 그룹 */
     ...(areaGroups.length ? { areaGroups } : {}),
 
-    // ⭐ 매물평점(문자열) — 빈 문자열이면 제외
-    ...(parkingGrade ? { parkingGrade } : {}),
+    // ⭐ 매물평점 — '1'~'5' 문자열 그대로 전송(빈값은 제외)
+    ...(String(parkingGrade || "").trim()
+      ? { parkingGrade: parkingGrade as StarStr }
+      : {}),
 
     elevator,
 
-    // ✅ 단지 숫자들: 문자열/빈값 → 제외, 숫자면 포함
+    // ✅ 단지 숫자들
     ...(toNum(totalBuildings) !== undefined
       ? { totalBuildings: toNum(totalBuildings)! }
       : {}),

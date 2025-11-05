@@ -51,11 +51,10 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
     },
     ref
   ) => {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    if (!containerRef.current && typeof document !== "undefined") {
-      containerRef.current = document.createElement("div");
-    }
-
+    // ✅ lazy initializer: StrictMode 이중 렌더시에도 동일 객체 유지
+    const containerRef = useRef<HTMLDivElement | null>(
+      typeof document !== "undefined" ? document.createElement("div") : null
+    );
     const overlayRef = useRef<kakao.maps.CustomOverlay | null>(null);
 
     const peEnabled = pointerEventsEnabled ?? enablePointerEvents ?? true;
@@ -69,10 +68,11 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
       const el = containerRef.current;
       if (!el) return;
       el.style.pointerEvents = pointerEvents;
-      if (className) el.className = className;
+      // className 없으면 비우기(이전 클래스 잔존 방지)
+      el.className = className ?? "";
     }, [className, pointerEvents]);
 
-    // overlay 생성/파괴 (anchor 변경에만 재생성)
+    // overlay 생성/파괴 (anchor 변경/클릭 차단 플래그 변경 시 재생성)
     useEffect(() => {
       if (!kakao || !map || !containerRef.current) return;
 
@@ -82,7 +82,7 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
         xAnchor,
         yAnchor,
         zIndex,
-        clickable: peEnabled, // pointer-events와 일치시킴
+        clickable: peEnabled, // pointer-events와 동기화
       });
 
       overlayRef.current = overlay;
@@ -94,12 +94,14 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
         } catch {}
         overlayRef.current = null;
       };
+      // position은 아래 별도 effect로 setPosition 하므로 의존성에서 제외
     }, [kakao, map, xAnchor, yAnchor, peEnabled]);
 
     // 위치/층위 반영
     useEffect(() => {
       overlayRef.current?.setPosition(position);
     }, [position]);
+
     useEffect(() => {
       overlayRef.current?.setZIndex(zIndex ?? 10_000);
     }, [zIndex]);

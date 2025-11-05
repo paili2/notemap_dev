@@ -1,3 +1,5 @@
+// src/features/properties/types/property-domain.ts
+
 /* ───────── Registry(등기) ─────────
  * 등기 상태는 건물유형과 무관합니다.
  * 프로젝트 정책에 맞춰 라벨은 자유롭게 바꿔도 되지만,
@@ -11,14 +13,15 @@ export type Grade = "상" | "중" | "하";
 
 /* ───────── Building Type (백엔드 스펙) ─────────
  * 서버와 1:1 대응하는 enum 값만 포함합니다.
+ * ※ 이 값만 서버로 전송하세요.
  */
 export const BUILDING_TYPES = ["APT", "OP", "주택", "근생"] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
 /* ───────── (옵션) UI 라벨 호환 ─────────
- * 과거에 UI에서 사용하던 라벨(예: "도/생", "근/생")과의 호환을 위해 제공합니다.
- * 컴포넌트가 이 라벨 배열을 그대로 옵션으로 쓰고 있다면,
- * 아래 normalize 함수로 백엔드 enum으로 변환하세요.
+ * 과거/현재 UI에서 쓰는 라벨을 모두 지원하기 위한 목록입니다.
+ * 컴포넌트가 이 라벨 배열을 옵션으로 사용한다면,
+ * 저장/전송 시 normalizeBuildingTypeLabelToEnum 으로 백엔드 enum으로 변환하세요.
  */
 export const BUILDING_TYPE_LABELS = [
   "주택",
@@ -26,23 +29,33 @@ export const BUILDING_TYPE_LABELS = [
   "OP",
   "도/생",
   "근/생",
+  "근생", // 과거 표기 호환
 ] as const;
 export type BuildingTypeLabel = (typeof BUILDING_TYPE_LABELS)[number];
 
-/** 라벨 → 백엔드 enum 매핑 (필요 시 확장) */
+/** 라벨 → 백엔드 enum 매핑 (필요 시 정책에 맞게 확장/수정) */
 export function normalizeBuildingTypeLabelToEnum(
   v: BuildingTypeLabel | string | null | undefined
 ): BuildingType | null {
   const s = String(v ?? "").trim();
-  // 라벨이 이미 백엔드 enum이면 그대로
-  if ((BUILDING_TYPES as readonly string[]).includes(s))
+  if (!s) return null;
+
+  // 이미 백엔드 enum이면 그대로
+  if ((BUILDING_TYPES as readonly string[]).includes(s)) {
     return s as BuildingType;
+  }
 
   // 과거/대체 라벨 매핑
-  if (s === "도/생") return "근생"; // 도생(도시형생활주택) → 근생으로 수렴(정책에 맞게 수정 가능)
+  if (s === "도/생" || s === "도생") return "근생"; // 도생 → 근생으로 수렴
   if (s === "근/생") return "근생";
 
   return null;
+}
+
+/** (선택) 백엔드 enum → UI 라벨 매핑이 필요하면 사용하세요. */
+export function buildingTypeEnumToLabel(bt: BuildingType): BuildingTypeLabel {
+  // 현재 정책: "근생"은 라벨도 "근생" 그대로 노출
+  return bt as BuildingTypeLabel;
 }
 
 /* ───────── Orientation ───────── */

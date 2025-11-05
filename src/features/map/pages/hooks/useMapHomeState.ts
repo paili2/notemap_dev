@@ -1,3 +1,4 @@
+// src/features/map/hooks/useMapHomeState.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +18,12 @@ import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 import { PoiKind } from "../../components/overlays/poiOverlays";
 import { usePinsMap } from "@/features/map/hooks/usePinsMap";
+
+/* ⬇️ 추가: 라벨 숨김/복원 유틸 */
+import {
+  hideLabelsAround,
+  showLabelsAround,
+} from "@/features/map/lib/labelRegistry";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 
@@ -273,6 +280,11 @@ export function useMapHomeState() {
 
       setRawMenuAnchor(p);
 
+      // ✅ 오픈 즉시 라벨 숨김 (검색/클릭 공통)
+      try {
+        if (mapInstance) hideLabelsAround(mapInstance, p.lat, p.lng, 40);
+      } catch {}
+
       if (opts?.roadAddress || opts?.jibunAddress) {
         setMenuRoadAddr(opts.roadAddress ?? null);
         setMenuJibunAddr(opts.jibunAddress ?? null);
@@ -294,6 +306,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
+      mapInstance, // ⬅️ 의존성 포함
     ]
   );
 
@@ -326,6 +339,11 @@ export function useMapHomeState() {
       setFitAllOnce(false);
       onChangeHideLabelForId(sid);
 
+      // ✅ 기존핀 검색 오픈 시도 즉시 숨김
+      try {
+        if (mapInstance) hideLabelsAround(mapInstance, pos.lat, pos.lng, 40);
+      } catch {}
+
       panToWithOffset(pos, 180);
 
       if ((p as any).address) {
@@ -347,6 +365,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
+      mapInstance, // ⬅️ 의존성 포함
     ]
   );
 
@@ -432,6 +451,11 @@ export function useMapHomeState() {
       setRawMenuAnchor(pos);
       onChangeHideLabelForId(sid);
 
+      // ✅ 클릭 경로에서도 즉시 숨김(안전)
+      try {
+        if (mapInstance) hideLabelsAround(mapInstance, pos.lat, pos.lng, 40);
+      } catch {}
+
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
@@ -448,6 +472,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
+      mapInstance, // ⬅️ 의존성 포함
     ]
   );
 
@@ -513,6 +538,13 @@ export function useMapHomeState() {
 
   // 메뉴 닫기
   const closeMenu = useCallback(() => {
+    // ✅ 닫으면서 반경 내 라벨 복구
+    try {
+      if (mapInstance && menuAnchor) {
+        showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
+      }
+    } catch {}
+
     setMenuOpen(false);
     setMenuTargetId(null);
     setMenuAnchor(null);
@@ -523,7 +555,14 @@ export function useMapHomeState() {
     if (!menuTargetId && draftPin) {
       setDraftPinSafe(null);
     }
-  }, [menuTargetId, draftPin, setDraftPinSafe, onChangeHideLabelForId]);
+  }, [
+    menuTargetId,
+    draftPin,
+    setDraftPinSafe,
+    onChangeHideLabelForId,
+    mapInstance, // ⬅️ 의존성 포함
+    menuAnchor, // ⬅️ 의존성 포함
+  ]);
 
   const openViewFromMenu = useCallback(
     (id: string) => {
@@ -661,11 +700,24 @@ export function useMapHomeState() {
     [sendViewportQuery]
   );
 
-  const selectedViewItem = useMemo(
-    () =>
-      selected ? toViewDetails(toViewSourceFromPropertyItem(selected)) : null,
-    [selected]
-  );
+  // ✅✅ 핵심 수정: selectedViewItem에 id/propertyId와 editInitial(view 래퍼) 포함
+  const selectedViewItem = useMemo(() => {
+    if (!selected) return null;
+    const id = String(selected.id);
+    const view = toViewDetails(toViewSourceFromPropertyItem(selected)) as any;
+
+    // id가 누락되는 경우가 많아 명시적으로 보강
+    if (!view.id) view.id = id;
+    if (!view.propertyId) view.propertyId = id;
+
+    // PropertyViewModal에서 data.editInitial를 우선 사용하도록 제공
+    const withEditInitial = {
+      ...view,
+      editInitial: { view: { ...view } },
+    };
+
+    return withEditInitial as PropertyViewDetails & { editInitial: any };
+  }, [selected]);
 
   const selectedPos = useMemo<LatLng | null>(() => {
     if (menuAnchor) return menuAnchor;
@@ -784,7 +836,7 @@ export function useMapHomeState() {
     // view handlers
     onSaveViewPatch,
     onDeleteFromView,
-    selectedViewItem,
+    selectedViewItem, // ← editInitial 포함
 
     // host bridges
     createHostHandlers,

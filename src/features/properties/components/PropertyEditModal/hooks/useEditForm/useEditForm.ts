@@ -23,10 +23,10 @@ type StarStr = "" | "1" | "2" | "3" | "4" | "5";
 
 /** 변경분만 PATCH하기 위한 최초 스냅샷 타입 */
 type InitialForPatch = {
-  contactMainPhone: string; // 분양사무실 전화
-  contactSubPhone: string; // 분양사무실 보조 전화
-  minRealMoveInCost: string; // 최저 실입(현재 폼의 salePrice 문자열과 매핑)
-  unitLines: UnitLine[]; // 구조별 입력
+  contactMainPhone: string;
+  contactSubPhone: string;
+  minRealMoveInCost: string;
+  unitLines: UnitLine[];
 };
 
 export function useEditForm({ initialData }: UseEditFormArgs) {
@@ -44,7 +44,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [aspects, setAspects] = useState<AspectRowLite[]>(EMPTY_ASPECTS);
 
-  // ⭐ 매물평점(별 1~5) – 문자열 보관
+  // ⭐ 매물평점(별 1~5)
   const [parkingGrade, setParkingGrade] = useState<StarStr>("");
 
   const [parkingType, setParkingType] = useState("");
@@ -70,7 +70,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
-  // ✅ 신규 숫자 필드들(문자 입력 허용)
+  // ✅ 신규 숫자 입력(문자 형태 유지)
   const [totalBuildings, setTotalBuildings] = useState("");
   const [totalFloors, setTotalFloors] = useState("");
   const [totalHouseholds, setTotalHouseholds] = useState("");
@@ -149,7 +149,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setRoomNo("");
     setStructure("3룸");
     setAspects(EMPTY_ASPECTS);
-    setParkingGrade(""); // ⭐
+    setParkingGrade("");
     setParkingType("");
     setTotalParkingSlots("");
     setCompletionDate("");
@@ -183,15 +183,28 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setBuildingType(null);
   }, []);
 
-  /* ========== 초기 주입: id 기준 1회 ========== */
-  const initId = initialData?.id ?? null;
+  /* ========== 초기 주입: id(or fallback) 기준 1회 ========== */
+  const wrapper = initialData as any;
+  const sourceData =
+    (wrapper?.raw as any) ?? (wrapper?.view as any) ?? initialData ?? null;
 
-  // id가 바뀔 때만 normalize
-  const normalized = useMemo(() => normalizeInitialData(initialData), [initId]);
+  const initId: string | number | null =
+    (wrapper?.id as any) ??
+    (wrapper?.raw?.id as any) ??
+    (wrapper?.view?.id as any) ??
+    (wrapper?.raw?.propertyId as any) ??
+    (wrapper?.view?.propertyId as any) ??
+    (sourceData?.id as any) ??
+    (sourceData?.propertyId as any) ??
+    null;
 
+  const initKey: string | number | null =
+    initId ?? (sourceData ? "__NOID__" : null);
+
+  const normalized = useMemo(() => normalizeInitialData(sourceData), [initKey]);
   const injectedOnceRef = useRef<null | string | number>(null);
 
-  // ✅ 최초 스냅샷 보관 (변경분만 PATCH 용)
+  // 변경분 PATCH 스냅샷
   const initialForPatchRef = useRef<InitialForPatch>({
     contactMainPhone: "",
     contactSubPhone: "",
@@ -199,15 +212,14 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     unitLines: [],
   });
 
-  // id가 바뀔 때만 재주입 허용
   useEffect(() => {
     injectedOnceRef.current = null;
-  }, [initId]);
+  }, [initKey]);
 
   useEffect(() => {
-    if (!initId) return; // id 없으면 주입 보류
-    if (injectedOnceRef.current === initId) return;
-    injectedOnceRef.current = initId;
+    if (initKey == null) return;
+    if (injectedOnceRef.current === initKey) return;
+    injectedOnceRef.current = initKey;
 
     setPinKind(normalized.pinKind);
     setTitle(normalized.title);
@@ -220,12 +232,16 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setRoomNo(normalized.roomNo);
     setStructure(normalized.structure);
 
-    // ⭐ parkingGrade만 주입 (레거시 listingStars는 사용하지 않음)
+    // ⭐ parkingGrade
     const pg = (normalized as any)?.parkingGrade as StarStr | undefined;
     setParkingGrade(pg && ["1", "2", "3", "4", "5"].includes(pg) ? pg : "");
 
     setParkingType(normalized.parkingType ?? "");
-    setTotalParkingSlots((normalized as any).totalParkingSlots ?? "");
+    setTotalParkingSlots(
+      (normalized as any).totalParkingSlots != null
+        ? String((normalized as any).totalParkingSlots)
+        : ""
+    );
     setCompletionDate(normalized.completionDate);
     setSalePrice(normalized.salePrice);
 
@@ -233,13 +249,22 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setExtraAreaSets(normalized.extraAreas);
 
     setElevator(normalized.elevator);
+
+    // ✅ 등기 값 주입(빈 문자열 방지)
+    const normReg =
+      (normalized as any).registry ??
+      (normalized as any).registryOne ??
+      undefined;
     setRegistry(
-      (normalized as any).registry ?? (normalized as any).registryOne
+      normReg && String(normReg).trim() !== ""
+        ? (normReg as Registry)
+        : undefined
     );
+
     setSlopeGrade(normalized.slopeGrade);
     setStructureGrade(normalized.structureGrade);
 
-    // ✅ 신규 숫자 필드 초기 주입(문자 형태 유지)
+    // ✅ 신규 숫자 필드(문자 유지)
     setTotalBuildings((normalized.totalBuildings ?? "") as unknown as string);
     setTotalFloors((normalized.totalFloors ?? "") as unknown as string);
     setTotalHouseholds((normalized.totalHouseholds ?? "") as unknown as string);
@@ -255,17 +280,18 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setUnitLines(normalized.unitLines);
 
     setAspects(normalized.aspects);
+
+    // ✅ buildingType: normalize에서 '' → null 보정됨
     setBuildingType((normalized as any).buildingType ?? null);
 
-    // ✅ 최초 스냅샷 저장
+    // 최초 스냅샷
     initialForPatchRef.current = {
       contactMainPhone: normalized.officePhone ?? "",
       contactSubPhone: normalized.officePhone2 ?? "",
-      // 현재 폼에서 '최저실입' = salePrice 로 사용 중
       minRealMoveInCost: normalized.salePrice ?? "",
       unitLines: (normalized.unitLines ?? []).map((u) => ({ ...u })),
     };
-  }, [initId, normalized]); // ← normalized은 initId에만 의존하므로 안전
+  }, [initKey, normalized]);
 
   /* ========== 파생값 ========== */
   const baseHasExclusive = useMemo(
@@ -420,7 +446,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       roomNo,
       structure,
       aspects,
-      parkingGrade, // ⭐
+      parkingGrade,
       parkingType,
       totalParkingSlots,
       completionDate,
@@ -496,7 +522,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       removeAspect,
       setAspectDir,
       setAspects,
-      setParkingGrade, // ⭐
+      setParkingGrade,
       setParkingType,
       setTotalParkingSlots,
       setCompletionDate,
@@ -543,11 +569,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   );
 
   return {
-    // flat fields (읽기용 상태)
     ...state,
-    // flat actions (setter/액션)
     ...actions,
-    // flat derived/헬퍼
     ...derived,
     ...helpers,
 

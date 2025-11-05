@@ -8,6 +8,10 @@ import {
 } from "./style";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 
+/** 1x1 투명 PNG (data URI) — 아이콘이 없어도 동일 규격 MarkerImage를 강제하기 위한 폴백 */
+const TRANSPARENT_DOT =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WJb3m8AAAAASUVORK5CYII=";
+
 type CreateMarkerOpts = {
   isDraft: boolean;
   key: string;
@@ -27,20 +31,19 @@ export function createMarker(kakao: any, pos: any, opts: CreateMarkerOpts) {
   const mappedKind = mapBadgeToPinKind(opts.badge);
   const effectiveKind: PinKind = (mappedKind ?? opts.kind) as PinKind;
 
-  const iconUrl = getPinUrl(effectiveKind);
-  if (iconUrl && typeof iconUrl === "string") {
-    const markerSize = new kakao.maps.Size(
-      PIN_MARKER.size.w,
-      PIN_MARKER.size.h
-    );
-    const markerOffset = new kakao.maps.Point(
-      PIN_MARKER.offset.x,
-      PIN_MARKER.offset.y
-    );
-    mkOptions.image = new kakao.maps.MarkerImage(iconUrl, markerSize, {
-      offset: markerOffset,
-    });
-  }
+  // ✅ 항상 동일 규격의 Size/Offset을 강제
+  const markerSize = new kakao.maps.Size(PIN_MARKER.size.w, PIN_MARKER.size.h);
+  const markerOffset = new kakao.maps.Point(
+    PIN_MARKER.offset.x,
+    PIN_MARKER.offset.y
+  );
+
+  // ✅ 아이콘이 없거나 잘못된 경우에도 투명 PNG로 폴백 (컨텍스트 메뉴 기준점 안정화)
+  const iconUrl = getPinUrl(effectiveKind) || TRANSPARENT_DOT;
+
+  mkOptions.image = new kakao.maps.MarkerImage(iconUrl, markerSize, {
+    offset: markerOffset,
+  });
 
   return new kakao.maps.Marker(mkOptions);
 }
