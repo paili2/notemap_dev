@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyCreateModal/PropertyCreateModalBody.tsx
 "use client";
 
 import { useRef, useState, useCallback, useMemo, useEffect } from "react";
@@ -291,7 +292,6 @@ export default function PropertyCreateModalBody({
   /** 카드 하나: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
   const persistOneCard = useCallback(
     async (pinId: string | number, folderIdx: number) => {
-      // ✅ 같은 카드에 대해 중복 호출 방지
       if (processedCardSetRef.current.has(folderIdx)) return;
       processedCardSetRef.current.add(folderIdx);
 
@@ -306,18 +306,15 @@ export default function PropertyCreateModalBody({
 
         if (files.length === 0) return;
 
-        // 1) 업로드
         const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });
         if (!urls.length) return;
 
-        // 2) 그룹 생성
         const group = await createPhotoGroup({
           pinId,
           title: `카드 ${folderIdx + 1}`,
           sortOrder: folderIdx,
         });
 
-        // 3) 그룹에 사진 등록
         const sortOrders = urls.map((_, i) => i);
         await createPhotosInGroup(String(group.id), {
           urls,
@@ -326,7 +323,6 @@ export default function PropertyCreateModalBody({
         });
       } catch (err) {
         console.warn("[persistOneCard] failed at folder", folderIdx, err);
-        // 실패 시 재시도를 원하면 processedCardSetRef.current.delete(folderIdx);
       }
     },
     [imageFolders, imageItemToFile]
@@ -335,7 +331,6 @@ export default function PropertyCreateModalBody({
   /** 세로 파일: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
   const persistVerticalFiles = useCallback(
     async (pinId: string | number) => {
-      // ✅ 세로 파일 업로드는 1회만
       if (processedVerticalRef.current) return;
       processedVerticalRef.current = true;
 
@@ -366,10 +361,42 @@ export default function PropertyCreateModalBody({
         });
       } catch (err) {
         console.warn("[persistVerticalFiles] failed", err);
-        // 실패 시 재시도 의도가 있으면 processedVerticalRef.current = false;
       }
     },
     [fileItems, imageFolders?.length, imageItemToFile]
+  );
+
+  /* ── ParkingContainer 어댑터 ── */
+  const parkingForm = useMemo(
+    () => ({
+      parkingType: f.parkingType ?? null,
+      setParkingType: (v: string | null) => f.setParkingType(v ?? ""),
+
+      // f.totalParkingSlots (number|null) -> string|null 로 내려줌
+      totalParkingSlots:
+        f.totalParkingSlots == null ? null : String(f.totalParkingSlots),
+
+      // ⬇️ string|null -> number|null 로 변환해서 내부 상태에 저장
+      setTotalParkingSlots: (v: string | null) => {
+        if (v == null) {
+          f.setTotalParkingSlots(null);
+          return;
+        }
+        const s = String(v).trim();
+        if (!s) {
+          f.setTotalParkingSlots(null);
+          return;
+        }
+        const n = Number(s);
+        f.setTotalParkingSlots(Number.isFinite(n) ? n : null);
+      },
+    }),
+    [
+      f.parkingType,
+      f.totalParkingSlots,
+      f.setParkingType,
+      f.setTotalParkingSlots,
+    ]
   );
 
   const save = useCallback(async () => {
@@ -537,10 +564,9 @@ export default function PropertyCreateModalBody({
       // 1) 핀 생성
       const { id: pinId, matchedDraftId } = await createPin(pinDto);
 
-      // 2) 사진/파일 영속화 (중복 방지 가드와 함께)
+      // 2) 사진/파일 영속화
       try {
         for (let i = 0; i < (imageFolders?.length ?? 0); i++) {
-          // 순차 처리(동시 처리 원하면 Promise.all로 바꾸되, 가드는 그대로 유지)
           await persistOneCard(pinId, i);
         }
         await persistVerticalFiles(pinId);
@@ -667,7 +693,10 @@ export default function PropertyCreateModalBody({
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            <ParkingContainer form={f} />
+
+            {/* 🔹 string|null 계약으로 맞춘 어댑터 전달 */}
+            <ParkingContainer form={parkingForm} />
+
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer

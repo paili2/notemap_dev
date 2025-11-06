@@ -1,37 +1,39 @@
+// src/features/properties/components/PropertyEditModal/ui/ParkingContainer.tsx
 "use client";
+import { useMemo, useCallback } from "react";
 import ParkingSection from "../../sections/ParkingSection/ParkingSection";
 
-// 🔹 부모 useCreateForm/useParking 에서 totalParkingSlots로 일원화
 type ParkingFormSlice = {
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
 
-  /** ✅ 총 주차대수 (number|null) */
-  totalParkingSlots: number | null;
-  setTotalParkingSlots: (v: number | null) => void;
-
-  // ⬇️ 주차유형 ID (옵션)
-  parkingTypeId?: number | null;
-  setParkingTypeId?: (v: number | null) => void;
-};
-
-const PARKING_TYPE_NAME_TO_ID: Record<string, number> = {
-  병렬: 1,
-  직렬: 2,
-  기계식: 3,
-  직접입력: 4,
+  // 상위는 string|null
+  totalParkingSlots: string | null;
+  setTotalParkingSlots: (v: string | null) => void;
 };
 
 export default function ParkingContainer({ form }: { form: ParkingFormSlice }) {
+  // string|null -> number|null (빈/공백/NaN => null)
+  const totalParkingSlotsNumber = useMemo<number | null>(() => {
+    const s = (form.totalParkingSlots ?? "").toString().trim();
+    if (!s) return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }, [form.totalParkingSlots]);
+
+  // number|null -> string|null (안정 콜백)
+  const setTotalParkingSlotsNumber = useCallback(
+    (v: number | null) =>
+      form.setTotalParkingSlots(v == null ? null : String(v)),
+    [form.setTotalParkingSlots] // ✅ 정확한 의존성
+  );
+
   return (
     <ParkingSection
       parkingType={form.parkingType}
       setParkingType={form.setParkingType}
-      totalParkingSlots={form.totalParkingSlots}
-      setTotalParkingSlots={form.setTotalParkingSlots}
-      parkingTypeId={form.parkingTypeId ?? null}
-      setParkingTypeId={form.setParkingTypeId}
-      parkingTypeNameToId={PARKING_TYPE_NAME_TO_ID}
+      totalParkingSlots={totalParkingSlotsNumber}
+      setTotalParkingSlots={setTotalParkingSlotsNumber}
     />
   );
 }

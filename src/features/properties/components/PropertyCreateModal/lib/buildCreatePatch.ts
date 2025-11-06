@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyEditModal/lib/buildCreatePatchWithMedia.ts
 "use client";
 
 import { CreatePayload } from "@/features/properties/types/property-dto";
@@ -26,7 +27,6 @@ function normalizeOrientations(payload: CreatePayload) {
 }
 
 /* ───────────── 미디어 입력 추출(레거시 제거) ─────────────
-   - imagesByCard는 더 이상 보지 않음(사용자 선호 반영)
    - 카드형 입력: imageFolders(레퍼런스) → 없으면 UI 측 imageCards / images[[]] 폴백
    - 세로열 입력: verticalImages(레퍼런스) → 없으면 fileItems 폴백
 */
@@ -61,7 +61,6 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
     id,
     title: payload.title,
     address: payload.address,
-    // priceText: payload.salePrice ?? undefined,
     status: (payload as any).status,
     dealStatus: (payload as any).dealStatus,
 
@@ -103,8 +102,6 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
       options: payload.options,
       optionEtc: payload.optionEtc,
 
-      // 서버가 registryOne을 요구한다면 상위 buildUpdatePayload에서 매핑.
-      // 여기서는 문자열 레지스트리 값만 사용.
       registry:
         typeof (payload as any).registry === "string"
           ? (payload as any).registry
@@ -125,8 +122,7 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
         (payload as any).areaSetTitles ??
         [],
 
-      // ↓ 미디어는 WithMedia 단계에서 채움
-      // (레거시) *_Refs, imagesByCard는 더 이상 넣지 않음
+      // 미디어는 WithMedia 단계에서 채움
       aspect1,
       aspect2,
       aspect3,
@@ -137,8 +133,10 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
 }
 
 /* ───────────── 2) 미디어(materialize + hydrate) 포함 최종 아이템 ─────────────
-   - 내부적으로 refs 사용하지만, view에는 레거시 *_Refs를 넣지 않고
-     imageCards / images / fileItems만 채운다.
+   - view.images      : 가로(카드) 전용 URL 평면화
+   - view.imageCards  : 가로(카드) 구조 그대로
+   - view.fileItems   : 세로(미리보기용 객체 배열)
+   - view.imagesVertical / view.verticalImages : 세로 URL 배열(호환 키 동시 제공)
 */
 export async function buildCreatePatchWithMedia(
   payload: CreatePayload,
@@ -160,13 +158,25 @@ export async function buildCreatePatchWithMedia(
     fileRefs
   );
 
+  // 가로/세로 URL 분리
+  const horizontalUrls = hydratedCards
+    .flat()
+    .map((m) => m.url)
+    .filter(Boolean);
+  const verticalUrls = hydratedFiles.map((m) => m.url).filter(Boolean);
+
   const next: PropertyItem = {
     ...(base as PropertyItem),
     view: {
       ...(base.view as any),
+      // 가로(카드)
       imageCards: hydratedCards,
-      images: hydratedCards.flat(),
-      fileItems: hydratedFiles,
+      images: horizontalUrls, // ← 가로 전용
+
+      // 세로(리스트)
+      fileItems: hydratedFiles, // 미리보기용 객체
+      imagesVertical: verticalUrls, // 권장 호환 키
+      verticalImages: verticalUrls, // 추가 호환 키
     },
   };
 

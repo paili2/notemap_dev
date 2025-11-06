@@ -1,3 +1,4 @@
+// src/components/.../SafeSelect.tsx
 "use client";
 
 import * as React from "react";
@@ -24,10 +25,7 @@ type Props = {
   onOpenChange?: (v: boolean) => void;
   className?: string;
 
-  /** ⬇️ 추가: Content에 클래스 지정(Z-index 등) */
   contentClassName?: string;
-
-  /** ⬇️ 추가: Radix Content 포지셔닝 옵션 */
   position?: "item-aligned" | "popper";
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
@@ -48,16 +46,14 @@ export default function SafeSelect({
   align,
   sideOffset,
 }: Props) {
-  const controlledOpen = typeof open === "boolean" ? open : undefined; // uncontrolled도 지원
+  const controlledOpen = typeof open === "boolean" ? open : undefined;
   const setOpenGuarded = useGuardedSetter<boolean>(onOpenChange ?? (() => {}));
-
-  // Trigger ref를 안정 콜백으로 만들어 동일 노드 재세팅 시 setState 루프 방지
   const setTrigRef = useStableRefCallback<HTMLButtonElement>();
 
   return (
     <Select
-      value={value ?? undefined}
-      onValueChange={(v) => onChange(v ?? null)}
+      value={value ?? ""} // ✅ 항상 문자열로 유지(초기에도 controlled)
+      onValueChange={(v) => onChange(v === "" ? null : v)} // "" ⇄ null 변환
       open={controlledOpen}
       onOpenChange={(v) => setOpenGuarded(Boolean(v))}
     >

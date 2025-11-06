@@ -56,7 +56,6 @@ function convertLinesToUnits(lines: any[] | undefined): UnitView[] {
     baths: asNumber(l?.baths) ?? 0,
     hasLoft: asBool(l?.duplex),
     hasTerrace: asBool(l?.terrace),
-    // 가격 정보가 없을 수 있음
     minPrice: asNumber(l?.minPrice),
     maxPrice: asNumber(l?.maxPrice),
   }));
@@ -74,9 +73,14 @@ export function useViewForm({
 
   const pinId = (data as any)?.pinId ?? (data as any)?.id ?? null;
 
+  // ✅ 가로/세로 완전 분리된 하이드레이션 결과만 사용
+  // - cardsHydrated: 가로 카드 전용
+  // - filesHydrated: 세로 리스트 전용
+  // - legacyImagesHydrated: 레거시 가로 보조(images 기반) — preferCards=false일 때만 사용
   const { preferCards, cardsHydrated, filesHydrated, legacyImagesHydrated } =
     useViewImagesHydration({ open, data: data as any, pinId });
 
+  // 가로 보조(레거시) 이미지는 cards를 대체하지 않음
   const imagesProp = preferCards ? undefined : legacyImagesHydrated;
 
   const { pinKind, baseAreaTitleView, extraAreaTitlesView } = extractViewMeta(
@@ -123,7 +127,6 @@ export function useViewForm({
       ? picked.map((u) => ({
           rooms: asNumber(u?.rooms) ?? 0,
           baths: asNumber(u?.baths) ?? 0,
-          // 백엔드가 hasLoft/hasTerrace 또는 duplex/terrace 로 보낼 수 있음
           hasLoft: asBool(u?.hasLoft ?? u?.duplex),
           hasTerrace: asBool(u?.hasTerrace ?? u?.terrace),
           minPrice:
@@ -150,6 +153,12 @@ export function useViewForm({
         pickedKeys: Object.keys(d || {}).filter((k) =>
           /(unit|structure)/i.test(k)
         ),
+      });
+      console.debug("[useViewForm] media:", {
+        preferCards,
+        cardsHydratedLen: cardsHydrated?.length,
+        filesHydratedLen: filesHydrated?.length,
+        legacyImagesHydratedLen: imagesProp?.length,
       });
     }
 
@@ -199,7 +208,15 @@ export function useViewForm({
       baseAreaTitleView,
       extraAreaTitlesView,
     };
-  }, [data, baseAreaTitleView, extraAreaTitlesView]);
+  }, [
+    data,
+    baseAreaTitleView,
+    extraAreaTitlesView,
+    preferCards,
+    cardsHydrated,
+    filesHydrated,
+    imagesProp,
+  ]);
 
   const f = useMemo(
     () => ({
@@ -209,7 +226,7 @@ export function useViewForm({
       elevator: view.elevator,
       pinKind,
 
-      // 이미지
+      // 이미지(가로/세로 완전 분리; 레거시는 보조로만)
       preferCards,
       cardsHydrated,
       filesHydrated,

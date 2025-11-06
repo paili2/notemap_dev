@@ -31,6 +31,9 @@ import type {
   PinPhotoGroup,
 } from "@/shared/api/types/pinPhotos";
 
+/* ───────── 상수: 세로 그룹 식별 프리픽스 ───────── */
+const VERT_PREFIX = "__V__";
+
 /* ───────── 유틸: 파일 시그니처 ───────── */
 const filesSignature = (files: File[] | FileList) =>
   Array.from(files as File[])
@@ -99,7 +102,7 @@ function normalizeVerticalInput(v: any): AnyImageRef[] | null {
   return null;
 }
 
-/* ───────── 빈 카드 제거 헬퍼 ───────── */
+/* ───────── 빈 카드 제거 ───────── */
 const dropEmptyCards = (cards: ImageItem[][]) =>
   (cards ?? []).filter(
     (card) => Array.isArray(card) && card.some((it) => !!(it as any)?.url)
@@ -184,7 +187,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           }
         } else {
           const flat =
-            normalizeVerticalInput(initial.images)?.filter(Boolean) ?? null;
+            normalizeVerticalInput(initial.images)?.filter(Boolean) ?? null; // 레거시 images → 가로 카드로
           const counts: number[] | undefined = initial.imageCardCounts;
 
           if (flat && flat.length > 0) {
@@ -245,7 +248,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     Array<((el: HTMLInputElement | null) => void) | null>
   >([]);
 
-  /** ref={registerImageInput(idx)} 형태로 사용할 수 있는 안정 콜백 반환 */
   const getRegisterImageInput = useCallback((idx: number) => {
     if (inputRefCallbacks.current[idx]) return inputRefCallbacks.current[idx]!;
     const cb = (el: HTMLInputElement | null) => {
@@ -256,7 +258,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     return cb;
   }, []);
 
-  /** 과거 사용 호환: ref={(el)=>registerImageInput(idx, el)} 도 지원 */
   const registerImageInput = useCallback(
     (idx: number, el?: HTMLInputElement | null) => {
       if (arguments.length >= 2) {
@@ -273,7 +274,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     (idx: number, el: HTMLInputElement | null): void;
   };
 
-  /** 파일 선택창 열기 (안정 콜백) */
   const openImagePicker = useCallback(
     (idx: number) => imageInputRefs.current[idx]?.click(),
     []
@@ -296,7 +296,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
-  /* ───────── 변경 의도 큐 (저장 전까지 네트워크 호출 금지) ───────── */
+  /* ───────── 변경 의도 큐 ───────── */
   type PendingGroupChange = {
     id: IdLike;
     title?: string | null;
@@ -314,7 +314,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   const pendingPhotoMap = useRef<Map<string, PendingPhotoChange>>(new Map());
   const pendingDeleteSet = useRef<Set<string>>(new Set());
 
-  /* ───────── 큐잉 헬퍼 (id 지정형) ───────── */
   const queuePhotoCaption = useCallback(
     (photoId: IdLike, text: string | null) => {
       const key = String(photoId);
@@ -340,7 +339,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
-  /* ───────── 캡션 변경 (UI 이벤트형) ───────── */
   const onChangeImageCaption = useCallback(
     (folderIdx: number, imageIdx: number, text: string) => {
       setImageFolders((prev) =>
@@ -416,7 +414,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
-  // 세로형: 삭제/추가/캡션 (로컬 state + 큐 적재)
+  // 세로형: 삭제/추가/캡션
   const handleRemoveFileItem = useCallback((index: number) => {
     setVerticalImages((prev) => {
       const next = [...prev];
@@ -470,13 +468,13 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   }, []);
 
   /* ─────────────────────────────
-   * 서버 연동 유틸(선택 호출)
+   * 서버 연동 유틸
    * ───────────────────────────── */
 
   /** pinId별 reload 디듀프 */
   const reloadMapRef = useRef<Map<string, Promise<void>>>(new Map());
 
-  /** pinId로 그룹+사진 전부 재로딩 */
+  /** pinId로 그룹+사진 전부 재로딩 (세로/가로 분리) */
   const reloadGroups = useCallback(async (pinId: IdLike) => {
     const key = String(pinId);
     const existing = reloadMapRef.current.get(key);
@@ -494,13 +492,22 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
             mapped[String(g.id)] = ps ?? [];
           })
         );
+
         setGroups(list ?? []);
         setPhotosByGroup(mapped);
 
         // 서버 하이드레이션 플래그
         hasServerHydratedRef.current = true;
 
-        const folders: ImageItem[][] = (list ?? [])
+        // ✅ 세로 그룹 식별
+        const isVerticalGroup = (g: any) =>
+          typeof g?.title === "string" && g.title.startsWith(VERT_PREFIX);
+
+        const horizGroups = (list ?? []).filter((g) => !isVerticalGroup(g));
+        const vertGroups = (list ?? []).filter(isVerticalGroup);
+
+        // 가로 카드(폴더)
+        const folders: ImageItem[][] = horizGroups
           .slice()
           .sort(
             (a, b) =>
@@ -526,10 +533,33 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
               })
           );
 
-        // ★ 빈 카드 제거
         const cleaned = dropEmptyCards(folders);
         setImageFolders(cleaned.length ? cleaned : [[]]);
-        setVerticalImages((prev) => prev ?? []);
+
+        // ✅ 세로: 여러 그룹을 우측 세로 리스트로 병합
+        const verticalFlat: ImageItem[] = vertGroups
+          .slice()
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          .flatMap((g) =>
+            (mapped[String(g.id)] ?? [])
+              .slice()
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map((p) => {
+                const caption =
+                  (p as any).caption ??
+                  (p as any).title ??
+                  (p as any).name ??
+                  "";
+                return {
+                  id: p.id as any,
+                  url: p.url,
+                  caption,
+                  name: (p as any).name ?? "",
+                } as ImageItem;
+              })
+          );
+
+        setVerticalImages(verticalFlat);
       } catch (e: any) {
         setMediaError(e?.message || "사진 그룹 로딩 실패");
       } finally {

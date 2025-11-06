@@ -216,19 +216,23 @@ export function buildUpdatePayload(
   a: BuildUpdateArgs,
   initial?: InitialSnapshot
 ): UpdatePayload {
-  /* 이미지 URL 평면화 + 중복 제거 */
-  const urls: string[] = [];
-  const pushUrl = (u?: string) => {
+  /* 이미지 URL 분리 수집: 가로/세로 */
+  const urlsHorizontal: string[] = [];
+  const urlsVertical: string[] = [];
+  const pushUrl = (into: string[], u?: string) => {
     if (typeof u !== "string") return;
     const s = u.trim();
-    if (s && !urls.includes(s)) urls.push(s);
+    if (s && !into.includes(s)) into.push(s);
   };
+
+  // 가로(카드) → images(레거시 가로 전용)
   if (Array.isArray(a.imageFolders)) {
     for (const g of a.imageFolders)
-      for (const img of g ?? []) pushUrl(img?.url);
+      for (const img of g ?? []) pushUrl(urlsHorizontal, img?.url);
   }
+  // 세로 → imagesVertical/verticalImages
   if (Array.isArray(a.verticalImages)) {
-    for (const img of a.verticalImages) pushUrl(img?.url);
+    for (const img of a.verticalImages) pushUrl(urlsVertical, img?.url);
   }
 
   const optionEtcFinal = a.etcChecked
@@ -415,13 +419,27 @@ export function buildUpdatePayload(
     }
   }
 
-  /* ===== 이미지(문자열 배열) =====
-     주의: photo-groups/사진 API를 쓰더라도 레거시 서버가 images 필드를
-     참조할 수 있으니, UI에서 모은 URL이 있으면 동기화용으로 전송 */
-  if (urls.length) {
+  /* ===== 이미지 =====
+     - images: 가로(카드)의 URL만 전송
+     - imagesVertical/verticalImages: 세로 URL 전송
+     레거시 서버가 images만 처리하던 이슈로 세로가 가로에 섞이던 문제를 방지 */
+  if (urlsHorizontal.length) {
     const prevImages = (initial as any)?.images;
-    if (initial === undefined || !jsonEq(prevImages, urls)) {
-      (patch as any).images = urls;
+    if (initial === undefined || !jsonEq(prevImages, urlsHorizontal)) {
+      (patch as any).images = urlsHorizontal;
+    }
+  }
+  if (urlsVertical.length) {
+    const prevVerticalA = (initial as any)?.imagesVertical;
+    const prevVerticalB = (initial as any)?.verticalImages;
+    // 둘 중 하나라도 비교해 변경되면 넣어줌
+    if (
+      initial === undefined ||
+      (!jsonEq(prevVerticalA, urlsVertical) &&
+        !jsonEq(prevVerticalB, urlsVertical))
+    ) {
+      (patch as any).imagesVertical = urlsVertical; // 권장 키
+      (patch as any).verticalImages = urlsVertical; // 호환 키
     }
   }
 

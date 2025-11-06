@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/ui/DisplayImagesContainer.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -99,8 +98,7 @@ function toCard(x: unknown): DisplayCard | null {
       : undefined;
   return {
     id: o.id ?? o.groupId ?? undefined,
-    // 제목은 뷰에서 표시하지 않으므로 컨테이너에서도 null 고정
-    title: null,
+    title: null, // 뷰에서 타이틀은 숨김
     images: imgs,
     sortOrder: n(o.sortOrder),
     ...o,
@@ -131,6 +129,25 @@ export default function DisplayImagesContainer({
   images,
   files,
 }: Props) {
+  /** 0) 세로 파일 URL 집합 (가로 폴백에서 제외용) */
+  const fileUrlSet = useMemo(() => {
+    if (!Array.isArray(files)) return new Set<string>();
+    // 그룹형({images})/평면 혼용 방어
+    const urls: string[] = [];
+    for (const f of files as any[]) {
+      if (f && Array.isArray(f.images)) {
+        for (const it of f.images) {
+          const u = (it as any)?.url;
+          if (typeof u === "string" && u) urls.push(u);
+        }
+      } else {
+        const u = (f as any)?.url;
+        if (typeof u === "string" && u) urls.push(u);
+      }
+    }
+    return new Set(urls);
+  }, [files]);
+
   /** 1) 가로 카드(그룹) */
   const safeCards = useMemo<DisplayCard[]>(() => {
     if (!Array.isArray(cards)) return [];
@@ -138,21 +155,23 @@ export default function DisplayImagesContainer({
     return sortByOrderStable(mapped);
   }, [cards]);
 
-  /** 2) 레거시 평면(가로 폴백) */
-  const safeImages = useMemo<DisplayImage[]>(
-    () =>
-      sortByOrderStable(
-        Array.isArray(images) ? images.map(toImage) : ([] as DisplayImage[])
-      ).slice(0, MAX_PER_GROUP),
-    [images]
-  );
+  /** 2) 레거시 평면(가로 폴백) — 세로 URL은 제외 */
+  const safeImages = useMemo<DisplayImage[]>(() => {
+    const base = Array.isArray(images)
+      ? images.map(toImage)
+      : ([] as DisplayImage[]);
+    const filtered = base.filter(
+      (img) => !!img.url && !fileUrlSet.has(img.url!)
+    );
+    return sortByOrderStable(filtered).slice(0, MAX_PER_GROUP);
+  }, [images, fileUrlSet]);
 
   /** 3) 세로 파일을 그룹 형태로 변환 */
   const filesAsGroups = useMemo<{ images: DisplayImage[] }[]>(() => {
     if (!Array.isArray(files) || files.length === 0) return [];
     const first: any = files[0];
 
-    // 이미 [{ images }] 그룹 형태로 들어온 경우
+    // 이미 [{ images }] 그룹 형태
     if (first && Array.isArray(first.images)) {
       return (files as any[])
         .map((g) => {
@@ -173,17 +192,16 @@ export default function DisplayImagesContainer({
     return flat.length ? [{ images: flat }] : [];
   }, [files]);
 
-  /** 4) 섹션 입력 형태(ImagesGroup[])로 변환 */
+  /** 4) 섹션 입력 형태로 변환 */
   const cardsForSection = useMemo<ImagesGroup[]>(() => {
     const groups: ImagesGroup[] = safeCards
       .map((c) => ({
-        // 제목은 표시하지 않음
         title: null,
         images: (c.images ?? []).slice(0, MAX_PER_GROUP) as unknown as AnyImg[],
       }))
       .filter((g) => g.images.length > 0);
 
-    // 가로카드가 전혀 없고 레거시 평면이 있다면 1그룹 폴백
+    // 가로카드가 전혀 없을 때만 레거시 폴백 사용 (세로 URL 제외된 상태)
     if (groups.length === 0 && safeImages.length > 0) {
       groups.push({
         title: null,
@@ -196,7 +214,6 @@ export default function DisplayImagesContainer({
   const filesForSection = useMemo<ImagesGroup[]>(
     () =>
       filesAsGroups.map((g) => ({
-        // 제목은 표시하지 않음
         title: null,
         images: g.images as unknown as AnyImg[],
       })),
@@ -205,13 +222,9 @@ export default function DisplayImagesContainer({
 
   return (
     <DisplayImagesSection
-      // 가로 카드
       cards={cardsForSection}
-      // 레거시 평면은 여기서 사용하지 않음(가로 폴백을 cards로 이미 반영)
-      images={undefined}
-      // 세로 카드
+      images={undefined} // 가로 폴백은 위에서 cardsForSection에 반영
       files={filesForSection}
-      // 파일명 오버레이 필요 없으면 기본 false
     />
   );
 }

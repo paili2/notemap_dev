@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyEditModal/sections/HeaderSection/HeaderSection.tsx
 "use client";
 
 import { RefreshCw } from "lucide-react";
@@ -7,6 +8,7 @@ import PinTypeSelect from "./components/PinTypeSelect";
 import { Button } from "@/components/atoms/Button/Button";
 import StarsRating from "@/components/molecules/StarsRating";
 import { HeaderSectionProps } from "./types";
+import { asControlled } from "@/features/properties/lib/forms/asControlled";
 
 export default function HeaderSection({
   title,
@@ -15,7 +17,7 @@ export default function HeaderSection({
   setParkingGrade,
   elevator,
   setElevator,
-  onClose,
+  onClose, // (쓰이면 그대로 유지)
   placeholderHint,
   pinKind,
   setPinKind,
@@ -26,13 +28,15 @@ export default function HeaderSection({
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
+    // ⬆️ 헤더가 다른 오버레이 위에 오도록 z-index 상향
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="grid grid-cols-[1fr_auto] md:flex md:flex-nowrap items-center gap-3 gap-y-2 px-4 py-4 pr-4 min-w-0">
         {/* 핀 종류 */}
         <div className="col-span-1 justify-self-start md:order-1 md:flex md:items-center md:gap-2 md:shrink-0">
           <PinTypeSelect
-            value={pinKind}
-            onChange={setPinKind}
+            // ✅ 항상 문자열로 전달 ('' 또는 '1room' 등)
+            value={asControlled(pinKind) as any}
+            onChange={(v) => setPinKind(v as any)}
             className="h-9 w-[200px] max-w-full md:w-[230px]"
             placeholder="핀 종류 선택"
           />
@@ -95,7 +99,8 @@ export default function HeaderSection({
           </span>
           <div className="flex-1 min-w-0 sm:min-w-[200px]">
             <input
-              value={title}
+              // ✅ 항상 controlled 문자열
+              value={asControlled(title)}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                 setTitle(e.currentTarget.value)
               }

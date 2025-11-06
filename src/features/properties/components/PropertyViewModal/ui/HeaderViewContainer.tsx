@@ -17,9 +17,6 @@ export type HeaderViewContainerProps = {
   /** 핀 종류(없으면 컴포넌트 기본값 사용) */
   pinKind?: PinKind;
 
-  /** 닫기 핸들러 */
-  onClose: () => void;
-
   /** 접근성 & 포커스 제어 (옵션) */
   closeButtonRef?: MutableRefObject<HTMLButtonElement | null>;
   headingId?: string;
@@ -31,7 +28,6 @@ export default function HeaderViewContainer({
   parkingGrade,
   elevator,
   pinKind,
-  onClose,
   closeButtonRef,
   headingId,
   descId,
@@ -50,7 +46,6 @@ export default function HeaderViewContainer({
       parkingGrade={safeGrade}
       elevator={elevator}
       pinKind={pinKind}
-      onClose={onClose}
       closeButtonRef={closeButtonRef}
       headingId={headingId}
       descId={descId}

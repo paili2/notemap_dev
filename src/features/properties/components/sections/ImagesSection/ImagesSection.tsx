@@ -1,3 +1,4 @@
+// src/features/properties/components/sections/ImagesSection/ImagesSection.tsx
 "use client";
 
 import { createRef, useEffect, useRef } from "react";
@@ -12,7 +13,7 @@ import { updatePhotos, deletePhotos } from "@/shared/api/photos";
  * ─────────────────────────────────────────── */
 export type PhotoFolder = {
   id: string; // 폴더 식별자 (uuid 권장)
-  title: string; // "사진 폴더 1" 등
+  title: string; // 폴더 제목
   items: ImageItem[];
 };
 
@@ -22,6 +23,9 @@ type RegisterRef =
 
 type Props = {
   folders: PhotoFolder[];
+
+  /** 폴더 제목 변경 (필요 시 옵셔널) */
+  onChangeFolderTitle?: (folderIdx: number, nextTitle: string) => void;
 
   /** (폴더 인덱스) 파일 선택창 열기 */
   onOpenPicker: (folderIdx: number) => void;
@@ -48,7 +52,7 @@ type Props = {
   /** 카드(폴더) 당 최대 업로드 장수 */
   maxPerCard: number;
 
-  /** 캡션/삭제 (UI 상태 반영 콜백) */
+  /** (이미지 단위 캡션/삭제는 유지 – 필요 없으면 상위에서 안 넘기면 됨) */
   onChangeCaption?: (folderIdx: number, imageIdx: number, text: string) => void;
   onRemoveImage?: (folderIdx: number, imageIdx: number) => void;
 
@@ -69,6 +73,7 @@ const getPhotoId = (item: ImageItem) =>
 
 export default function ImagesSection({
   folders,
+  onChangeFolderTitle, // ⬅️ 추가된 콜백
   onOpenPicker,
   onAddToFolder,
   onChangeFiles, // legacy
@@ -188,27 +193,63 @@ export default function ImagesSection({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <section className="flex flex-col gap-3">
+    <section
+      className="relative z-0 isolate flex flex-col gap-3"
+      data-images-root
+    >
+      {/* 🔒 섹션 경계 내로 업로드 UI 제한 */}
+      <style jsx global>{`
+        [data-images-root] .image-card {
+          position: relative;
+          z-index: 0;
+          isolation: isolate;
+        }
+        [data-images-root] input[type="file"] {
+          position: absolute !important;
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          z-index: 10 !important;
+          pointer-events: auto !important;
+        }
+        [data-images-root] .drag-overlay,
+        [data-images-root] .dropzone-overlay,
+        [data-images-root] [data-dnd-overlay],
+        [data-images-root] [data-dropzone-overlay] {
+          position: absolute !important;
+          inset: 0 !important;
+          z-index: 0 !important;
+          pointer-events: none !important;
+        }
+      `}</style>
+
       {/* 가로형 이미지 카드들 */}
       {renderFolders.map((folder, idx) => (
-        <div key={folder.id ?? idx} className="rounded-xl border p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="text-sm font-medium">
-              {folder.title || `사진 폴더 ${idx + 1}`}
-            </h4>
-            <div className="flex items-center gap-2">
-              {idx > 0 && hasFolders && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-7 px-2 text-xs"
-                  aria-label={`사진 폴더 ${idx + 1} 삭제`}
-                  onClick={() => onRemoveFolder?.(idx)}
-                >
-                  폴더 삭제
-                </Button>
-              )}
-            </div>
+        <div
+          key={folder.id ?? idx}
+          className="image-card rounded-xl border p-3"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            {/* ⬇️ 폴더 제목 입력 */}
+            <input
+              className="h-8 w-full rounded-md border px-3 text-sm"
+              value={folder.title ?? ""}
+              onChange={(e) =>
+                onChangeFolderTitle?.(idx, e.currentTarget.value)
+              }
+              placeholder={`사진 폴더 ${idx + 1} 제목`}
+            />
+            {idx > 0 && hasFolders && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 px-2 text-xs"
+                aria-label={`사진 폴더 ${idx + 1} 삭제`}
+                onClick={() => onRemoveFolder?.(idx)}
+              >
+                폴더 삭제
+              </Button>
+            )}
           </div>
 
           <ImageCarouselUpload
@@ -223,13 +264,11 @@ export default function ImagesSection({
             onRemoveImage={(imageIdx) => handleRemove(idx, imageIdx)}
             onOpenPicker={() => onOpenPicker(idx)}
             inputRef={cardInputRefs.current[idx]}
-            // ✅ 통일된 시그니처: FileList만 상위로 전달
             onChangeFiles={(e) => {
               const files = e?.target?.files ?? null;
               if (onAddToFolder) onAddToFolder(idx, files);
               else if (onChangeFiles) onChangeFiles(idx, e); // 하위호환
             }}
-            // (선택) DnD/대표 지정
             // onReorder={(from, to) => handleReorder(idx, from, to)}
             // onSetCover={(imageIdx) => handleSetCover(idx, imageIdx)}
           />
@@ -237,18 +276,20 @@ export default function ImagesSection({
       ))}
 
       {/* 세로형(파일) 카드 — 서버 등록 전 파일 영역 */}
-      <ImageCarouselUpload
-        items={fileItems}
-        maxCount={maxFiles}
-        layout="tall"
-        tallHeightClass="h-80"
-        objectFit="cover"
-        onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
-        onRemoveImage={(i) => onRemoveFileItem?.(i)}
-        onOpenPicker={() => fileInputRef.current?.click()}
-        inputRef={fileInputRef}
-        onChangeFiles={(e) => onAddFiles(e.target.files)}
-      />
+      <div className="image-card">
+        <ImageCarouselUpload
+          items={fileItems}
+          maxCount={maxFiles}
+          layout="tall"
+          tallHeightClass="h-80"
+          objectFit="cover"
+          onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
+          onRemoveImage={(i) => onRemoveFileItem?.(i)}
+          onOpenPicker={() => fileInputRef.current?.click()}
+          inputRef={fileInputRef}
+          onChangeFiles={(e) => onAddFiles(e.target.files)}
+        />
+      </div>
 
       <Button
         type="button"

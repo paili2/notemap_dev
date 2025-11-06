@@ -116,18 +116,6 @@ export default function HeaderSectionView({
         >
           {elevLabel}
         </span>
-
-        {/* 닫기 버튼 */}
-        <button
-          type="button"
-          ref={closeButtonRef}
-          onClick={onClose}
-          className="ml-2 shrink-0 rounded-md border px-3 h-9 hover:bg-muted"
-          aria-label="닫기"
-          title="닫기"
-        >
-          닫기
-        </button>
       </div>
     </header>
   );

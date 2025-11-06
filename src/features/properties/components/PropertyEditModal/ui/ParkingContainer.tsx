@@ -13,7 +13,9 @@ type ParkingFormSlice = {
 export default function ParkingContainer({ form }: { form: ParkingFormSlice }) {
   // string|null -> number|null (빈 문자열, 공백, NaN => null)
   const totalParkingSlotsNumber = useMemo<number | null>(() => {
-    const s = (form.totalParkingSlots ?? "").trim();
+    if (typeof form.totalParkingSlots === "number")
+      return form.totalParkingSlots;
+    const s = (form.totalParkingSlots ?? "").toString().trim();
     if (!s) return null;
     const n = Number(s);
     return Number.isFinite(n) ? n : null;

@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/PropertyEditModalBody.tsx
 "use client";
 
 import {
@@ -18,7 +17,7 @@ import { useEditForm } from "./hooks/useEditForm/useEditForm";
 import HeaderContainer from "./ui/HeaderContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
 import NumbersContainer from "./ui/NumbersContainer";
-import ParkingContainer from "./ui/ParkingContainer";
+
 import CompletionRegistryContainer from "./ui/CompletionRegistryContainer";
 import AspectsContainer from "./ui/AspectsContainer";
 import AreaSetsContainer from "./ui/AreaSetsContainer";
@@ -30,6 +29,7 @@ import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 import { updatePin, UpdatePinDto } from "@/shared/api/pins";
 import { useQueryClient } from "@tanstack/react-query";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
+import ParkingContainer from "./ui/ParkingContainer";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
@@ -96,7 +96,7 @@ const normStrU = (v: any): string | undefined => {
 const normAspectNo = (v: any): string | undefined => {
   const s = normStrU(v);
   if (!s) return undefined;
-  const num = s.replace(/[^\d]/g, ""); // "1호" → "1"
+  const num = s.replace(/[^\d]/g, "");
   return num === "" ? undefined : num;
 };
 type OrientationLike = any;
@@ -559,18 +559,28 @@ export default function PropertyEditModalBody({
     (v: string | null) => f.setParkingType(v ?? ""),
     [f.setParkingType]
   );
-  const setTotalParkingSlotsProxy = useCallback(
-    (v: string | null) => f.setTotalParkingSlots(v ?? ""),
-    [f.setTotalParkingSlots]
-  );
 
-  /** Parking form 어댑터 */
+  // ✅ ParkingContainer는 (v: number | null) 시그니처 — 내부 훅은 string이므로 여기서 변환
+  const setTotalParkingSlotsProxy: ParkingFormSlice["setTotalParkingSlots"] =
+    useCallback(
+      (v) => {
+        // v: string | null
+        f.setTotalParkingSlots(v ?? "");
+      },
+      [f.setTotalParkingSlots]
+    );
+
+  /** Parking form 어댑터 (자식에는 number|null 계약으로 보장) */
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
       parkingType: f.parkingType || null,
       setParkingType: setParkingTypeProxy,
-      totalParkingSlots:
-        f.totalParkingSlots === "" ? null : String(f.totalParkingSlots),
+      totalParkingSlots: (() => {
+        const raw = f.totalParkingSlots;
+        if (raw == null) return null;
+        const s = String(raw).trim();
+        return s === "" ? null : s; // ← string|null
+      })(),
       setTotalParkingSlots: setTotalParkingSlotsProxy,
     }),
     [
@@ -773,7 +783,7 @@ export default function PropertyEditModalBody({
         aria-hidden
       />
       {/* 모달 컨텐츠 (딤보다 위) */}
-      <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-visible">
+      <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">

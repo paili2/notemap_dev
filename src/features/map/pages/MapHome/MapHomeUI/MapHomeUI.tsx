@@ -1,4 +1,3 @@
-// src/features/map/pages/MapHomeUI/MapHomeUI.tsx
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
@@ -763,6 +762,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
 
+  /* ✅ selectedViewItem이 생기면 모달을 연다(열기만 동기화) */
+  useEffect(() => {
+    if (selectedViewItem) setViewOpenLocal(true);
+  }, [selectedViewItem]);
+
   return (
     <div className="fixed inset-0">
       <MapCanvas
@@ -878,7 +882,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        viewOpen={viewOpenLocal || !!selectedViewForModal}
+        /* ✅ 모달 열림 여부는 오직 로컬 상태만 따릅니다 */
+        viewOpen={viewOpenLocal}
         selectedViewItem={selectedViewForModal}
         onCloseView={handleCloseView}
         onSaveViewPatch={onSaveViewPatch}

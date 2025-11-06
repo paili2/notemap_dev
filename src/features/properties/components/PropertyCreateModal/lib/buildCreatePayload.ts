@@ -335,6 +335,7 @@ export function buildCreatePayload(args: BuildArgs) {
     imageCards: Array<Array<{ url: string; name: string; caption?: string }>>;
     imageCardCounts: number[];
     verticalImages: StoredMediaItem[];
+    imagesVertical?: StoredMediaItem[]; // ✅ 추가: 세로 저장형 레거시 키
     images: string[];
     fileItems?: Array<{
       url: string;
@@ -454,9 +455,10 @@ export function buildCreatePayload(args: BuildArgs) {
     imageFolders: imageFoldersStored,
     imageCards: imageCardsUI,
     imageCardCounts,
-    verticalImages: verticalImagesStored,
+    verticalImages: verticalImagesStored, // 저장형(세로)
+    imagesVertical: verticalImagesStored, // ✅ 추가: 레거시/호환 키
     images: imagesFlatStrings,
-    fileItems: verticalImagesUI,
+    fileItems: verticalImagesUI, // UI 프리뷰용(세로)
     imageFoldersRaw,
     fileItemsRaw,
 

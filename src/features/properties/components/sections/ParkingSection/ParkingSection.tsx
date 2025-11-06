@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyEditModal/sections/ParkingSection/ParkingSection.tsx
 "use client";
 
 import Field from "@/components/atoms/Field/Field";
@@ -32,26 +33,26 @@ export default function ParkingSection({
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 
-  /** 내부 UI 상태(셀렉트 값/커스텀 입력) */
+  /** 내부 UI 상태(셀렉트 값/커스텀 입력) — 내부에서는 문자열로만 관리 */
   const [selectValue, setSelectValue] = useState<string>(""); // "" | Preset | "custom"
   const [custom, setCustom] = useState<string>("");
 
-  /** 셀렉트 아이템은 메모해서 불필요한 리렌더 방지 */
+  /** 셀렉트 아이템 메모 */
   const selectItems = useMemo(
     () => [
-      ...PRESETS.map((opt) => ({ value: opt, label: opt })),
-      { value: "custom", label: "직접입력" },
+      ...PRESETS.map((opt) => ({ value: opt, label: opt } as const)),
+      { value: "custom", label: "직접입력" } as const,
     ],
     []
   );
 
-  /** 숫자 입력 표시값 */
-  const displayCount = useMemo<number | null>(
-    () => (typeof totalParkingSlots === "number" ? totalParkingSlots : null),
-    [totalParkingSlots]
-  );
+  /** 숫자 입력 표시값 (controlled string) */
+  const displayCountStr =
+    typeof totalParkingSlots === "number" && Number.isFinite(totalParkingSlots)
+      ? String(totalParkingSlots)
+      : "";
 
-  /* ───────────────── prop → 내부 상태 동기화(내부 state만 갱신) ───────────────── */
+  /* ───────── prop → 내부 상태 동기화 ───────── */
   useEffect(() => {
     // parkingType 이 null/빈 → 내부도 초기화
     if (!parkingType) {
@@ -76,11 +77,12 @@ export default function ParkingSection({
     // 실제 커스텀 문자열
     if (selectValue !== "custom") setSelectValue("custom");
     if (custom !== parkingType) setCustom(parkingType);
-  }, [parkingType, selectValue, custom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parkingType]);
 
-  /* ───────────────── 이벤트에서만 상위 반영 ───────────────── */
+  /* ───────── 이벤트 → 상위 반영 ───────── */
 
-  // SafeSelect 변경
+  // ✅ SafeSelect onChange 시그니처에 맞게 string | null
   const onChangeSelect = useCallback(
     (val: string | null) => {
       const next = val ?? "";
@@ -88,6 +90,7 @@ export default function ParkingSection({
       setSelectValue(next);
 
       if (next === "") {
+        // 미선택
         if (parkingType !== null) setParkingType(null);
         if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
         return;
@@ -97,7 +100,6 @@ export default function ParkingSection({
         // 커스텀 입력으로 전환
         if (parkingType !== "custom") setParkingType("custom");
         if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
-        // 기존 custom 텍스트는 유지(원하면 여기서 초기화)
         return;
       }
 
@@ -130,12 +132,10 @@ export default function ParkingSection({
   const onChangeCount = useCallback(
     (raw: string) => {
       const onlyDigits = raw.replace(/\D+/g, "");
-      const next = onlyDigits === "" ? null : Number(onlyDigits);
-      if (setTotalParkingSlots && next !== (totalParkingSlots ?? null)) {
-        setTotalParkingSlots(next);
-      }
+      const next = onlyDigits === "" ? null : Number(onlyDigits.slice(0, 6)); // 과도 입력 방지
+      setTotalParkingSlots?.(next);
     },
-    [setTotalParkingSlots, totalParkingSlots]
+    [setTotalParkingSlots]
   );
 
   return (
@@ -143,6 +143,7 @@ export default function ParkingSection({
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
           <SafeSelect
+            /** ✅ SafeSelect 타입에 맞춰 string | null 전달 */
             value={selectValue || null}
             onChange={onChangeSelect}
             items={selectItems}
@@ -157,9 +158,6 @@ export default function ParkingSection({
               onBlur={onBlurCustom}
               placeholder="예: 지상 병렬 1대"
               className="h-9 flex-1"
-              // autoFocus는 포커스 루프의 씨앗이 될 수 있어 기본 off
-              // 필요 시 UI/UX 확인 후 켜세요.
-              // autoFocus
             />
           )}
         </div>
@@ -168,7 +166,7 @@ export default function ParkingSection({
       <Field label="총 주차대수">
         <div className="flex items-center gap-3">
           <Input
-            value={displayCount ?? ""} // null → 빈칸
+            value={displayCountStr} // "" 또는 "숫자"
             onChange={(e) => onChangeCount(e.target.value)}
             className="w-16 h-9"
             inputMode="numeric"

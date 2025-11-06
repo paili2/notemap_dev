@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/DisplayImagesSection/DisplayImagesSection.tsx
 "use client";
 
 import type { ImageItem } from "@/features/properties/types/media";

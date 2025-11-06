@@ -1,3 +1,4 @@
+// src/features/properties/components/PropertyEditModal/ui/ImagesContainer.tsx
 "use client";
 
 import * as React from "react";
@@ -45,16 +46,14 @@ export default function ImagesContainer({
       folderIdx: number,
       opts?: { keepAtLeastOne?: boolean }
     ) => void;
-    onChangeImageCaption: (
-      folderIndex: number,
-      imageIndex: number,
-      v: string
-    ) => void;
-    handleRemoveImage: (folderIndex: number, imageIndex: number) => void;
+
+    /** ⬇️ 폴더 제목 편집용 (useEditImages에서 내려오는 값들; 없으면 기본제목 사용) */
+    groups?: Array<{ id: string; title?: string | null }>;
+    queueGroupTitle?: (groupId: string, title: string) => void;
 
     /** 세로 파일 조작 */
     onAddFiles: (files: FileList | null) => void;
-    onChangeFileItemCaption: (index: number, v: string) => void;
+    onChangeFileItemCaption?: (index: number, v: string) => void; // (선택) 더이상 사용 안 해도 OK
     handleRemoveFileItem: (index: number) => void;
 
     /** 제한값 (없으면 기본값) */
@@ -62,30 +61,33 @@ export default function ImagesContainer({
     maxFiles?: number;
   };
 }) {
-  /** 1) 카드 이미지 → ImageItem[]로 정규화 */
-  const imageItemsByCard: ImageItem[][] = React.useMemo(
+  /** 1) 카드 이미지 → ImageItem[]로 정규화 (state/prop 아님: 계산 값만) */
+  const itemsByCard: ImageItem[][] = React.useMemo(
     () =>
       images.imageFolders.map((folder) =>
         folder.map((img) => ({
           url: img?.url ?? "",
           name: img?.name ?? "",
-          caption: img?.caption,
+          // 사진별 캡션은 더 이상 쓰지 않음 (폴더 단위 제목으로 전환)
           ...(img?.id ? { id: img.id } : {}),
         }))
       ),
     [images.imageFolders]
   );
 
-  /** 2) folders prop으로 변환 (id/title은 인덱스 기반으로 안정 생성) */
-  const folders: PhotoFolder[] = React.useMemo(
-    () =>
-      imageItemsByCard.map((items, idx) => ({
-        id: `folder-${idx}`,
-        title: `사진 폴더 ${idx + 1}`,
-        items,
-      })),
-    [imageItemsByCard]
-  );
+  /** 2) folders prop으로 변환
+   *  - groups가 있으면 group.id / group.title 사용
+   *  - 없으면 인덱스 기반 가짜 id와 기본 제목 사용
+   */
+  const folders: PhotoFolder[] = React.useMemo(() => {
+    const gs = images.groups ?? [];
+    return itemsByCard.map((items, idx) => {
+      const g = gs[idx];
+      const id = g?.id ?? `folder-${idx}`;
+      const title = (g?.title ?? "").trim() || `사진 폴더 ${idx + 1}`;
+      return { id, title, items };
+    });
+  }, [itemsByCard, images.groups]);
 
   /** 3) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
   const verticalSource: Img[] = images.fileItems ?? images.verticalImages ?? [];
@@ -96,7 +98,6 @@ export default function ImagesContainer({
       verticalSource.map((img) => ({
         url: img?.url ?? "",
         name: img?.name ?? "",
-        caption: img?.caption,
         idbKey: img?.idbKey,
         ...(img?.id ? { id: img.id } : {}),
       })),
@@ -110,30 +111,45 @@ export default function ImagesContainer({
   /** 6) ref 시그니처 통일 래퍼 (그대로 전달) */
   const registerInputRef = images.registerImageInput;
 
+  /** 7) 폴더 제목 변경 콜백: index -> groupId로 매핑해서 큐에 반영 */
+  const handleChangeFolderTitle = React.useCallback(
+    (folderIdx: number, nextTitle: string) => {
+      const gs = images.groups ?? [];
+      const g = gs[folderIdx];
+      const groupId = g?.id ?? `folder-${folderIdx}`; // fallback
+      images.queueGroupTitle?.(groupId, nextTitle);
+    },
+    [images.groups, images.queueGroupTitle]
+  );
+
   return (
-    <ImagesSection
-      /** ✅ 새 API: 폴더 구조 전달 */
-      folders={folders}
-      /** 파일 선택창 열기 */
-      onOpenPicker={images.openImagePicker}
-      /** ✅ 레거시 시그니처 그대로 연결 (onAddToFolder 없이도 동작) */
-      onChangeFiles={images.onPickFilesToFolder}
-      /** ref 등록 */
-      registerInputRef={registerInputRef}
-      /** 폴더 조작 */
-      onAddFolder={images.addPhotoFolder}
-      onRemoveFolder={images.removePhotoFolder}
-      /** 제한값 */
-      maxPerCard={maxPerCard}
-      /** 가로형 카드 내 이미지 편집 콜백 */
-      onChangeCaption={images.onChangeImageCaption}
-      onRemoveImage={images.handleRemoveImage}
-      /** 세로형(파일 대기열) */
-      fileItems={fileItemsNormalized}
-      onAddFiles={images.onAddFiles}
-      onChangeFileItemCaption={images.onChangeFileItemCaption}
-      onRemoveFileItem={images.handleRemoveFileItem}
-      maxFiles={maxFiles}
-    />
+    // ✅ 오버레이/파일 인풋이 섹션 경계를 넘어 확장되지 않도록 relative로 감쌈
+    <div className="relative z-0" data-images-root>
+      <ImagesSection
+        /** ✅ 폴더 구조 & 제목 전달 */
+        folders={folders}
+        onChangeFolderTitle={handleChangeFolderTitle}
+        /** 파일 선택창 열기 */
+        onOpenPicker={images.openImagePicker}
+        /** ✅ 레거시 시그니처 그대로 연결 */
+        onChangeFiles={images.onPickFilesToFolder}
+        /** ref 등록 */
+        registerInputRef={registerInputRef}
+        /** 폴더 조작 */
+        onAddFolder={images.addPhotoFolder}
+        onRemoveFolder={images.removePhotoFolder}
+        /** 제한값 */
+        maxPerCard={maxPerCard}
+        /** ⛔️ 사진 개별 캡션/편집은 사용 중단 → 안전한 no-op 전달 */
+        onChangeCaption={() => {}}
+        onRemoveImage={() => {}}
+        /** 세로형(파일 대기열) – 캡션 사용 안해도 무방 */
+        fileItems={fileItemsNormalized}
+        onAddFiles={images.onAddFiles}
+        onChangeFileItemCaption={images.onChangeFileItemCaption ?? (() => {})}
+        onRemoveFileItem={images.handleRemoveFileItem}
+        maxFiles={maxFiles}
+      />
+    </div>
   );
 }
