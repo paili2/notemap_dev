@@ -58,6 +58,16 @@ const jsonEq = (a: any, b: any) => {
   }
 };
 
+/** null까지 구분해서 비교(정확 비교) */
+const deepEq = (a: any, b: any) => {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+};
+
 /* ───────── unitLines 정규화/비교(타입 안전) ───────── */
 type UnitLike = Partial<UnitLine> & {
   rooms?: number | null;
@@ -162,13 +172,13 @@ type BuildUpdateArgs = {
   structureGrade?: Grade;
 
   // 숫자
-  totalBuildings?: string | number;
-  totalFloors?: string | number;
-  totalHouseholds?: string | number;
-  remainingHouseholds?: string | number;
+  totalBuildings?: string | number | null;
+  totalFloors?: string | number | null;
+  totalHouseholds?: string | number | null;
+  remainingHouseholds?: string | number | null;
 
   // 옵션/메모
-  options?: string[];
+  options?: string[]; // ← 빈 배열로 클리어 허용
   etcChecked?: boolean;
   optionEtc?: string;
   publicMemo?: string | null;
@@ -225,7 +235,21 @@ export function buildUpdatePayload(
     ? (a.optionEtc ?? "").trim()
     : a.optionEtc ?? "";
 
-  const normalizedTotalParkingSlots = defined(a.totalParkingSlots)
+  // 숫자 필드: 정수 변환 + null 허용
+  const totalBuildingsN = defined(a.totalBuildings)
+    ? toIntOrNull(a.totalBuildings)
+    : undefined;
+  const totalFloorsN = defined(a.totalFloors)
+    ? toIntOrNull(a.totalFloors)
+    : undefined;
+  const totalHouseholdsN = defined(a.totalHouseholds)
+    ? toIntOrNull(a.totalHouseholds)
+    : undefined;
+  const remainingHouseholdsN = defined(a.remainingHouseholds)
+    ? toIntOrNull(a.remainingHouseholds)
+    : undefined;
+
+  const totalParkingSlotsN = defined(a.totalParkingSlots)
     ? toIntOrNull(a.totalParkingSlots)
     : undefined;
 
@@ -248,6 +272,8 @@ export function buildUpdatePayload(
   );
 
   const patch: UpdatePayload = {};
+
+  // 기본 put: "", null, [], undefined -> 전송 안 함 (변경 감지 시에만)
   const put = (key: keyof UpdatePayload, next: any, prev?: any) => {
     const nNext = normalizeShallow(next);
     const nPrev = normalizeShallow(prev);
@@ -256,6 +282,30 @@ export function buildUpdatePayload(
       (patch as any)[key] = nNext; // 초기값 없으면 전달된 것만 포함
     } else if (!jsonEq(nPrev, nNext)) {
       (patch as any)[key] = nNext; // 변경된 경우에만 포함
+    }
+  };
+
+  // null 허용 put: null을 보내 클리어 가능
+  const putAllowNull = (key: keyof UpdatePayload, next: any, prev?: any) => {
+    if (next === undefined) return; // undefined는 전송 안 함
+    if (initial === undefined) {
+      (patch as any)[key] = next;
+    } else if (!deepEq(prev, next)) {
+      (patch as any)[key] = next;
+    }
+  };
+
+  // 빈 배열을 허용해서 클리어 가능
+  const putKeepEmptyArray = (
+    key: keyof UpdatePayload,
+    next: any[] | undefined,
+    prev?: any[] | undefined
+  ) => {
+    if (next === undefined) return; // 명시되지 않으면 전송 안 함
+    if (initial === undefined) {
+      (patch as any)[key] = next;
+    } else if (!deepEq(prev, next)) {
+      (patch as any)[key] = next;
     }
   };
 
@@ -280,7 +330,8 @@ export function buildUpdatePayload(
   put("aspect1", a.aspect1, initial?.aspect1);
   put("aspect2", a.aspect2, initial?.aspect2);
   put("aspect3", a.aspect3, initial?.aspect3);
-  put(
+  // orientations: 빈 배열도 허용해서 클리어 가능하도록 별도 처리
+  putKeepEmptyArray(
     "orientations",
     defined(a.orientations) ? orientationsNormalized ?? [] : undefined,
     initial?.orientations
@@ -292,14 +343,19 @@ export function buildUpdatePayload(
     defined(a.salePrice) ? salePriceStr : undefined,
     initial?.salePrice
   );
-  put(
+  // parkingType은 빈 문자열이면 전송 안 함(=미변경), null을 보낼 경우엔 클리어
+  putAllowNull(
     "parkingType",
-    defined(a.parkingType) ? a.parkingType ?? undefined : undefined,
+    defined(a.parkingType)
+      ? a.parkingType === ""
+        ? undefined
+        : a.parkingType
+      : undefined,
     initial?.parkingType
   );
-  put(
+  putAllowNull(
     "totalParkingSlots",
-    normalizedTotalParkingSlots,
+    totalParkingSlotsN,
     initial?.totalParkingSlots
   );
   put("completionDate", a.completionDate, initial?.completionDate);
@@ -311,12 +367,12 @@ export function buildUpdatePayload(
   put("elevator", a.elevator, initial?.elevator);
 
   /* ===== 숫자 ===== */
-  put("totalBuildings", a.totalBuildings, initial?.totalBuildings);
-  put("totalFloors", a.totalFloors, initial?.totalFloors);
-  put("totalHouseholds", a.totalHouseholds, initial?.totalHouseholds);
-  put(
+  putAllowNull("totalBuildings", totalBuildingsN, initial?.totalBuildings);
+  putAllowNull("totalFloors", totalFloorsN, initial?.totalFloors);
+  putAllowNull("totalHouseholds", totalHouseholdsN, initial?.totalHouseholds);
+  putAllowNull(
     "remainingHouseholds",
-    a.remainingHouseholds,
+    remainingHouseholdsN,
     initial?.remainingHouseholds
   );
 
@@ -328,7 +384,8 @@ export function buildUpdatePayload(
   put("registry", a.registryOne, prevRegistry);
 
   /* ===== 옵션/메모 ===== */
-  put("options", a.options, initial?.options);
+  // options: 빈 배열로 클리어 가능
+  putKeepEmptyArray("options", a.options, initial?.options);
   if (defined(a.optionEtc))
     put("optionEtc", optionEtcFinal, initial?.optionEtc);
   put("publicMemo", a.publicMemo, initial?.publicMemo);
@@ -337,12 +394,17 @@ export function buildUpdatePayload(
   /* ===== 면적 ===== */
   put("exclusiveArea", a.exclusiveArea, initial?.exclusiveArea);
   put("realArea", a.realArea, initial?.realArea);
-  put(
+  // extra*Areas: 빈 배열로 클리어 가능
+  putKeepEmptyArray(
     "extraExclusiveAreas",
     a.extraExclusiveAreas,
     initial?.extraExclusiveAreas
   );
-  put("extraRealAreas", a.extraRealAreas, initial?.extraRealAreas);
+  putKeepEmptyArray(
+    "extraRealAreas",
+    a.extraRealAreas,
+    initial?.extraRealAreas
+  );
 
   /* ===== 유닛: 하나라도 다르면 전체 배열 전송 ===== */
   if (defined(a.unitLines)) {
@@ -353,7 +415,9 @@ export function buildUpdatePayload(
     }
   }
 
-  /* ===== 이미지(문자열 배열) ===== */
+  /* ===== 이미지(문자열 배열) =====
+     주의: photo-groups/사진 API를 쓰더라도 레거시 서버가 images 필드를
+     참조할 수 있으니, UI에서 모은 URL이 있으면 동기화용으로 전송 */
   if (urls.length) {
     const prevImages = (initial as any)?.images;
     if (initial === undefined || !jsonEq(prevImages, urls)) {

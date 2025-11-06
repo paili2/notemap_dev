@@ -1,3 +1,4 @@
+// src/features/map/pages/MapHomeUI/MapHomeUI.tsx
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
@@ -749,7 +750,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     return ensureViewForEdit(base);
   }, [selectedViewItem, viewDataLocal]);
 
-  /* 👇👇👇 여기 추가: 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 (검색 경로 포함 보장) */
+  /* 👇👇👇 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 */
   useEffect(() => {
     if (!mapInstance || !menuAnchor) return;
     if (menuOpen) {
@@ -758,11 +759,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
         showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
       };
     } else {
-      // 닫힐 때도 한 번 더 안전 복구
       showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
     }
   }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
-  /* 👆👆👆 */
 
   return (
     <div className="fixed inset-0">
@@ -805,7 +804,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onPlanFromMenu={onPlanFromMenu}
         onReserveFromMenu={onReserveFromMenu}
         onAddFav={onAddFav}
-        onOpenMenu={onOpenMenu}
+        /* onOpenMenu는 ContextMenuHost 타입에 없음 */
         onChangeHideLabelForId={onChangeHideLabelForId}
         upsertDraftMarker={(m) =>
           upsertDraftMarker({

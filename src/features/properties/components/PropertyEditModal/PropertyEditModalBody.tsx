@@ -29,6 +29,7 @@ import ImagesContainer from "./ui/ImagesContainer";
 import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 import { updatePin, UpdatePinDto } from "@/shared/api/pins";
 import { useQueryClient } from "@tanstack/react-query";
+import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 
 type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
 
@@ -81,6 +82,48 @@ const jsonEq = (a: any, b: any) => {
     return false;
   try {
     return JSON.stringify(na) === JSON.stringify(nb);
+  } catch {
+    return false;
+  }
+};
+
+/* ───────── 향/방향 비교 정규화 유틸 ───────── */
+const normStrU = (v: any): string | undefined => {
+  if (v == null) return undefined;
+  const s = String(v).trim();
+  return s === "" || s === "-" || s === "—" ? undefined : s;
+};
+const normAspectNo = (v: any): string | undefined => {
+  const s = normStrU(v);
+  if (!s) return undefined;
+  const num = s.replace(/[^\d]/g, ""); // "1호" → "1"
+  return num === "" ? undefined : num;
+};
+type OrientationLike = any;
+const normOrientations = (arr: any): any[] | undefined => {
+  if (!Array.isArray(arr) || arr.length === 0) return undefined;
+  const pickKey = (o: OrientationLike) =>
+    String(
+      o?.code ?? o?.key ?? o?.name ?? o?.dir ?? JSON.stringify(o ?? {})
+    ).trim();
+  const normed = arr
+    .map((o) => ({ key: pickKey(o) }))
+    .filter((o) => o.key !== "");
+  if (normed.length === 0) return undefined;
+  normed.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return normed;
+};
+const aspectBundlesEqual = (A: any, B: any): boolean => {
+  const toCmp = (x: any) => ({
+    aspect: normStrU(x?.aspect),
+    aspect1: normStrU(x?.aspect1),
+    aspect2: normStrU(x?.aspect2),
+    aspect3: normStrU(x?.aspect3),
+    aspectNoKey: normAspectNo(x?.aspectNo),
+    orientations: normOrientations(x?.orientations) ?? undefined,
+  });
+  try {
+    return JSON.stringify(toCmp(A)) === JSON.stringify(toCmp(B));
   } catch {
     return false;
   }
@@ -162,7 +205,7 @@ function toPinPatch(
 ): UpdatePinDto {
   const patch: Partial<UpdatePinDto> = {};
 
-  // ── 등기/용도 → 서버 키: buildingType ──
+  // ── 등기/용도 → buildingType ──
   const btInitRaw =
     (initial as any)?.registry ??
     (initial as any)?.registryOne ??
@@ -170,7 +213,6 @@ function toPinPatch(
     (initial as any)?.type ??
     (initial as any)?.propertyType;
 
-  // 현재값 후보 (폼 구현이 어떤 키를 쓰든 잡아낸다)
   const nowRawCandidates = [
     (f as any).registry,
     (f as any).registryOne,
@@ -179,19 +221,14 @@ function toPinPatch(
     (f as any).propertyType,
   ];
 
-  // "-", "", null → undefined
   const asMeaningful = (v: any): string | undefined => {
-    if (v === null || v === undefined) return undefined;
+    if (v == null) return undefined;
     const s = String(v).trim();
     if (!s || s === "-" || s === "—") return undefined;
     return s;
   };
-  // 표준화: mapRegistry가 인식하면 그 값, 아니면 공백 아닌 문자열 그대로
-  const normalizeBT = (v: any): string | undefined => {
-    const mapped = mapRegistry(v);
-    if (mapped) return mapped;
-    return asMeaningful(v);
-  };
+  const normalizeBT = (v: any): string | undefined =>
+    mapRegistry(v) ?? asMeaningful(v);
 
   const btInit = normalizeBT(btInitRaw);
   let btNow: string | undefined;
@@ -228,7 +265,71 @@ function toPinPatch(
     (patch as any).parkingGrade = pgNow;
   }
 
-  // ── 구조(units): 변경 감지 시 전체 배열 전송 ──
+  // ── 주차 유형/총대수 ──
+  if (!jsonEq((initial as any)?.parkingType, f.parkingType)) {
+    (patch as any).parkingType = S(f.parkingType);
+  }
+  const initSlots = N((initial as any)?.totalParkingSlots);
+  const nowSlots = N(f.totalParkingSlots);
+  if (!jsonEq(initSlots, nowSlots)) {
+    (patch as any).totalParkingSlots = nowSlots ?? undefined;
+  }
+
+  // ── 핀 종류 ──
+  if (!jsonEq((initial as any)?.pinKind, (f as any).pinKind)) {
+    (patch as any).pinKind = (f as any).pinKind;
+  }
+
+  // ── 향/방향 ──
+  const initAspectBundle = {
+    aspect: (initial as any)?.aspect,
+    aspectNo: (initial as any)?.aspectNo,
+    aspect1: (initial as any)?.aspect1,
+    aspect2: (initial as any)?.aspect2,
+    aspect3: (initial as any)?.aspect3,
+    orientations: (initial as any)?.orientations,
+  };
+
+  const {
+    orientations: oNow,
+    aspect: aNow,
+    aspectNo: aNoNow,
+    aspect1: a1Now,
+    aspect2: a2Now,
+    aspect3: a3Now,
+  } = f.buildOrientation?.() ?? {};
+
+  const nowAspectBundle = {
+    aspect: aNow,
+    aspectNo: aNoNow,
+    aspect1: a1Now,
+    aspect2: a2Now,
+    aspect3: a3Now,
+    orientations: oNow,
+  };
+
+  const hasInitMeaning =
+    !!normStrU(initAspectBundle.aspect) ||
+    !!normStrU(initAspectBundle.aspectNo) ||
+    !!normStrU(initAspectBundle.aspect1) ||
+    !!normStrU(initAspectBundle.aspect2) ||
+    !!normStrU(initAspectBundle.aspect3) ||
+    !!(normOrientations(initAspectBundle.orientations)?.length ?? 0);
+
+  if (hasInitMeaning) {
+    const same = aspectBundlesEqual(initAspectBundle, nowAspectBundle);
+    if (!same) {
+      (patch as any).aspect = normStrU(aNow);
+      (patch as any).aspectNo = normStrU(aNoNow);
+      (patch as any).aspect1 = normStrU(a1Now);
+      (patch as any).aspect2 = normStrU(a2Now);
+      (patch as any).aspect3 = normStrU(a3Now);
+      const oo = normOrientations(oNow);
+      (patch as any).orientations = oo ? oNow : undefined;
+    }
+  }
+
+  // ── 구조(units) ──
   const initialUnits = ((initial as any)?.unitLines ??
     (initial as any)?.units) as any[] | undefined;
   const currentUnits = (f.unitLines ?? []) as any[];
@@ -273,25 +374,23 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const queryClient = useQueryClient();
 
-  /** 1) initialData 정규화: {raw, view} 래핑 → 평탄화 */
+  /** 1) initialData 평탄화 */
   const normalizedInitial = useMemo(() => {
     const src = initialData as any;
     return src?.raw ?? src?.view ?? src ?? null;
   }, [initialData]);
 
-  /** 2) 브릿지: 최저실입/등기 값 정규화 */
+  /** 2) 브릿지: 최저실입/등기/핀종류 정규화 */
   const bridgedInitial = useMemo(() => {
     const src = normalizedInitial as any;
     if (!src) return null;
 
-    // 최저실입 → salePrice(문자)
     const salePrice =
       src?.salePrice ??
       (src?.minRealMoveInCost != null
         ? String(src.minRealMoveInCost)
         : undefined);
 
-    // 등기 매핑
     const rawReg =
       src?.registry ??
       src?.registryOne ??
@@ -300,23 +399,28 @@ export default function PropertyEditModalBody({
       src?.buildingType;
     const reg = mapRegistry(rawReg);
 
+    // badge → pinKind 역매핑 주입 (가짜 변경 방지)
+    const initPinKind =
+      src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
+
     return {
       ...src,
       ...(salePrice !== undefined ? { salePrice } : {}),
       ...(reg !== undefined
         ? { registry: reg, registryOne: reg, buildingType: reg }
         : {}),
+      ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
   }, [normalizedInitial]);
 
-  // id 문자열 고정
+  // id
   const propertyId = useMemo(() => {
     const src = initialData as any;
     const id = src?.id ?? src?.raw?.id ?? src?.view?.id ?? "";
     return String(id ?? "");
   }, [initialData]);
 
-  /** 초기 이미지 세팅 (브릿지된 view 기준) */
+  /** 초기 이미지 세팅 */
   const initialImages = useMemo(() => {
     const v = bridgedInitial as any;
     if (!v) return null;
@@ -356,8 +460,25 @@ export default function PropertyEditModalBody({
     reorder,
     moveToGroup,
     deletePhotos,
+    // 그룹 변경 큐
+    queueGroupTitle,
+    queueGroupSortOrder,
+    // 사진 변경 큐
+    queuePhotoCaption,
+    queuePhotoSort,
+    queuePhotoMove,
+    // 커밋
+    commitPending,
   } = useEditImages({ propertyId, initial: initialImages });
 
+  // ✅ 수정모달이 열릴 때 서버 그룹/사진을 한 번 로드
+  useEffect(() => {
+    if (propertyId) {
+      reloadGroups(propertyId);
+    }
+  }, [propertyId, reloadGroups]);
+
+  // ImagesContainer로 내려줄 props
   const imagesProp = useMemo(
     () => ({
       imageFolders,
@@ -383,6 +504,12 @@ export default function PropertyEditModalBody({
       reorder,
       moveToGroup,
       deletePhotos,
+      queueGroupTitle,
+      queueGroupSortOrder,
+      queuePhotoCaption,
+      queuePhotoSort,
+      queuePhotoMove,
+      commitPending,
     }),
     [
       imageFolders,
@@ -408,10 +535,16 @@ export default function PropertyEditModalBody({
       reorder,
       moveToGroup,
       deletePhotos,
+      queueGroupTitle,
+      queueGroupSortOrder,
+      queuePhotoCaption,
+      queuePhotoSort,
+      queuePhotoMove,
+      commitPending,
     ]
   );
 
-  /** ⬅️ 폼 훅에 bridgedInitial을 넘긴다 */
+  /** 폼 훅 */
   const f = useEditForm({ initialData: bridgedInitial });
 
   /** ParkingContainer 지연 마운트 */
@@ -457,22 +590,66 @@ export default function PropertyEditModalBody({
       return;
     }
 
-    // 1) 서버 최소 PATCH (변경된 것만, units는 변경 시 전체 배열)
+    // A. 이미지 커밋 (사진 변경이 없으면 내부에서 no-op)
+    try {
+      await commitPending?.();
+    } catch (e: any) {
+      console.error("[images.commitPending] 실패:", e);
+      alert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
+      return;
+    }
+
+    // B. 폼 diff 계산 → 변경 시에만 PATCH /pins/:id
+    let hasFormChanges = false;
     try {
       const dto = toPinPatch(f, bridgedInitial as InitialSnapshot);
-      if (Object.keys(dto).length > 0) {
+
+      // 초기 데이터에 향/방향 값이 전무하면 이번 PATCH에서 강제 제거 (가짜 변경 차단)
+      const initAspectBundle = {
+        aspect: (bridgedInitial as any)?.aspect,
+        aspectNo: (bridgedInitial as any)?.aspectNo,
+        aspect1: (bridgedInitial as any)?.aspect1,
+        aspect2: (bridgedInitial as any)?.aspect2,
+        aspect3: (bridgedInitial as any)?.aspect3,
+        orientations: (bridgedInitial as any)?.orientations,
+      };
+      const _norm = (v: any) => {
+        if (v == null) return undefined;
+        const s = String(v).trim();
+        return s === "" || s === "-" || s === "—" ? undefined : s;
+      };
+      const initHasAspect =
+        !!_norm(initAspectBundle.aspect) ||
+        !!_norm(initAspectBundle.aspectNo) ||
+        !!_norm(initAspectBundle.aspect1) ||
+        !!_norm(initAspectBundle.aspect2) ||
+        !!_norm(initAspectBundle.aspect3) ||
+        (Array.isArray(initAspectBundle.orientations) &&
+          initAspectBundle.orientations.length > 0);
+
+      if (!initHasAspect) {
+        delete (dto as any).aspect;
+        delete (dto as any).aspectNo;
+        delete (dto as any).aspect1;
+        delete (dto as any).aspect2;
+        delete (dto as any).aspect3;
+        delete (dto as any).orientations;
+      }
+
+      hasFormChanges = Object.keys(dto).length > 0;
+      if (hasFormChanges) {
         await updatePin(propertyId, dto);
-        // 상세 캐시 무효화
-        queryClient.invalidateQueries({ queryKey: ["pinDetail", propertyId] });
+        await queryClient.invalidateQueries({
+          queryKey: ["pinDetail", propertyId],
+        });
       }
     } catch (e: any) {
-      // eslint-disable-next-line no-console
       console.error("[PATCH /pins/:id] 실패]:", e);
       alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
       return;
     }
 
-    // 2) 로컬 view 갱신 payload (UI 동기화)
+    // C. 로컬 view 갱신 payload
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
       f.buildOrientation();
     const {
@@ -545,13 +722,14 @@ export default function PropertyEditModalBody({
     onClose();
   }, [
     f,
+    commitPending,
     bridgedInitial,
     propertyId,
+    queryClient,
     onSubmit,
     onClose,
     imageFolders,
     verticalImages,
-    queryClient,
   ]);
 
   /* ========== embedded 레이아웃 ========== */
@@ -587,18 +765,25 @@ export default function PropertyEditModalBody({
 
   /* ========== 기본 모달 레이아웃 ========== */
   return (
-    <div className="fixed inset-0 z-[100]">
+    <div className="fixed inset-0 z-[1000] isolate">
+      {/* 배경 딤 (모달 아래) */}
       <div
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 z-[1000] bg-black/40 pointer-events-auto"
         onClick={onClose}
         aria-hidden
       />
-      <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
+      {/* 모달 컨텐츠 (딤보다 위) */}
+      <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-visible">
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          <ImagesContainer images={imagesProp} />
-          <div className="space-y-6">
+          {/* 좌측: 이미지(낮은 z) */}
+          <div className="relative z-[1]">
+            <ImagesContainer images={imagesProp} />
+          </div>
+
+          {/* 우측: 폼(높은 z) → 드롭다운이 이미지 영역보다 위로 */}
+          <div className="relative z-[2] space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
             {mountParking && <ParkingContainer form={parkingForm} />}

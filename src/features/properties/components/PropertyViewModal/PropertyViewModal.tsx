@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -117,6 +116,9 @@ export default function PropertyViewModal({
   const [deleting, setDeleting] = useState(false);
   useBodyScrollLock(open);
 
+  // ✅ 뷰에서 만든 하이드레이션 이미지를 에딧으로 넘길 임시 상태
+  const [editInitial, setEditInitial] = useState<any | null>(null);
+
   /* ───────── React Query: 단일 소스 상세 ───────── */
   const effectiveId =
     pinId ?? (data as any)?.id ?? (data as any)?.propertyId ?? undefined;
@@ -165,7 +167,12 @@ export default function PropertyViewModal({
     }
   }, [idForActions, deleting, onDelete, onClose]);
 
-  const onEditClose = useCallback(() => setStage("view"), []);
+  const onEditClose = useCallback(() => {
+    setStage("view");
+    // 에딧 종료 시, 임시 시드 정리 (선택)
+    setEditInitial(null);
+  }, []);
+
   const onEditSubmit = useCallback(
     async (payload: UpdatePayload & Partial<CreatePayload>) => {
       try {
@@ -173,6 +180,7 @@ export default function PropertyViewModal({
         await onSave?.(viewPatch);
       } finally {
         setStage("view");
+        setEditInitial(null);
       }
     },
     [onSave]
@@ -181,15 +189,18 @@ export default function PropertyViewModal({
   if (!open) return null;
 
   const portalChild =
-    stage === "edit" && initialForEdit ? (
+    stage === "edit" && (editInitial || initialForEdit) ? (
       <EditStage
         key={`edit-${String(
-          (initialForEdit as any)?.raw?.id ??
+          (editInitial as any)?.raw?.id ??
+            (editInitial as any)?.view?.id ??
+            (initialForEdit as any)?.raw?.id ??
             (initialForEdit as any)?.view?.id ??
             idForActions ??
             ""
         )}`}
-        initialData={initialForEdit}
+        // ✅ 뷰에서 넘어온 editInitial이 우선, 없으면 기존 ensureInitialForEdit 사용
+        initialData={editInitial ?? initialForEdit}
         onClose={onEditClose}
         onSubmit={onEditSubmit}
       />
@@ -200,10 +211,16 @@ export default function PropertyViewModal({
         headingId={headingId}
         descId={descId}
         onClose={onClose}
-        onClickEdit={() => setStage("edit")}
         onDisable={handleDisable}
         deleting={deleting}
         loading={!!(open && effectiveId && q.isFetching && !viewData)}
+        // ✅ 뷰에서 하이드레이트된 이미지와 함께 에딧 초기데이터 시딩
+        onRequestEdit={(seed) => {
+          setEditInitial(seed);
+          setStage("edit");
+        }}
+        // (호환용) 사용하지 않음
+        onClickEdit={() => {}}
       />
     );
 
@@ -218,19 +235,21 @@ function ViewStage({
   headingId,
   descId,
   onClose,
-  onClickEdit,
+  onClickEdit, // (호환용) 사용하지 않음
   onDisable,
   deleting,
   loading,
+  onRequestEdit, // ✅ 추가
 }: {
   data: PropertyViewDetails | null;
   headingId: string;
   descId: string;
   onClose: () => void;
-  onClickEdit: () => void;
+  onClickEdit: () => void; // 남겨두되 사용하지 않음
   onDisable: () => void;
   deleting: boolean;
   loading?: boolean;
+  onRequestEdit: (seed: any) => void; // ✅ 추가
 }) {
   const hasData = !!data;
   const formInput = useMemo(
@@ -273,6 +292,26 @@ function ViewStage({
   const onContentPointerDown = useCallback((e: React.PointerEvent) => {
     eat(e);
   }, []);
+
+  // ✅ 수정 버튼 클릭 시, 뷰에서 하이드레이트된 이미지를 에딧 초기값으로 전달
+  const handleClickEdit = useCallback(() => {
+    const imageCardCounts =
+      (f as any).imageCardCounts ??
+      (Array.isArray(f.cardsHydrated)
+        ? (f.cardsHydrated as any[]).map((c: any[]) => c.length)
+        : undefined);
+
+    const editSeed = {
+      view: {
+        ...(data ?? {}),
+        imageFolders: f.cardsHydrated ?? undefined, // 좌측 카드형
+        verticalImages: f.filesHydrated ?? undefined, // 우측 세로형
+        imageCardCounts, // 카드별 개수 (있으면)
+      },
+    };
+
+    onRequestEdit(editSeed);
+  }, [data, f, onRequestEdit]);
 
   if (loading && !hasData) {
     return (
@@ -433,7 +472,7 @@ function ViewStage({
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={onClickEdit}
+                    onClick={handleClickEdit}
                     data-pvm-initial
                     className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
                     aria-label="수정"
@@ -491,7 +530,7 @@ function EditStage({
 }) {
   return (
     <PropertyEditModalBody
-      initialData={initialData} // ✅ { raw?, view } 형태 또는 { view }만 와도 OK (Edit 쪽에서 정규화 필요)
+      initialData={initialData} // ✅ { raw?, view } 형태 또는 { view }만 와도 OK
       onClose={onClose}
       onSubmit={onSubmit}
     />
