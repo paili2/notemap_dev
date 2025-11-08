@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { MapMarker } from "../../../types/map";
+import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 

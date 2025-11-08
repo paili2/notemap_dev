@@ -1,10 +1,10 @@
 import type { Dispatch, SetStateAction } from "react";
 import { PropertyItem } from "@/features/properties/types/propertyItem";
-import { MapMarker, MapMarkerTagged } from "../../types/map";
+import { MapMarker, MapMarkerTagged } from "../../shared/types/map";
 import { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
-import { PoiKind } from "../../components/overlays/poiOverlays";
+import { PoiKind } from "../../shared/overlays/poiOverlays";
 
 type ReserveFromMenuPayload =
   | { visitId: string | number; dateISO?: string }

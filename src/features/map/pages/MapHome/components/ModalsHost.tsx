@@ -1,9 +1,10 @@
 "use client";
 
 import PropertyViewModal from "@/features/properties/components/PropertyViewModal/PropertyViewModal";
-import MapCreateModalHost from "../../../components/MapCreateModalHost/MapCreateModalHost";
-import RoadviewHost from "../../../components/Roadview/RoadviewHost";
+
+import RoadviewHost from "../../../view/roadview/RoadviewHost";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
+import MapCreateModalHost from "@/features/map/view/MapCreateModalHost";
 
 export default function ModalsHost(props: {
   /** View Modal */

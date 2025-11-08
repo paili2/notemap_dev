@@ -1,10 +1,8 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect } from "react";
-import { FilterSearch } from "../../../FilterSearch";
-import { MapMenuKey } from "../../../components/MapMenu";
-import { useRoadview } from "../../../hooks/useRoadview";
-import { usePinsFromViewport } from "../../../hooks/usePinsFromViewport";
+import { FilterSearch } from "../../../shared/filterSearch";
+
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 import { MapHomeUIProps } from "../../components/types";
 import { useMergedMarkers } from "../hooks/useMergedMarkers";
@@ -17,8 +15,8 @@ import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useBounds } from "../hooks/useBounds";
 import { useBoundsRaw } from "./hooks/useBoundsRaw";
 import { cn } from "@/lib/cn";
-import SearchForm from "@/features/map/components/top/SearchForm/SearchForm";
-import type { MapMarker } from "../../../types/map";
+import SearchForm from "@/features/map/view/top/SearchForm/SearchForm";
+import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import type {
   PinSearchParams,
@@ -35,7 +33,10 @@ import type { PropertyViewDetails } from "@/features/properties/components/Prope
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "@/features/map/lib/labelRegistry";
+} from "@/features/map/shared/overlays/labelRegistry";
+import { MapMenuKey } from "@/features/map/menu";
+import { usePinsFromViewport } from "@/features/map/shared/hooks/usePinsFromViewport";
+import { useRoadview } from "@/features/map/shared/hooks/useRoadview";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {

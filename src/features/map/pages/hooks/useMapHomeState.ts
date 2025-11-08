@@ -3,26 +3,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
-import {
-  usePanToWithOffset,
-  useResolveAddress,
-} from "@/features/map/hooks/useKakaoTools";
-import { useViewportPost } from "@/features/map/hooks/useViewportPost";
-import { useRunSearch } from "../../hooks/useRunSearch";
+
 import { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import type { ViewSource } from "@/features/properties/lib/view/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
-import { PoiKind } from "../../components/overlays/poiOverlays";
-import { usePinsMap } from "@/features/map/hooks/usePinsMap";
+import { PoiKind } from "../../shared/overlays/poiOverlays";
 
 /* ⬇️ 추가: 라벨 숨김/복원 유틸 */
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "@/features/map/lib/labelRegistry";
+} from "@/features/map/shared/overlays/labelRegistry";
+import { useViewportPost } from "../../shared/hooks/useViewportPost";
+import { usePinsMap } from "../../shared/hooks/usePinsMap";
+import {
+  usePanToWithOffset,
+  useResolveAddress,
+} from "../../shared/hooks/useKakaoTools";
+import { useRunSearch } from "../../shared/hooks/useRunSearch";
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 

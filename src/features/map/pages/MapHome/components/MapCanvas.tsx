@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { PoiKind } from "@/features/map/components/overlays/poiOverlays";
-import MapView from "../../../components/MapView/MapView";
-import type { MapMarker } from "../../../types/map";
-import { attachLabelRegistryGlobalHandlers } from "@/features/map/lib/labelRegistry";
+import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+
+import type { MapMarker } from "../../../shared/types/map";
+import { attachLabelRegistryGlobalHandlers } from "@/features/map/shared/overlays/labelRegistry";
+import MapView from "@/features/map/view/MapView";
 
 export default function MapCanvas(props: {
   appKey: string;

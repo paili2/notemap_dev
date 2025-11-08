@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import MapMenu from "../../../components/MapMenu/MapMenu";
-import ToggleSidebar from "../../../components/top/ToggleSidebar/ToggleSidebar";
-import type { MapMenuKey } from "../../../components/MapMenu";
-import { PoiKind } from "@/features/map/components/overlays/poiOverlays";
+import ToggleSidebar from "../../../view/top/ToggleSidebar/ToggleSidebar";
+import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 import Portal from "@/components/Portal";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
+import { MapMenu, MapMenuKey } from "@/features/map/menu";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned"; // ← 실제 키로 교체

@@ -13,7 +13,7 @@ import { useFavModalController } from "./hooks/useFavModalController";
 import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 
 import { createPinDraft } from "@/shared/api/pins";
-import { buildAddressLine } from "../../components/PinContextMenu/components/PinContextMenu/utils/geo";
+import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
 
 const eqId = (
   a: string | number | null | undefined,

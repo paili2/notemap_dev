@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MapMarker } from "../../../types/map";
+import type { MapMarker } from "../../../shared/types/map";
 import { PinKind } from "@/features/pins/types";
 import {
   fetchUnreservedDrafts,
   BeforeDraft,
 } from "@/shared/api/surveyReservations";
-import type { MapMenuKey } from "../../../components/MapMenu";
-import { Bounds } from "@/features/map/types/bounds";
+import type { MapMenuKey } from "../../../components/menu";
+import { Bounds } from "@/features/map/shared/types/bounds";
 
 export function usePlannedDrafts({
   filter,

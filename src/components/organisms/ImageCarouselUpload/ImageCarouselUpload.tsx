@@ -1,3 +1,4 @@
+// src/components/organisms/ImageCarouselUpload/ImageCarouselUpload.tsx
 "use client";
 
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
@@ -20,14 +21,23 @@ export default function ImageCarouselUpload({
   wideAspectClass = "aspect-video",
   tallHeightClass = "h-80",
   objectFit,
-}: ImageCarouselUploadProps) {
+
+  // ✅ 폴더 제목 모드 지원
+  captionAsFolderTitle = false,
+  folderTitle = "",
+  onChangeFolderTitle,
+}: ImageCarouselUploadProps & {
+  captionAsFolderTitle?: boolean;
+  folderTitle?: string;
+  onChangeFolderTitle?: (text: string) => void;
+}) {
   const id = useId();
   const count = items?.length ?? 0;
 
   const [current, setCurrent] = useState(0);
   const [imgError, setImgError] = useState(false);
 
-  // 캡션 로컬 폴백
+  // 로컬 캡션 폴백(사진별 캡션 모드에서만 사용)
   const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
   );
@@ -37,7 +47,6 @@ export default function ImageCarouselUpload({
     );
   }, [items]);
 
-  // 현재 인덱스 보정 + 이미지/인덱스 바뀔 때 에러 상태 초기화
   useEffect(() => {
     if (current > 0 && current >= count) setCurrent(count - 1);
     setImgError(false);
@@ -59,11 +68,9 @@ export default function ImageCarouselUpload({
     if (dx < -40) goNext();
     dragX.current = null;
   };
-  const onPointerCancel = () => {
-    dragX.current = null;
-  };
+  const onPointerCancel = () => (dragX.current = null);
 
-  // 키보드(좌/우)
+  // 키보드
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowLeft") {
@@ -78,12 +85,19 @@ export default function ImageCarouselUpload({
 
   const cur = count > 0 ? items[current] : null;
   const fit = objectFit ?? (layout === "wide" ? "cover" : "contain");
-  const currentCaption =
-    cur?.caption ??
-    (useLocalCaptionFallback ? localCaptions[current] : "") ??
-    "";
+
+  // ✅ 인풋 값 결정: 폴더제목 모드면 folderTitle 그대로(빈 값 허용), 아니면 사진별 캡션
+  const currentCaption = captionAsFolderTitle
+    ? folderTitle ?? ""
+    : cur?.caption ??
+      (useLocalCaptionFallback ? localCaptions[current] : "") ??
+      "";
 
   const handleCaptionChange = (text: string) => {
+    if (captionAsFolderTitle) {
+      onChangeFolderTitle?.(text); // 폴더 제목 변경
+      return;
+    }
     if (onChangeCaption) onChangeCaption(current, text);
     else if (useLocalCaptionFallback)
       setLocalCaptions((prev) => {
@@ -102,19 +116,19 @@ export default function ImageCarouselUpload({
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!onRemoveImage) return;
-
-    setLocalCaptions((prev) => prev.filter((_, i) => i !== current));
+    if (!captionAsFolderTitle) {
+      setLocalCaptions((prev) => prev.filter((_, i) => i !== current));
+    }
     setCurrent((c) => Math.max(0, Math.min(c, count - 2)));
     setImgError(false);
     onRemoveImage(current);
   };
 
-  // 안전한 src 판정
+  // 안전한 src
   const toSafeSrc = (raw?: string | null) => {
     const s = (raw ?? "").trim();
     return s.length > 0 ? s : undefined;
   };
-
   const safeSrc = cur ? toSafeSrc(cur.dataUrl ?? cur.url) : undefined;
   const showFallback = count === 0 || !safeSrc || imgError;
 
@@ -150,7 +164,6 @@ export default function ImageCarouselUpload({
           </div>
         ) : (
           <>
-            {/* 메인 이미지 */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               key={`img-${current}`}
@@ -166,7 +179,6 @@ export default function ImageCarouselUpload({
               onError={() => setImgError(true)}
             />
 
-            {/* 우상단 삭제 버튼 */}
             {count > 0 && onRemoveImage && (
               <button
                 type="button"
@@ -179,7 +191,6 @@ export default function ImageCarouselUpload({
               </button>
             )}
 
-            {/* 좌/우 버튼 (이미지 1장 이하이면 숨김) */}
             {count > 1 && (
               <>
                 <button
@@ -201,7 +212,6 @@ export default function ImageCarouselUpload({
               </>
             )}
 
-            {/* 인덱스/점 표시 */}
             <div className="absolute bottom-2 right-2 rounded-md bg-black/55 text-white text-xs px-2 py-0.5">
               {current + 1} / {count}
             </div>
@@ -223,7 +233,6 @@ export default function ImageCarouselUpload({
               ))}
             </div>
 
-            {/* 파일명 오버레이 */}
             {cur?.name && (
               <div className="absolute top-2 left-2 max-w-[75%] rounded bg-black/40 text-white text-[11px] px-2 py-0.5 truncate">
                 {cur.name}
@@ -233,7 +242,7 @@ export default function ImageCarouselUpload({
         )}
       </div>
 
-      {/* 캡션 + 업로드 */}
+      {/* 하단 입력: 폴더제목 모드면 folderTitle(빈 값 허용) 사용 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <input
           type="text"

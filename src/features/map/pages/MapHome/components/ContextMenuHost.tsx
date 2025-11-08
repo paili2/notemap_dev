@@ -1,7 +1,6 @@
 "use client";
 
-import PinContextMenuContainer from "../../../components/PinContextMenu/components/PinContextMenu/PinContextMenuContainer";
-import type { MapMarker } from "../../../types/map";
+import type { MapMarker } from "../../../shared/types/map";
 import { createSurveyReservation } from "@/shared/api/surveyReservations";
 import { createPinDraft } from "@/shared/api/pins";
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +11,8 @@ import { useMemo, useRef, useEffect } from "react";
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "@/features/map/lib/labelRegistry";
+} from "@/features/map/shared/overlays/labelRegistry";
+import PinContextMenuContainer from "@/features/map/shared/pinContextMenu/components/PinContextMenu/PinContextMenuContainer";
 
 /* ───────── 유틸 ───────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {

@@ -271,7 +271,7 @@ function ViewStage({
     [onClose]
   );
 
-  // ✨ 핵심: 콘텐츠 패널에만 버블 단계 전파 차단
+  // ✨ 콘텐츠 패널에만 버블 단계 전파 차단
   const stopBubble = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
   }, []);
@@ -436,6 +436,10 @@ function ViewStage({
                   publicMemo={f.publicMemo}
                   secretMemo={f.secretMemo}
                 />
+
+                {/* 👇 생성자/답사자/수정자 메타 바 */}
+                <MetaAuditBar details={data!} />
+
                 <div className="h-16 md:hidden" />
               </div>
             </div>
@@ -556,5 +560,87 @@ function LoadingSkeleton({
         </div>
       </div>
     </>
+  );
+}
+
+/* ================= 메타(생성/답사/수정) 바 ================= */
+function MetaAuditBar({ details }: { details: any }) {
+  // 다양한 응답 키 지원(최대한 유연)
+  const pick = (...keys: string[]) =>
+    keys.reduce<any>(
+      (acc, k) =>
+        acc ?? details?.[k] ?? details?.raw?.[k] ?? details?.view?.[k],
+      undefined
+    );
+
+  const creatorName = pick(
+    "creatorName",
+    "createdByName",
+    "creator",
+    "creator_name"
+  );
+  const createdAt = pick("createdAt", "created_at");
+  const surveyedName = pick(
+    "surveyedByName",
+    "surveyedBy",
+    "surveyor",
+    "surveyed_by_name"
+  );
+  const surveyedAt = pick("surveyedAt", "surveyed_at");
+  const updaterName = pick(
+    "updatedByName",
+    "updatedBy",
+    "modifier",
+    "updated_by_name",
+    "lastModifierName"
+  );
+  const updatedAt = pick("updatedAt", "updated_at", "modifiedAt");
+
+  const fmt = (d: any) => {
+    if (!d) return null;
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return null;
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const day = String(dt.getDate()).padStart(2, "0");
+    return `${y}.${m}.${day}`;
+  };
+
+  const items = [
+    (creatorName || createdAt) && {
+      label: "생성자",
+      name: creatorName ?? "-",
+      date: fmt(createdAt),
+    },
+    (surveyedName || surveyedAt) && {
+      label: "답사자",
+      name: surveyedName ?? "-",
+      date: fmt(surveyedAt),
+    },
+    (updaterName || updatedAt) && {
+      label: "수정자",
+      name: updaterName ?? "-",
+      date: fmt(updatedAt),
+    },
+  ].filter(Boolean) as Array<{
+    label: string;
+    name: string;
+    date: string | null;
+  }>;
+
+  if (!items.length) return null;
+
+  return (
+    <div className="mt-2 pt-3 border-t text-[13px] text-slate-600">
+      <div className="flex flex-wrap gap-x-6 gap-y-1">
+        {items.map((it, i) => (
+          <div key={i} className="flex items-center whitespace-pre">
+            <span className="text-slate-500">{it.label}:</span>&nbsp;
+            <span className="font-medium">{it.name}</span>
+            {it.date ? <span className="ml-1">({it.date})</span> : null}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

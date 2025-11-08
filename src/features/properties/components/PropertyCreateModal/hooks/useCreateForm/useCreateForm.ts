@@ -11,7 +11,7 @@ import { useAreaSets } from "./slices/useAreaSets";
 import { useUnitLines } from "./slices/useUnitLines";
 import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
-import { sanitizeAreaGroups } from "@/features/map/components/MapCreateModalHost/dtoUtils";
+import { sanitizeAreaGroups } from "@/features/properties/lib/forms/dtoUtils";
 
 type Args = { initialAddress?: string };
 
