@@ -1,8 +1,10 @@
+// src/features/properties/schemas/propertyForm.ts
 import { z } from "zod";
 
 /* ────────────────────────────────────────────────────────────
  * Zod helpers
  * ──────────────────────────────────────────────────────────── */
+
 const toNullIfEmpty = (v: unknown) => (v === "" ? null : v);
 
 /** 숫자 또는 null 로 정규화(빈 문자열 → null, 정수화, 음수 불가) */
@@ -30,6 +32,27 @@ export const asStarStr = z.preprocess((v) => {
   if (s === "" || s === "0") return "";
   return s;
 }, z.union([z.literal(""), z.literal("1"), z.literal("2"), z.literal("3"), z.literal("4"), z.literal("5")]));
+
+/* ────────────────────────────────────────────────────────────
+ * Phone helpers (KR)
+ * ──────────────────────────────────────────────────────────── */
+
+const normalizePhone = (v: string) => v.replace(/[^\d]/g, "");
+
+const isValidPhoneKR = (raw: string) => {
+  const v = normalizePhone(raw);
+  // 전체 10~11자리, 02는 9~10자리 허용
+  if (!/^0\d{9,10}$/.test(v)) return false;
+  if (v.startsWith("02")) return v.length === 9 || v.length === 10;
+  return v.length === 10 || v.length === 11;
+};
+
+/** 필수 + 형식 검증. 형식이 아니면 "전화번호를 입력해주세요" 표출 */
+export const phoneSchemaKR = z
+  .string()
+  .trim()
+  .min(1, "전화번호를 입력해주세요")
+  .refine((v) => isValidPhoneKR(v), { message: "전화번호를 입력해주세요" });
 
 /* ────────────────────────────────────────────────────────────
  * Unit line schema (UI 전용 → build 단계에서 서버 DTO로 매핑)
@@ -64,6 +87,9 @@ export const propertyFormSchema = z.object({
   title: z.string().min(1, "제목은 필수입니다."),
   status: z.enum(["판매중", "계약완료"]),
   type: z.enum(["아파트", "오피스텔", "빌라", "상가", "토지"]).optional(),
+
+  /** ✅ 전화번호: 필수 + 형식 검사 */
+  phone: phoneSchemaKR,
 
   // 숫자 입력은 asIntOrNull로 통일: "" -> null, 그 외 숫자만 통과
   priceSale: asIntOrNull.optional(),
@@ -112,6 +138,7 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   isPublished: true,
   // 필요 시 기본 상태 지정 원하면 주석 해제
   // status: "판매중",
+  phone: "", // ✅ 추가
   totalParkingSlots: null,
   options: [],
   unitLines: [],

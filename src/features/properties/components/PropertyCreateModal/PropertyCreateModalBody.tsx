@@ -42,6 +42,35 @@ import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
 import { createPhotosInGroup } from "@/shared/api/photos";
 import type { ImageItem } from "@/features/properties/types/media";
 
+/* === 날짜 유틸 === */
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+
+/** 8자리 숫자(YYYYMMDD)는 YYYY-MM-DD로 포맷, 그 외는 트림만 */
+const normalizeDateInput = (raw?: string | null): string => {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  if (/^\d{8}$/.test(s)) {
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(4, 6));
+    const d = Number(s.slice(6, 8));
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+  return s;
+};
+
+/** 정확히 YYYY-MM-DD 형식 + 실제 존재하는 날짜만 true */
+const isValidIsoDateStrict = (s?: string | null): boolean => {
+  const v = String(s ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map((x) => Number(x));
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+};
+
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -228,7 +257,7 @@ export default function PropertyCreateModalBody({
     []
   );
 
-  // 예약/드래프트 정리 함수는 한 번만 구조분해(별칭)
+  // 예약/드래프트 정리
   const {
     removeByReservationId: removeReservation,
     removeByPinDraftId: removeDraft,
@@ -250,6 +279,17 @@ export default function PropertyCreateModalBody({
     return Number.isFinite(n) ? n : undefined;
   };
 
+  // ── 전화번호(KR) 유틸 ──
+  const normalizePhone = (v: string) => v.replace(/[^\d]/g, "");
+  const isValidPhoneKR = (raw?: string | null) => {
+    const s = (raw ?? "").trim();
+    if (!s) return false;
+    const v = normalizePhone(s);
+    if (!/^0\d{9,10}$/.test(v)) return false;
+    if (v.startsWith("02")) return v.length === 9 || v.length === 10;
+    return v.length === 10 || v.length === 11;
+  };
+
   const toStrictAreaSet = (s: any): StrictAreaSet => ({
     title: String(s?.title ?? ""),
     exMinM2: String(s?.exMinM2 ?? ""),
@@ -261,6 +301,92 @@ export default function PropertyCreateModalBody({
     realMinPy: String(s?.realMinPy ?? ""),
     realMaxPy: String(s?.realMaxPy ?? ""),
   });
+
+  /* ───────────── 수치 파싱 & 검증 유틸 ───────────── */
+  const numOrNull = (v: any): number | null => {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    const n = Number(s.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  /** min/max가 모두 채워졌을 때만 비교. 단, 0은 단독으로도 금지 */
+  const isInvalidRange = (min: any, max: any) => {
+    const a = numOrNull(min);
+    const b = numOrNull(max);
+    if (a === 0 || b === 0) return true;
+    if (a != null && b != null) return b <= a;
+    return false;
+  };
+
+  // === 구조별 입력(최소/최대 매매가) 검증
+  const priceOrNull = (v: any): number | null => {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    const n = Number(s.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const validateUnitPriceRanges = (units?: any[]): string | null => {
+    if (!Array.isArray(units)) return null;
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i] ?? {};
+      const min = priceOrNull(u?.minPrice ?? u?.primary);
+      const max = priceOrNull(u?.maxPrice ?? u?.secondary);
+
+      if (min === 0 || max === 0) {
+        const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
+        return `${label}: 0원은 입력할 수 없습니다.`;
+      }
+
+      if (min != null && max != null && max <= min) {
+        const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
+        return `${label}: 최대매매가는 최소매매가보다 커야 합니다.`;
+      }
+    }
+    return null;
+  };
+
+  // === 개별 평수 입력(전용/실평) 검증
+  const validateAreaSets = (): string | null => {
+    const base = f.baseAreaSet ?? {};
+    const extras = Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [];
+
+    const checkOne = (set: any, titleForMsg: string) => {
+      const pairs: Array<[any, any, string]> = [
+        [set?.exMinM2, set?.exMaxM2, "전용(㎡)"],
+        [set?.exMinPy, set?.exMaxPy, "전용(평)"],
+        [set?.realMinM2, set?.realMaxM2, "실평(㎡)"],
+        [set?.realMinPy, set?.realMaxPy, "실평(평)"],
+      ];
+
+      for (const [a, b, label] of pairs) {
+        const na = numOrNull(a);
+        const nb = numOrNull(b);
+        if (na === 0 || nb === 0) {
+          return `${titleForMsg} - ${label}: 0은 입력할 수 없습니다.`;
+        }
+      }
+      for (const [a, b, label] of pairs) {
+        if (isInvalidRange(a, b)) {
+          return `${titleForMsg} - ${label}: 최대값은 최소값보다 커야 합니다.`;
+        }
+      }
+      return null;
+    };
+
+    const baseErr = checkOne(base, base?.title?.trim() || "기본 면적");
+    if (baseErr) return baseErr;
+
+    for (let i = 0; i < extras.length; i++) {
+      const set = extras[i] ?? {};
+      const title = set?.title?.trim() || `면적 그룹 ${i + 1}`;
+      const err = checkOne(set, title);
+      if (err) return err;
+    }
+
+    return null;
+  };
 
   /* ───────────── 업로드 대상 선별 & File 변환 ───────────── */
   const isUploadable = (u?: string) =>
@@ -288,7 +414,7 @@ export default function PropertyCreateModalBody({
   const processedCardSetRef = useRef<Set<number>>(new Set());
   const processedVerticalRef = useRef<boolean>(false);
 
-  /** 카드 하나: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
+  /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록 */
   const persistOneCard = useCallback(
     async (pinId: string | number, folderIdx: number) => {
       if (processedCardSetRef.current.has(folderIdx)) return;
@@ -327,7 +453,7 @@ export default function PropertyCreateModalBody({
     [imageFolders, imageItemToFile]
   );
 
-  /** 세로 파일: 업로드 → urls 있으면 그룹 생성(항상 title 포함) → /photos 등록 */
+  /** 세로 파일 처리 */
   const persistVerticalFiles = useCallback(
     async (pinId: string | number) => {
       if (processedVerticalRef.current) return;
@@ -370,12 +496,8 @@ export default function PropertyCreateModalBody({
     () => ({
       parkingType: f.parkingType ?? null,
       setParkingType: (v: string | null) => f.setParkingType(v ?? ""),
-
-      // f.totalParkingSlots (number|null) -> string|null 로 내려줌
       totalParkingSlots:
         f.totalParkingSlots == null ? null : String(f.totalParkingSlots),
-
-      // ⬇️ string|null -> number|null 로 변환해서 내부 상태에 저장
       setTotalParkingSlots: (v: string | null) => {
         if (v == null) {
           f.setTotalParkingSlots(null);
@@ -413,12 +535,52 @@ export default function PropertyCreateModalBody({
         return;
       }
 
+      // 전화번호 검증
+      if (!isValidPhoneKR(f.officePhone)) {
+        alert("전화번호를 입력해주세요");
+        return;
+      }
+      if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
+        alert("전화번호를 입력해주세요");
+        return;
+      }
+
+      // ✅ 준공일 형식 검증 (값이 있을 때만 / 8자리 자동 포맷)
+      let completionDateNormalized = (f.completionDate ?? "").trim();
+      if (completionDateNormalized) {
+        completionDateNormalized = normalizeDateInput(completionDateNormalized);
+        if (completionDateNormalized !== f.completionDate) {
+          f.setCompletionDate(completionDateNormalized);
+        }
+        if (!isValidIsoDateStrict(completionDateNormalized)) {
+          alert("준공일은 YYYY-MM-DD 형식으로 입력해주세요. 예: 2024-04-14");
+          return;
+        }
+      }
+
+      // 구조별 입력 가격 검증
+      {
+        const msg = validateUnitPriceRanges(f.unitLines);
+        if (msg) {
+          alert(msg);
+          return;
+        }
+      }
+
+      // 개별 평수 입력 검증
+      {
+        const msg = validateAreaSets();
+        if (msg) {
+          alert(msg);
+          return;
+        }
+      }
+
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
-      const effectiveCompletionDate =
-        typeof f.completionDate === "string" && f.completionDate.trim() !== ""
-          ? f.completionDate
-          : todayYmdKST();
+
+      // 비어 있으면 오늘 날짜, 값 있으면 정규화한 값 사용
+      const effectiveCompletionDate = completionDateNormalized || todayYmdKST();
 
       const strictBase = toStrictAreaSet(f.baseAreaSet);
       const strictExtras = (
@@ -441,7 +603,7 @@ export default function PropertyCreateModalBody({
         parkingGrade: f.parkingGrade,
 
         parkingType: f.parkingType,
-        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
+        totalParkingSlots: (f as any).totalParkingSlots,
         completionDate: effectiveCompletionDate,
         salePrice: f.salePrice,
 
@@ -478,8 +640,12 @@ export default function PropertyCreateModalBody({
         lng: lngNum,
       });
 
-      const reservationId = (f as any).reservationId;
-      const explicitPinDraftId = (f as any).pinDraftId;
+      // ⬇️ 여기서 한 번만 선언 (중복 선언 제거)
+      const reservationId = (f as any).reservationId as string | number | null;
+      const explicitPinDraftId = (f as any).pinDraftId as
+        | string
+        | number
+        | null;
 
       const selected: string[] = Array.isArray(f.options) ? f.options : [];
       const has = (label: string) => selected.includes(label);
@@ -515,12 +681,32 @@ export default function PropertyCreateModalBody({
       const unitsDto =
         sourceUnits.length > 0
           ? sourceUnits.map((unit: UnitLine) => ({
-              rooms: toIntOrNull((unit as any)?.rooms),
-              baths: toIntOrNull((unit as any)?.baths),
+              rooms: ((): number | null => {
+                const v = (unit as any)?.rooms;
+                if (v === "" || v == null) return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? Math.trunc(n) : null;
+              })(),
+              baths: ((): number | null => {
+                const v = (unit as any)?.baths;
+                if (v === "" || v == null) return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? Math.trunc(n) : null;
+              })(),
               hasLoft: !!(unit as any)?.duplex,
               hasTerrace: !!(unit as any)?.terrace,
-              minPrice: toIntOrNull((unit as any)?.primary),
-              maxPrice: toIntOrNull((unit as any)?.secondary),
+              minPrice: ((): number | null => {
+                const v = (unit as any)?.primary;
+                if (v === "" || v == null) return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? Math.trunc(n) : null;
+              })(),
+              maxPrice: ((): number | null => {
+                const v = (unit as any)?.secondary;
+                if (v === "" || v == null) return null;
+                const n = Number(v);
+                return Number.isFinite(n) ? Math.trunc(n) : null;
+              })(),
             }))
           : [];
 
@@ -530,33 +716,72 @@ export default function PropertyCreateModalBody({
         parkingGrade: f.parkingGrade || undefined,
         addressLine: f.address ?? "",
         name: f.title ?? "임시 매물",
-        contactMainPhone: (f.officePhone ?? "").trim() || "010-0000-0000",
-        contactSubPhone:
-          (f.officePhone2 ?? "").trim() !== ""
-            ? (f.officePhone2 ?? "").trim()
-            : undefined,
+        contactMainPhone: (f.officePhone ?? "").trim(),
+        contactSubPhone: (f.officePhone2 ?? "").trim()
+          ? (f.officePhone2 ?? "").trim()
+          : undefined,
         completionDate: effectiveCompletionDate,
         buildingType: (f as any).buildingType ?? null,
-        totalHouseholds: toNum(f.totalHouseholds) ?? null,
-        totalBuildings: toNum(f.totalBuildings) ?? null,
-        totalFloors: toNum(f.totalFloors) ?? null,
-        remainingHouseholds: toNum(f.remainingHouseholds) ?? null,
-        registrationTypeId: toNum((f as any).registrationTypeId) ?? null,
-        parkingTypeId: toNum((f as any).parkingTypeId) ?? null,
+        totalHouseholds: ((): number | null => {
+          const s = String(f.totalHouseholds ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
+        totalBuildings: ((): number | null => {
+          const s = String(f.totalBuildings ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
+        totalFloors: ((): number | null => {
+          const s = String(f.totalFloors ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
+        remainingHouseholds: ((): number | null => {
+          const s = String(f.remainingHouseholds ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
+        registrationTypeId: ((): number | null => {
+          const s = String((f as any).registrationTypeId ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
+        parkingTypeId: ((): number | null => {
+          const s = String((f as any).parkingTypeId ?? "").trim();
+          if (!s) return null;
+          const n = Number(s);
+          return Number.isFinite(n) ? n : null;
+        })(),
         slopeGrade: f.slopeGrade ?? null,
         structureGrade: f.structureGrade ?? null,
         badge: (effectiveBadge as any) ?? null,
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
         hasElevator: f.elevator === "O",
-        totalParkingSlots: toIntOrNull((f as any).totalParkingSlots),
+        totalParkingSlots: ((): number | null => {
+          const v = (f as any).totalParkingSlots;
+          if (v === "" || v == null) return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.trunc(n) : null;
+        })(),
         options: pinOptions,
         directions,
-        minRealMoveInCost: toIntOrNull(f.salePrice),
+        minRealMoveInCost: ((): number | null => {
+          const v = f.salePrice;
+          if (v === "" || v == null) return null;
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.trunc(n) : null;
+        })(),
         ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
-        ...(explicitPinDraftId != null
-          ? { pinDraftId: String(explicitPinDraftId) }
-          : {}),
+        ...(explicitPinDraftId != null && {
+          pinDraftId: String(explicitPinDraftId),
+        }),
         ...(unitsDto.length > 0 ? { units: unitsDto } : {}),
       } as any;
 
@@ -573,13 +798,13 @@ export default function PropertyCreateModalBody({
         console.warn("[PropertyCreate] media persist failed:", mediaErr);
       }
 
-      // 3) 예약/드래프트 정리
-      const pinDraftId = explicitPinDraftId ?? matchedDraftId;
+      // 3) 예약/드래프트 정리 — ⚠️ 중복 선언 없이 위에서 선언한 변수 사용
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);
           removeReservation?.(String(reservationId));
-        } else if (pinDraftId != null) {
+        } else if ((explicitPinDraftId ?? matchedDraftId) != null) {
+          const pinDraftId = explicitPinDraftId ?? matchedDraftId;
           const listRes = await api.get("/survey-reservations/scheduled");
           const arr = Array.isArray(listRes.data?.data)
             ? listRes.data.data
@@ -603,14 +828,14 @@ export default function PropertyCreateModalBody({
         }
       }
 
-      if (pinDraftId != null) {
-        removeDraft?.(String(pinDraftId));
+      if (explicitPinDraftId != null) {
+        removeDraft?.(String(explicitPinDraftId));
       }
 
       await Promise.resolve(
         onSubmit?.({
           pinId: String(pinId),
-          matchedDraftId: pinDraftId ?? null,
+          matchedDraftId: explicitPinDraftId ?? matchedDraftId ?? null,
           lat: latNum,
           lng: lngNum,
           payload,
@@ -692,10 +917,8 @@ export default function PropertyCreateModalBody({
           <div className="space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-
-            {/* 🔹 string|null 계약으로 맞춘 어댑터 전달 */}
+            {/* string|null 어댑터 */}
             <ParkingContainer form={parkingForm} />
-
             <CompletionRegistryContainer form={f} />
             <AspectsContainer form={f} />
             <AreaSetsContainer

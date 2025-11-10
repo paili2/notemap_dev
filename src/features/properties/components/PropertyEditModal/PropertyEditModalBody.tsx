@@ -40,6 +40,172 @@ type ParkingFormSlice = {
 };
 
 /* ───────── helpers ───────── */
+
+// ── 전화번호(KR) 유틸 ──
+const normalizePhone = (v: string) => v.replace(/[^\d]/g, "");
+const isValidPhoneKR = (raw?: string | null) => {
+  const s = (raw ?? "").trim();
+  if (!s) return false;
+  const v = normalizePhone(s);
+  // 전체 10~11자리, 02는 9~10 허용
+  if (!/^0\d{9,10}$/.test(v)) return false;
+  if (v.startsWith("02")) return v.length === 9 || v.length === 10;
+  return v.length === 10 || v.length === 11;
+};
+
+/* === 날짜 유틸 (추가) === */
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+
+/** 8자리 숫자(YYYYMMDD)는 YYYY-MM-DD로 포맷, 그 외는 트림만 */
+const normalizeDateInput = (raw?: string | null): string => {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  if (/^\d{8}$/.test(s)) {
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(4, 6));
+    const d = Number(s.slice(6, 8));
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+  return s;
+};
+
+/** 정확히 YYYY-MM-DD 형식 + 실제 존재하는 날짜만 true */
+const isValidIsoDateStrict = (s?: string | null): boolean => {
+  const v = String(s ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map((x) => Number(x));
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+};
+
+// === 유닛 라인(구조별 입력) 최소/최대 매매가 검증 ===
+const priceOrNull = (v: any): number | null => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+/** 배열을 훑어보고, 위반 있으면 에러 메시지 반환(없으면 null) */
+const validateUnitPriceRanges = (units?: any[]): string | null => {
+  if (!Array.isArray(units)) return null;
+
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i] ?? {};
+    const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`)
+      .toString()
+      .trim();
+    const min = priceOrNull(u?.minPrice ?? u?.primary);
+    const max = priceOrNull(u?.maxPrice ?? u?.secondary);
+
+    // 하나만 입력한 경우에도 0은 금지
+    if (min === 0 || max === 0) {
+      return `${label}: 0원은 입력할 수 없습니다.`;
+    }
+
+    // 둘 다 들어온 경우만 범위 비교
+    if (min != null && max != null) {
+      if (max === min) {
+        return `${label}: 최소·최대 매매가가 같을 수 없습니다.`;
+      }
+      if (max < min) {
+        return `${label}: 최대매매가는 최소매매가보다 커야 합니다.`;
+      }
+    }
+  }
+  return null;
+};
+
+// === 개별평수 입력(전용/실평) 최소/최대 검증 ===
+const numOrNull = (v: any): number | null => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+type RangeCheckResult = { ok: true } | { ok: false; msg: string };
+
+const checkRange = (
+  minRaw: any,
+  maxRaw: any,
+  label: string
+): RangeCheckResult => {
+  const min = numOrNull(minRaw);
+  const max = numOrNull(maxRaw);
+
+  // 둘 다 있을 때만 비교 (부분 입력은 그대로 허용하되 0만 막음)
+  if (min === 0 || max === 0) {
+    return { ok: false, msg: `${label}: 0은 입력할 수 없습니다.` };
+  }
+  if (min == null || max == null) return { ok: true };
+
+  if (max === min) {
+    return { ok: false, msg: `${label}: 최소와 최대가 같을 수 없습니다.` };
+  }
+  if (max < min) {
+    return { ok: false, msg: `${label}: 최대는 최소보다 커야 합니다.` };
+  }
+  return { ok: true };
+};
+
+/** baseAreaSet + extraAreaSets 전체 검사. 문제가 없으면 null, 있으면 에러 메시지 반환 */
+const validateAreaRanges = (base?: any, extras?: any[]): string | null => {
+  const checks = (g: any, prefix = ""): string | null => {
+    // 전용 m²
+    {
+      const r = checkRange(
+        g?.exMinM2 ?? g?.exclusiveMin,
+        g?.exMaxM2 ?? g?.exclusiveMax,
+        `${prefix}전용 m²`
+      );
+      if (!r.ok) return r.msg;
+    }
+    // 전용 평
+    {
+      const r = checkRange(
+        g?.exMinPy ?? g?.exclusiveMinPy,
+        g?.exMaxPy ?? g?.exclusiveMaxPy,
+        `${prefix}전용 평`
+      );
+      if (!r.ok) return r.msg;
+    }
+    // 실평 m²
+    {
+      const r = checkRange(
+        g?.realMinM2 ?? g?.realMin,
+        g?.realMaxM2 ?? g?.realMax,
+        `${prefix}실평 m²`
+      );
+      if (!r.ok) return r.msg;
+    }
+    // 실평 평
+    {
+      const r = checkRange(g?.realMinPy, g?.realMaxPy, `${prefix}실평 평`);
+      if (!r.ok) return r.msg;
+    }
+    return null;
+  };
+
+  if (base) {
+    const msg = checks(base);
+    if (msg) return msg;
+  }
+  if (Array.isArray(extras)) {
+    for (let i = 0; i < extras.length; i++) {
+      const title = String(extras[i]?.title ?? "").trim();
+      const prefix = title ? `면적세트 "${title}" - ` : `면적세트 ${i + 1} - `;
+      const msg = checks(extras[i], prefix);
+      if (msg) return msg;
+    }
+  }
+  return null;
+};
+
 const N = (v: any): number | undefined => {
   if (v === "" || v === null || v === undefined) return undefined;
   const n = Number(String(v).replace(/[^\d.-]/g, ""));
@@ -714,85 +880,87 @@ function toPinPatch(
     }
   }
 
-  // 핀 종류
+  // ── 향/방향: 변경시에만 directions 전송 ─────────────────────
   {
-    const initKindCanon =
-      (initial as any)?.pinKind ??
-      mapBadgeToPinKind?.((initial as any)?.badge) ??
-      undefined;
+    // 초기 스냅샷에 '향' 존재 여부
+    const initialHasAnyAspect =
+      !!normStrU((initial as any)?.aspect) ||
+      !!normStrU((initial as any)?.aspectNo) ||
+      !!normStrU((initial as any)?.aspect1) ||
+      !!normStrU((initial as any)?.aspect2) ||
+      !!normStrU((initial as any)?.aspect3) ||
+      (Array.isArray((initial as any)?.orientations) &&
+        (initial as any).orientations.length > 0) ||
+      (Array.isArray((initial as any)?.directions) &&
+        (initial as any).directions.length > 0);
 
-    const nowKind = (f as any)?.pinKind ?? undefined;
-
-    if (nowKind && nowKind !== initKindCanon) {
-      (patch as any).pinKind = nowKind;
-
-      // 서버가 badge를 함께 쓰는 경우 대비: 가능하면 badge도 동시 전송
-      const nextBadge = mapPinKindToBadge?.(nowKind);
-      if (nextBadge) (patch as any).badge = nextBadge;
-    }
-  }
-
-  // ── 향/방향: 변경시에만 directions 전송 (표시는 ho 순서 보존) ─────────────
-  const hoNum = (v: any) => {
-    const s = String(v ?? "").replace(/[^\d]/g, "");
-    const n = Number(s);
-    return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
-  };
-
-  const pickDirStringsFromInitial = (init: any): string[] => {
-    if (Array.isArray(init?.directions) && init.directions.length) {
-      return init.directions
-        .map((d: any) =>
-          typeof d?.direction === "string" ? d.direction.trim() : ""
+    // directions에서 문자열 뽑기
+    const pickDirStringsFromInitial = (init: any): string[] => {
+      const fromArr = (Array.isArray(init?.directions) ? init.directions : [])
+        .map(
+          (d: any) =>
+            [d?.direction, d?.dir, d?.value, d?.name, d?.code]
+              .map((x) => (typeof x === "string" ? x.trim() : ""))
+              .find((x) => !!x) || ""
         )
         .filter(Boolean);
-    }
-    return [init?.aspect1, init?.aspect2, init?.aspect3]
-      .map((v: any) => (typeof v === "string" ? v.trim() : ""))
-      .filter(Boolean);
-  };
 
-  const pickHoDirPairsFromForm = (): Array<{ ho: number; dir: string }> => {
-    const bo = (f as any).buildOrientation?.() ?? {};
-    const oNow = Array.isArray(bo.orientations) ? bo.orientations : [];
+      if (fromArr.length) return fromArr;
 
-    let pairs = oNow
-      .map((o: any) => {
-        const dir =
-          (typeof o?.dir === "string" && o.dir.trim()) ||
-          (typeof o?.value === "string" && o.value.trim()) ||
-          "";
-        const ho = hoNum(o?.ho);
-        return dir ? { ho, dir } : null;
-      })
-      .filter(Boolean) as Array<{ ho: number; dir: string }>;
-
-    if (!pairs.length) {
-      const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
+      return [init?.aspect1, init?.aspect2, init?.aspect3]
         .map((v: any) => (typeof v === "string" ? v.trim() : ""))
         .filter(Boolean);
-      pairs = arr.map((dir, idx) => ({ ho: idx + 1, dir }));
+    };
+
+    // 폼 현재값에서 dir/ho 추출(ho 정렬 유지)
+    const hoNum = (v: any) => {
+      const s = String(v ?? "").replace(/[^\d]/g, "");
+      const n = Number(s);
+      return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+    };
+
+    const pickHoDirPairsFromForm = () => {
+      const bo = (f as any).buildOrientation?.() ?? {};
+      const oNow = Array.isArray(bo.orientations) ? bo.orientations : [];
+
+      let pairs = oNow
+        .map((o: any) => {
+          const dir =
+            [o?.dir, o?.value, o?.direction, o?.name, o?.code]
+              .map((x) => (typeof x === "string" ? x.trim() : ""))
+              .find((x) => !!x) || "";
+          const ho = hoNum(o?.ho);
+          return dir ? { ho, dir } : null;
+        })
+        .filter(Boolean) as Array<{ ho: number; dir: string }>;
+
+      if (!pairs.length) {
+        const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
+          .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+          .filter(Boolean);
+        pairs = arr.map((dir: string, idx: number) => ({ ho: idx + 1, dir }));
+      }
+
+      pairs.sort((a, b) => a.ho - b.ho);
+      return pairs;
+    };
+
+    const normSet = (arr: string[]) =>
+      Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean))).sort(
+        (a, b) => a.localeCompare(b)
+      );
+
+    const initDirs = normSet(pickDirStringsFromInitial(initial));
+    const nowPairs = pickHoDirPairsFromForm();
+    const nowDirsSet = normSet(nowPairs.map((p) => p.dir));
+
+    // ⚠️ 초기값이 전혀 없으면 directions를 보내지 않음
+    if (initialHasAnyAspect) {
+      if (JSON.stringify(initDirs) !== JSON.stringify(nowDirsSet)) {
+        (patch as any).directions = nowPairs.map((p) => ({ direction: p.dir }));
+      }
     }
-
-    pairs.sort((a, b) => a.ho - b.ho);
-    return pairs;
-  };
-
-  const normSet = (arr: string[]) =>
-    Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean))).sort((a, b) =>
-      a.localeCompare(b)
-    );
-
-  const initDirsSet = normSet(pickDirStringsFromInitial(initial));
-  const nowPairs = pickHoDirPairsFromForm();
-  const nowDirsSet = normSet(nowPairs.map((p) => p.dir));
-
-  if (JSON.stringify(initDirsSet) !== JSON.stringify(nowDirsSet)) {
-    // 전송은 ho 정렬 순서 유지
-    (patch as any).directions = nowPairs.map((p) => ({ direction: p.dir }));
   }
-
-  // ✅ 서버로 aspect/aspectNo/aspect1~3은 더 이상 보내지 않음
 
   // 구조(units)
   const initialUnits = ((initial as any)?.unitLines ??
@@ -1121,6 +1289,47 @@ export default function PropertyEditModalBody({
       return;
     }
 
+    // ✅ 전화번호 형식 검증 (필수: officePhone, 선택: officePhone2)
+    if (!isValidPhoneKR(f.officePhone)) {
+      alert("전화번호를 입력해주세요");
+      return;
+    }
+    if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
+      alert("전화번호를 입력해주세요");
+      return;
+    }
+
+    // ✅ 준공일 형식 검증 (빈 값은 허용 / 값이 있으면 YYYY-MM-DD만 허용, 8자리 숫자는 자동 포맷)
+    {
+      const raw = f.completionDate?.trim() ?? "";
+      if (raw) {
+        const normalized = normalizeDateInput(raw);
+        if (normalized !== raw) f.setCompletionDate(normalized);
+        if (!isValidIsoDateStrict(normalized)) {
+          alert("준공일은 YYYY-MM-DD 형식으로 입력해주세요. 예: 2024-04-14");
+          return;
+        }
+      }
+    }
+
+    // ✅ 개별평수입력(전용/실평) 최소·최대 상호 제약
+    {
+      const msg = validateAreaRanges(f.baseAreaSet, f.extraAreaSets);
+      if (msg) {
+        alert(msg);
+        return;
+      }
+    }
+
+    // ✅ 구조별입력(유닛 라인) 최소/최대 매매가 제약
+    {
+      const msg = validateUnitPriceRanges(f.unitLines);
+      if (msg) {
+        alert(msg);
+        return;
+      }
+    }
+
     let dto: UpdatePinDto | null = null;
     let hasFormChanges = false;
     try {
@@ -1172,7 +1381,7 @@ export default function PropertyEditModalBody({
 
       hasFormChanges = hasMeaningfulPatch(dto);
 
-      console.groupCollapsed("[save] after toPinPatch+strip");
+      console.groupCollapsed("[save] after toPinPatch+strip]");
       console.log("[save] dto:", dto);
       console.log("[save] hasFormChanges:", hasFormChanges);
       console.groupEnd();
