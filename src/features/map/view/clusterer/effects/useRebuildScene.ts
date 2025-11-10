@@ -69,8 +69,15 @@ export function useRebuildScene(args: Args) {
           lat: m.position?.lat,
           lng: m.position?.lng,
           name:
-            (m?.name ?? m?.title ?? m?.label ?? m?.address ?? "")?.toString() ??
-            "",
+            (
+              m?.name ??
+              m?.point?.name ??
+              m?.data?.name ??
+              m?.property?.name ??
+              m?.property?.title ??
+              m?.title ??
+              ""
+            )?.toString() ?? "",
           source: m?.source ?? "",
         }))
         .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
@@ -260,12 +267,12 @@ export function useRebuildScene(args: Args) {
         const displayName =
           firstNonEmpty(
             m.name,
-            (m as any).propertyTitle,
-            (m as any).property_name,
-            m.title,
-            m.label,
-            m.address
-          ) ?? key;
+            (m as any).point?.name,
+            (m as any).data?.name,
+            (m as any).property?.name,
+            (m as any).property?.title,
+            m.title
+          ) || "";
         const planText = `${m.regionLabel ?? ""} 답사예정`.trim();
 
         // ── 마커 ─────────────────────────────────────────────

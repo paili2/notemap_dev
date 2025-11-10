@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo } from "react";
 import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
@@ -27,6 +29,7 @@ export type MergedMarker = {
   id: string | number;
   lat: number;
   lng: number;
+  name?: string; // ✅ 추가: 라벨 표기를 위한 이름
   title?: string;
   /** 출처 (실매물 or 임시핀) */
   source: "point" | "draft";
@@ -38,6 +41,7 @@ export function useMergedMarkers(params: {
   localMarkers: MapMarker[];
   serverPoints?: Array<{
     id: string | number;
+    name?: string | null; // ✅ 추가
     title?: string | null;
     lat: number;
     lng: number;
@@ -63,6 +67,7 @@ export function useMergedMarkers(params: {
   const mergedMeta: MergedMarker[] = useMemo(() => {
     const normals: MergedMarker[] = (serverPoints ?? []).map((p) => ({
       id: p.id,
+      name: p.name ?? p.title ?? "", // ✅ name 우선
       title: p.title ?? "",
       lat: p.lat,
       lng: p.lng,
@@ -90,6 +95,8 @@ export function useMergedMarkers(params: {
 
       return {
         id: String(p.id),
+        // ✅ 라벨용 이름을 반드시 포함
+        name: p.name ?? p.title ?? "", // ← 핵심
         title: p.title ?? "",
         position: { lat: p.lat, lng: p.lng },
         kind,
