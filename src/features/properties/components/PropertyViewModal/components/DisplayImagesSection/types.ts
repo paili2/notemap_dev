@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/DisplayImagesSection/types.ts
 import type { ImageItem } from "@/features/properties/types/media";
 
 export type AnyImg =

@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/ui/StructureLinesListContainer.tsx
 "use client";
 
 import React from "react";

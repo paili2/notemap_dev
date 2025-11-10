@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/sections/HeaderSection/HeaderSection.tsx
 "use client";
 
 import { RefreshCw } from "lucide-react";
@@ -34,7 +33,6 @@ export default function HeaderSection({
         {/* 핀 종류 */}
         <div className="col-span-1 justify-self-start md:order-1 md:flex md:items-center md:gap-2 md:shrink-0">
           <PinTypeSelect
-            // ✅ 항상 문자열로 전달 ('' 또는 '1room' 등)
             value={asControlled(pinKind) as any}
             onChange={(v) => setPinKind(v as any)}
             className="h-9 w-[200px] max-w-full md:w-[230px]"

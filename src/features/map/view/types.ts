@@ -1,4 +1,3 @@
-// src/features/map/view/types.ts
 import type { PinKind } from "@/features/pins/types";
 import type { LatLng } from "@/lib/geo/types";
 import type { MapMarker } from "@/features/map/shared/types/map";

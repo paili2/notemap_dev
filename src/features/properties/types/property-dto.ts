@@ -1,7 +1,6 @@
-// src/features/properties/types/property-dto.ts
 import { CreatePinAreaGroupDto } from "./area-group-dto";
 import { ImageItem } from "./media";
-import { OrientationRow, Registry, UnitLine, Grade } from "./property-domain";
+import { Registry, UnitLine, Grade } from "./property-domain";
 
 /* ------------------------------------------------------------------ */
 /* Common helpers                                                      */
@@ -59,15 +58,14 @@ export type CreatePayload = {
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
-  orientations?: OrientationRow[];
-  /** ✅ 백엔드 스펙: [{ direction: "남향" }, ...] 또는 문자열 혼용 허용 */
-  directions?: Array<{ direction: string } | string>;
+  /** ✅ 백엔드 스펙: [{ direction: "남향" }, ...] */
+  directions?: Array<{ direction: string }>;
 
   // 가격/평점/주차
   /** ✅ 서버 PATCH 키와 일치: 최저 실입비(정수/null) */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
-  parkingType?: string; // 예: "자주식", "답사지 확인"
+  parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
 
@@ -97,9 +95,9 @@ export type CreatePayload = {
   options: string[];
   optionEtc?: string;
   publicMemo?: string | null;
-  secretMemo?: string | null; // ✅ 통일
+  secretMemo?: string | null;
   /** @deprecated use secretMemo */
-  privateMemo?: string | null; // 과거 호환
+  privateMemo?: string | null;
 
   registry?: Registry;
 
@@ -110,9 +108,9 @@ export type CreatePayload = {
   units?: UnitsDto[];
 
   // 이미지
-  images?: string[]; // 평면형(단일 배열)
-  imageCards?: ImageItem[][]; // 가로 카드(그룹별 배열)
-  fileItems?: ImageItem[]; // 세로 카드
+  images?: string[];
+  imageCards?: ImageItem[][];
+  fileItems?: ImageItem[];
 
   // 면적(레거시 문자열)
   exclusiveArea?: string;
@@ -154,9 +152,8 @@ export type UpdatePayload = {
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
-  orientations?: OrientationRow[];
   /** ✅ 업데이트도 동일 형태 허용 */
-  directions?: Array<{ direction: string } | string>;
+  directions?: Array<{ direction: string }>;
 
   // 가격/평점/주차
   /** 로컬 뷰 패치용으로 남길 수 있음(서버 전송은 보통 minRealMoveInCost 사용) */

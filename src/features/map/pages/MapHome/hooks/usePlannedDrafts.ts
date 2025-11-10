@@ -5,8 +5,9 @@ import {
   fetchUnreservedDrafts,
   BeforeDraft,
 } from "@/shared/api/surveyReservations";
-import type { MapMenuKey } from "../../../components/menu";
+
 import { Bounds } from "@/features/map/shared/types/bounds";
+import { MapMenuKey } from "@/features/map/menu";
 
 export function usePlannedDrafts({
   filter,

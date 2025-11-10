@@ -1,5 +1,3 @@
-// src/shared/api/photogroups.ts
-
 // 👉 타입은 공통 타입 파일에서 그대로 노출
 export type {
   IdLike,

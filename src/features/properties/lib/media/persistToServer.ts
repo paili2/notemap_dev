@@ -1,4 +1,3 @@
-// media/persistToServer.ts
 import { createPhotoGroup } from "@/shared/api/photoGroups";
 import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
 import { createPhotosInGroup } from "@/shared/api/photos";

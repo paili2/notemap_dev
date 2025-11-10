@@ -1,4 +1,3 @@
-// src/components/organisms/ImageCarouselUpload/ImageCarouselUpload.tsx
 "use client";
 
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";

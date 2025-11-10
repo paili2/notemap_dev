@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/hooks/useEditImages.ts
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -117,7 +116,7 @@ type UseEditImagesArgs = {
       | AnyImageRef[]
       | AnyImageRef[][]
       | Record<string, AnyImageRef[]>;
-    imagesByCard?: AnyImageRef[][] | Record<string, AnyImageRef[]>;
+    /** ✅ imagesByCard는 더 이상 사용하지 않음(레거시 제거) */
     imageCards?: AnyImageRef[][] | Record<string, AnyImageRef[]>;
     images?: AnyImageRef[];
     imageCardCounts?: number[];
@@ -168,9 +167,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         }
       } else {
         const foldersRaw =
-          normalizeCardsInput(
-            initial.imageFolders ?? initial.imagesByCard ?? initial.imageCards
-          ) ?? null;
+          normalizeCardsInput(initial.imageFolders ?? initial.imageCards) ??
+          null;
 
         if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
           if (hasServerHydratedRef.current) return;
@@ -279,23 +277,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
-  // 카드형: 이미지 삭제(로컬 상태만)
-  const handleRemoveImage = useCallback(
-    (folderIdx: number, imageIdx: number) => {
-      setImageFolders((prev) => {
-        const next = prev.map((arr) => [...arr]);
-        const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
-        if (removed?.url?.startsWith("blob:")) {
-          try {
-            URL.revokeObjectURL(removed.url);
-          } catch {}
-        }
-        return next;
-      });
-    },
-    []
-  );
-
   /* ───────── 변경 의도 큐 ───────── */
   type PendingGroupChange = {
     id: IdLike;
@@ -313,6 +294,12 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   const pendingGroupMap = useRef<Map<string, PendingGroupChange>>(new Map());
   const pendingPhotoMap = useRef<Map<string, PendingPhotoChange>>(new Map());
   const pendingDeleteSet = useRef<Set<string>>(new Set());
+
+  // ✅ 서버 아이디가 있으면 삭제 큐에 적재
+  const queueDeleteIfServer = (item?: ImageItem) => {
+    const id = getServerPhotoId(item);
+    if (id != null) pendingDeleteSet.current.add(String(id));
+  };
 
   const queuePhotoCaption = useCallback(
     (photoId: IdLike, text: string | null) => {
@@ -357,118 +344,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     [imageFolders, queuePhotoCaption]
   );
 
-  // 카드형: 파일 추가(IndexedDB 저장 & blob 미리보기)
-  const onPickFilesToFolder = useCallback(
-    async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files) return;
-
-      const newItems: ImageItem[] = [];
-      for (const f of Array.from(files)) {
-        const key = makeImgKey(propertyId, "card");
-        await putBlobToIDB(key, f);
-        newItems.push({
-          idbKey: key,
-          url: URL.createObjectURL(f),
-          name: f.name,
-        });
-      }
-
-      setImageFolders((prev) => {
-        const next = [...prev];
-        const current = next[idx] ?? [];
-        next[idx] = [...current, ...newItems].slice(0, MAX_PER_CARD);
-        return next;
-      });
-
-      e.target.value = "";
-    },
-    [propertyId]
-  );
-
-  // 카드형: 폴더 추가/삭제
-  const addPhotoFolder = useCallback(() => {
-    setImageFolders((prev) => [...prev, []]);
-  }, []);
-  const removePhotoFolder = useCallback(
-    (folderIdx: number, opts?: { keepAtLeastOne?: boolean }) => {
-      const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
-
-      setImageFolders((prev) => {
-        const target = prev[folderIdx] ?? [];
-        target.forEach((img) => {
-          if (img?.url?.startsWith("blob:")) {
-            try {
-              URL.revokeObjectURL(img.url);
-            } catch {}
-          }
-        });
-
-        const next = prev.map((arr) => [...arr]);
-        next.splice(folderIdx, 1);
-
-        if (next.length === 0 && keepAtLeastOne) next.push([]);
-        return next;
-      });
-    },
-    []
-  );
-
-  // 세로형: 삭제/추가/캡션
-  const handleRemoveFileItem = useCallback((index: number) => {
-    setVerticalImages((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(index, 1);
-      if (removed?.url?.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(removed.url);
-        } catch {}
-      }
-      return next;
-    });
-  }, []);
-
-  const onAddFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const items: ImageItem[] = [];
-      for (const f of Array.from(files)) {
-        const key = makeImgKey(propertyId, "vertical");
-        await putBlobToIDB(key, f);
-        items.push({ idbKey: key, url: URL.createObjectURL(f), name: f.name });
-      }
-      setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
-    },
-    [propertyId]
-  );
-
-  const onChangeFileItemCaption = useCallback(
-    (index: number, text: string) => {
-      setVerticalImages((prev) =>
-        prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
-      );
-      const item = verticalImages[index];
-      const pid = getServerPhotoId(item);
-      if (pid != null) queuePhotoCaption(pid, text ?? null);
-    },
-    [verticalImages, queuePhotoCaption]
-  );
-
-  // 언마운트 시 blob URL 정리
-  useEffect(() => {
-    return () => {
-      imageFolders.flat().forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
-      });
-      verticalImages.forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
-      });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   /* ─────────────────────────────
-   * 서버 연동 유틸
+   * 서버 연동 유틸 (※ 순서 중요: reloadGroups를 먼저 선언)
    * ───────────────────────────── */
 
   /** pinId별 reload 디듀프 */
@@ -493,7 +370,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           })
         );
 
-        setGroups(list ?? []);
+        setGroups(list ?? {});
         setPhotosByGroup(mapped);
 
         // 서버 하이드레이션 플래그
@@ -653,70 +530,203 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     [uploadToGroup]
   );
 
-  /** 대표(커버) 지정 → 큐 적재 */
-  const makeCover = useCallback(async (photoId: IdLike) => {
-    const key = String(photoId);
-    const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
-    pendingPhotoMap.current.set(key, { ...prev, isCover: true });
-  }, []);
+  /* ───────── 파일 추가/삭제(카드형) ───────── */
 
-  /** 정렬 변경(단건) → 큐 적재 */
-  const reorder = useCallback(
-    async (photoId: IdLike, sortOrder: number) => {
-      queuePhotoSort(photoId, sortOrder);
+  // 수평(카드)용 그룹만 정렬해서 반환
+  const getHorizGroupsSorted = (list: PinPhotoGroup[]) =>
+    list
+      .filter(
+        (g) => !(typeof g.title === "string" && g.title.startsWith(VERT_PREFIX))
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          String(a.title ?? "").localeCompare(String(b.title ?? ""))
+      );
+
+  // 폴더 인덱스와 매칭되는 서버 그룹을 보장(없으면 생성)
+  const ensureFolderGroup = useCallback(
+    async (pinId: IdLike, folderIdx: number) => {
+      await reloadGroups(pinId); // 최신화(디듀프됨)
+      const list = (groups ?? []) as PinPhotoGroup[];
+      const horiz = getHorizGroupsSorted(list);
+      const existing = horiz[folderIdx];
+      if (existing) return existing;
+
+      const title = `사진 폴더 ${folderIdx + 1}`;
+      const sortOrder = folderIdx;
+      const group = await apiCreatePhotoGroup({ pinId, title, sortOrder });
+      return group;
     },
-    [queuePhotoSort]
+    [groups, reloadGroups]
   );
 
-  /** 그룹 이동(여러 장) → 큐 적재 */
-  const moveToGroup = useCallback(
-    async (photoIds: IdLike[], destGroupId: IdLike) => {
-      for (const pid of photoIds) queuePhotoMove(pid, destGroupId);
+  // 카드형: 파일 추가 → 즉시 서버 업로드 → 재로딩(로컬 동기화)
+  const onPickFilesToFolder = useCallback(
+    async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      try {
+        // ✅ 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
+        const group = await ensureFolderGroup(propertyId, idx);
+
+        // ✅ 즉시 업로드 + /photos 등록
+        await uploadToGroup(group.id, files, { domain: "map" });
+
+        // ✅ 서버 상태 재로딩 → 로컬 프리뷰 동기화
+        await reloadGroups(propertyId);
+      } finally {
+        // input reset (같은 파일 재선택 허용)
+        e.target.value = "";
+      }
     },
-    [queuePhotoMove]
+    [propertyId, ensureFolderGroup, uploadToGroup, reloadGroups]
   );
 
-  /** 삭제(여러 장) → 큐 적재 */
-  const deletePhotos = useCallback(async (photoIds: IdLike[]) => {
-    for (const pid of photoIds) pendingDeleteSet.current.add(String(pid));
+  // 카드형: 폴더 추가/삭제
+  const addPhotoFolder = useCallback(() => {
+    setImageFolders((prev) => [...prev, []]);
   }, []);
+  const removePhotoFolder = useCallback(
+    (folderIdx: number, opts?: { keepAtLeastOne?: boolean }) => {
+      const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
 
-  /** 그룹 제목/정렬 편집 UI에서 호출할 큐잉 함수(선택) */
-  const queueGroupTitle = useCallback(
-    (groupId: IdLike, title: string | null) => {
-      const key = String(groupId);
-      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
-      pendingGroupMap.current.set(key, { ...prev, title });
+      setImageFolders((prev) => {
+        const target = prev[folderIdx] ?? [];
+
+        // ✅ 폴더 안 서버 사진들 삭제 큐 적재
+        target.forEach((img) => queueDeleteIfServer(img));
+
+        // blob URL 정리
+        target.forEach((img) => {
+          if (img?.url?.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(img.url);
+            } catch {}
+          }
+        });
+
+        const next = prev.map((arr) => [...arr]);
+        next.splice(folderIdx, 1);
+
+        if (next.length === 0 && keepAtLeastOne) next.push([]);
+        return next;
+      });
     },
     []
   );
-  const queueGroupSortOrder = useCallback(
-    (groupId: IdLike, sortOrder: number | null) => {
-      const key = String(groupId);
-      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
-      pendingGroupMap.current.set(key, { ...prev, sortOrder });
+
+  // 카드형: 이미지 삭제(로컬 상태 + 서버 삭제 큐)
+  const handleRemoveImage = useCallback(
+    (folderIdx: number, imageIdx: number) => {
+      setImageFolders((prev) => {
+        const next = prev.map((arr) => [...arr]);
+        const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
+
+        // ✅ 서버 사진이면 삭제 큐
+        queueDeleteIfServer(removed);
+
+        if (removed?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(removed.url);
+          } catch {}
+        }
+        return next;
+      });
     },
     []
   );
 
-  /** 저장 시 호출: 지금까지의 사진 변경을 모두 커밋 */
-  const commitPending = useCallback(async () => {
+  /* ───────── 세로형: 삭제/추가/캡션 ───────── */
+
+  // 세로형: 개별 삭제(로컬 상태 + 서버 삭제 큐)
+  const handleRemoveFileItem = useCallback((index: number) => {
+    setVerticalImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+
+      // ✅ 서버 사진이면 삭제 큐
+      queueDeleteIfServer(removed);
+
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  const onAddFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0) return;
+      // ⚠️ 세로형은 기존 동작 유지(원하면 즉시 업로드 방식으로도 변경 가능)
+      const items: ImageItem[] = [];
+      for (const f of Array.from(files)) {
+        const key = makeImgKey(propertyId, "vertical");
+        await putBlobToIDB(key, f);
+        items.push({ idbKey: key, url: URL.createObjectURL(f), name: f.name });
+      }
+      setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
+    },
+    [propertyId]
+  );
+
+  const onChangeFileItemCaption = useCallback(
+    (index: number, text: string) => {
+      setVerticalImages((prev) =>
+        prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
+      );
+      const item = verticalImages[index];
+      const pid = getServerPhotoId(item);
+      if (pid != null) queuePhotoCaption(pid, text ?? null);
+    },
+    [verticalImages, queuePhotoCaption]
+  );
+
+  // 언마운트 시 blob URL 정리
+  useEffect(() => {
+    return () => {
+      imageFolders.flat().forEach((f) => {
+        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      });
+      verticalImages.forEach((f) => {
+        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 변경 여부 빠르게 확인 */
+  const hasImageChanges = useCallback(() => {
+    return (
+      pendingGroupMap.current.size > 0 ||
+      pendingPhotoMap.current.size > 0 ||
+      pendingDeleteSet.current.size > 0
+    );
+  }, []);
+
+  /**
+   * 저장 시 호출: 지금까지의 사진 변경을 모두 커밋
+   * @returns boolean - 실제로 네트워크 커밋이 있었으면 true, 없으면 false
+   */
+  const commitImageChanges = useCallback(async (): Promise<boolean> => {
     const groupChanges = Array.from(pendingGroupMap.current.values());
     const photoChanges = Array.from(pendingPhotoMap.current.values());
     const deleteIds = Array.from(pendingDeleteSet.current.values());
 
-    console.debug("[images.commitPending] groups:", groupChanges);
-    console.debug("[images.commitPending] photos:", photoChanges);
-    console.debug("[images.commitPending] deletes:", deleteIds);
-
+    // 네트워크 호출 필요 없으면 바로 false
     if (
       groupChanges.length === 0 &&
       photoChanges.length === 0 &&
       deleteIds.length === 0
     ) {
-      return;
+      return false;
     }
 
+    // 실패 시 큐 보존, 성공 시에만 clear
     try {
       if (groupChanges.length) {
         await batchPatchPhotoGroups(
@@ -745,12 +755,69 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       if (deleteIds.length) {
         await apiDeletePhotos(deleteIds);
       }
-    } finally {
+
+      // 성공 → 큐 비움
       pendingGroupMap.current.clear();
       pendingPhotoMap.current.clear();
       pendingDeleteSet.current.clear();
+
+      return true;
+    } catch (e) {
+      // 실패 → 큐 유지 후 에러 전달
+      throw e;
     }
   }, []);
+
+  // ⛳️ 과거 이름과 호환(기존 코드가 commitPending을 부를 수 있으므로)
+  const commitPending = commitImageChanges;
+
+  /* ───────── 추가 API (누락되면 타입 에러) ───────── */
+
+  // 대표(커버) 지정 → 큐 적재
+  const makeCover = useCallback((photoId: IdLike) => {
+    const key = String(photoId);
+    const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
+    pendingPhotoMap.current.set(key, { ...prev, isCover: true });
+  }, []);
+
+  // 정렬 변경(단건) → 큐 적재
+  const reorder = useCallback(
+    (photoId: IdLike, sortOrder: number) => {
+      queuePhotoSort(photoId, sortOrder);
+    },
+    [queuePhotoSort]
+  );
+
+  // 그룹 이동(여러 장) → 큐 적재
+  const moveToGroup = useCallback(
+    async (photoIds: IdLike[], destGroupId: IdLike) => {
+      for (const pid of photoIds) queuePhotoMove(pid, destGroupId);
+    },
+    [queuePhotoMove]
+  );
+
+  // 삭제(여러 장) → 큐 적재
+  const deletePhotos = useCallback(async (photoIds: IdLike[]) => {
+    for (const pid of photoIds) pendingDeleteSet.current.add(String(pid));
+  }, []);
+
+  // 그룹 제목/정렬 편집 큐
+  const queueGroupTitle = useCallback(
+    (groupId: IdLike, title: string | null) => {
+      const key = String(groupId);
+      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
+      pendingGroupMap.current.set(key, { ...prev, title });
+    },
+    []
+  );
+  const queueGroupSortOrder = useCallback(
+    (groupId: IdLike, sortOrder: number | null) => {
+      const key = String(groupId);
+      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
+      pendingGroupMap.current.set(key, { ...prev, sortOrder });
+    },
+    []
+  );
 
   return {
     /* 로컬 미리보기 상태/액션 */
@@ -791,7 +858,11 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     queuePhotoSort,
     queuePhotoMove,
 
-    /* 저장 시 일괄 커밋 */
+    /* 변경 여부/커밋 */
+    hasImageChanges,
+    commitImageChanges,
+
+    /* 호환용 */
     commitPending,
   };
 }

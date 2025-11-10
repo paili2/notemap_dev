@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/DisplayImagesSection/hooks/useViewImagesHydration.ts
 "use client";
 
 import { useEffect, useMemo, useState } from "react";

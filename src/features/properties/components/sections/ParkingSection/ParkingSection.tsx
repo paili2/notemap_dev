@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/sections/ParkingSection/ParkingSection.tsx
 "use client";
 
 import Field from "@/components/atoms/Field/Field";
@@ -16,6 +15,7 @@ type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
   /** (옵션) 서버 enum id 동기화가 필요할 때만 사용 */
   parkingTypeId?: number | null;
   setParkingTypeId?: (v: number | null) => void;
+  /** name -> id 매핑 (예: { 지하: 1, 지상: 2 }) */
   parkingTypeNameToId?: Record<string, number>;
 };
 
@@ -33,11 +33,20 @@ export default function ParkingSection({
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
 
-  /** 내부 UI 상태(셀렉트 값/커스텀 입력) — 내부에서는 문자열로만 관리 */
+  /** 내부 UI 상태(셀렉트 값/커스텀 입력) — 내부에서는 문자열로 관리 */
   const [selectValue, setSelectValue] = useState<string>(""); // "" | Preset | "custom"
   const [custom, setCustom] = useState<string>("");
 
-  /** 셀렉트 아이템 메모 */
+  /** id -> name 역매핑 */
+  const idToName = useMemo(() => {
+    const map: Record<number, string> = {};
+    Object.entries(parkingTypeNameToId).forEach(([name, id]) => {
+      if (typeof id === "number") map[id] = name;
+    });
+    return map;
+  }, [parkingTypeNameToId]);
+
+  /** 셀렉트 아이템 */
   const selectItems = useMemo(
     () => [
       ...PRESETS.map((opt) => ({ value: opt, label: opt } as const)),
@@ -54,35 +63,48 @@ export default function ParkingSection({
 
   /* ───────── prop → 내부 상태 동기화 ───────── */
   useEffect(() => {
-    // parkingType 이 null/빈 → 내부도 초기화
+    // 0) parkingType이 비어있고 parkingTypeId만 있는 경우 → id를 name으로 역해석
+    if (!parkingType && parkingTypeId != null) {
+      const name = idToName[parkingTypeId];
+      if (name) {
+        if (selectValue !== name) setSelectValue(name);
+        if (custom !== "") setCustom("");
+        setParkingType?.(name);
+        return;
+      }
+    }
+
+    // 1) 미선택
     if (!parkingType) {
       if (selectValue !== "") setSelectValue("");
       if (custom !== "") setCustom("");
       return;
     }
 
-    // 프리셋이면 셀렉트만
+    // 2) "custom" 문자열이 상위에 들어오는 경우는 허용하지 않음 → 미선택으로 정리
+    if (parkingType === "custom") {
+      if (selectValue !== "") setSelectValue("");
+      if (custom !== "") setCustom("");
+      setParkingType?.(null);
+      return;
+    }
+
+    // 3) 프리셋
     if (isPreset(parkingType)) {
       if (selectValue !== parkingType) setSelectValue(parkingType);
       if (custom !== "") setCustom("");
       return;
     }
 
-    // "custom" 자체면 셀렉트만 custom 으로
-    if (parkingType === "custom") {
-      if (selectValue !== "custom") setSelectValue("custom");
-      return;
-    }
-
-    // 실제 커스텀 문자열
+    // 4) 직접입력 값
     if (selectValue !== "custom") setSelectValue("custom");
     if (custom !== parkingType) setCustom(parkingType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parkingType]);
+  }, [parkingType, parkingTypeId, idToName]);
 
   /* ───────── 이벤트 → 상위 반영 ───────── */
 
-  // ✅ SafeSelect onChange 시그니처에 맞게 string | null
+  // SafeSelect onChange (string | null)
   const onChangeSelect = useCallback(
     (val: string | null) => {
       const next = val ?? "";
@@ -91,20 +113,20 @@ export default function ParkingSection({
 
       if (next === "") {
         // 미선택
-        if (parkingType !== null) setParkingType(null);
-        if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
+        setParkingType?.(null);
+        setParkingTypeId?.(null);
         return;
       }
 
       if (next === "custom") {
-        // 커스텀 입력으로 전환
-        if (parkingType !== "custom") setParkingType("custom");
-        if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
+        // 커스텀 입력 열기(아직 서버 값 없음)
+        if (parkingType !== null) setParkingType?.(null);
+        setParkingTypeId?.(null);
         return;
       }
 
       // 프리셋 선택
-      if (parkingType !== next) setParkingType(next);
+      if (parkingType !== next) setParkingType?.(next);
       if (setParkingTypeId) {
         const id = parkingTypeNameToId[next] ?? null;
         if ((id ?? null) !== (parkingTypeId ?? null)) setParkingTypeId(id);
@@ -120,19 +142,23 @@ export default function ParkingSection({
     ]
   );
 
-  // 커스텀 입력 onBlur에서만 상위 반영
+  // 커스텀 입력 onBlur에서만 상위 반영 (빈 값이면 null)
   const onBlurCustom = useCallback(() => {
     const trimmed = custom.trim();
-    const nextType = trimmed === "" ? "custom" : trimmed;
-    if (parkingType !== nextType) setParkingType(nextType);
+    if (trimmed === "") {
+      setParkingType?.(null);
+      setSelectValue("");
+    } else {
+      setParkingType?.(trimmed);
+    }
     if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
-  }, [custom, parkingType, parkingTypeId, setParkingType, setParkingTypeId]);
+  }, [custom, setParkingType, setParkingTypeId, parkingTypeId]);
 
   // 숫자 입력 onChange
   const onChangeCount = useCallback(
     (raw: string) => {
       const onlyDigits = raw.replace(/\D+/g, "");
-      const next = onlyDigits === "" ? null : Number(onlyDigits.slice(0, 6)); // 과도 입력 방지
+      const next = onlyDigits === "" ? null : Number(onlyDigits.slice(0, 6));
       setTotalParkingSlots?.(next);
     },
     [setTotalParkingSlots]
@@ -143,12 +169,15 @@ export default function ParkingSection({
       <Field label="주차 유형">
         <div className="flex items-center gap-2">
           <SafeSelect
-            /** ✅ SafeSelect 타입에 맞춰 string | null 전달 */
             value={selectValue || null}
             onChange={onChangeSelect}
             items={selectItems}
             placeholder="선택"
             className="w-28 h-9"
+            // ⬇ 드롭다운 레이어가 위로 오고, 모달의 overflow에 안 잘리게
+            contentClassName="max-h-[320px] z-[10010]"
+            side="bottom"
+            align="start"
           />
 
           {selectValue === "custom" && (
@@ -166,7 +195,7 @@ export default function ParkingSection({
       <Field label="총 주차대수">
         <div className="flex items-center gap-3">
           <Input
-            value={displayCountStr} // "" 또는 "숫자"
+            value={displayCountStr}
             onChange={(e) => onChangeCount(e.target.value)}
             className="w-16 h-9"
             inputMode="numeric"

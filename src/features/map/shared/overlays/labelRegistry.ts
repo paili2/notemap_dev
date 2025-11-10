@@ -1,5 +1,3 @@
-// src/features/map/lib/labelRegistry.ts
-
 type Entry = {
   el: HTMLElement;
   lat: number;

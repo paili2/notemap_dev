@@ -1,7 +1,7 @@
 "use client";
 
 import CompletionRegistrySection from "../../sections/CompletionRegistrySection/CompletionRegistrySection";
-import type { EditFormAPI } from "@/features/properties/hooks/useEditForm/types";
+import type { CompletionRegistryFormSlice } from "@/features/properties/hooks/useEditForm/types";
 
 /** YYYY-MM-DD 로 잘라서 반환(없으면 빈 문자열) */
 const toYmd = (s?: string | null) =>
@@ -19,7 +19,7 @@ const toStr = (v: unknown) =>
 export default function CompletionRegistryContainer({
   form,
 }: {
-  form: EditFormAPI;
+  form: CompletionRegistryFormSlice; // ✅ 슬라이스 타입으로 변경
 }) {
   const completionDate = toYmd(form.completionDate);
   const setCompletionDate = clampYmdSetter(form.setCompletionDate);

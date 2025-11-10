@@ -13,6 +13,7 @@ import type { CompletionRegistrySectionProps } from "./types";
 
 /** ───────── 상수/타입 ───────── */
 const GRADES = ["상", "중", "하"] as const;
+type GradeLiteral = (typeof GRADES)[number];
 
 // UI 라벨(버튼) 고정 튜플
 const UI_BUILDING_TYPES = ["주택", "APT", "OP", "도/생", "근/생"] as const;
@@ -104,6 +105,17 @@ export default function CompletionRegistrySection({
     [setMinRealMoveInCost, setSalePrice]
   );
 
+  /** ✅ Grade 온체인지: setter가 없을 수도 있으므로 안전 래퍼 */
+  const onChangeSlope = useCallback(
+    (v: GradeLiteral | undefined) => setSlopeGrade?.(v as Grade | undefined),
+    [setSlopeGrade]
+  );
+  const onChangeStructure = useCallback(
+    (v: GradeLiteral | undefined) =>
+      setStructureGrade?.(v as Grade | undefined),
+    [setStructureGrade]
+  );
+
   return (
     <div className="space-y-4">
       {/* 1행: 경사도/구조 */}
@@ -112,8 +124,8 @@ export default function CompletionRegistrySection({
           <PillRadioGroup
             name="slopeGrade"
             options={GRADES}
-            value={slopeGrade}
-            onChange={setSlopeGrade}
+            value={slopeGrade as GradeLiteral | undefined}
+            onChange={onChangeSlope}
           />
         </Field>
 
@@ -121,8 +133,8 @@ export default function CompletionRegistrySection({
           <PillRadioGroup
             name="structureGrade"
             options={GRADES}
-            value={structureGrade}
-            onChange={setStructureGrade}
+            value={structureGrade as GradeLiteral | undefined}
+            onChange={onChangeStructure}
           />
         </Field>
       </div>

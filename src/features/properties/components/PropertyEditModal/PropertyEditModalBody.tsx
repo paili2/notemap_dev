@@ -1,16 +1,8 @@
 "use client";
 
-import {
-  ComponentProps,
-  useMemo,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useMemo, useCallback, useEffect, useState } from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
-
 import type { PropertyEditModalProps } from "./types";
-
 import { useEditImages } from "./hooks/useEditImages";
 import { useEditForm } from "./hooks/useEditForm/useEditForm";
 
@@ -18,7 +10,6 @@ import HeaderContainer from "./ui/HeaderContainer";
 import BasicInfoContainer from "./ui/BasicInfoContainer";
 import NumbersContainer from "./ui/NumbersContainer";
 
-import CompletionRegistryContainer from "./ui/CompletionRegistryContainer";
 import AspectsContainer from "./ui/AspectsContainer";
 import AreaSetsContainer from "./ui/AreaSetsContainer";
 import StructureLinesContainer from "./ui/StructureLinesContainer";
@@ -28,10 +19,25 @@ import ImagesContainer from "./ui/ImagesContainer";
 import { buildUpdatePayload } from "./lib/buildUpdatePayload";
 import { updatePin, UpdatePinDto } from "@/shared/api/pins";
 import { useQueryClient } from "@tanstack/react-query";
-import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
+import {
+  mapBadgeToPinKind,
+  mapPinKindToBadge,
+} from "@/features/properties/lib/badge";
 import ParkingContainer from "./ui/ParkingContainer";
+import CompletionRegistryContainer from "./ui/CompletionRegistryContainer";
+import { CompletionRegistryFormSlice } from "../../hooks/useEditForm/types";
 
-type ParkingFormSlice = ComponentProps<typeof ParkingContainer>["form"];
+/* 면적 그룹 유틸 & 타입 */
+import { buildAreaGroups } from "@/features/properties/lib/area";
+import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
+
+/** Parking 슬라이스 타입 */
+type ParkingFormSlice = {
+  parkingType: string | null;
+  setParkingType: (v: string | null) => void;
+  totalParkingSlots: string | null;
+  setTotalParkingSlots: (v: string | null) => void;
+};
 
 /* ───────── helpers ───────── */
 const N = (v: any): number | undefined => {
@@ -43,14 +49,85 @@ const S = (v: any): string | undefined => {
   const t = typeof v === "string" ? v.trim() : "";
   return t ? t : undefined;
 };
+const toBool = (v: any): boolean | undefined => {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number")
+    return v === 1 ? true : v === 0 ? false : undefined;
+  const s = String(v).trim().toLowerCase();
+  if (["1", "true", "y", "yes", "o"].includes(s)) return true;
+  if (["0", "false", "n", "no", "x"].includes(s)) return false;
+  return undefined;
+};
 
-/** 서버 등기/용도 값 → 폼 내부 코드 매핑 */
+/* AreaSet 정규화 */
+const toStrictAreaSet = (s: any): StrictAreaSet => ({
+  title: String(s?.title ?? ""),
+  exMinM2: String(s?.exMinM2 ?? ""),
+  exMaxM2: String(s?.exMaxM2 ?? ""),
+  exMinPy: String(s?.exMinPy ?? ""),
+  exMaxPy: String(s?.exMaxPy ?? ""),
+  realMinM2: String(s?.realMinM2 ?? ""),
+  realMaxM2: String(s?.realMaxM2 ?? ""),
+  realMinPy: String(s?.realMinPy ?? ""),
+  realMaxPy: String(s?.realMaxPy ?? ""),
+});
+
+/* ✅ 옵션 빌드/정규화 */
+const buildOptionsFromForm = (f: any) => {
+  const selected: string[] = Array.isArray(f.options) ? f.options : [];
+  const has = (label: string) => selected.includes(label);
+  const extraRaw = String(f.optionEtc ?? "").trim();
+
+  const out: any = {
+    hasAircon: has("에어컨"),
+    hasFridge: has("냉장고"),
+    hasWasher: has("세탁기"),
+    hasDryer: has("건조기"),
+    hasBidet: has("비데"),
+    hasAirPurifier: has("공기청정기") || has("공기순환기"),
+  };
+  if (extraRaw) out.extraOptionsText = extraRaw.slice(0, 255);
+
+  const any =
+    out.hasAircon ||
+    out.hasFridge ||
+    out.hasWasher ||
+    out.hasDryer ||
+    out.hasBidet ||
+    out.hasAirPurifier ||
+    !!out.extraOptionsText;
+
+  return any ? out : null; // 객체면 upsert, null이면 삭제
+};
+
+/* ⚠️ 비교용 옵션 정규화(빈 값 제거) */
+const normalizeOptionsForCompare = (o: any) => {
+  if (!o) return null;
+  const t = (s: any) => {
+    const v = String(s ?? "").trim();
+    return v ? v.slice(0, 255) : undefined;
+  };
+  const x = {
+    hasAircon: !!o.hasAircon || undefined,
+    hasFridge: !!o.hasFridge || undefined,
+    hasWasher: !!o.hasWasher || undefined,
+    hasDryer: !!o.hasDryer || undefined,
+    hasBidet: !!o.hasBidet || undefined,
+    hasAirPurifier: !!o.hasAirPurifier || undefined,
+    extraOptionsText: t(o.extraOptionsText),
+  };
+  const y: any = {};
+  for (const [k, v] of Object.entries(x)) if (v !== undefined) y[k] = v;
+  return Object.keys(y).length ? y : null;
+};
+
+/** 서버 등기/용도 → UI 코드 */
 function mapRegistry(v: any): string | undefined {
   if (v == null) return undefined;
   const s = String(v).trim().toLowerCase();
-
   if (["house", "housing", "주택"].includes(s)) return "주택";
-  if (["apt", "apartment", "아파트"].includes(s)) return "APT";
+  if (["apt", "apartment, 아파트", "아파트"].includes(s)) return "APT";
   if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
   if (
     ["urban", "urb", "도생", "도시생활형", "도시생활형주택", "도/생"].includes(
@@ -60,15 +137,54 @@ function mapRegistry(v: any): string | undefined {
     return "도/생";
   if (["near", "nearlife", "근생", "근린생활시설", "근/생"].includes(s))
     return "근/생";
-
   if (["주택", "APT", "OP", "도/생", "근/생"].includes(String(v)))
     return String(v);
   if (["residential"].includes(s)) return "주택";
   if (["commercial"].includes(s)) return "근/생";
   return undefined;
 }
+const toUIRegistryFromBuildingType = (v: any): string | undefined => {
+  const s = String(v ?? "").trim();
+  if (!s) return undefined;
+  if (s === "근생") return "근/생";
+  if (s === "APT" || s === "OP" || s === "주택") return s;
+  return undefined;
+};
+const toServerBuildingType = (
+  v: any
+): "APT" | "OP" | "주택" | "근생" | undefined => {
+  if (v == null) return undefined;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return undefined;
+  if (["apt", "아파트"].includes(s)) return "APT";
+  if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
+  if (["house", "housing", "주택", "residential"].includes(s)) return "주택";
+  if (
+    [
+      "근생",
+      "근/생",
+      "near",
+      "nearlife",
+      "근린생활시설",
+      "urban",
+      "urb",
+      "도생",
+      "도시생활형",
+      "도시생활형주택",
+      "도/생",
+      "commercial",
+    ].includes(s)
+  )
+    return "근생";
+  if (["apt", "op", "주택", "근생"].includes(s)) {
+    if (s === "apt") return "APT";
+    if (s === "op") return "OP";
+    return s as any;
+  }
+  return undefined;
+};
 
-/* ───────── 서버 PATCH 전용 유틸(변경분만 생성) ───────── */
+/* ───────── deep prune & 비교 유틸 ───────── */
 const normalizeShallow = (v: any) => {
   if (v === "" || v === null || v === undefined) return undefined;
   if (Array.isArray(v) && v.length === 0) return undefined;
@@ -86,8 +202,38 @@ const jsonEq = (a: any, b: any) => {
     return false;
   }
 };
+function deepPrune<T>(obj: T): Partial<T> {
+  const prune = (v: any): any => {
+    if (v === undefined) return undefined;
+    if (Array.isArray(v)) {
+      const arr = v.map(prune).filter((x) => x !== undefined);
+      return arr.length ? arr : undefined;
+    }
+    if (v && typeof v === "object") {
+      const out: Record<string, any> = {};
+      for (const [k, vv] of Object.entries(v)) {
+        const pv = prune(vv);
+        if (pv !== undefined) out[k] = pv;
+      }
+      return Object.keys(out).length ? out : undefined;
+    }
+    return v;
+  };
+  const pruned = prune(obj);
+  return (pruned ?? {}) as Partial<T>;
+}
+function hasMeaningfulPatch(obj: object | null | undefined): boolean {
+  if (!obj) return false;
+  const keys = Object.keys(obj);
+  if (keys.length === 0) return false;
+  for (const k of keys) {
+    const v = (obj as any)[k];
+    if (v !== undefined) return true;
+  }
+  return false;
+}
 
-/* ───────── 향/방향 비교 정규화 유틸 ───────── */
+/* ───────── 향/방향 & 유닛 비교 유틸 ───────── */
 const normStrU = (v: any): string | undefined => {
   if (v == null) return undefined;
   const s = String(v).trim();
@@ -104,7 +250,12 @@ const normOrientations = (arr: any): any[] | undefined => {
   if (!Array.isArray(arr) || arr.length === 0) return undefined;
   const pickKey = (o: OrientationLike) =>
     String(
-      o?.code ?? o?.key ?? o?.name ?? o?.dir ?? JSON.stringify(o ?? {})
+      o?.code ??
+        o?.key ??
+        o?.name ??
+        o?.dir ??
+        o?.direction ??
+        JSON.stringify(o ?? {})
     ).trim();
   const normed = arr
     .map((o) => ({ key: pickKey(o) }))
@@ -129,7 +280,6 @@ const aspectBundlesEqual = (A: any, B: any): boolean => {
   }
 };
 
-/** unit 정규화/비교 (서버 전송 규칙: 변경시 전체 배열 전송) */
 type UnitLike = {
   rooms?: number | string | null;
   baths?: number | string | null;
@@ -195,149 +345,471 @@ const unitsChanged = (prev?: any[], curr?: any[]) => {
   return false;
 };
 
-/** 초기 스냅샷: 임의 키 허용(레거시 호환) */
 type InitialSnapshot = { [key: string]: any };
 
-/** 폼 → 서버 최소 PATCH (변경된 것만, units는 묶음 전체전송) */
+/* ───────── 폼 → 서버 최소 PATCH ───────── */
 function toPinPatch(
   f: ReturnType<typeof useEditForm>,
   initial: InitialSnapshot
 ): UpdatePinDto {
-  const patch: Partial<UpdatePinDto> = {};
+  console.groupCollapsed("[toPinPatch] start");
+  console.log("[toPinPatch] initial:", initial);
+  console.log("[toPinPatch] form.baseAreaSet:", f.baseAreaSet);
+  console.log("[toPinPatch] form.extraAreaSets:", f.extraAreaSets);
 
-  // ── 등기/용도 → buildingType ──
+  const patch: Partial<UpdatePinDto> = {};
+  const S2 = (v: any) => {
+    const t = typeof v === "string" ? v.trim() : "";
+    return t ? t : undefined;
+  };
+  const N2 = (v: any): number | undefined => {
+    if (v === "" || v === null || v === undefined) return undefined;
+    const n = Number(String(v).replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : undefined;
+  };
+  const jsonEq2 = (a: any, b: any) => {
+    const norm = (x: any) =>
+      x === "" || x === null || x === undefined ? undefined : x;
+    try {
+      return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+    } catch {
+      return false;
+    }
+  };
+
+  // name
+  const initName = (initial as any)?.name ?? (initial as any)?.title ?? "";
+  const nowName = S2((f as any).title);
+  if (nowName !== undefined && !jsonEq2(initName, nowName))
+    (patch as any).name = nowName;
+
+  // 연락처
+  const initMainLabel =
+    (initial as any)?.contactMainLabel ?? (initial as any)?.officeName ?? "";
+  const initMainPhone =
+    (initial as any)?.contactMainPhone ?? (initial as any)?.officePhone ?? "";
+  const initSubPhone =
+    (initial as any)?.contactSubPhone ?? (initial as any)?.officePhone2 ?? "";
+  const nowMainLabel = S2((f as any).officeName);
+  const nowMainPhone = S2((f as any).officePhone);
+  const nowSubPhone = S2((f as any).officePhone2);
+  if (nowMainLabel !== undefined && !jsonEq2(initMainLabel, nowMainLabel))
+    (patch as any).contactMainLabel = nowMainLabel;
+  if (nowMainPhone !== undefined && !jsonEq2(initMainPhone, nowMainPhone))
+    (patch as any).contactMainPhone = nowMainPhone;
+  if (nowSubPhone !== undefined && !jsonEq2(initSubPhone, nowSubPhone))
+    (patch as any).contactSubPhone = nowSubPhone;
+
+  // 완공일
+  if (!jsonEq2((initial as any)?.completionDate, (f as any).completionDate)) {
+    (patch as any).completionDate = S2((f as any).completionDate) ?? null;
+  }
+
+  // 엘리베이터
+  const initElev = toBool(
+    (initial as any)?.hasElevator ?? (initial as any)?.elevator
+  );
+  const nowElev = toBool((f as any)?.elevator);
+  if (nowElev !== undefined && nowElev !== initElev)
+    (patch as any).hasElevator = nowElev;
+
+  // 메모
+  if (!jsonEq2((initial as any)?.publicMemo, (f as any).publicMemo))
+    (patch as any).publicMemo = (f as any).publicMemo ?? null;
+  const initPrivate =
+    (initial as any)?.privateMemo ?? (initial as any)?.secretMemo;
+  if (!jsonEq2(initPrivate, (f as any).secretMemo))
+    (patch as any).privateMemo = (f as any).secretMemo ?? null;
+
+  /* ✅ 옵션 diff */
+  {
+    const nowOpts = buildOptionsFromForm(f); // 객체 or null
+    const initOptsObj = (initial as any)?.options ?? null;
+
+    const initFromSlices = buildOptionsFromForm({
+      options:
+        (initial as any)?.options ??
+        (initial as any)?.options?.options ??
+        (initial as any)?.optionsLabels ??
+        (initial as any)?.optionList ??
+        [],
+      optionEtc:
+        (initial as any)?.optionEtc ?? (initial as any)?.extraOptionsText ?? "",
+    });
+
+    const sameByServerObj =
+      JSON.stringify(normalizeOptionsForCompare(initOptsObj)) ===
+      JSON.stringify(normalizeOptionsForCompare(nowOpts));
+
+    const sameBySlices =
+      JSON.stringify(normalizeOptionsForCompare(initFromSlices)) ===
+      JSON.stringify(normalizeOptionsForCompare(nowOpts));
+
+    if (!(sameByServerObj || sameBySlices)) {
+      (patch as any).options = nowOpts; // 객체(upsert) 또는 null(삭제)
+    }
+  }
+
+  // 최저 실입
+  const initMinCost =
+    (initial as any)?.minRealMoveInCost ??
+    (Number.isFinite(Number((initial as any)?.salePrice))
+      ? Number((initial as any)?.salePrice)
+      : undefined);
+  const nowMinCostNum = N2((f as any).salePrice);
+  if (!jsonEq2(initMinCost, nowMinCostNum))
+    (patch as any).minRealMoveInCost = nowMinCostNum ?? null;
+
+  // buildingType
   const btInitRaw =
     (initial as any)?.registry ??
-    (initial as any)?.registryOne ??
     (initial as any)?.buildingType ??
     (initial as any)?.type ??
     (initial as any)?.propertyType;
+  const btInit = toServerBuildingType(btInitRaw);
+  const nowBTRaw =
+    (f as any).registry ??
+    (f as any).buildingType ??
+    (f as any).type ??
+    (f as any).propertyType;
+  const btNowServer = toServerBuildingType(nowBTRaw);
+  if (btNowServer !== undefined && btNowServer !== btInit)
+    (patch as any).buildingType = btNowServer;
 
-  const nowRawCandidates = [
-    (f as any).registry,
-    (f as any).registryOne,
-    (f as any).buildingType,
-    (f as any).type,
-    (f as any).propertyType,
-  ];
+  // 경사/구조 grade
+  if (!jsonEq2((initial as any)?.slopeGrade, (f as any).slopeGrade))
+    (patch as any).slopeGrade = (f as any).slopeGrade ?? null;
+  if (!jsonEq2((initial as any)?.structureGrade, (f as any).structureGrade))
+    (patch as any).structureGrade = (f as any).structureGrade ?? null;
 
-  const asMeaningful = (v: any): string | undefined => {
-    if (v == null) return undefined;
-    const s = String(v).trim();
-    if (!s || s === "-" || s === "—") return undefined;
-    return s;
-  };
-  const normalizeBT = (v: any): string | undefined =>
-    mapRegistry(v) ?? asMeaningful(v);
-
-  const btInit = normalizeBT(btInitRaw);
-  let btNow: string | undefined;
-  for (const c of nowRawCandidates) {
-    const vv = normalizeBT(c);
-    if (vv !== undefined) {
-      btNow = vv;
-      break;
-    }
-  }
-  if (btNow !== undefined && btNow !== btInit) {
-    (patch as any).buildingType = btNow;
-  }
-
-  // ── 경사/구조 ──
-  if (!jsonEq((initial as any)?.slopeGrade, f.slopeGrade)) {
-    (patch as any).slopeGrade = f.slopeGrade ?? undefined;
-  }
-  if (!jsonEq((initial as any)?.structureGrade, f.structureGrade)) {
-    (patch as any).structureGrade = f.structureGrade ?? undefined;
-  }
-
-  // ── 주차 평점(숫자) ──
+  // 주차 (문자열 parkingType 사용)
   const pgNow =
-    f.parkingGrade && String(f.parkingGrade).trim() !== ""
-      ? Number(f.parkingGrade)
+    (f as any).parkingGrade && String((f as any).parkingGrade).trim() !== ""
+      ? String((f as any).parkingGrade)
       : undefined;
   const pgInitRaw = (initial as any)?.parkingGrade;
   const pgInit =
     pgInitRaw && String(pgInitRaw).trim() !== ""
-      ? Number(pgInitRaw)
+      ? String(pgInitRaw)
       : undefined;
-  if (!jsonEq(pgInit, pgNow) && pgNow !== undefined) {
+  if (!jsonEq2(pgInit, pgNow) && pgNow !== undefined)
     (patch as any).parkingGrade = pgNow;
+
+  if (!jsonEq2((initial as any)?.parkingType, (f as any).parkingType)) {
+    (patch as any).parkingType =
+      (f as any).parkingType == null ||
+      String((f as any).parkingType).trim() === ""
+        ? null
+        : String((f as any).parkingType);
   }
 
-  // ── 주차 유형/총대수 ──
-  if (!jsonEq((initial as any)?.parkingType, f.parkingType)) {
-    (patch as any).parkingType = S(f.parkingType);
+  const initSlots = N2((initial as any)?.totalParkingSlots);
+  const nowSlots = N2((f as any).totalParkingSlots);
+  if (!jsonEq2(initSlots, nowSlots))
+    (patch as any).totalParkingSlots = nowSlots ?? null;
+
+  // 숫자들
+  const initTotalBuildings = N2((initial as any)?.totalBuildings);
+  const initTotalFloors = N2((initial as any)?.totalFloors);
+  const initTotalHouseholds = N2((initial as any)?.totalHouseholds);
+  const initRemainingHouseholds = N2((initial as any)?.remainingHouseholds);
+
+  const nowTotalBuildings = N2((f as any).totalBuildings);
+  const nowTotalFloors = N2((f as any).totalFloors);
+  const nowTotalHouseholds = N2((f as any).totalHouseholds);
+  const nowRemainingHouseholds = N2((f as any).remainingHouseholds);
+
+  if (!jsonEq2(initTotalBuildings, nowTotalBuildings))
+    (patch as any).totalBuildings = nowTotalBuildings ?? null;
+  if (!jsonEq2(initTotalFloors, nowTotalFloors))
+    (patch as any).totalFloors = nowTotalFloors ?? null;
+  if (!jsonEq2(initTotalHouseholds, nowTotalHouseholds))
+    (patch as any).totalHouseholds = nowTotalHouseholds ?? null;
+  if (!jsonEq2(initRemainingHouseholds, nowRemainingHouseholds))
+    (patch as any).remainingHouseholds = nowRemainingHouseholds ?? null;
+
+  // === 면적: 단일값 + 범위 ===
+  {
+    const {
+      exclusiveArea,
+      realArea,
+      extraExclusiveAreas,
+      extraRealAreas,
+      baseAreaTitleOut,
+      extraAreaTitlesOut,
+    } = (f as any).packAreas?.() ?? {};
+
+    const Snum = (v: any) =>
+      v === null || v === undefined || v === "" ? undefined : String(v).trim();
+
+    if (!jsonEq2((initial as any)?.exclusiveArea, exclusiveArea))
+      (patch as any).exclusiveArea = Snum(exclusiveArea) ?? null;
+
+    if (!jsonEq2((initial as any)?.realArea, realArea))
+      (patch as any).realArea = Snum(realArea) ?? null;
+
+    if (!jsonEq2((initial as any)?.extraExclusiveAreas, extraExclusiveAreas))
+      (patch as any).extraExclusiveAreas = Array.isArray(extraExclusiveAreas)
+        ? extraExclusiveAreas
+        : [];
+
+    if (!jsonEq2((initial as any)?.extraRealAreas, extraRealAreas))
+      (patch as any).extraRealAreas = Array.isArray(extraRealAreas)
+        ? extraRealAreas
+        : [];
+
+    if (!jsonEq2((initial as any)?.baseAreaTitleOut, baseAreaTitleOut))
+      (patch as any).baseAreaTitleOut = Snum(baseAreaTitleOut) ?? null;
+
+    if (!jsonEq2((initial as any)?.extraAreaTitlesOut, extraAreaTitlesOut))
+      (patch as any).extraAreaTitlesOut = Array.isArray(extraAreaTitlesOut)
+        ? extraAreaTitlesOut
+        : [];
   }
-  const initSlots = N((initial as any)?.totalParkingSlots);
-  const nowSlots = N(f.totalParkingSlots);
-  if (!jsonEq(initSlots, nowSlots)) {
-    (patch as any).totalParkingSlots = nowSlots ?? undefined;
+
+  // 2) 범위(m²/평)
+  {
+    const normNum = (v: any): string | undefined => {
+      if (v === "" || v == null) return undefined;
+      const n = Number(String(v).replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? String(n) : undefined;
+    };
+
+    const initSnap = {
+      exMin: normNum((initial as any)?.exclusiveAreaMin),
+      exMax: normNum((initial as any)?.exclusiveAreaMax),
+      exMinPy: normNum((initial as any)?.exclusiveAreaMinPy),
+      exMaxPy: normNum((initial as any)?.exclusiveAreaMaxPy),
+      realMin: normNum((initial as any)?.realAreaMin),
+      realMax: normNum((initial as any)?.realAreaMax),
+      realMinPy: normNum((initial as any)?.realAreaMinPy),
+      realMaxPy: normNum((initial as any)?.realAreaMaxPy),
+    };
+
+    const s = (f as any).baseAreaSet ?? {};
+    const nowSnap = {
+      exMin: normNum(
+        s?.exclusiveMin ?? s?.exMinM2 ?? s?.exclusive?.minM2 ?? s?.m2Min
+      ),
+      exMax: normNum(
+        s?.exclusiveMax ?? s?.exMaxM2 ?? s?.exclusive?.maxM2 ?? s?.m2Max
+      ),
+      exMinPy: normNum(
+        s?.exclusiveMinPy ?? s?.exMinPy ?? s?.exclusive?.minPy ?? s?.pyMin
+      ),
+      exMaxPy: normNum(
+        s?.exclusiveMaxPy ?? s?.exMaxPy ?? s?.exclusive?.maxPy ?? s?.pyMax
+      ),
+      realMin: normNum(s?.realMin ?? s?.realMinM2 ?? s?.real?.minM2),
+      realMax: normNum(s?.realMax ?? s?.realMaxM2 ?? s?.real?.maxM2),
+      realMinPy: normNum(s?.realMinPy ?? s?.real?.minPy),
+      realMaxPy: normNum(s?.realMaxPy ?? s?.real?.maxPy),
+    };
+
+    const putIfChanged = (key: keyof typeof initSnap, patchKey: string) => {
+      const prev = (initSnap as any)[key];
+      const curr = (nowSnap as any)[key];
+      if (curr !== undefined && curr !== prev) (patch as any)[patchKey] = curr;
+    };
+
+    putIfChanged("exMin", "exclusiveAreaMin");
+    putIfChanged("exMax", "exclusiveAreaMax");
+    putIfChanged("exMinPy", "exclusiveAreaMinPy");
+    putIfChanged("exMaxPy", "exclusiveAreaMaxPy");
+    putIfChanged("realMin", "realAreaMin");
+    putIfChanged("realMax", "realAreaMax");
+    putIfChanged("realMinPy", "realAreaMinPy");
+    putIfChanged("realMaxPy", "realAreaMaxPy");
   }
 
-  // ── 핀 종류 ──
-  if (!jsonEq((initial as any)?.pinKind, (f as any).pinKind)) {
-    (patch as any).pinKind = (f as any).pinKind;
-  }
+  /* 3) 면적 그룹 — 초기 vs 현재 그룹 ‘정규화’ 비교 */
+  {
+    const canonNumStr = (v: any): string | undefined => {
+      if (v === "" || v == null) return undefined;
+      const n = Number(String(v).replace(/[^\d.-]/g, ""));
+      if (!Number.isFinite(n)) return undefined;
+      const r = Math.round(n * 1000) / 1000;
+      return String(+r.toFixed(3));
+    };
 
-  // ── 향/방향 ──
-  const initAspectBundle = {
-    aspect: (initial as any)?.aspect,
-    aspectNo: (initial as any)?.aspectNo,
-    aspect1: (initial as any)?.aspect1,
-    aspect2: (initial as any)?.aspect2,
-    aspect3: (initial as any)?.aspect3,
-    orientations: (initial as any)?.orientations,
-  };
+    const normGroup = (g: any) => ({
+      title: String(g?.title ?? "").trim(),
+      exclusiveMinM2: canonNumStr(
+        g?.exclusiveMinM2 ?? g?.exMinM2 ?? g?.exclusiveMin
+      ),
+      exclusiveMaxM2: canonNumStr(
+        g?.exclusiveMaxM2 ?? g?.exMaxM2 ?? g?.exclusiveMax
+      ),
+      realMinM2: canonNumStr(g?.realMinM2 ?? g?.actualMinM2 ?? g?.realMin),
+      realMaxM2: canonNumStr(g?.realMaxM2 ?? g?.actualMaxM2 ?? g?.realMax),
+    });
 
-  const {
-    orientations: oNow,
-    aspect: aNow,
-    aspectNo: aNoNow,
-    aspect1: a1Now,
-    aspect2: a2Now,
-    aspect3: a3Now,
-  } = f.buildOrientation?.() ?? {};
+    const pickMeaningful = (arr: any) =>
+      Array.isArray(arr)
+        ? arr
+            .map(normGroup)
+            .filter(
+              (x) =>
+                x.title ||
+                x.exclusiveMinM2 ||
+                x.exclusiveMaxM2 ||
+                x.realMinM2 ||
+                x.realMaxM2
+            )
+        : [];
 
-  const nowAspectBundle = {
-    aspect: aNow,
-    aspectNo: aNoNow,
-    aspect1: a1Now,
-    aspect2: a2Now,
-    aspect3: a3Now,
-    orientations: oNow,
-  };
+    const keyOf = (g: any) =>
+      `${g.title}|${g.exclusiveMinM2 ?? ""}|${g.exclusiveMaxM2 ?? ""}|${
+        g.realMinM2 ?? ""
+      }|${g.realMaxM2 ?? ""}`;
 
-  const hasInitMeaning =
-    !!normStrU(initAspectBundle.aspect) ||
-    !!normStrU(initAspectBundle.aspectNo) ||
-    !!normStrU(initAspectBundle.aspect1) ||
-    !!normStrU(initAspectBundle.aspect2) ||
-    !!normStrU(initAspectBundle.aspect3) ||
-    !!(normOrientations(initAspectBundle.orientations)?.length ?? 0);
+    const sortForCmp = (arr: any[]) =>
+      [...arr].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
 
-  if (hasInitMeaning) {
-    const same = aspectBundlesEqual(initAspectBundle, nowAspectBundle);
-    if (!same) {
-      (patch as any).aspect = normStrU(aNow);
-      (patch as any).aspectNo = normStrU(aNoNow);
-      (patch as any).aspect1 = normStrU(a1Now);
-      (patch as any).aspect2 = normStrU(a2Now);
-      (patch as any).aspect3 = normStrU(a3Now);
-      const oo = normOrientations(oNow);
-      (patch as any).orientations = oo ? oNow : undefined;
+    const initGroupsRaw: any[] = Array.isArray((initial as any)?.areaGroups)
+      ? (initial as any).areaGroups
+      : [];
+
+    // 현재 값 계산
+    const strictBase = toStrictAreaSet((f as any).baseAreaSet ?? {});
+    const strictExtras = (
+      Array.isArray((f as any).extraAreaSets) ? (f as any).extraAreaSets : []
+    ).map(toStrictAreaSet);
+
+    let nowGroupsRaw: any[] = [];
+    try {
+      nowGroupsRaw = buildAreaGroups(strictBase, strictExtras) ?? [];
+    } catch (e) {
+      console.warn("[toPinPatch] buildAreaGroups failed:", e);
+      nowGroupsRaw = [];
+    }
+
+    // 그룹 동일성 비교
+    const initNorm = sortForCmp(pickMeaningful(initGroupsRaw));
+    const nowNorm = sortForCmp(pickMeaningful(nowGroupsRaw));
+    const groupsSame = JSON.stringify(initNorm) === JSON.stringify(nowNorm);
+
+    // 사용자가 AreaSet을 손댔는지
+    const strictOf = (s: any) => toStrictAreaSet(s ?? {});
+    const normalizeArr = (arr: any[]) =>
+      arr
+        .map(toStrictAreaSet)
+        .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+
+    const initialBaseStrict = strictOf((initial as any)?.baseAreaSet);
+    const initialExtraStrict = normalizeArr(
+      (initial as any)?.extraAreaSets ?? []
+    );
+    const nowBaseStrict = strictOf((f as any).baseAreaSet);
+    const nowExtraStrict = normalizeArr((f as any).extraAreaSets ?? []);
+
+    const baseChanged =
+      JSON.stringify(initialBaseStrict) !== JSON.stringify(nowBaseStrict);
+    const extrasChanged =
+      JSON.stringify(initialExtraStrict) !== JSON.stringify(nowExtraStrict);
+    const userEditedAreaSets = baseChanged || extrasChanged;
+
+    if (!groupsSame && (initGroupsRaw.length > 0 || userEditedAreaSets)) {
+      (patch as any).areaGroups = nowGroupsRaw.length ? nowGroupsRaw : [];
     }
   }
 
-  // ── 구조(units) ──
+  // 핀 종류
+  {
+    const initKindCanon =
+      (initial as any)?.pinKind ??
+      mapBadgeToPinKind?.((initial as any)?.badge) ??
+      undefined;
+
+    const nowKind = (f as any)?.pinKind ?? undefined;
+
+    if (nowKind && nowKind !== initKindCanon) {
+      (patch as any).pinKind = nowKind;
+
+      // 서버가 badge를 함께 쓰는 경우 대비: 가능하면 badge도 동시 전송
+      const nextBadge = mapPinKindToBadge?.(nowKind);
+      if (nextBadge) (patch as any).badge = nextBadge;
+    }
+  }
+
+  // ── 향/방향: 변경시에만 directions 전송 (표시는 ho 순서 보존) ─────────────
+  const hoNum = (v: any) => {
+    const s = String(v ?? "").replace(/[^\d]/g, "");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+  };
+
+  const pickDirStringsFromInitial = (init: any): string[] => {
+    if (Array.isArray(init?.directions) && init.directions.length) {
+      return init.directions
+        .map((d: any) =>
+          typeof d?.direction === "string" ? d.direction.trim() : ""
+        )
+        .filter(Boolean);
+    }
+    return [init?.aspect1, init?.aspect2, init?.aspect3]
+      .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean);
+  };
+
+  const pickHoDirPairsFromForm = (): Array<{ ho: number; dir: string }> => {
+    const bo = (f as any).buildOrientation?.() ?? {};
+    const oNow = Array.isArray(bo.orientations) ? bo.orientations : [];
+
+    let pairs = oNow
+      .map((o: any) => {
+        const dir =
+          (typeof o?.dir === "string" && o.dir.trim()) ||
+          (typeof o?.value === "string" && o.value.trim()) ||
+          "";
+        const ho = hoNum(o?.ho);
+        return dir ? { ho, dir } : null;
+      })
+      .filter(Boolean) as Array<{ ho: number; dir: string }>;
+
+    if (!pairs.length) {
+      const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
+        .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+        .filter(Boolean);
+      pairs = arr.map((dir, idx) => ({ ho: idx + 1, dir }));
+    }
+
+    pairs.sort((a, b) => a.ho - b.ho);
+    return pairs;
+  };
+
+  const normSet = (arr: string[]) =>
+    Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean))).sort((a, b) =>
+      a.localeCompare(b)
+    );
+
+  const initDirsSet = normSet(pickDirStringsFromInitial(initial));
+  const nowPairs = pickHoDirPairsFromForm();
+  const nowDirsSet = normSet(nowPairs.map((p) => p.dir));
+
+  if (JSON.stringify(initDirsSet) !== JSON.stringify(nowDirsSet)) {
+    // 전송은 ho 정렬 순서 유지
+    (patch as any).directions = nowPairs.map((p) => ({ direction: p.dir }));
+  }
+
+  // ✅ 서버로 aspect/aspectNo/aspect1~3은 더 이상 보내지 않음
+
+  // 구조(units)
   const initialUnits = ((initial as any)?.unitLines ??
     (initial as any)?.units) as any[] | undefined;
-  const currentUnits = (f.unitLines ?? []) as any[];
-
+  const currentUnits = ((f as any).unitLines ?? []) as any[];
   if (unitsChanged(initialUnits, currentUnits)) {
     const units = (currentUnits ?? [])
       .map((u) => {
-        const n = normUnit(u as UnitLike);
+        const n = {
+          rooms: toNumOrNull(u?.rooms),
+          baths: toNumOrNull(u?.baths),
+          hasLoft: !!(u?.hasLoft ?? u?.duplex),
+          hasTerrace: !!(u?.hasTerrace ?? u?.terrace),
+          minPrice: toNumOrNull(u?.minPrice ?? u?.primary),
+          maxPrice: toNumOrNull(u?.maxPrice ?? u?.secondary),
+          note: (u?.note ?? null) as string | null,
+        };
         const hasAny =
           n.rooms != null ||
           n.baths != null ||
@@ -362,8 +834,40 @@ function toPinPatch(
     (patch as any).units = units;
   }
 
+  console.log("[toPinPatch] final patch:", patch);
+  console.groupEnd();
   return patch as UpdatePinDto;
 }
+
+/* 🔧 무의미한 null/빈값 제거: 초기 스냅샷 기준으로 noop이면 dto에서 삭제 */
+const stripNoopNulls = (dto: any, initial: any) => {
+  const norm = (x: any) =>
+    x === "" || x === null || x === undefined ? undefined : x;
+
+  for (const k of Object.keys(dto)) {
+    const v = dto[k];
+
+    if (v === undefined) {
+      delete dto[k];
+      continue;
+    }
+    if (v === null && norm(initial?.[k]) === undefined) {
+      delete dto[k];
+      continue;
+    }
+    // ✅ directions / units 는 빈 배열이라도 보존 (삭제 명시를 위해)
+    if (Array.isArray(v) && v.length === 0) {
+      if (k === "directions" || k === "units") continue;
+      delete dto[k];
+      continue;
+    }
+    if (typeof v === "object" && v && Object.keys(v).length === 0) {
+      delete dto[k];
+      continue;
+    }
+  }
+  return dto;
+};
 
 /* ───────── component ───────── */
 export default function PropertyEditModalBody({
@@ -374,13 +878,13 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const queryClient = useQueryClient();
 
-  /** 1) initialData 평탄화 */
+  // initialData 평탄화
   const normalizedInitial = useMemo(() => {
     const src = initialData as any;
     return src?.raw ?? src?.view ?? src ?? null;
   }, [initialData]);
 
-  /** 2) 브릿지: 최저실입/등기/핀종류 정규화 */
+  // 브릿지: 최저실입/등기/핀종류 정규화
   const bridgedInitial = useMemo(() => {
     const src = normalizedInitial as any;
     if (!src) return null;
@@ -392,23 +896,17 @@ export default function PropertyEditModalBody({
         : undefined);
 
     const rawReg =
-      src?.registry ??
-      src?.registryOne ??
-      src?.type ??
-      src?.propertyType ??
-      src?.buildingType;
-    const reg = mapRegistry(rawReg);
+      src?.registry ?? src?.type ?? src?.propertyType ?? src?.buildingType;
+    let reg = mapRegistry(rawReg);
+    if (!reg) reg = toUIRegistryFromBuildingType(src?.buildingType);
 
-    // badge → pinKind 역매핑 주입 (가짜 변경 방지)
     const initPinKind =
       src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
 
     return {
       ...src,
       ...(salePrice !== undefined ? { salePrice } : {}),
-      ...(reg !== undefined
-        ? { registry: reg, registryOne: reg, buildingType: reg }
-        : {}),
+      ...(reg !== undefined ? { registry: reg } : {}),
       ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
   }, [normalizedInitial]);
@@ -420,7 +918,7 @@ export default function PropertyEditModalBody({
     return String(id ?? "");
   }, [initialData]);
 
-  /** 초기 이미지 세팅 */
+  // 이미지 초기값
   const initialImages = useMemo(() => {
     const v = bridgedInitial as any;
     if (!v) return null;
@@ -435,7 +933,7 @@ export default function PropertyEditModalBody({
     };
   }, [bridgedInitial]);
 
-  /** 이미지 훅 */
+  // 이미지 훅
   const {
     imageFolders,
     verticalImages,
@@ -460,25 +958,20 @@ export default function PropertyEditModalBody({
     reorder,
     moveToGroup,
     deletePhotos,
-    // 그룹 변경 큐
     queueGroupTitle,
     queueGroupSortOrder,
-    // 사진 변경 큐
     queuePhotoCaption,
     queuePhotoSort,
     queuePhotoMove,
-    // 커밋
+    hasImageChanges,
+    commitImageChanges,
     commitPending,
   } = useEditImages({ propertyId, initial: initialImages });
 
-  // ✅ 수정모달이 열릴 때 서버 그룹/사진을 한 번 로드
   useEffect(() => {
-    if (propertyId) {
-      reloadGroups(propertyId);
-    }
+    if (propertyId) reloadGroups(propertyId);
   }, [propertyId, reloadGroups]);
 
-  // ImagesContainer로 내려줄 props
   const imagesProp = useMemo(
     () => ({
       imageFolders,
@@ -509,6 +1002,8 @@ export default function PropertyEditModalBody({
       queuePhotoCaption,
       queuePhotoSort,
       queuePhotoMove,
+      hasImageChanges,
+      commitImageChanges,
       commitPending,
     }),
     [
@@ -540,37 +1035,35 @@ export default function PropertyEditModalBody({
       queuePhotoCaption,
       queuePhotoSort,
       queuePhotoMove,
+      hasImageChanges,
+      commitImageChanges,
       commitPending,
     ]
   );
 
-  /** 폼 훅 */
+  // 폼 훅
   const f = useEditForm({ initialData: bridgedInitial });
 
-  /** ParkingContainer 지연 마운트 */
+  // ParkingContainer 지연 마운트
   const [mountParking, setMountParking] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setMountParking(true));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  /** Parking setters 안정 프록시 */
+  // Parking setters 프록시
   const setParkingTypeProxy = useCallback(
     (v: string | null) => f.setParkingType(v ?? ""),
     [f.setParkingType]
   );
+  const setTotalParkingSlotsProxy = useCallback(
+    (v: string | null) => {
+      f.setTotalParkingSlots(v ?? "");
+    },
+    [f.setTotalParkingSlots]
+  );
 
-  // ✅ ParkingContainer는 (v: number | null) 시그니처 — 내부 훅은 string이므로 여기서 변환
-  const setTotalParkingSlotsProxy: ParkingFormSlice["setTotalParkingSlots"] =
-    useCallback(
-      (v) => {
-        // v: string | null
-        f.setTotalParkingSlots(v ?? "");
-      },
-      [f.setTotalParkingSlots]
-    );
-
-  /** Parking form 어댑터 (자식에는 number|null 계약으로 보장) */
+  // Parking form 어댑터
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
       parkingType: f.parkingType || null,
@@ -579,7 +1072,7 @@ export default function PropertyEditModalBody({
         const raw = f.totalParkingSlots;
         if (raw == null) return null;
         const s = String(raw).trim();
-        return s === "" ? null : s; // ← string|null
+        return s === "" ? null : s;
       })(),
       setTotalParkingSlots: setTotalParkingSlotsProxy,
     }),
@@ -588,6 +1081,34 @@ export default function PropertyEditModalBody({
       f.totalParkingSlots,
       setParkingTypeProxy,
       setTotalParkingSlotsProxy,
+    ]
+  );
+
+  /** CompletionRegistryContainer용 어댑터 */
+  const completionRegistryForm: CompletionRegistryFormSlice = useMemo(
+    () => ({
+      completionDate: f.completionDate ?? "",
+      setCompletionDate: f.setCompletionDate,
+      salePrice: f.salePrice,
+      setSalePrice: f.setSalePrice,
+      slopeGrade: f.slopeGrade,
+      setSlopeGrade: f.setSlopeGrade,
+      structureGrade: f.structureGrade,
+      setStructureGrade: f.setStructureGrade,
+      buildingType: f.buildingType ?? null,
+      setBuildingType: f.setBuildingType,
+    }),
+    [
+      f.completionDate,
+      f.setCompletionDate,
+      f.salePrice,
+      f.setSalePrice,
+      f.slopeGrade,
+      f.setSlopeGrade,
+      f.structureGrade,
+      f.setStructureGrade,
+      f.buildingType,
+      f.setBuildingType,
     ]
   );
 
@@ -600,21 +1121,12 @@ export default function PropertyEditModalBody({
       return;
     }
 
-    // A. 이미지 커밋 (사진 변경이 없으면 내부에서 no-op)
-    try {
-      await commitPending?.();
-    } catch (e: any) {
-      console.error("[images.commitPending] 실패:", e);
-      alert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
-      return;
-    }
-
-    // B. 폼 diff 계산 → 변경 시에만 PATCH /pins/:id
+    let dto: UpdatePinDto | null = null;
     let hasFormChanges = false;
     try {
-      const dto = toPinPatch(f, bridgedInitial as InitialSnapshot);
+      const raw = toPinPatch(f, bridgedInitial as InitialSnapshot);
 
-      // 초기 데이터에 향/방향 값이 전무하면 이번 PATCH에서 강제 제거 (가짜 변경 차단)
+      // 초기 데이터에 향/방향 값이 전무하면 이번 PATCH에서 삭제 (directions는 유지)
       const initAspectBundle = {
         aspect: (bridgedInitial as any)?.aspect,
         aspectNo: (bridgedInitial as any)?.aspectNo,
@@ -638,28 +1150,67 @@ export default function PropertyEditModalBody({
           initAspectBundle.orientations.length > 0);
 
       if (!initHasAspect) {
-        delete (dto as any).aspect;
-        delete (dto as any).aspectNo;
-        delete (dto as any).aspect1;
-        delete (dto as any).aspect2;
-        delete (dto as any).aspect3;
-        delete (dto as any).orientations;
+        delete (raw as any).aspect;
+        delete (raw as any).aspectNo;
+        delete (raw as any).aspect1;
+        delete (raw as any).aspect2;
+        delete (raw as any).aspect3;
+        delete (raw as any).orientations; // directions 는 유지
       }
 
-      hasFormChanges = Object.keys(dto).length > 0;
-      if (hasFormChanges) {
+      dto = deepPrune(raw) as UpdatePinDto;
+
+      // 🔧 무의미한 null/빈값 제거 + [] 방지 (directions/units 보존)
+      dto = stripNoopNulls(dto, bridgedInitial) as UpdatePinDto;
+      if (
+        (dto as any)?.areaGroups &&
+        Array.isArray((dto as any).areaGroups) &&
+        (dto as any).areaGroups.length === 0
+      ) {
+        delete (dto as any).areaGroups;
+      }
+
+      hasFormChanges = hasMeaningfulPatch(dto);
+
+      console.groupCollapsed("[save] after toPinPatch+strip");
+      console.log("[save] dto:", dto);
+      console.log("[save] hasFormChanges:", hasFormChanges);
+      console.groupEnd();
+    } catch (e: any) {
+      console.error("[toPinPatch] 실패:", e);
+      alert(e?.message || "변경 사항 계산 중 오류가 발생했습니다.");
+      return;
+    }
+
+    // 1) 사진 커밋 (있을 때만)
+    try {
+      if (hasImageChanges?.()) {
+        await (commitImageChanges?.() ?? commitPending?.());
+      }
+    } catch (e: any) {
+      console.error("[images.commit] 실패:", e);
+      alert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
+      return;
+    }
+
+    // 2) 폼 PATCH
+    if (hasFormChanges && dto && Object.keys(dto).length > 0) {
+      console.log("[save] → will PATCH /pins/:id", propertyId, "with", dto);
+      try {
         await updatePin(propertyId, dto);
         await queryClient.invalidateQueries({
           queryKey: ["pinDetail", propertyId],
         });
+      } catch (e: any) {
+        console.error("[PATCH /pins/:id] 실패:", e);
+        alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
+        return;
       }
-    } catch (e: any) {
-      console.error("[PATCH /pins/:id] 실패]:", e);
-      alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
-      return;
+    } else {
+      console.log("[save] no form changes → skip PATCH");
     }
 
-    // C. 로컬 view 갱신 payload
+    // 3) 로컬 view 갱신
     const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
       f.buildOrientation();
     const {
@@ -682,7 +1233,6 @@ export default function PropertyEditModalBody({
       roomNo: f.roomNo,
       structure: f.structure,
 
-      // 로컬 상태 업데이트용
       parkingGrade: f.parkingGrade,
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
@@ -699,7 +1249,6 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
 
       elevator: f.elevator,
-      registryOne: f.registry,
       slopeGrade: f.slopeGrade,
       structureGrade: f.structureGrade,
 
@@ -714,7 +1263,7 @@ export default function PropertyEditModalBody({
       publicMemo: f.publicMemo,
       secretMemo: f.secretMemo,
 
-      orientations,
+      orientations, // 로컬 뷰용: buildUpdatePayload가 directions로 바꿔서 비교/세팅
       aspect: aspect ?? "",
       aspectNo: Number(aspectNo ?? 0),
       aspect1,
@@ -732,7 +1281,6 @@ export default function PropertyEditModalBody({
     onClose();
   }, [
     f,
-    commitPending,
     bridgedInitial,
     propertyId,
     queryClient,
@@ -740,9 +1288,12 @@ export default function PropertyEditModalBody({
     onClose,
     imageFolders,
     verticalImages,
+    hasImageChanges,
+    commitImageChanges,
+    commitPending,
   ]);
 
-  /* ========== embedded 레이아웃 ========== */
+  /* embedded 레이아웃 */
   if (embedded) {
     return (
       <div className="flex flex-col h-full">
@@ -750,11 +1301,11 @@ export default function PropertyEditModalBody({
 
         <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer images={imagesProp} />
-          <div className="space-y-4 md:space-y-6">
+          <div className="space-y-4 md:space-y-6 overflow-visible">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm} />}
-            <CompletionRegistryContainer form={f} />
+            {mountParking && <ParkingContainer form={parkingForm as any} />}
+            <CompletionRegistryContainer form={completionRegistryForm} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />
             <StructureLinesContainer form={f} />
@@ -773,31 +1324,32 @@ export default function PropertyEditModalBody({
     );
   }
 
-  /* ========== 기본 모달 레이아웃 ========== */
+  /* 기본 모달 레이아웃 */
   return (
     <div className="fixed inset-0 z-[1000] isolate">
-      {/* 배경 딤 (모달 아래) */}
+      {/* 배경 딤 */}
       <div
         className="absolute inset-0 z-[1000] bg-black/40 pointer-events-auto"
         onClick={onClose}
         aria-hidden
       />
-      {/* 모달 컨텐츠 (딤보다 위) */}
+      {/* 모달 컨텐츠 */}
       <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
         <HeaderContainer form={f} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          {/* 좌측: 이미지(낮은 z) */}
+          {/* 좌측: 이미지 */}
           <div className="relative z-[1]">
             <ImagesContainer images={imagesProp} />
           </div>
 
-          {/* 우측: 폼(높은 z) → 드롭다운이 이미지 영역보다 위로 */}
+          {/* 우측: 폼 */}
           <div className="relative z-[2] space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm} />}
-            <CompletionRegistryContainer form={f} />
+            {mountParking && <ParkingContainer form={parkingForm as any} />}
+            {/* 섹션 전용 슬라이스 전달 */}
+            <CompletionRegistryContainer form={completionRegistryForm} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />
             <StructureLinesContainer form={f} />

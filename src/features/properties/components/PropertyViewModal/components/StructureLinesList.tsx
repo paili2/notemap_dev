@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyViewModal/components/StructureLinesList.tsx
 "use client";
 
 import type { UnitLine } from "@/features/properties/types/property-domain";

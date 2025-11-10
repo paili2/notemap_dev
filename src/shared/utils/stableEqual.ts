@@ -1,4 +1,3 @@
-// src/shared/utils/stableEqual.ts
 function isPlainObject(x: any) {
   return x && typeof x === "object" && !Array.isArray(x);
 }

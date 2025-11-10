@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/ui/ImagesContainer.tsx
 "use client";
 
 import * as React from "react";

@@ -1,35 +1,43 @@
 "use client";
+
 import { Phone } from "lucide-react";
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import { formatPhone } from "@/lib/formatPhone";
-import { BasicInfoSectionProps } from "./types";
+import type { BasicInfoSectionProps } from "./types";
 
+/**
+ * 기본정보 섹션
+ * - 주소 (읽기 전용)
+ * - 분양사무실 대표/추가 연락처
+ */
 export default function BasicInfoSection({
   address,
   setAddress,
   officePhone,
   setOfficePhone,
-  officePhone2 = "",
+  officePhone2,
   setOfficePhone2,
 }: BasicInfoSectionProps) {
   return (
     <div className="space-y-6">
+      {/* 주소 */}
       <Field label="주소">
         <Input
-          value={address}
+          value={address ?? ""}
           onChange={(e) => setAddress(e.target.value)}
           placeholder="예: 서울 성동구 성수동1가 ..."
           className="h-9"
-          readOnly={true}
+          readOnly
           aria-readonly="true"
         />
       </Field>
 
+      {/* 분양사무실 연락처 */}
       <Field label="분양사무실">
         <div className="w-full grid grid-cols-2 gap-5 md:gap-0">
           <Input
-            value={officePhone}
+            value={officePhone ?? ""}
             onChange={(e) => setOfficePhone(formatPhone(e.target.value))}
             placeholder="대표번호"
             className="md:w-2/3 h-9"
@@ -37,9 +45,9 @@ export default function BasicInfoSection({
             leftIcon={<Phone className="w-4 h-4" />}
           />
           <Input
-            value={officePhone2}
+            value={officePhone2 ?? ""}
             onChange={(e) => setOfficePhone2(formatPhone(e.target.value))}
-            placeholder="추가번호(선택)"
+            placeholder="추가번호 (선택)"
             className="md:w-2/3 h-9"
             inputMode="tel"
             leftIcon={<Phone className="w-4 h-4" />}

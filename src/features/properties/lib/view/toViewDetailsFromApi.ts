@@ -1,4 +1,3 @@
-// src/features/properties/lib/view/toViewDetailsFromApi.ts
 import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
 import { mapBadgeToPinKind } from "../badge";

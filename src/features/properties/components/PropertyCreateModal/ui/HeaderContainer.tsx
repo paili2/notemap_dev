@@ -24,7 +24,7 @@ export default function HeaderContainer({
 }) {
   return (
     // 최상단 고정(스크롤 시도 포함), 어떤 오버레이보다 위
-    <div className="sticky top-0 z-[2147483647] bg-white">
+    <div className="sticky top-0 z-[1002] bg-white">
       <HeaderSection
         title={form.title}
         setTitle={form.setTitle}

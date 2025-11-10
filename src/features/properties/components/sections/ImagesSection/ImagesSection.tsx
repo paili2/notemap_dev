@@ -1,4 +1,3 @@
-// src/features/properties/components/sections/ImagesSection/ImagesSection.tsx
 "use client";
 
 import { createRef, useEffect, useRef } from "react";
@@ -6,7 +5,6 @@ import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import ImageCarouselUpload from "@/components/organisms/ImageCarouselUpload/ImageCarouselUpload";
 import { ImageItem, ResolvedFileItem } from "@/features/properties/types/media";
-import { updatePhotos, deletePhotos } from "@/shared/api/photos";
 
 export type PhotoFolder = {
   id: string;
@@ -22,25 +20,46 @@ type Props = {
   folders: PhotoFolder[];
   onChangeFolderTitle?: (folderIdx: number, nextTitle: string) => void;
   onOpenPicker: (folderIdx: number) => void;
-  onAddToFolder?: (folderIdx: number, files: FileList | null) => void;
+
+  /** 폴더에 파일 추가: FileList만 받도록 (비동기 허용) */
+  onAddToFolder?: (
+    folderIdx: number,
+    files: FileList | null
+  ) => void | Promise<void>;
+
+  /** 레거시: input change 이벤트 자체를 전달 */
   onChangeFiles?: (
     folderIdx: number,
     e: React.ChangeEvent<HTMLInputElement>
   ) => void;
+
   registerInputRef?: RegisterRef;
   onAddFolder: () => void;
   onRemoveFolder?: (
     folderIdx: number,
     opts?: { keepAtLeastOne?: boolean }
   ) => void;
+
   maxPerCard: number;
+
   onChangeCaption?: (folderIdx: number, imageIdx: number, text: string) => void;
   onRemoveImage?: (folderIdx: number, imageIdx: number) => void;
+
+  /* 세로형 파일 대기열 */
   fileItems: ResolvedFileItem[];
   onAddFiles: (files: FileList | null) => void;
   onChangeFileItemCaption?: (index: number, text: string) => void;
   onRemoveFileItem?: (index: number) => void;
   maxFiles: number;
+
+  /* 서버 큐잉 콜백(기존 기능 유지용, 여기서는 UI에 노출 X) */
+  onReorder?: (
+    photoId: number | string | undefined,
+    to: number
+  ) => void | Promise<void>;
+  onSetCover?: (photoId: number | string | undefined) => void | Promise<void>;
+
+  /* 즉시 서버 동기화 여부(기본은 큐잉 방식) */
   syncServer?: boolean;
 };
 
@@ -64,7 +83,9 @@ export default function ImagesSection({
   onChangeFileItemCaption,
   onRemoveFileItem,
   maxFiles,
-  syncServer = true,
+  onReorder, // 현재 파일에서는 사용하지 않음(추후 연결용)
+  onSetCover, // 현재 파일에서는 사용하지 않음(추후 연결용)
+  syncServer = false, // 기본은 큐잉 방식
 }: Props) {
   const hasFolders = Array.isArray(folders) && folders.length > 0;
 
@@ -77,51 +98,9 @@ export default function ImagesSection({
     ? folders
     : [{ id: "__placeholder__", title: "", items: [] }];
 
-  const handleCaptionChange = (
-    folderIdx: number,
-    imageIdx: number,
-    text: string
-  ) => {
-    onChangeCaption?.(folderIdx, imageIdx, text);
-  };
-
-  const handleRemove = async (folderIdx: number, imageIdx: number) => {
-    const folder = renderFolders[folderIdx];
-    const item = folder?.items?.[imageIdx];
-    const photoId = getPhotoId(item);
+  const handleRemove = (folderIdx: number, imageIdx: number) => {
+    // 서버 삭제는 상위 훅의 commit에서 일괄 처리(큐잉)하므로 여기선 로컬 콜백만 호출
     onRemoveImage?.(folderIdx, imageIdx);
-    if (!syncServer || photoId == null) return;
-    try {
-      await deletePhotos([String(photoId)]);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleReorder = async (
-    folderIdx: number,
-    _fromIdx: number,
-    toIdx: number
-  ) => {
-    const moved = renderFolders[folderIdx]?.items?.[toIdx];
-    const photoId = getPhotoId(moved);
-    if (!syncServer || photoId == null) return;
-    try {
-      await updatePhotos({ photoIds: [String(photoId)], sortOrder: toIdx });
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleSetCover = async (folderIdx: number, imageIdx: number) => {
-    const item = renderFolders[folderIdx]?.items?.[imageIdx];
-    const photoId = getPhotoId(item);
-    if (!syncServer || photoId == null) return;
-    try {
-      await updatePhotos({ photoIds: [String(photoId)], isCover: true });
-    } catch (e) {
-      console.error(e);
-    }
   };
 
   const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
@@ -161,7 +140,6 @@ export default function ImagesSection({
     >
       {renderFolders.map((folder, idx) => {
         const fallbackLabel = `사진 폴더 ${idx + 1}`;
-        // ✅ 입력칸에 줄 값: 실제 제목이 없거나 기본문구와 동일하면 빈 문자열로!
         const titleForInput =
           !folder.title || /^사진 폴더\s*\d+$/i.test(folder.title.trim())
             ? ""
@@ -205,12 +183,10 @@ export default function ImagesSection({
               inputRef={cardInputRefs.current[idx]}
               onChangeFiles={(e) => {
                 const files = e?.target?.files ?? null;
-                if (onAddToFolder) onAddToFolder(idx, files);
+                if (onAddToFolder) void onAddToFolder(idx, files);
                 else if (onChangeFiles) onChangeFiles(idx, e);
               }}
-              // 필요 시 사용
-              // onReorder={(from, to) => handleReorder(idx, from, to)}
-              // onSetCover={(imageIdx) => handleSetCover(idx, imageIdx)}
+              /* 💡 onReorder / onSetCover는 컴포넌트 prop이 아님 → 넘기지 않음 */
             />
           </div>
         );

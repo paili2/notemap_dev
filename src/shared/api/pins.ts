@@ -74,6 +74,68 @@ function normalizeParkingGradeStr(
   return undefined;
 }
 
+/* ✅ UI 등기/용어 → 서버 허용값 강제 변환 */
+function toServerBuildingType(
+  v: any
+): "APT" | "OP" | "주택" | "근생" | undefined {
+  if (v == null) return undefined;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return undefined;
+
+  if (["apt", "아파트"].includes(s)) return "APT";
+  if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
+  if (["house", "housing", "주택", "residential"].includes(s)) return "주택";
+
+  // UI 표현(도/생·근/생 등)과 상업/도시생활형은 모두 근생으로 수렴
+  if (
+    [
+      "근생",
+      "근/생",
+      "near",
+      "nearlife",
+      "근린생활시설",
+      "urban",
+      "urb",
+      "도생",
+      "도시생활형",
+      "도시생활형주택",
+      "도/생",
+      "commercial",
+    ].includes(s)
+  )
+    return "근생";
+
+  // 이미 서버값인 경우 (소문자 방지)
+  if (["apt", "op"].includes(s)) return s === "apt" ? "APT" : "OP";
+  if (["주택", "근생"].includes(String(v))) return String(v) as any;
+
+  return undefined;
+}
+
+/* ───────────── 빈 PATCH 방지 헬퍼 ───────────── */
+function deepPrune<T>(obj: T): Partial<T> {
+  const prune = (v: any): any => {
+    if (v === undefined) return undefined;
+    if (Array.isArray(v)) {
+      const arr = v.map(prune).filter((x) => x !== undefined);
+      return arr.length ? arr : undefined;
+    }
+    if (v && typeof v === "object") {
+      const out: Record<string, any> = {};
+      for (const [k, vv] of Object.entries(v)) {
+        const pv = prune(vv);
+        if (pv !== undefined) out[k] = pv;
+      }
+      return Object.keys(out).length ? out : undefined;
+    }
+    return v;
+  };
+  return (prune(obj) ?? {}) as Partial<T>;
+}
+function isEmpty(obj: object | null | undefined) {
+  return !obj || Object.keys(obj).length === 0;
+}
+
 /* ───────────── DTO (export!) ───────────── */
 export type CreatePinOptionsDto = {
   hasAircon?: boolean;
@@ -409,6 +471,16 @@ export async function createPin(
   if (!Number.isFinite(lngNum))
     throw new Error("lng가 유효한 숫자가 아닙니다.");
 
+  // ✅ buildingType 최종 매핑
+  let buildingTypePayload:
+    | { buildingType: "APT" | "OP" | "주택" | "근생" }
+    | {} = {};
+  if (dto.buildingType !== undefined && dto.buildingType !== null) {
+    const mapped = toServerBuildingType(dto.buildingType);
+    if (mapped) buildingTypePayload = { buildingType: mapped };
+    // 생성에서는 매핑 실패 시 simply omit (검증 에러 회피)
+  }
+
   const payload = {
     lat: latNum,
     lng: lngNum,
@@ -435,7 +507,8 @@ export async function createPin(
       ? { completionDate: dto.completionDate }
       : {}),
 
-    ...(dto.buildingType ? { buildingType: dto.buildingType } : {}),
+    ...buildingTypePayload,
+
     ...(dto.totalHouseholds != null
       ? { totalHouseholds: Number(dto.totalHouseholds) }
       : {}),
@@ -615,6 +688,18 @@ export async function updatePin(
       )
     : undefined;
 
+  // ✅ buildingType 최종 매핑 + null 지원
+  let buildingTypePayload: any = {};
+  if (has("buildingType")) {
+    if (dto.buildingType === null) {
+      buildingTypePayload = { buildingType: null };
+    } else if (dto.buildingType !== undefined) {
+      const mapped = toServerBuildingType(dto.buildingType);
+      if (mapped) buildingTypePayload = { buildingType: mapped };
+      // 매핑 실패 시 필드 제외(검증 에러 회피)
+    }
+  }
+
   const payload: any = {
     ...(has("lat") && isFiniteNum(dto.lat)
       ? { lat: Number(dto.lat as any) }
@@ -649,7 +734,8 @@ export async function updatePin(
         : {}
       : {}),
 
-    ...(has("buildingType") ? { buildingType: dto.buildingType ?? null } : {}),
+    ...buildingTypePayload,
+
     ...(has("totalHouseholds")
       ? {
           totalHouseholds:
@@ -735,13 +821,24 @@ export async function updatePin(
       : {}),
   };
 
+  // 🔒 최종 방어선: 빈 payload면 요청 자체를 막음
+  const pruned = deepPrune(payload);
+  if (isEmpty(pruned)) {
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[updatePin] skip empty patch", { id, payload });
+    }
+    // 서버 상태 변동은 없지만, 호출자 로직을 단순히 하기 위해 id만 돌려줌
+    return { id: String(id) };
+  }
+
   // 전송 직전 좌표 추적(있을 때만)
-  safeAssertNoTruncate("updatePin", payload.lat, payload.lng);
+  safeAssertNoTruncate("updatePin", (pruned as any).lat, (pruned as any).lng);
 
   try {
     const { data, status } = await api.patch(
       `/pins/${encodeURIComponent(String(id))}`,
-      payload,
+      pruned,
       {
         withCredentials: true,
         headers: {

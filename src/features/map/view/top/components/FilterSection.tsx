@@ -5,7 +5,7 @@ import { ChevronDown, Map, Home } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import type { MapMenuKey } from "../types/types";
+import { MapMenuKey } from "./types/types";
 
 type IconDef = LucideIcon | string;
 

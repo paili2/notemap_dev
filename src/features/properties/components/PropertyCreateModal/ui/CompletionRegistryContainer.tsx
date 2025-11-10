@@ -4,7 +4,27 @@ import CompletionRegistrySection from "../../sections/CompletionRegistrySection/
 import type { Grade } from "@/features/properties/types/property-domain";
 
 // 백엔드 enum과 동일
-type BuildingType = "APT" | "OP" | "주택" | "근생";
+export type BuildingType = "APT" | "OP" | "주택" | "근생";
+
+/** ✅ 섹션 전용 폼 슬라이스 — 고유 이름 사용 */
+export type CRContainerForm = {
+  completionDate?: string | null;
+  setCompletionDate: (v: string) => void;
+
+  // 레거시(표시는 계속)
+  salePrice?: string | number | null;
+  setSalePrice: (v: string) => void;
+
+  slopeGrade?: Grade;
+  setSlopeGrade: (v?: Grade) => void;
+
+  structureGrade?: Grade;
+  setStructureGrade: (v?: Grade) => void;
+
+  /** 등기(서버 enum): registryOne 대신 buildingType 사용 */
+  buildingType?: BuildingType | null;
+  setBuildingType?: (v: BuildingType | null) => void;
+};
 
 /** YYYY-MM-DD 로 잘라서 반환(없으면 빈 문자열) */
 const toYmd = (s?: string | null) =>
@@ -23,26 +43,7 @@ const clampYmdSetter = (set: (v: string) => void) => (v: string) => {
 export default function CompletionRegistryContainer({
   form,
 }: {
-  form: {
-    completionDate?: string | null;
-    setCompletionDate: (v: string) => void;
-
-    salePrice?: string | number | null;
-    setSalePrice: (v: string) => void;
-
-    // ⛔️ 등기 관련 필드 제거됨
-    // registryOne?: never;
-    // setRegistryOne?: never;
-
-    slopeGrade?: Grade;
-    setSlopeGrade: (v?: Grade) => void;
-
-    structureGrade?: Grade;
-    setStructureGrade: (v?: Grade) => void;
-
-    buildingType?: BuildingType | null;
-    setBuildingType?: (v: BuildingType | null) => void;
-  };
+  form: CRContainerForm;
 }) {
   // 안전 폴백
   const buildingType = (form as any).buildingType ?? null;
@@ -54,7 +55,7 @@ export default function CompletionRegistryContainer({
   const normalizedCompletionDate = toYmd(form.completionDate);
   const normalizedSalePrice = toStr(form.salePrice);
 
-  // ✅ date 세터 래핑: 10자 이내만 반영 (입력 중 깨짐 방지)
+  // ✅ date 세터 래핑: 10자 이내만 반영
   const setCompletionDateSafe = clampYmdSetter(form.setCompletionDate);
 
   return (

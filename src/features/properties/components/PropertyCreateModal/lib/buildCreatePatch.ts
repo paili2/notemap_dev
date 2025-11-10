@@ -1,4 +1,3 @@
-// src/features/properties/components/PropertyEditModal/lib/buildCreatePatchWithMedia.ts
 "use client";
 
 import { CreatePayload } from "@/features/properties/types/property-dto";

@@ -1,4 +1,3 @@
-// src/shared/api/photos.ts
 import { api } from "@/shared/api/api";
 import type { AxiosError, AxiosRequestConfig } from "axios";
 import type {

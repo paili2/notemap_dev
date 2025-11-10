@@ -1,23 +1,54 @@
 import {
   BuildingType,
   Grade,
-  Registry,
   UnitLine,
+  OrientationRow, // ✅ buildOrientation 반환에 필요
 } from "../../types/property-domain";
+import type { AreaSet } from "../../components/sections/AreaSetsSection/types";
 
 /* ───────── 슬라이스 타입들 ───────── */
 export type AreaSetsFormSlice = {
-  baseAreaSet: any;
-  setBaseAreaSet: (v: any) => void;
-  extraAreaSets: any[];
-  setExtraAreaSets: (v: any[]) => void;
+  /** 기본 면적 범위 */
+  baseAreaSet: AreaSet;
+  setBaseAreaSet: (v: AreaSet) => void;
+
+  /** 추가 면적 그룹들 */
+  extraAreaSets: AreaSet[];
+  setExtraAreaSets: (v: AreaSet[]) => void;
+
+  /**
+   * 레거시·서버 호환을 위해 단일값/타이틀을 패키징해서 반환
+   * (PropertyEditModalBody.save 에서 사용)
+   */
+  packAreas: () => {
+    exclusiveArea?: string | null;
+    realArea?: string | null;
+    extraExclusiveAreas?: string[];
+    extraRealAreas?: string[];
+    baseAreaTitleOut?: string | null;
+    extraAreaTitlesOut?: string[];
+  };
 };
 
 export type AspectsFormSlice = {
+  /** UI 내부 상태(필요 시) */
   aspects: any[];
   addAspect: (payload?: any) => void;
   removeAspect: (index: number) => void;
   setAspectDir: (index: number, dir: any) => void;
+
+  /**
+   * 서버 패치와 로컬 뷰 갱신 모두에서 쓰는 빌더
+   * (PropertyEditModalBody.save 에서 호출)
+   */
+  buildOrientation: () => {
+    orientations?: OrientationRow[];
+    aspect?: string;
+    aspectNo?: string | number | null;
+    aspect1?: string;
+    aspect2?: string;
+    aspect3?: string;
+  };
 };
 
 export type BasicInfoFormSlice = {
@@ -31,15 +62,15 @@ export type BasicInfoFormSlice = {
   setOfficePhone2: (v: string) => void;
 };
 
+/** ✅ registryOne 제거, buildingType 기반으로 단순화 */
 export type CompletionRegistryFormSlice = {
   completionDate: string;
   setCompletionDate: (v: string) => void;
 
-  salePrice: string;
-  setSalePrice: (v: string) => void;
-
-  registryOne?: Registry;
-  setRegistryOne: (v?: Registry) => void;
+  /** 표시는 계속 필요할 수 있어 string/number/null 허용 */
+  salePrice: string | number | null;
+  /** ⬅️ setter도 동일 합집합으로 */
+  setSalePrice: (v: string | number | null) => void;
 
   slopeGrade?: Grade;
   setSlopeGrade: (v?: Grade) => void;
@@ -47,6 +78,7 @@ export type CompletionRegistryFormSlice = {
   structureGrade?: Grade;
   setStructureGrade: (v?: Grade) => void;
 
+  /** 서버 enum */
   buildingType: BuildingType | null;
   setBuildingType: (v: BuildingType | null) => void;
 };

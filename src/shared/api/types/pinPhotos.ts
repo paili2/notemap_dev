@@ -1,4 +1,3 @@
-// src/shared/api/types/pinPhotos.ts
 export type IdLike = string | number;
 
 /* ── Entities ── */

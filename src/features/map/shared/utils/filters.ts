@@ -1,4 +1,4 @@
-import { MapMenuKey } from "..";
+import { MapMenuKey } from "../../menu";
 
 type Pin = {
   id: string | number;

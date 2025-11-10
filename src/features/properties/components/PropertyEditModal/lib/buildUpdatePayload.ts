@@ -1,9 +1,7 @@
-// src/features/properties/components/PropertyEditModal/lib/buildUpdatePayload.ts
 "use client";
 
 import type { UpdatePayload } from "@/features/properties/types/property-dto";
 import type {
-  Registry,
   Grade,
   UnitLine,
   OrientationRow,
@@ -11,6 +9,9 @@ import type {
 import type { ImageItem } from "@/features/properties/types/media";
 import type { AreaSet } from "../../sections/AreaSetsSection/types";
 import type { PinKind } from "@/features/pins/types";
+
+/* ───────── UI 등기(용도) 타입 ───────── */
+export type RegistryUi = "주택" | "APT" | "OP" | "도/생" | "근/생";
 
 /* ───────── 기본 유틸 ───────── */
 const toIntOrNull = (v: unknown) => {
@@ -38,7 +39,6 @@ const toParkingGradeOrUndefined = (
 const defined = (v: unknown) => v !== undefined;
 
 /* ───────── 비교용 정규화 ───────── */
-/** 비교 전에 공통 정규화: "", null, undefined → undefined / [] → undefined */
 const normalizeShallow = (v: any) => {
   if (v === "" || v === null || v === undefined) return undefined;
   if (Array.isArray(v) && v.length === 0) return undefined;
@@ -58,7 +58,6 @@ const jsonEq = (a: any, b: any) => {
   }
 };
 
-/** null까지 구분해서 비교(정확 비교) */
 const deepEq = (a: any, b: any) => {
   if (a === b) return true;
   try {
@@ -68,11 +67,11 @@ const deepEq = (a: any, b: any) => {
   }
 };
 
-/* ───────── unitLines 정규화/비교(타입 안전) ───────── */
+/* ───────── unitLines 정규화/비교 ───────── */
 type UnitLike = Partial<UnitLine> & {
   rooms?: number | null;
   baths?: number | null;
-  hasLoft?: boolean; // 대체키 대비
+  hasLoft?: boolean;
   loft?: boolean;
   hasTerrace?: boolean;
   terrace?: boolean;
@@ -151,11 +150,12 @@ type BuildUpdateArgs = {
   // 평점/주차/준공/매매
   parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
   parkingType?: string | null;
+  parkingTypeId?: number | string | null;
   totalParkingSlots?: number | string | null;
   completionDate?: string;
   salePrice?: string | number | null;
 
-  // 면적
+  // 면적 (단일값 + 범위)
   baseAreaSet?: AreaSet;
   extraAreaSets?: AreaSet[];
   exclusiveArea?: string;
@@ -165,9 +165,20 @@ type BuildUpdateArgs = {
   baseAreaTitleOut?: string;
   extraAreaTitlesOut?: string[];
 
+  // 플랫 키(있으면 우선 사용)
+  exclusiveAreaMin?: string | number | null;
+  exclusiveAreaMax?: string | number | null;
+  exclusiveAreaMinPy?: string | number | null;
+  exclusiveAreaMaxPy?: string | number | null;
+  realAreaMin?: string | number | null;
+  realAreaMax?: string | number | null;
+  realAreaMinPy?: string | number | null;
+  realAreaMaxPy?: string | number | null;
+
   // 등기/등급/엘리베이터
   elevator?: "O" | "X";
-  registryOne?: Registry;
+  registry?: RegistryUi;
+  registryOne?: RegistryUi;
   slopeGrade?: Grade;
   structureGrade?: Grade;
 
@@ -178,7 +189,7 @@ type BuildUpdateArgs = {
   remainingHouseholds?: string | number | null;
 
   // 옵션/메모
-  options?: string[]; // ← 빈 배열로 클리어 허용
+  options?: string[];
   etcChecked?: boolean;
   optionEtc?: string;
   publicMemo?: string | null;
@@ -198,7 +209,7 @@ type BuildUpdateArgs = {
   aspect1?: string;
   aspect2?: string;
   aspect3?: string;
-  unitLines?: UnitLine[]; // ✅ 묶음 대상
+  unitLines?: UnitLine[];
 
   // 이미지
   imageFolders?: ImageItem[][];
@@ -208,7 +219,7 @@ type BuildUpdateArgs = {
   pinKind?: PinKind;
 };
 
-/** 초기 스냅샷: 자유 키 접근 허용(레거시 키 호환) */
+/** 초기 스냅샷: 자유 키 접근 허용 */
 type InitialSnapshot = Partial<BuildUpdateArgs> & { [key: string]: any };
 
 /* ───────── 메인 ───────── */
@@ -216,7 +227,7 @@ export function buildUpdatePayload(
   a: BuildUpdateArgs,
   initial?: InitialSnapshot
 ): UpdatePayload {
-  /* 이미지 URL 분리 수집: 가로/세로 */
+  /* 이미지 URL 수집 */
   const urlsHorizontal: string[] = [];
   const urlsVertical: string[] = [];
   const pushUrl = (into: string[], u?: string) => {
@@ -225,12 +236,10 @@ export function buildUpdatePayload(
     if (s && !into.includes(s)) into.push(s);
   };
 
-  // 가로(카드) → images(레거시 가로 전용)
   if (Array.isArray(a.imageFolders)) {
     for (const g of a.imageFolders)
       for (const img of g ?? []) pushUrl(urlsHorizontal, img?.url);
   }
-  // 세로 → imagesVertical/verticalImages
   if (Array.isArray(a.verticalImages)) {
     for (const img of a.verticalImages) pushUrl(urlsVertical, img?.url);
   }
@@ -239,7 +248,7 @@ export function buildUpdatePayload(
     ? (a.optionEtc ?? "").trim()
     : a.optionEtc ?? "";
 
-  // 숫자 필드: 정수 변환 + null 허용
+  // 숫자 필드
   const totalBuildingsN = defined(a.totalBuildings)
     ? toIntOrNull(a.totalBuildings)
     : undefined;
@@ -275,42 +284,39 @@ export function buildUpdatePayload(
     a.parkingGrade ?? undefined
   );
 
-  const patch: UpdatePayload = {};
+  const patch: UpdatePayload = {} as UpdatePayload;
 
-  // 기본 put: "", null, [], undefined -> 전송 안 함 (변경 감지 시에만)
+  // put helpers
   const put = (key: keyof UpdatePayload, next: any, prev?: any) => {
     const nNext = normalizeShallow(next);
     const nPrev = normalizeShallow(prev);
     if (!defined(nNext)) return;
-    if (initial === undefined) {
-      (patch as any)[key] = nNext; // 초기값 없으면 전달된 것만 포함
-    } else if (!jsonEq(nPrev, nNext)) {
-      (patch as any)[key] = nNext; // 변경된 경우에만 포함
-    }
+    if (initial === undefined) (patch as any)[key] = nNext;
+    else if (!jsonEq(nPrev, nNext)) (patch as any)[key] = nNext;
   };
 
-  // null 허용 put: null을 보내 클리어 가능
   const putAllowNull = (key: keyof UpdatePayload, next: any, prev?: any) => {
-    if (next === undefined) return; // undefined는 전송 안 함
-    if (initial === undefined) {
-      (patch as any)[key] = next;
-    } else if (!deepEq(prev, next)) {
-      (patch as any)[key] = next;
-    }
+    if (next === undefined) return;
+    if (initial === undefined) (patch as any)[key] = next;
+    else if (!deepEq(prev, next)) (patch as any)[key] = next;
   };
 
-  // 빈 배열을 허용해서 클리어 가능
   const putKeepEmptyArray = (
     key: keyof UpdatePayload,
     next: any[] | undefined,
     prev?: any[] | undefined
   ) => {
-    if (next === undefined) return; // 명시되지 않으면 전송 안 함
-    if (initial === undefined) {
-      (patch as any)[key] = next;
-    } else if (!deepEq(prev, next)) {
-      (patch as any)[key] = next;
-    }
+    if (next === undefined) return;
+    if (initial === undefined) (patch as any)[key] = next;
+    else if (!deepEq(prev, next)) (patch as any)[key] = next;
+  };
+
+  const putAny = (key: string, next: any, prev?: any) => {
+    const nNext = normalizeShallow(next);
+    const nPrev = normalizeShallow(prev);
+    if (!defined(nNext)) return;
+    if (initial === undefined) (patch as any)[key] = nNext;
+    else if (!jsonEq(nPrev, nNext)) (patch as any)[key] = nNext;
   };
 
   /* ===== 기본 ===== */
@@ -326,28 +332,73 @@ export function buildUpdatePayload(
 
   /* ===== 향/방향 ===== */
   put("aspect", a.aspect, initial?.aspect);
+
+  const prevAspectNoStr =
+    initial?.aspectNo == null ? undefined : String(initial!.aspectNo as any);
+
   put(
     "aspectNo",
     defined(a.aspectNo) ? String(a.aspectNo) : undefined,
-    initial?.aspectNo
+    prevAspectNoStr
   );
+
   put("aspect1", a.aspect1, initial?.aspect1);
   put("aspect2", a.aspect2, initial?.aspect2);
   put("aspect3", a.aspect3, initial?.aspect3);
-  // orientations: 빈 배열도 허용해서 클리어 가능하도록 별도 처리
-  putKeepEmptyArray(
-    "orientations",
-    defined(a.orientations) ? orientationsNormalized ?? [] : undefined,
-    initial?.orientations
-  );
+
+  /** directions로 변환해서 서버 규격에 맞게 보냄 */
+  let directions: Array<{ direction: string }> | undefined;
+
+  if (Array.isArray(a.orientations) && a.orientations.length > 0) {
+    directions = a.orientations
+      .map((o: any) => {
+        // dir 또는 value(문자) 우선 사용, weight(숫자)는 사용하지 않음
+        const v =
+          (typeof o?.dir === "string" && o.dir.trim()) ||
+          (typeof o?.value === "string" && o.value.trim()) ||
+          undefined;
+        return v ? { direction: v } : undefined;
+      })
+      .filter(Boolean) as Array<{ direction: string }>;
+  } else {
+    // aspect1~3로 구성 (빈 값은 제외)
+    const arr = [a.aspect1, a.aspect2, a.aspect3]
+      .map((v) => (v && String(v).trim()) || "")
+      .filter(Boolean);
+    if (arr.length) directions = arr.map((d) => ({ direction: d }));
+  }
+
+  /** initial도 directions 기준으로 비교 */
+  const initialDirections = (initial as any)?.directions as
+    | Array<{ direction: string }>
+    | undefined;
+
+  putKeepEmptyArray("directions", directions, initialDirections);
 
   /* ===== 가격/주차/준공 ===== */
+  const prevSaleStr =
+    initial?.salePrice === undefined || initial?.salePrice === null
+      ? undefined
+      : String(initial!.salePrice as any);
+
+  // 숫자 변환
+  const parkingTypeIdN = defined(a.parkingTypeId)
+    ? toIntOrNull(a.parkingTypeId)
+    : undefined;
+
+  // 패치에 싣기 (초기값과 비교)
+  putAllowNull(
+    "parkingTypeId",
+    parkingTypeIdN,
+    (initial as any)?.parkingTypeId
+  );
+
   put(
     "salePrice",
     defined(a.salePrice) ? salePriceStr : undefined,
-    initial?.salePrice
+    prevSaleStr
   );
-  // parkingType은 빈 문자열이면 전송 안 함(=미변경), null을 보낼 경우엔 클리어
+
   putAllowNull(
     "parkingType",
     defined(a.parkingType)
@@ -383,22 +434,22 @@ export function buildUpdatePayload(
   /* ===== 등급/등기 ===== */
   put("slopeGrade", a.slopeGrade, initial?.slopeGrade);
   put("structureGrade", a.structureGrade, initial?.structureGrade);
+
+  const uiRegistry = a.registry ?? a.registryOne;
   const prevRegistry =
-    (initial as any)?.registryOne ?? (initial as any)?.registry;
-  put("registry", a.registryOne, prevRegistry);
+    (initial as any)?.registry ?? (initial as any)?.registryOne;
+  put("registry", uiRegistry, prevRegistry);
 
   /* ===== 옵션/메모 ===== */
-  // options: 빈 배열로 클리어 가능
   putKeepEmptyArray("options", a.options, initial?.options);
   if (defined(a.optionEtc))
     put("optionEtc", optionEtcFinal, initial?.optionEtc);
   put("publicMemo", a.publicMemo, initial?.publicMemo);
   put("secretMemo", a.secretMemo, initial?.secretMemo);
 
-  /* ===== 면적 ===== */
+  /* ===== 면적 (레거시 단일값) ===== */
   put("exclusiveArea", a.exclusiveArea, initial?.exclusiveArea);
   put("realArea", a.realArea, initial?.realArea);
-  // extra*Areas: 빈 배열로 클리어 가능
   putKeepEmptyArray(
     "extraExclusiveAreas",
     a.extraExclusiveAreas,
@@ -410,7 +461,90 @@ export function buildUpdatePayload(
     initial?.extraRealAreas
   );
 
-  /* ===== 유닛: 하나라도 다르면 전체 배열 전송 ===== */
+  /* ===== 면적 (신규: 범위) ===== */
+  const explicitRangeTouched =
+    defined(a.exclusiveAreaMin) ||
+    defined(a.exclusiveAreaMax) ||
+    defined(a.exclusiveAreaMinPy) ||
+    defined(a.exclusiveAreaMaxPy) ||
+    defined(a.realAreaMin) ||
+    defined(a.realAreaMax) ||
+    defined(a.realAreaMinPy) ||
+    defined(a.realAreaMaxPy);
+
+  const initialHasRangeKeys =
+    (initial as any)?.exclusiveAreaMin !== undefined ||
+    (initial as any)?.exclusiveAreaMax !== undefined ||
+    (initial as any)?.exclusiveAreaMinPy !== undefined ||
+    (initial as any)?.exclusiveAreaMaxPy !== undefined ||
+    (initial as any)?.realAreaMin !== undefined ||
+    (initial as any)?.realAreaMax !== undefined ||
+    (initial as any)?.realAreaMinPy !== undefined ||
+    (initial as any)?.realAreaMaxPy !== undefined;
+
+  if (explicitRangeTouched || initialHasRangeKeys) {
+    const pickNumStr = (v: any) => toNumericStringOrUndefined(v);
+
+    // baseAreaSet은 보조값으로만 사용 (UI가 아무 것도 안 건드렸다면 생성하지 않음)
+    const fromSet = (s?: any) => ({
+      exMin: pickNumStr(
+        s?.exclusiveMin ?? s?.exMinM2 ?? s?.exclusive?.minM2 ?? s?.m2Min
+      ),
+      exMax: pickNumStr(
+        s?.exclusiveMax ?? s?.exMaxM2 ?? s?.exclusive?.maxM2 ?? s?.m2Max
+      ),
+      exMinPy: pickNumStr(
+        s?.exclusiveMinPy ?? s?.exMinPy ?? s?.exclusive?.minPy ?? s?.pyMin
+      ),
+      exMaxPy: pickNumStr(
+        s?.exclusiveMaxPy ?? s?.exMaxPy ?? s?.exclusive?.maxPy ?? s?.pyMax
+      ),
+      realMin: pickNumStr(s?.realMin ?? s?.realMinM2 ?? s?.real?.minM2),
+      realMax: pickNumStr(s?.realMax ?? s?.realMaxM2 ?? s?.real?.maxM2),
+      realMinPy: pickNumStr(s?.realMinPy ?? s?.real?.minPy),
+      realMaxPy: pickNumStr(s?.realMaxPy ?? s?.real?.maxPy),
+    });
+
+    const S = fromSet(a.baseAreaSet as any);
+
+    const exMin = pickNumStr(
+      defined(a.exclusiveAreaMin) ? a.exclusiveAreaMin : S.exMin
+    );
+    const exMax = pickNumStr(
+      defined(a.exclusiveAreaMax) ? a.exclusiveAreaMax : S.exMax
+    );
+    const exMinPy = pickNumStr(
+      defined(a.exclusiveAreaMinPy) ? a.exclusiveAreaMinPy : S.exMinPy
+    );
+    const exMaxPy = pickNumStr(
+      defined(a.exclusiveAreaMaxPy) ? a.exclusiveAreaMaxPy : S.exMaxPy
+    );
+
+    const realMin = pickNumStr(
+      defined(a.realAreaMin) ? a.realAreaMin : S.realMin
+    );
+    const realMax = pickNumStr(
+      defined(a.realAreaMax) ? a.realAreaMax : S.realMax
+    );
+    const realMinPy = pickNumStr(
+      defined(a.realAreaMinPy) ? a.realAreaMinPy : S.realMinPy
+    );
+    const realMaxPy = pickNumStr(
+      defined(a.realAreaMaxPy) ? a.realAreaMaxPy : S.realMaxPy
+    );
+
+    putAny("exclusiveAreaMin", exMin, (initial as any)?.exclusiveAreaMin);
+    putAny("exclusiveAreaMax", exMax, (initial as any)?.exclusiveAreaMax);
+    putAny("exclusiveAreaMinPy", exMinPy, (initial as any)?.exclusiveAreaMinPy);
+    putAny("exclusiveAreaMaxPy", exMaxPy, (initial as any)?.exclusiveAreaMaxPy);
+
+    putAny("realAreaMin", realMin, (initial as any)?.realAreaMin);
+    putAny("realAreaMax", realMax, (initial as any)?.realAreaMax);
+    putAny("realAreaMinPy", realMinPy, (initial as any)?.realAreaMinPy);
+    putAny("realAreaMaxPy", realMaxPy, (initial as any)?.realAreaMaxPy);
+  }
+
+  /* ===== 유닛 ===== */
   if (defined(a.unitLines)) {
     const prevUnits = (initial as any)?.unitLines as UnitLine[] | undefined;
     const currUnits = a.unitLines as UnitLine[] | undefined;
@@ -419,10 +553,7 @@ export function buildUpdatePayload(
     }
   }
 
-  /* ===== 이미지 =====
-     - images: 가로(카드)의 URL만 전송
-     - imagesVertical/verticalImages: 세로 URL 전송
-     레거시 서버가 images만 처리하던 이슈로 세로가 가로에 섞이던 문제를 방지 */
+  /* ===== 이미지 ===== */
   if (urlsHorizontal.length) {
     const prevImages = (initial as any)?.images;
     if (initial === undefined || !jsonEq(prevImages, urlsHorizontal)) {
@@ -432,14 +563,13 @@ export function buildUpdatePayload(
   if (urlsVertical.length) {
     const prevVerticalA = (initial as any)?.imagesVertical;
     const prevVerticalB = (initial as any)?.verticalImages;
-    // 둘 중 하나라도 비교해 변경되면 넣어줌
     if (
       initial === undefined ||
       (!jsonEq(prevVerticalA, urlsVertical) &&
         !jsonEq(prevVerticalB, urlsVertical))
     ) {
-      (patch as any).imagesVertical = urlsVertical; // 권장 키
-      (patch as any).verticalImages = urlsVertical; // 호환 키
+      (patch as any).imagesVertical = urlsVertical;
+      (patch as any).verticalImages = urlsVertical;
     }
   }
 

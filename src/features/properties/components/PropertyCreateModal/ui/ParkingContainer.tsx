@@ -1,39 +1,48 @@
-// src/features/properties/components/PropertyEditModal/ui/ParkingContainer.tsx
 "use client";
-import { useMemo, useCallback } from "react";
+
 import ParkingSection from "../../sections/ParkingSection/ParkingSection";
 
-type ParkingFormSlice = {
+/** Body에서 내려오는 슬라이스(문자열 기반) */
+type ParkingFormSliceFromBody = {
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
-
-  // 상위는 string|null
-  totalParkingSlots: string | null;
+  totalParkingSlots: string | null; // 문자열 기반
   setTotalParkingSlots: (v: string | null) => void;
 };
 
-export default function ParkingContainer({ form }: { form: ParkingFormSlice }) {
-  // string|null -> number|null (빈/공백/NaN => null)
-  const totalParkingSlotsNumber = useMemo<number | null>(() => {
-    const s = (form.totalParkingSlots ?? "").toString().trim();
-    if (!s) return null;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : null;
-  }, [form.totalParkingSlots]);
+type Props = {
+  form: ParkingFormSliceFromBody;
+};
 
-  // number|null -> string|null (안정 콜백)
-  const setTotalParkingSlotsNumber = useCallback(
-    (v: number | null) =>
-      form.setTotalParkingSlots(v == null ? null : String(v)),
-    [form.setTotalParkingSlots] // ✅ 정확한 의존성
-  );
+export default function ParkingContainer({ form }: Props) {
+  const {
+    parkingType,
+    setParkingType,
+    totalParkingSlots,
+    setTotalParkingSlots,
+  } = form;
+
+  // Body(문자열) ↔ Section(숫자) 변환 어댑터
+  const toNum = (s: string | null): number | null => {
+    if (!s) return null;
+    const n = Number(String(s).replace(/[^\d]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const toStr = (n: number | null): string | null =>
+    n == null ? null : String(n);
 
   return (
     <ParkingSection
-      parkingType={form.parkingType}
-      setParkingType={form.setParkingType}
-      totalParkingSlots={totalParkingSlotsNumber}
-      setTotalParkingSlots={setTotalParkingSlotsNumber}
+      /** 주차 유형은 문자열 그대로 */
+      parkingType={parkingType}
+      setParkingType={setParkingType}
+      /** 총 주차대수는 Section이 number|null을 기대 */
+      totalParkingSlots={toNum(totalParkingSlots)}
+      setTotalParkingSlots={(v) => setTotalParkingSlots(toStr(v))}
+      /** 아래 prop들이 있다면 넘겨줘도 됨(없으면 제거) */
+      // parkingTypeId={null}
+      // setParkingTypeId={() => {}}
+      // parkingTypeNameToId={{}}
     />
   );
 }

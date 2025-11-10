@@ -67,7 +67,7 @@ export default function PinTypeSelect({
       }))}
       placeholder={placeholder}
       className={className ?? "w-[220px] h-9"}
-      contentClassName="max-h-[320px]"
+      contentClassName="z-[1100] max-h-[320px]"
     />
   );
 }

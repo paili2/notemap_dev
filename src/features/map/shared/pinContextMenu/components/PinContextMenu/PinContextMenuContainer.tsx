@@ -1,4 +1,3 @@
-// src/features/map/components/PinContextMenu/components/PinContextMenu/PinContextMenuContainer.tsx
 "use client";
 
 import * as React from "react";
