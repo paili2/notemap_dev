@@ -211,12 +211,12 @@ type BuildUpdateArgs = {
   aspect3?: string;
   unitLines?: UnitLine[];
 
-  // 이미지
   imageFolders?: ImageItem[][];
   verticalImages?: ImageItem[];
 
-  // 기타
   pinKind?: PinKind;
+
+  buildingGrade?: "new" | "old";
 };
 
 /** 초기 스냅샷: 자유 키 접근 허용 */
@@ -439,6 +439,33 @@ export function buildUpdatePayload(
   const prevRegistry =
     (initial as any)?.registry ?? (initial as any)?.registryOne;
   put("registry", uiRegistry, prevRegistry);
+
+  /* ✅ 신축/구옥 → isNew / isOld 매핑 (UpdatePayload에 키 없어도 putAny로 안전 전송) */
+  if (defined(a.buildingGrade)) {
+    const nextIsNew = a.buildingGrade === "new";
+    const nextIsOld = a.buildingGrade === "old";
+    putAny("isNew", nextIsNew, (initial as any)?.isNew);
+    putAny("isOld", nextIsOld, (initial as any)?.isOld);
+  }
+
+  /* ✅ (대안) 서버가 building.grade 를 받는 경우: building 객체로 내려보내기 */
+  if (defined(a.buildingGrade)) {
+    // 'new' | 'old' | null 로 정규화
+    const nextGrade =
+      a.buildingGrade === "new" || a.buildingGrade === "old"
+        ? a.buildingGrade
+        : null;
+
+    // prev 값 추출 (없으면 null)
+    const prevGrade = (initial as any)?.building?.grade ?? null;
+
+    // 값이 바뀐 경우에만 patch에 포함
+    if (initial === undefined || !deepEq(prevGrade, nextGrade)) {
+      // 기존 initial.building 의 다른 필드는 보존하고 grade만 교체
+      const prevBuilding = (initial as any)?.building ?? {};
+      (patch as any).building = { ...prevBuilding, grade: nextGrade };
+    }
+  }
 
   /* ===== 옵션/메모 ===== */
   putKeepEmptyArray("options", a.options, initial?.options);

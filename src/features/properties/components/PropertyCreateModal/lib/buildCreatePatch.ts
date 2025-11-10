@@ -9,12 +9,35 @@ import { hydrateRefsToMedia, materializeToRefs } from "@/lib/media/refs";
 type BuildOpts = { id: string; pos: LatLng };
 
 /* ───────────── 방향/호수 정규화 ───────────── */
-function normalizeOrientations(payload: CreatePayload) {
-  const orientations = (payload.orientations ?? [])
-    .map((o) => ({ ho: Number(o.ho), value: o.value }))
+type OrientationLike = {
+  ho?: number | string;
+  value?: string;
+  dir?: string;
+  code?: string;
+  name?: string;
+};
+
+function normalizeOrientations(
+  payload: CreatePayload & {
+    orientations?: OrientationLike[];
+    aspect?: string;
+    aspectNo?: string;
+  }
+) {
+  const src: OrientationLike[] = Array.isArray(payload.orientations)
+    ? payload.orientations
+    : [];
+
+  const orientations = src
+    .map((o) => ({
+      ho: Number(o.ho),
+      value: (o.value ?? o.dir ?? o.code ?? o.name ?? "") as string,
+    }))
+    .filter((o) => Number.isFinite(o.ho) && !!o.value)
     .sort((a, b) => a.ho - b.ho);
 
   const pick = (ho: number) => orientations.find((o) => o.ho === ho)?.value;
+
   const aspect1 =
     pick(1) ?? (payload.aspectNo === "1호" ? payload.aspect : undefined);
   const aspect2 =

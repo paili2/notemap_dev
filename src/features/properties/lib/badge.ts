@@ -23,8 +23,8 @@ export function mapPinKindToBadge(pinKind: PinKind): string | null {
       return "LOFT";
     case "townhouse":
       return "TOWNHOUSE";
-    case "oldhouse":
-      return "OLD_HOUSE";
+    // case "oldhouse":
+    //   return "OLD_HOUSE";
     case "question":
       return "SURVEY_SCHEDULED";
     case "completed":
@@ -60,8 +60,8 @@ export function mapBadgeToPinKind(badge?: string | null): PinKind | undefined {
       return "duplex";
     case "TOWNHOUSE":
       return "townhouse";
-    case "OLD_HOUSE":
-      return "oldhouse";
+    // case "OLD_HOUSE":
+    //   return "oldhouse";
     case "SURVEY_SCHEDULED":
       return "question";
     case "MOVE_IN_COMPLETE":

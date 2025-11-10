@@ -11,7 +11,7 @@ export type PinKind =
   | "4room-terrace"
   | "duplex" // 복층
   | "townhouse" // 타운하우스
-  | "oldhouse" // 구옥
+  // | "oldhouse" // 구옥
   | "question" // 답사예정
   | "completed"; // 완료
 

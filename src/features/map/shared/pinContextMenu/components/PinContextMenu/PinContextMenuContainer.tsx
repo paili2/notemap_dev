@@ -418,6 +418,63 @@ export default function PinContextMenuContainer(props: Props) {
 
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
+  /** ✅ 여기서 ID/제목 보강 */
+  const propertyIdClean = React.useMemo(() => {
+    const raw = String(propertyId ?? "").trim();
+    if (!raw) return null;
+    // 숫자 뒷부분만 추출 (예: "point:123" -> "123")
+    const m = raw.match(/(\d{1,})$/);
+    return (m?.[1] ?? raw) || null;
+  }, [propertyId]);
+
+  const derivedPropertyTitle = React.useMemo(() => {
+    const metaTitle =
+      (metaAtPos as any)?.property?.title ??
+      (metaAtPos as any)?.title ??
+      (metaAtPos as any)?.name ??
+      undefined;
+    const pinTitle =
+      (pin as any)?.property?.title ??
+      (pin as any)?.title ??
+      (pin as any)?.name ??
+      (pin as any)?.property?.name ??
+      undefined;
+
+    return (
+      (propertyTitle ?? "").trim() ||
+      (pinTitle ?? "").trim() ||
+      (metaTitle ?? "").trim() ||
+      ""
+    );
+  }, [propertyTitle, pin, metaAtPos]);
+
+  // 디버깅용 (원인추적 끝나면 삭제 가능)
+  React.useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug("[PinContextMenuContainer] title/ids", {
+      inProp_propertyId: propertyId,
+      propertyIdClean,
+      inProp_title: propertyTitle,
+      pinTitle: (pin as any)?.property?.title ?? (pin as any)?.title,
+      metaTitle:
+        (metaAtPos as any)?.property?.title ?? (metaAtPos as any)?.title,
+      resolvedDraftState,
+      planned,
+      reserved,
+      listed,
+    });
+  }, [
+    propertyId,
+    propertyIdClean,
+    propertyTitle,
+    pin,
+    metaAtPos,
+    resolvedDraftState,
+    planned,
+    reserved,
+    listed,
+  ]);
+
   return (
     <CustomOverlay
       key={`ctx:${version}:${position.getLat().toFixed(5)},${position
@@ -437,8 +494,10 @@ export default function PinContextMenuContainer(props: Props) {
             <ContextMenuPanel
               roadAddress={roadAddress ?? null}
               jibunAddress={jibunAddress ?? null}
-              propertyId={propertyId ?? null}
-              propertyTitle={propertyTitle ?? null}
+              /** ✅ 숫자만 추린 깨끗한 ID를 내려줌 */
+              propertyId={propertyIdClean}
+              /** ✅ 여러 소스에서 모은 제목을 내려줌 */
+              propertyTitle={derivedPropertyTitle || null}
               draftState={resolvedDraftState}
               onClose={props.onClose}
               onView={handleView}

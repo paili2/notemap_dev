@@ -24,6 +24,8 @@ type StarStr = "" | "1" | "2" | "3" | "4" | "5";
 /** UI 등기(용도) 표시용 타입 */
 type RegistryUi = "주택" | "APT" | "OP" | "도/생" | "근/생" | undefined;
 
+type BuildingGrade = "" | "new" | "old";
+
 /** 변경분만 PATCH하기 위한 최초 스냅샷 타입 */
 type InitialForPatch = {
   contactMainPhone: string;
@@ -86,6 +88,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
 
   const [elevator, setElevator] = useState<"O" | "X">("O");
+
+  const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
 
   // ✅ UI 용도 등기
   const [registry, setRegistry] = useState<RegistryUi>(undefined);
@@ -191,6 +195,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     });
     setExtraAreaSets([]);
     setElevator("O");
+    setBuildingGrade("");
     setRegistry(undefined);
     setSlopeGrade(undefined);
     setStructureGrade(undefined);
@@ -274,6 +279,14 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setExtraAreaSets(normalized.extraAreas);
 
     setElevator(normalized.elevator);
+
+    const normGrade =
+      (normalized as any)?.building?.grade ??
+      (normalized as any)?.buildingGrade ??
+      "";
+    setBuildingGrade(
+      normGrade === "new" || normGrade === "old" ? normGrade : ""
+    );
 
     // ✅ 등기(용도) 값 주입: registry/registryOne 없으면 buildingType으로 보정
     const normRegRaw =
@@ -532,6 +545,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       secretMemo,
       unitLines,
       buildingType,
+      buildingGrade,
     }),
     [
       pinKind,
@@ -615,6 +629,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       removeLine,
       reset,
       setBuildingType,
+      setBuildingGrade,
     }),
     [
       addAspect,

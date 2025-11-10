@@ -33,6 +33,12 @@ export const asStarStr = z.preprocess((v) => {
   return s;
 }, z.union([z.literal(""), z.literal("1"), z.literal("2"), z.literal("3"), z.literal("4"), z.literal("5")]));
 
+/** 신축/구옥 정규화: "" | null | undefined → null, 그 외는 enum 검사 */
+export const asBuildingGrade = z.preprocess((v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  return v;
+}, z.enum(["new", "old"]).nullable());
+
 /* ────────────────────────────────────────────────────────────
  * Phone helpers (KR)
  * ──────────────────────────────────────────────────────────── */
@@ -126,10 +132,14 @@ export const propertyFormSchema = z.object({
   parkingGrade: asStarStr.optional().default(""),
   slopeGrade: asStarStr.optional().default(""),
   structureGrade: asStarStr.optional().default(""),
+
+  /** ✅ 신축/구옥(헤더에서 선택). 미선택은 null */
+  buildingGrade: asBuildingGrade.optional().default(null),
 });
 
 export type PropertyStatus = z.infer<typeof propertyFormSchema>["status"];
 export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
+export type BuildingGrade = NonNullable<PropertyFormValues["buildingGrade"]>;
 
 /* ────────────────────────────────────────────────────────────
  * RHF defaultValues
@@ -147,6 +157,7 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   parkingGrade: "",
   slopeGrade: "",
   structureGrade: "",
+  buildingGrade: null, // ✅ 신축/구옥 미선택 기본
 };
 
 /* ────────────────────────────────────────────────────────────

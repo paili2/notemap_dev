@@ -323,7 +323,10 @@ export function buildCreatePayload(args: BuildArgs) {
       ...(_idbKey ? { idbKey: _idbKey } : {}),
     }));
 
-  /* 4) 최종 payload */
+  /* 4) 타입 보강(로컬): CreatePayload에 없는 확장 필드 허용 */
+  type OrientationOut = { ho: number; value: string };
+
+  /* 5) 최종 payload */
   const safeBadge = s(badge);
   const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
 
@@ -359,8 +362,18 @@ export function buildCreatePayload(args: BuildArgs) {
 
     /** ✅ 서버용 필드 */
     units: any[]; // 항상 존재 ([])
+
     /** ✅ UI 유지용 */
     unitLines?: UnitLine[];
+
+    /** ✅ 로컬 보강: 방향/향 관련 필드 */
+    orientations?: OrientationOut[];
+    aspect?: string;
+    aspectNo?: string;
+    aspect1?: string;
+    aspect2?: string;
+    aspect3?: string;
+    directions?: { direction: string }[];
   } = {
     /* 기본 */
     title,

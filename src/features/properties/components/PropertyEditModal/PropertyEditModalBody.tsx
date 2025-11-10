@@ -39,6 +39,16 @@ type ParkingFormSlice = {
   setTotalParkingSlots: (v: string | null) => void;
 };
 
+/** ⭐ 매물평점 문자열 타입 (HeaderContainer의 parkingGrade에서 사용) */
+type StarStr = "" | "1" | "2" | "3" | "4" | "5";
+
+/** 어떤 입력이 와도 '' | '1'~'5' 로 정규화 */
+function normalizeStarStr(v: unknown): StarStr {
+  if (v === null || v === undefined) return "";
+  const s = String(v).trim();
+  return (["", "1", "2", "3", "4", "5"].includes(s) ? s : "") as StarStr;
+}
+
 /* ───────── helpers ───────── */
 
 // ── 전화번호(KR) 유틸 ──
@@ -626,21 +636,73 @@ function toPinPatch(
   if (!jsonEq2(initMinCost, nowMinCostNum))
     (patch as any).minRealMoveInCost = nowMinCostNum ?? null;
 
-  // buildingType
-  const btInitRaw =
-    (initial as any)?.registry ??
-    (initial as any)?.buildingType ??
-    (initial as any)?.type ??
-    (initial as any)?.propertyType;
+  // --- 등기(용도) 추출 유틸: 객체/문자열 모두 지원 ---
+  const pickRegistryString = (src: any): string | undefined => {
+    if (!src) return undefined;
+
+    // 단일 값 후보들을 최대한 넓게 커버 (문자열 또는 객체)
+    const candidates = [
+      src?.buildingType,
+      src?.registry,
+      src?.type,
+      src?.propertyType,
+      src?.registryOne,
+    ];
+
+    const fromAny = (v: any): string | undefined => {
+      if (!v) return undefined;
+      // 문자열이면 그대로
+      if (typeof v === "string" && v.trim() !== "") return v.trim();
+      // 객체이면 대표 필드(value/code/label/name/id) 중 먼저 있는 것 사용
+      if (typeof v === "object") {
+        const s =
+          v.value ?? v.code ?? v.label ?? v.name ?? v.id ?? v.key ?? v.text;
+        if (typeof s === "string" && s.trim() !== "") return s.trim();
+      }
+      return undefined;
+    };
+
+    for (const c of candidates) {
+      const val = fromAny(c);
+      if (val) return val;
+    }
+
+    return undefined;
+  };
+
+  const btInitRaw = pickRegistryString(initial);
+  const btNowRaw = pickRegistryString(f);
+
   const btInit = toServerBuildingType(btInitRaw);
-  const nowBTRaw =
-    (f as any).registry ??
-    (f as any).buildingType ??
-    (f as any).type ??
-    (f as any).propertyType;
-  const btNowServer = toServerBuildingType(nowBTRaw);
-  if (btNowServer !== undefined && btNowServer !== btInit)
-    (patch as any).buildingType = btNowServer;
+  const btNow = toServerBuildingType(btNowRaw);
+
+  console.log("[registry]", { btInitRaw, btNowRaw, btInit, btNow });
+
+  if (btNow !== undefined && btNow !== btInit) {
+    // 서버 구현 차이 커버: 둘 다 보냄
+    (patch as any).buildingType = btNow;
+    (patch as any).registry = btNow;
+  }
+
+  // ── 신축/구옥은 save()에서 isNew/isOld로 강제 세팅 ──
+  // ── 핀종류(pinKind) 변경 감지 추가 ──
+  {
+    const initPinKind =
+      (initial as any)?.pinKind ??
+      ((initial as any)?.badge
+        ? mapBadgeToPinKind((initial as any).badge)
+        : undefined);
+    const nowPinKind = (f as any)?.pinKind;
+    console.log("[pinKind diff]", { initPinKind, nowPinKind });
+    if (nowPinKind !== undefined && nowPinKind !== initPinKind) {
+      (patch as any).pinKind = nowPinKind;
+      // 배지도 맞춰 보낼 수 있으면 함께
+      try {
+        const badge = mapPinKindToBadge?.(nowPinKind);
+        if (badge) (patch as any).badge = badge;
+      } catch {}
+    }
+  }
 
   // 경사/구조 grade
   if (!jsonEq2((initial as any)?.slopeGrade, (f as any).slopeGrade))
@@ -1049,7 +1111,9 @@ export default function PropertyEditModalBody({
   // initialData 평탄화
   const normalizedInitial = useMemo(() => {
     const src = initialData as any;
-    return src?.raw ?? src?.view ?? src ?? null;
+    const v = src?.raw ?? src?.view ?? src ?? null;
+    console.log("[init] normalizedInitial:", v);
+    return v;
   }, [initialData]);
 
   // 브릿지: 최저실입/등기/핀종류 정규화
@@ -1065,32 +1129,46 @@ export default function PropertyEditModalBody({
 
     const rawReg =
       src?.registry ?? src?.type ?? src?.propertyType ?? src?.buildingType;
-    let reg = mapRegistry(rawReg);
-    if (!reg) reg = toUIRegistryFromBuildingType(src?.buildingType);
 
+    // ✅ UI용 등기 값 정규화 ("근생" -> "근/생" 등)
+    let uiReg = mapRegistry(rawReg);
+    if (!uiReg) uiReg = toUIRegistryFromBuildingType(src?.buildingType);
+
+    // ✅ 초기 pinKind (없으면 badge에서 유도)
     const initPinKind =
       src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
 
-    return {
+    const out = {
       ...src,
       ...(salePrice !== undefined ? { salePrice } : {}),
-      ...(reg !== undefined ? { registry: reg } : {}),
+      ...(uiReg !== undefined ? { registry: uiReg, buildingType: uiReg } : {}),
       ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
+    console.log("[init] bridgedInitial:", {
+      id: out?.id,
+      isNew: out?.isNew,
+      isOld: out?.isOld,
+      pinKind: out?.pinKind,
+      badge: out?.badge,
+      registry: out?.registry,
+    });
+    return out;
   }, [normalizedInitial]);
 
   // id
   const propertyId = useMemo(() => {
     const src = initialData as any;
     const id = src?.id ?? src?.raw?.id ?? src?.view?.id ?? "";
-    return String(id ?? "");
+    const s = String(id ?? "");
+    console.log("[init] propertyId:", s);
+    return s;
   }, [initialData]);
 
   // 이미지 초기값
   const initialImages = useMemo(() => {
     const v = bridgedInitial as any;
     if (!v) return null;
-    return {
+    const out = {
       imageFolders: v?.imageFolders ?? v?.imageCards ?? null,
       images: v?.images ?? null,
       imageCardCounts: v?.imageCardCounts ?? null,
@@ -1099,6 +1177,12 @@ export default function PropertyEditModalBody({
       imagesVertical: v?.imagesVertical ?? null,
       fileItems: v?.fileItems ?? null,
     };
+    console.log("[init] initialImages:", {
+      hasFolders: !!out.imageFolders,
+      hasVertical: !!out.verticalImages,
+      files: Array.isArray(out.fileItems) ? out.fileItems.length : 0,
+    });
+    return out;
   }, [bridgedInitial]);
 
   // 이미지 훅
@@ -1212,6 +1296,99 @@ export default function PropertyEditModalBody({
   // 폼 훅
   const f = useEditForm({ initialData: bridgedInitial });
 
+  useEffect(() => {
+    console.log("[form] mounted/useEditForm snapshot:", {
+      title: f.title,
+      pinKind: f.pinKind,
+      buildingType: f.buildingType,
+      parkingGrade: f.parkingGrade,
+    });
+  }, []); // mount 1회
+
+  useEffect(() => {
+    console.log("[form] pinKind changed:", f.pinKind);
+  }, [f.pinKind]);
+
+  /** 신축/구옥: 초기값은 isNew/isOld에서 유도, 기본 "new" */
+  const initialBuildingGrade = useMemo<"new" | "old">(() => {
+    const src = bridgedInitial as any;
+    if (src?.isNew === true) return "new";
+    if (src?.isOld === true) return "old";
+    return "new";
+  }, [bridgedInitial]);
+
+  // 항상 선택 상태 유지 (null 없음)
+  const [buildingGrade, _setBuildingGrade] = useState<"new" | "old">(
+    initialBuildingGrade
+  );
+
+  // bridgedInitial 바뀌면 buildingGrade 재동기화 (초기화 타이밍 이슈 방지)
+  useEffect(() => {
+    console.log(
+      "[buildingGrade] sync from bridgedInitial:",
+      initialBuildingGrade
+    );
+    _setBuildingGrade(initialBuildingGrade);
+  }, [initialBuildingGrade]);
+
+  // setter 프록시: 클릭 시점 로그
+  const setBuildingGrade = useCallback(
+    (v: "new" | "old") => {
+      console.log("[Header] buildingGrade selected:", v);
+      _setBuildingGrade(v);
+    },
+    [_setBuildingGrade]
+  );
+
+  // HeaderContainer에 넘길 form 슬라이스 (setter 프록시 포함)
+  const headerForm = useMemo(
+    () => ({
+      title: f.title,
+      setTitle: (v: string) => {
+        console.log("[Header] title change:", v);
+        f.setTitle(v);
+      },
+      parkingGrade: f.parkingGrade,
+      // ★ 타입 안전: StarStr로 정규화해서 전달
+      setParkingGrade: (v: StarStr) => {
+        const nv = normalizeStarStr(v);
+        console.log("[Header] parkingGrade change:", v, "→", nv);
+        f.setParkingGrade(nv);
+      },
+      elevator: f.elevator,
+      setElevator: (v: any) => {
+        console.log("[Header] elevator change:", v);
+        f.setElevator(v);
+      },
+      pinKind: f.pinKind,
+      setPinKind: (v: any) => {
+        console.log("[Header] pinKind selected:", v);
+        f.setPinKind(v);
+      },
+      buildingGrade, // "new" | "old"
+      setBuildingGrade, // (v: "new" | "old") => void
+    }),
+    [
+      f.title,
+      f.setTitle,
+      f.parkingGrade,
+      f.setParkingGrade,
+      f.elevator,
+      f.setElevator,
+      f.pinKind,
+      f.setPinKind,
+      buildingGrade,
+      setBuildingGrade,
+    ]
+  );
+
+  useEffect(() => {
+    console.log("[headerForm] snapshot:", {
+      buildingGrade: headerForm.buildingGrade,
+      pinKind: headerForm.pinKind,
+    });
+  }, [headerForm]);
+
   // ParkingContainer 지연 마운트
   const [mountParking, setMountParking] = useState(false);
   useEffect(() => {
@@ -1221,11 +1398,15 @@ export default function PropertyEditModalBody({
 
   // Parking setters 프록시
   const setParkingTypeProxy = useCallback(
-    (v: string | null) => f.setParkingType(v ?? ""),
+    (v: string | null) => {
+      console.log("[Parking] type change:", v);
+      f.setParkingType(v ?? "");
+    },
     [f.setParkingType]
   );
   const setTotalParkingSlotsProxy = useCallback(
     (v: string | null) => {
+      console.log("[Parking] total slots change:", v);
       f.setTotalParkingSlots(v ?? "");
     },
     [f.setTotalParkingSlots]
@@ -1256,15 +1437,30 @@ export default function PropertyEditModalBody({
   const completionRegistryForm: CompletionRegistryFormSlice = useMemo(
     () => ({
       completionDate: f.completionDate ?? "",
-      setCompletionDate: f.setCompletionDate,
+      setCompletionDate: (v: string) => {
+        console.log("[Completion] date change:", v);
+        f.setCompletionDate(v);
+      },
       salePrice: f.salePrice,
-      setSalePrice: f.setSalePrice,
+      setSalePrice: (v: string) => {
+        console.log("[Completion] salePrice change:", v);
+        f.setSalePrice(v);
+      },
       slopeGrade: f.slopeGrade,
-      setSlopeGrade: f.setSlopeGrade,
+      setSlopeGrade: (v: string) => {
+        console.log("[Completion] slopeGrade change:", v);
+        f.setSlopeGrade(v);
+      },
       structureGrade: f.structureGrade,
-      setStructureGrade: f.setStructureGrade,
+      setStructureGrade: (v: string) => {
+        console.log("[Completion] structureGrade change:", v);
+        f.setStructureGrade(v);
+      },
       buildingType: f.buildingType ?? null,
-      setBuildingType: f.setBuildingType,
+      setBuildingType: (v: string | null) => {
+        console.log("[Completion] buildingType change:", v);
+        f.setBuildingType(v);
+      },
     }),
     [
       f.completionDate,
@@ -1284,47 +1480,57 @@ export default function PropertyEditModalBody({
 
   /** 저장 */
   const save = useCallback(async () => {
+    console.groupCollapsed("[save] start");
+    console.log("[save] current buildingGrade:", buildingGrade);
+    console.log("[save] current pinKind:", f.pinKind);
+
     if (!f.title.trim()) {
+      console.groupEnd();
       alert("이름(제목)을 입력하세요.");
       return;
     }
 
-    // ✅ 전화번호 형식 검증 (필수: officePhone, 선택: officePhone2)
+    // ✅ 전화번호 형식 검증
     if (!isValidPhoneKR(f.officePhone)) {
+      console.groupEnd();
       alert("전화번호를 입력해주세요");
       return;
     }
     if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
+      console.groupEnd();
       alert("전화번호를 입력해주세요");
       return;
     }
 
-    // ✅ 준공일 형식 검증 (빈 값은 허용 / 값이 있으면 YYYY-MM-DD만 허용, 8자리 숫자는 자동 포맷)
+    // ✅ 준공일 형식 검증
     {
       const raw = f.completionDate?.trim() ?? "";
       if (raw) {
         const normalized = normalizeDateInput(raw);
         if (normalized !== raw) f.setCompletionDate(normalized);
         if (!isValidIsoDateStrict(normalized)) {
+          console.groupEnd();
           alert("준공일은 YYYY-MM-DD 형식으로 입력해주세요. 예: 2024-04-14");
           return;
         }
       }
     }
 
-    // ✅ 개별평수입력(전용/실평) 최소·최대 상호 제약
+    // ✅ 면적 제약
     {
       const msg = validateAreaRanges(f.baseAreaSet, f.extraAreaSets);
       if (msg) {
+        console.groupEnd();
         alert(msg);
         return;
       }
     }
 
-    // ✅ 구조별입력(유닛 라인) 최소/최대 매매가 제약
+    // ✅ 유닛 가격 제약
     {
       const msg = validateUnitPriceRanges(f.unitLines);
       if (msg) {
+        console.groupEnd();
         alert(msg);
         return;
       }
@@ -1379,14 +1585,75 @@ export default function PropertyEditModalBody({
         delete (dto as any).areaGroups;
       }
 
+      // 항상 토글 값 고정 (신축/구옥)
+      (dto as any).isNew = buildingGrade === "new";
+      (dto as any).isOld = buildingGrade === "old";
+
+      // ✅ 라스트마일: 등기 강제 주입
+      {
+        const pickRegistryString = (src: any): string | undefined => {
+          if (!src) return undefined;
+          const candidates = [
+            src?.buildingType,
+            src?.registry,
+            src?.type,
+            src?.propertyType,
+            src?.registryOne,
+          ];
+          const fromAny = (v: any): string | undefined => {
+            if (!v) return undefined;
+            if (typeof v === "string" && v.trim() !== "") return v.trim();
+            if (typeof v === "object") {
+              const s =
+                v.value ??
+                v.code ??
+                v.label ??
+                v.name ??
+                v.id ??
+                v.key ??
+                v.text;
+              if (typeof s === "string" && s.trim() !== "") return s.trim();
+            }
+            return undefined;
+          };
+          for (const c of candidates) {
+            const val = fromAny(c);
+            if (val) return val;
+          }
+          return undefined;
+        };
+
+        const nowRaw = pickRegistryString(f);
+        const nowServer = toServerBuildingType(nowRaw); // "APT" | "OP" | "주택" | "근생" | undefined
+        console.log("[save][registry last-mile]", { nowRaw, nowServer });
+
+        if (nowServer !== undefined) {
+          (dto as any).buildingType = nowServer;
+          (dto as any).registry = nowServer;
+          (dto as any).type = nowServer;
+          (dto as any).propertyType = nowServer;
+          (dto as any).registryOne = nowServer;
+        }
+      }
+
+      // ✅ 신축/구옥/핀종류 최종 스냅샷 로깅
+      console.log("[save] final toggles:", {
+        buildingGrade,
+        isNew: (dto as any).isNew,
+        isOld: (dto as any).isOld,
+        pinKind: (dto as any).pinKind ?? f.pinKind,
+      });
+
+      // ✅ 변경 여부 계산
       hasFormChanges = hasMeaningfulPatch(dto);
 
-      console.groupCollapsed("[save] after toPinPatch+strip]");
+      console.groupCollapsed("[save] after toPinPatch+strip+last-mile");
       console.log("[save] dto:", dto);
       console.log("[save] hasFormChanges:", hasFormChanges);
       console.groupEnd();
     } catch (e: any) {
       console.error("[toPinPatch] 실패:", e);
+      console.groupEnd();
       alert(e?.message || "변경 사항 계산 중 오류가 발생했습니다.");
       return;
     }
@@ -1398,6 +1665,7 @@ export default function PropertyEditModalBody({
       }
     } catch (e: any) {
       console.error("[images.commit] 실패:", e);
+      console.groupEnd();
       alert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
       return;
     }
@@ -1406,12 +1674,14 @@ export default function PropertyEditModalBody({
     if (hasFormChanges && dto && Object.keys(dto).length > 0) {
       console.log("[save] → will PATCH /pins/:id", propertyId, "with", dto);
       try {
+        console.log("PATCH /pins/:id payload", dto);
         await updatePin(propertyId, dto);
         await queryClient.invalidateQueries({
           queryKey: ["pinDetail", propertyId],
         });
       } catch (e: any) {
         console.error("[PATCH /pins/:id] 실패:", e);
+        console.groupEnd();
         alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
         return;
       }
@@ -1472,7 +1742,7 @@ export default function PropertyEditModalBody({
       publicMemo: f.publicMemo,
       secretMemo: f.secretMemo,
 
-      orientations, // 로컬 뷰용: buildUpdatePayload가 directions로 바꿔서 비교/세팅
+      orientations, // 로컬 뷰용
       aspect: aspect ?? "",
       aspectNo: Number(aspectNo ?? 0),
       aspect1,
@@ -1484,9 +1754,17 @@ export default function PropertyEditModalBody({
       verticalImages,
 
       pinKind: f.pinKind,
+      buildingGrade, // "new" | "old"
+    });
+
+    console.log("[save] onSubmit payload (view sync):", {
+      buildingGrade,
+      pinKind: f.pinKind,
+      title: payload.title,
     });
 
     await onSubmit?.(payload as any);
+    console.groupEnd();
     onClose();
   }, [
     f,
@@ -1500,13 +1778,14 @@ export default function PropertyEditModalBody({
     hasImageChanges,
     commitImageChanges,
     commitPending,
+    buildingGrade,
   ]);
 
   /* embedded 레이아웃 */
   if (embedded) {
     return (
       <div className="flex flex-col h-full">
-        <HeaderContainer form={f} onClose={onClose} />
+        <HeaderContainer form={headerForm as any} onClose={onClose} />
 
         <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           <ImagesContainer images={imagesProp} />
@@ -1544,7 +1823,7 @@ export default function PropertyEditModalBody({
       />
       {/* 모달 컨텐츠 */}
       <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
-        <HeaderContainer form={f} onClose={onClose} />
+        <HeaderContainer form={headerForm as any} onClose={onClose} />
 
         <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           {/* 좌측: 이미지 */}

@@ -94,8 +94,13 @@ export default function ContextMenuPanel({
 
   const [creating, setCreating] = useState(false);
 
+  /** ✅ 제목 로컬 상태: 컨테이너에서 title이 없을 때 보완 */
+  const [displayTitle, setDisplayTitle] = useState(
+    (propertyTitle ?? "").trim()
+  );
+
   /** 파생 상태: 예약 > 예정 > 드래프트 > 일반  */
-  const { draft, reserved, planned, headerTitle } = useMemo(() => {
+  const { draft, reserved, planned } = useMemo(() => {
     const idStr = String(propertyId ?? "").trim();
     const idLow = idStr.toLowerCase();
 
@@ -119,12 +124,8 @@ export default function ContextMenuPanel({
     const isLegacyDraft = !idStr || idLow === "__draft__";
     const draft = !reserved && !planned && isLegacyDraft;
 
-    const headerTitle = draft
-      ? "선택 위치"
-      : (propertyTitle ?? "").trim() || "선택된 매물";
-
-    return { draft, reserved, planned, headerTitle };
-  }, [propertyId, propertyTitle, draftState, isPlanPin, isVisitReservedPin]);
+    return { draft, reserved, planned };
+  }, [propertyId, draftState, isPlanPin, isVisitReservedPin]);
 
   // 상세보기 가능 여부
   const canView = useMemo(() => {
@@ -145,6 +146,40 @@ export default function ContextMenuPanel({
     }
     return true;
   }, [propertyId]);
+
+  /** ✅ 제목이 비어 있고 조회 가능한 등록핀이라면 1회 조회 후 제목 채우기 */
+  useEffect(() => {
+    if (displayTitle) return;
+    if (!canView) return;
+    if (!propertyId) return;
+
+    let alive = true;
+    getPinRaw(String(propertyId))
+      .then((pin: any) => {
+        if (!alive) return;
+
+        const name =
+          pin?.property?.title ??
+          pin?.title ??
+          pin?.name ?? // ✅ 추가: name
+          pin?.property?.name ?? // ✅ 추가: property.name
+          pin?.data?.title ?? // (혹시 data 래핑)
+          pin?.data?.name ?? // ✅ 추가: data.name
+          "";
+
+        if (name) setDisplayTitle(String(name).trim());
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [displayTitle, canView, propertyId]);
+
+  /** 최종 헤더 타이틀: draft는 "선택 위치", 그 외엔 매물명 우선 */
+  const headerTitle = useMemo(() => {
+    if (draft) return "선택 위치";
+    return displayTitle || (propertyTitle ?? "").trim() || "선택된 매물";
+  }, [draft, displayTitle, propertyTitle]);
 
   /** 초기 포커스/복귀 */
   useEffect(() => {
@@ -190,7 +225,7 @@ export default function ContextMenuPanel({
         roadAddress: roadAddress ?? null,
         jibunAddress: jibunAddress ?? null,
         propertyId: propertyId ?? null,
-        propertyTitle: propertyTitle ?? null,
+        propertyTitle: displayTitle || propertyTitle || null,
         dateISO: todayYmdKST(),
       };
       await onPlan?.(payload as PlanRequestPayload);
@@ -205,6 +240,7 @@ export default function ContextMenuPanel({
     jibunAddress,
     propertyId,
     propertyTitle,
+    displayTitle,
     onPlan,
     onClose,
     bump,
