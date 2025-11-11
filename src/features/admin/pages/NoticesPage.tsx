@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/atoms/Button/Button";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Table, SearchBar, processTableData } from "@/features/table";
 import type { TableColumn, TableData } from "@/features/table/types/table";
-import Link from "next/link";
 import { getNotices, NoticeListResponse } from "../api/notices";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
+import { Button } from "@/components/atoms/Button/Button";
+import { Plus } from "lucide-react";
 
 // 공지사항 데이터 타입 (API 응답과 일치)
 interface NoticeData extends TableData {
@@ -50,13 +50,13 @@ const columns: TableColumn<NoticeData>[] = [
 export function NoticesPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [loading, setLoading] = useState(false);
   const [notices, setNotices] = useState<NoticeData[]>([]);
   const [isLoadingNotices, setIsLoadingNotices] = useState(true);
   const { toast } = useToast();
 
   // 공지사항 목록 로드
-  const loadNotices = async () => {
+  const loadNotices = useCallback(async () => {
+    setIsLoadingNotices(true);
     try {
       const noticeData = await getNotices();
       setNotices(noticeData);
@@ -73,11 +73,11 @@ export function NoticesPage() {
     } finally {
       setIsLoadingNotices(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     loadNotices();
-  }, []);
+  }, [loadNotices]);
 
   // 데이터 처리
   const { processedData, pagination } = useMemo(() => {
@@ -99,9 +99,9 @@ export function NoticesPage() {
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">공지사항</h1>
-        <div className="w-80">
+        <div className="w-full sm:max-w-xs">
           <SearchBar
             value={searchTerm}
             onChange={setSearchTerm}
@@ -116,7 +116,8 @@ export function NoticesPage() {
         </div>
         <Link href="/admin/notices/create">
           <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />새 공지사항
+            <Plus className="h-4 w-4" />
+            새 공지사항
           </Button>
         </Link>
       </div>

@@ -2,9 +2,6 @@
 
 import {
   Phone,
-  PhoneCall,
-  MapPin,
-  Banknote,
   Pencil,
   Trash2,
   X,
@@ -12,6 +9,7 @@ import {
   FileText,
   Image as ImageIcon,
   EyeOff,
+  Briefcase,
 } from "lucide-react";
 import {
   Avatar,
@@ -81,21 +79,25 @@ export default function AccountsListPage({
       ) : (
         rows.map((u) => {
           // ====== 카드에 들어갈 필수정보 + 사진 ======
-          const phone = (u as any).phone ?? "";
-          const emergency = (u as any).emergency_contact ?? "";
-          const address =
-            (u as any).address ??
-            (u as any).addr ??
-            (u as any).address_line ??
-            "";
-          const salary = (u as any).salary_account ?? "";
-          const photo = (u as any).photo_url ?? "";
+          const phone = u.phone ?? "";
+          const position = u.positionRank ?? "";
+          const photo = u.photo_url ?? "";
+          const isManager = u.role === "team_leader"; // manager이면 팀장 배지 표시
 
           return (
             <article
               key={u.id}
               className="relative flex flex-col rounded-2xl border bg-background p-4 shadow-sm"
             >
+              {/* 팀장 배지 */}
+              {isManager && (
+                <div className="absolute right-2 top-2">
+                  <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
+                    팀장
+                  </span>
+                </div>
+              )}
+
               {/* 상단: 아바타 + 이름 */}
               <div className="flex items-start gap-3">
                 <button
@@ -122,27 +124,17 @@ export default function AccountsListPage({
                 </div>
               </div>
 
-              {/* 본문: 필수정보 4줄 */}
+              {/* 본문: 필수정보 2줄 */}
               <div className="mt-3 space-y-2 text-sm">
+                <Line
+                  icon={<Briefcase className="h-4 w-4" />}
+                  label="직위"
+                  value={positionRankLabel(position)}
+                />
                 <Line
                   icon={<Phone className="h-4 w-4" />}
                   label="연락처"
                   value={phone || "-"}
-                />
-                <Line
-                  icon={<PhoneCall className="h-4 w-4" />}
-                  label="비상연락처"
-                  value={emergency || "-"}
-                />
-                <Line
-                  icon={<MapPin className="h-4 w-4" />}
-                  label="주소"
-                  value={address || "-"}
-                />
-                <Line
-                  icon={<Banknote className="h-4 w-4" />}
-                  label="급여계좌"
-                  value={salary || "-"}
                 />
               </div>
 
@@ -233,7 +225,7 @@ function DetailModal({
   const email = user.email;
   const role = user.role;
 
-  const phone = (user as any).phone ?? "";
+  const phone = user.phone ?? "";
   const emergency = (user as any).emergency_contact ?? "";
   const address =
     (user as any).address ??
@@ -241,6 +233,7 @@ function DetailModal({
     (user as any).address_line ??
     "";
   const salary = (user as any).salary_account ?? "";
+  const position = user.positionRank ?? "";
 
   // 추가정보
   const photo = (user as any).photo_url ?? "";
@@ -291,6 +284,7 @@ function DetailModal({
               </div>
 
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="직위" value={positionRankLabel(position)} />
                 <Field label="이메일" value={email} />
                 <Field label="연락처" value={phone || "-"} />
                 <Field label="비상 연락처" value={emergency || "-"} />
@@ -476,5 +470,25 @@ function roleLabel(r: RoleKey) {
       return "사원";
     default:
       return r;
+  }
+}
+
+function positionRankLabel(rank: string | null | undefined): string {
+  if (!rank) return "-";
+  switch (rank) {
+    case "STAFF":
+      return "사원";
+    case "ASSISTANT_MANAGER":
+      return "대리";
+    case "MANAGER":
+      return "과장";
+    case "DEPUTY_GENERAL":
+      return "차장";
+    case "GENERAL_MANAGER":
+      return "부장";
+    case "DIRECTOR":
+      return "실장";
+    default:
+      return rank;
   }
 }

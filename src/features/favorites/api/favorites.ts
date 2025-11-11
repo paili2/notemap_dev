@@ -24,7 +24,7 @@ export async function getFavoriteGroups(
   try {
     console.log("즐겨찾기 그룹 목록 조회:", { includeItems });
     const response = await api.get<{ message: string; data: FavoriteGroup[] }>(
-      `/group?includeItems=${includeItems ? "1" : "0"}`
+      `/favorite/group?includeItems=${includeItems ? "1" : "0"}`
     );
     console.log("즐겨찾기 그룹 목록 응답:", response.data);
     return response.data.data;
@@ -47,7 +47,7 @@ export async function updateGroupTitle(
   try {
     console.log("즐겨찾기 그룹 제목 수정:", { groupId, data });
     const response = await api.patch<{ message: string; data: FavoriteGroup }>(
-      `/group/${groupId}`,
+      `/favorite/group/${groupId}`,
       data
     );
     console.log("즐겨찾기 그룹 제목 수정 응답:", response.data);
@@ -62,7 +62,7 @@ export async function updateGroupTitle(
 // 즐겨찾기 그룹 순서 변경
 export type ReorderGroupsRequest = {
   orders: Array<{
-    groupId: string;
+    id: string;
     sortOrder: number;
   }>;
 };
@@ -71,7 +71,7 @@ export async function reorderGroups(data: ReorderGroupsRequest): Promise<void> {
   try {
     console.log("즐겨찾기 그룹 순서 변경:", data);
     const response = await api.patch<{ message: string }>(
-      "/group/reorder",
+      "/favorite/group/reorder",
       data
     );
     console.log("즐겨찾기 그룹 순서 변경 응답:", response.data);
@@ -132,10 +132,17 @@ export type UpsertFavoriteItemRequest = {
 };
 
 export type UpsertFavoriteItemResponse = {
-  groupId: string;
-  itemId: string;
-  pinId: string;
-  sortOrder: number;
+  group: {
+    id: string;
+    title: string;
+    sortOrder: number;
+  };
+  item: {
+    id: string;
+    pinId: string;
+    sortOrder: number;
+  };
+  groupItemCount: number;
 };
 
 export async function upsertFavoriteItem(
@@ -146,12 +153,13 @@ export async function upsertFavoriteItem(
     const response = await api.post<{
       message: string;
       data: UpsertFavoriteItemResponse;
-    }>("/favorite", data);
+    }>("/favorite/upsert-item", data);
     console.log("즐겨찾기 아이템 추가/수정 응답:", response.data);
     return response.data.data;
   } catch (error: any) {
     console.error("즐겨찾기 아이템 추가/수정 실패:", error);
     console.error("에러 상세:", error?.response?.data);
+    console.error("에러 메시지:", error?.response?.data?.messages);
     throw error;
   }
 }

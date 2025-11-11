@@ -37,6 +37,9 @@ export default function UserSettingsPage({
       name: member.name || "이름 없음",
       email: "", // API에 이메일 정보가 없음
       role: member.teamRole === "manager" ? "team_leader" : "staff",
+      phone: member.phone || undefined,
+      positionRank: member.positionRank || undefined,
+      photo_url: member.photoUrl || undefined,
     }));
   }, [members]);
 

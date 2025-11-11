@@ -69,7 +69,6 @@ export function ContractManagement() {
     // TODO: 계약 상세 페이지로 이동
   };
 
-
   // 계약 상태 업데이트 함수
   const updateContractStatus = (
     contractId: string,
@@ -86,9 +85,9 @@ export function ContractManagement() {
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold text-gray-900">계약 관리</h1>
-        <div className="w-80">
+        <div className="w-full sm:max-w-xs">
           <SearchBar
             value={searchTerm}
             onChange={setSearchTerm}
