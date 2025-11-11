@@ -1,10 +1,37 @@
 import { SalesContractData } from "../types/contract-records";
 import { CreateContractRequest, ContractResponse } from "../api/contracts";
 
+type ProfileData =
+  | {
+      account?: {
+        id: string;
+        name: string | null;
+        phone: string | null;
+      } | null;
+    }
+  | undefined;
+
 // 프론트엔드 SalesContractData를 백엔드 CreateContractRequest로 변환
 export function transformSalesContractToCreateRequest(
-  data: SalesContractData
+  data: SalesContractData,
+  profile?: ProfileData
 ): CreateContractRequest {
+  // 담당자는 항상 로그인한 사용자
+  const salespersonAccountId = profile?.account?.id;
+
+  // 담당자 분배 변환
+  const assignees = data.staffAllocations.map((allocation, index) => ({
+    accountId:
+      allocation.type === "employee" ? allocation.accountId : undefined,
+    role:
+      allocation.type === "company" ? ("company" as const) : ("staff" as const),
+    sharePercent: allocation.percentage,
+    rebateAmount: allocation.rebateAllowance ?? 0,
+    finalAmount: allocation.finalAllowance ?? 0,
+    isManual: allocation.isDirectInput ?? false,
+    sortOrder: index + 1,
+  }));
+
   // 최소한의 필수 필드만 전송
   const request: CreateContractRequest = {
     brokerageFee: Number(data.financialInfo.brokerageFee) || 0,
@@ -17,6 +44,22 @@ export function transformSalesContractToCreateRequest(
     // 고객 정보 추가
     customerName: data.customerInfo.name || undefined,
     customerPhone: data.customerInfo.contact || undefined,
+    // 담당자 ID 추가
+    salespersonAccountId,
+    createdByAccountId: profile?.account?.id,
+    // 계산 메모 추가
+    calcMemo: data.financialInfo.supportContent || undefined,
+    // 계약 날짜 추가
+    contractDate: data.contractDate,
+    // 상태 추가
+    status:
+      data.status === "completed"
+        ? ("done" as const)
+        : data.status === "cancelled"
+        ? ("canceled" as const)
+        : ("ongoing" as const),
+    // 담당자 분배 추가
+    assignees: assignees.length > 0 ? assignees : undefined,
   };
 
   console.log("변환된 요청 데이터 상세:", request);

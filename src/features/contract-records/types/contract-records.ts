@@ -19,6 +19,7 @@ export interface FinancialInfo {
 export interface StaffAllocation {
   id: string;
   name: string;
+  accountId?: string; // 담당자 계정 ID (employee 타입일 때만 사용)
   type: "company" | "employee";
   percentage: number;
   isDirectInput: boolean;

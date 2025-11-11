@@ -73,7 +73,7 @@ export function StaffAllocationSection({
       onStaffAllocationsChange(
         staffAllocations.map((staff) =>
           staff.id === staffId
-            ? { ...staff, name: selectedEmployee.name || "" }
+            ? { ...staff, name: selectedEmployee.name || "", accountId: employeeId }
             : staff
         )
       );
