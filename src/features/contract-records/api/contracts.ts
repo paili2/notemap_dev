@@ -55,8 +55,13 @@ export type CreateContractRequest = {
   contractDate?: string;
   status?: "ongoing" | "done" | "canceled";
   assignees?: Array<{
-    accountId: string;
-    percentage: number;
+    accountId?: string;
+    role: "company" | "staff";
+    sharePercent: number;
+    rebateAmount?: number;
+    finalAmount?: number;
+    isManual?: boolean;
+    sortOrder?: number;
   }>;
 };
 

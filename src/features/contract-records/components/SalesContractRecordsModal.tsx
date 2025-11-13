@@ -244,7 +244,7 @@ export function SalesContractRecordsModal({
     setIsLoading(true);
     try {
       // 백엔드 API 형식으로 변환
-      const requestData = transformSalesContractToCreateRequest(data);
+      const requestData = transformSalesContractToCreateRequest(data, profile);
       console.log("변환된 요청 데이터:", requestData);
 
       // 필수 필드 검증

@@ -12,4 +12,7 @@ export type UserRow = {
   name: string;
   email: string;
   role: RoleKey;
+  phone?: string;
+  positionRank?: string;
+  photo_url?: string;
 };

@@ -18,6 +18,7 @@ import {
 import { FormError } from "@/components/atoms/FormError/FormError";
 import { Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { createNotice } from "../api/notices";
 
 const createNoticeSchema = z.object({
   title: z
@@ -53,15 +54,11 @@ export function CreateNoticeForm({ onNoticeCreated }: CreateNoticeFormProps) {
   const onSubmit = async (data: CreateNoticeFormData) => {
     setIsLoading(true);
     try {
-      // TODO: 백엔드 API 연동
-      console.log("공지사항 생성 데이터:", data);
-
-      // 임시로 성공 처리
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const created = await createNotice(data);
 
       toast({
         title: "공지사항 생성 완료",
-        description: `"${data.title}" 공지사항이 성공적으로 생성되었습니다.`,
+        description: `"${created.title}" 공지사항이 성공적으로 생성되었습니다.`,
       });
 
       reset();
