@@ -1,6 +1,5 @@
 import { PinKind } from "@/features/pins/types";
-
-export type BuildingGrade = "new" | "old" | null;
+import { BuildingGrade } from "@/features/properties/types/building-grade";
 
 export type HeaderSectionProps = {
   title: string;

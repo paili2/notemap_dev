@@ -13,20 +13,15 @@ import type {
   UseEditFormArgs,
   Grade,
   OrientationValue,
-  // Registry 제거
   UnitLine,
   PinKind,
 } from "./types";
 import { BuildingType } from "@/features/properties/types/property-domain";
 
 type StarStr = "" | "1" | "2" | "3" | "4" | "5";
-
-/** UI 등기(용도) 표시용 타입 */
 type RegistryUi = "주택" | "APT" | "OP" | "도/생" | "근/생" | undefined;
-
 type BuildingGrade = "" | "new" | "old";
 
-/** 변경분만 PATCH하기 위한 최초 스냅샷 타입 */
 type InitialForPatch = {
   contactMainPhone: string;
   contactSubPhone: string;
@@ -34,12 +29,23 @@ type InitialForPatch = {
   unitLines: UnitLine[];
 };
 
-/** 서버 buildingType → UI 등기 표기 보정 */
+/** 서버 buildingType → UI 등기 표기 보정 (도/생 포함) */
 const toUIRegistryFromBuildingType = (v: any): RegistryUi => {
-  const s = String(v ?? "").trim();
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
   if (!s) return undefined;
-  if (s === "근생") return "근/생";
-  if (s === "APT" || s === "OP" || s === "주택") return s as RegistryUi;
+  if (["apt", "아파트"].includes(s)) return "APT";
+  if (["op", "officetel", "오피스텔"].includes(s)) return "OP";
+  if (["주택", "house", "housing", "residential"].includes(s)) return "주택";
+  if (
+    ["도/생", "도생", "도시생활형", "도시생활형주택", "urban", "urb"].includes(
+      s
+    )
+  )
+    return "도/생";
+  if (["근생", "근/생", "근린생활시설", "nearlife", "commercial"].includes(s))
+    return "근/생";
   return undefined;
 };
 
@@ -58,6 +64,16 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [aspects, setAspects] = useState<AspectRowLite[]>(EMPTY_ASPECTS);
 
+  // ⭐ 사용자 향 편집 여부 (추가)
+  const aspectsTouchedRef = useRef(false);
+  const [aspectsTouched, setAspectsTouched] = useState(false);
+  const markAspectsTouched = () => {
+    if (!aspectsTouchedRef.current) {
+      aspectsTouchedRef.current = true;
+      setAspectsTouched(true);
+    }
+  };
+
   // ⭐ 매물평점(별 1~5, 공백 허용)
   const [parkingGrade, setParkingGrade] = useState<StarStr>("");
   const [parkingTypeId, setParkingTypeId] = useState<number | null>(null);
@@ -65,10 +81,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [totalParkingSlots, setTotalParkingSlots] = useState<string>("");
   const [completionDate, setCompletionDate] = useState("");
 
-  // salePrice를 string | number | null로 보관
   const [salePriceRaw, setSalePriceRaw] = useState<string | number | null>("");
 
-  // ← 외부로 노출할 어댑터 (타입 맞춤)
   const setSalePrice = useCallback(
     (v: string | number | null) => setSalePriceRaw(v),
     []
@@ -91,13 +105,11 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
 
-  // ✅ UI 용도 등기
   const [registry, setRegistry] = useState<RegistryUi>(undefined);
 
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
-  // ✅ 숫자 문자열(서버로는 상위에서 변환)
   const [totalBuildings, setTotalBuildings] = useState("");
   const [totalFloors, setTotalFloors] = useState("");
   const [totalHouseholds, setTotalHouseholds] = useState("");
@@ -113,20 +125,20 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const [buildingType, setBuildingType] = useState<BuildingType | null>(null);
 
   /* ========== 액션 ========== */
-  const addAspect = useCallback(
-    () => setAspects((prev) => [...prev, { no: prev.length + 1, dir: "" }]),
-    []
-  );
+  const addAspect = useCallback(() => {
+    markAspectsTouched();
+    setAspects((prev) => [...prev, { no: prev.length + 1, dir: "" }]);
+  }, []);
   const removeAspect = useCallback((no: number) => {
+    markAspectsTouched();
     setAspects((prev) =>
       prev.filter((r) => r.no !== no).map((r, i) => ({ ...r, no: i + 1 }))
     );
   }, []);
-  const setAspectDir = useCallback(
-    (no: number, dir: OrientationValue | "") =>
-      setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r))),
-    []
-  );
+  const setAspectDir = useCallback((no: number, dir: OrientationValue | "") => {
+    markAspectsTouched();
+    setAspects((prev) => prev.map((r) => (r.no === no ? { ...r, dir } : r)));
+  }, []);
 
   const addLineFromPreset = useCallback((preset: string) => {
     const { rooms, baths } = parsePreset(preset);
@@ -165,6 +177,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   }, []);
 
   const reset = useCallback(() => {
+    aspectsTouchedRef.current = false;
+    setAspectsTouched(false);
+
     setPinKind("1room");
     setTitle("");
     setAddress("");
@@ -181,7 +196,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setParkingTypeId(null);
     setTotalParkingSlots("");
     setCompletionDate("");
-    setSalePrice(""); // 어댑터 사용
+    setSalePrice("");
     setBaseAreaSet({
       title: "",
       exMinM2: "",
@@ -212,7 +227,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setBuildingType(null);
   }, []);
 
-  /* ========== 초기 주입 ========== */
+  /* ========== 초기 주입 (생략 없는 원본 그대로) ========== */
   const wrapper = initialData as any;
   const sourceData =
     (wrapper?.raw as any) ?? (wrapper?.view as any) ?? initialData ?? null;
@@ -233,7 +248,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const normalized = useMemo(() => normalizeInitialData(sourceData), [initKey]);
   const injectedOnceRef = useRef<null | string | number>(null);
 
-  // 변경분 PATCH 스냅샷
   const initialForPatchRef = useRef<InitialForPatch>({
     contactMainPhone: "",
     contactSubPhone: "",
@@ -250,6 +264,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     if (injectedOnceRef.current === initKey) return;
     injectedOnceRef.current = initKey;
 
+    aspectsTouchedRef.current = false;
+    setAspectsTouched(false);
+
     setPinKind(normalized.pinKind);
     setTitle(normalized.title);
     setAddress(normalized.address);
@@ -261,7 +278,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setRoomNo(normalized.roomNo);
     setStructure(normalized.structure);
 
-    // ⭐ parkingGrade: '' | '1'..'5'만 허용
     const pg = (normalized as any)?.parkingGrade as StarStr | undefined;
     setParkingGrade(pg && ["1", "2", "3", "4", "5"].includes(pg) ? pg : "");
 
@@ -273,7 +289,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
         : ""
     );
     setCompletionDate(normalized.completionDate);
-    setSalePrice(normalized.salePrice); // 어댑터 사용
+    setSalePrice(normalized.salePrice);
 
     setBaseAreaSet(normalized.baseArea);
     setExtraAreaSets(normalized.extraAreas);
@@ -288,7 +304,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       normGrade === "new" || normGrade === "old" ? normGrade : ""
     );
 
-    // ✅ 등기(용도) 값 주입: registry/registryOne 없으면 buildingType으로 보정
     const normRegRaw =
       (normalized as any).registry ??
       (normalized as any).registryOne ??
@@ -305,7 +320,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setSlopeGrade(normalized.slopeGrade);
     setStructureGrade(normalized.structureGrade);
 
-    // 숫자 필드
     setTotalBuildings((normalized.totalBuildings ?? "") as unknown as string);
     setTotalFloors((normalized.totalFloors ?? "") as unknown as string);
     setTotalHouseholds((normalized.totalHouseholds ?? "") as unknown as string);
@@ -324,7 +338,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
     setBuildingType((normalized as any).buildingType ?? null);
 
-    // 최초 스냅샷
     initialForPatchRef.current = {
       contactMainPhone: normalized.officePhone ?? "",
       contactSubPhone: normalized.officePhone2 ?? "",
@@ -333,7 +346,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     };
   }, [initKey, normalized]);
 
-  // normalized의 registry/buildingType 변경 시 UI 동기화
   useEffect(() => {
     const normRegRaw =
       (normalized as any)?.registry ??
@@ -359,7 +371,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     (normalized as any)?.buildingType,
   ]);
 
-  /* ========== 파생값 ========== */
+  /* ========== 파생값/유효성 ========== */
   const baseHasExclusive = useMemo(
     () =>
       hasPair(baseAreaSet.exMinM2, baseAreaSet.exMaxM2) ||
@@ -414,7 +426,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     [aspects]
   );
 
-  // ✅ 저장 가능 여부(폼 자체 유효성)
   const isSaveEnabled = useMemo<boolean>(() => {
     const numbersOk =
       filled(totalBuildings) &&
@@ -422,7 +433,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       filled(totalHouseholds) &&
       filled(remainingHouseholds);
 
-    // salePriceRaw는 string|number|null → 문자열로 캐스팅해 검사
     const salePriceOk = filled(String(salePriceRaw ?? ""));
 
     const basicOk =
@@ -501,7 +511,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     };
   }, [baseAreaSet, extraAreaSets]);
 
-  /** 상위에서 수치형 필요 시 */
   const getParkingGradeNumber = useCallback(() => {
     if (!parkingGrade || !["1", "2", "3", "4", "5"].includes(parkingGrade))
       return undefined;
@@ -531,7 +540,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       baseAreaSet,
       extraAreaSets,
       elevator,
-      registry, // RegistryUi
+      registry,
       slopeGrade,
       structureGrade,
       totalBuildings,
@@ -546,6 +555,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       unitLines,
       buildingType,
       buildingGrade,
+      // 추가
+      aspectsTouched,
     }),
     [
       pinKind,
@@ -582,6 +593,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       secretMemo,
       unitLines,
       buildingType,
+      buildingGrade,
+      aspectsTouched,
     ]
   );
 
@@ -606,11 +619,11 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       setParkingTypeId,
       setTotalParkingSlots,
       setCompletionDate,
-      setSalePrice, // 어댑터 노출
+      setSalePrice,
       setBaseAreaSet,
       setExtraAreaSets,
       setElevator,
-      setRegistry, // (v: RegistryUi) => void
+      setRegistry,
       setSlopeGrade,
       setStructureGrade,
       setTotalBuildings,
@@ -655,14 +668,11 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     ...derived,
     ...helpers,
 
-    // 레거시 호환 브릿지
     registryOne: registry,
     setRegistryOne: setRegistry,
 
-    // 최초 스냅샷(변경분 PATCH용)
     initialForPatch: initialForPatchRef.current,
 
-    // 구조적 접근도 가능하도록 원본 객체도 노출
     state,
     actions,
     derived,

@@ -199,7 +199,7 @@ export async function createSurveyReservation(
     withCredentials: true,
     headers: {
       "Content-Type": "application/json",
-      "Idempotency-Key": makeIdempotencyKey(),
+      // "Idempotency-Key": makeIdempotencyKey(),
     },
     signal,
   });

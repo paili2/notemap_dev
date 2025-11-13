@@ -18,7 +18,7 @@ function pickMsg(x: any, fallback: string) {
 export async function getPinRaw(id: string | number): Promise<ApiPin> {
   const res = await api.get<{ success: boolean; data: ApiPin }>(`/pins/${id}`, {
     withCredentials: true,
-    headers: { "x-no-retry": "1" },
+    // headers: { "x-no-retry": "1" },
     validateStatus: () => true,
   });
 
@@ -42,7 +42,7 @@ export async function getPinResult(id: string | number): Promise<GetPinResult> {
   try {
     const res = await api.get<ApiEnvelope<PinDetail>>(`/pins/${id}`, {
       withCredentials: true,
-      headers: { "x-no-retry": "1" },
+      // headers: { "x-no-retry": "1" },
       validateStatus: () => true,
     });
 

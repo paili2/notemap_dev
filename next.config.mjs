@@ -43,11 +43,14 @@ const nextConfig = {
   images: { remotePatterns }, // ⛔️ domains 대신 remotePatterns
   async rewrites() {
     return [
-      { source: "/api/:path*", destination: `${API_ORIGIN}/:path*` },
+      // { source: "/api/:path*", destination: `${API_ORIGIN}/:path*` },
       { source: "/pins", destination: `${API_ORIGIN}/pins` },
       { source: "/pins/:path*", destination: `${API_ORIGIN}/pins/:path*` },
       { source: "/contracts", destination: `${API_ORIGIN}/contracts` },
-      { source: "/contracts/:path*", destination: `${API_ORIGIN}/contracts/:path*` },
+      {
+        source: "/contracts/:path*",
+        destination: `${API_ORIGIN}/contracts/:path*`,
+      },
     ];
   },
 };

@@ -10,11 +10,15 @@ import axios, {
 const DEV_FAKE_MODE = process.env.NEXT_PUBLIC_DEV_FAKE_MODE === "true";
 
 /* ────────────────────────────────────────────────────────────
-   Axios 인스턴스
+   Axios 인스턴스 (배포/로컬 백엔드로 직접 요청)
    ──────────────────────────────────────────────────────────── */
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3050";
+// 예: .env.local 에서
+// NEXT_PUBLIC_API_BASE="https://배포-백엔드-도메인"
+
 export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_BASE ?? "/api",
-  withCredentials: true,
+  baseURL: API_BASE, // ✅ 항상 백엔드 주소 기준으로 요청
+  withCredentials: true, // 세션 쿠키 포함
 });
 
 if (process.env.NODE_ENV !== "production") {
@@ -28,6 +32,7 @@ if (process.env.NODE_ENV !== "production") {
 type InflightMap = Map<string, Promise<AxiosResponse>>;
 const G = (typeof window !== "undefined" ? window : globalThis) as any;
 const INFLIGHT_KEY = "__APP__API_INFLIGHT_MAP__";
+
 if (!G[INFLIGHT_KEY]) {
   G[INFLIGHT_KEY] = new Map() as InflightMap;
 }
@@ -79,30 +84,24 @@ async function getOnce<T = any>(
   const nu = normalizeUrl(url);
   const key = keyOf(nu, config?.params);
 
-  // 이미 진행 중이면 그 프라미스를 그대로 반환
   const existed = inflight.get(key);
   if (existed) return existed as Promise<AxiosResponse<T>>;
 
-  // "게이트" 프라미스 생성 후 inflight에 즉시 등록
   let resolveGate!: (v: AxiosResponse<T>) => void;
   let rejectGate!: (e: any) => void;
+
   const gate = new Promise<AxiosResponse<T>>((resolve, reject) => {
     resolveGate = resolve;
     rejectGate = reject;
   });
+
   inflight.set(key, gate as Promise<AxiosResponse>);
 
-  // 실제 요청 시작
   api
     .get<T>(nu, config)
-    .then((resp) => {
-      resolveGate(resp);
-    })
-    .catch((err) => {
-      rejectGate(err);
-    })
+    .then((resp) => resolveGate(resp))
+    .catch((err) => rejectGate(err))
     .finally(() => {
-      // 성공/실패 관계없이 inflight 정리 (한 곳만)
       inflight.delete(key);
     });
 
@@ -113,16 +112,17 @@ async function getOnce<T = any>(
    /pins/map 전용 세마포어(동시 1회 제한) + getOnce 결합
    ──────────────────────────────────────────────────────────── */
 let mapSemaphore = false;
+
 export async function getPinsMapOnce<T = any>(
   params: Record<string, any>,
   signal?: AbortSignal
 ): Promise<AxiosResponse<T>> {
   if (mapSemaphore) {
-    // 호출부에서 식별 가능하도록 code 부여
     const err = new AxiosError("DROPPED_BY_SEMAPHORE");
     (err as any).code = "E_SEMAPHORE";
     return Promise.reject(err);
   }
+
   mapSemaphore = true;
   try {
     return await getOnce<T>("/pins/map", { params, signal });
@@ -148,6 +148,7 @@ api.interceptors.request.use((config) => {
       new Error().stack?.split("\n").slice(2, 8).join("\n")
     );
   }
+
   return config;
 });
 
@@ -187,7 +188,9 @@ function makeFakeErr(
    ──────────────────────────────────────────────────────────── */
 export async function assertAuthed() {
   try {
-    const r = await api.get("/me");
+    const r = await api.get("/auth/me", {
+      withCredentials: true,
+    });
     console.debug("[AUTH] /me status =", r.status, r.data);
   } catch (e) {
     console.warn("[AUTH] /me fail", e);
@@ -195,16 +198,15 @@ export async function assertAuthed() {
 }
 
 /* ────────────────────────────────────────────────────────────
-   ✅ 세션 프리플라이트 1회 보장 + 401/419에 한해 1회 재시도
+   세션 프리플라이트 1회 보장 + 401/419에 한해 1회 재시도
    ──────────────────────────────────────────────────────────── */
-// 전역 공유 Promise (HMR/StrictMode에서도 1개만)
 let __ensureSessionPromise: Promise<void> | null = null;
 
 async function ensureSessionOnce() {
   if (!__ensureSessionPromise) {
     __ensureSessionPromise = api
-      .get("/me", {
-        headers: { "x-skip-auth": "1" }, // 자기 자신은 인터셉터 건너뜀
+      .get("/auth/me", {
+        headers: { "x-no-retry": "1" }, // 재시도 인터셉터 안 타게 하는 플래그
         validateStatus: (s) => s >= 200 && s < 500,
         withCredentials: true,
       })
@@ -216,27 +218,24 @@ async function ensureSessionOnce() {
   return __ensureSessionPromise;
 }
 
-// ✔ 요청 전: 필요 시 세션 핑 (원치 않으면 비활성 — 기본 비활성)
+// 요청 전 인터셉터 (현재는 세션 프리플라이트 비활성)
 api.interceptors.request.use(async (config) => {
-  if (config.headers?.["x-skip-auth"] === "1") return config;
-  // 필요하면 주석 해제:
-  // await ensureSessionOnce();
+  // 필요하면 여기서 ensureSessionOnce() 조건부 호출 가능
   return config;
 });
 
-// ✔ 응답 후: 401/419에서만 1회 재시도, 그 외엔 절대 재전송 금지
+// 응답 후: 401/419에서만 1회 재시도, 그 외엔 재전송 금지
 api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const { config, response } = error || {};
     if (!config) throw error;
 
-    // 클라이언트에서 재시도 금지 플래그가 있으면 그대로 실패
+    // 재시도 금지 플래그가 있으면 그대로 throw
     if (config.headers && (config.headers as any)["x-no-retry"] === "1") {
       throw error;
     }
 
-    // 한 번만 재시도
     if (
       response &&
       (response.status === 401 || response.status === 419) &&
@@ -247,7 +246,6 @@ api.interceptors.response.use(
       return api.request(config);
     }
 
-    // ✅ 2xx 성공이거나 그 외 상태면 절대 재요청하지 않음
     throw error;
   }
 );
@@ -255,7 +253,6 @@ api.interceptors.response.use(
 /* ────────────────────────────────────────────────────────────
    (선택) DEV_FAKE_MODE 사용 예시
    ──────────────────────────────────────────────────────────── */
-// 사용하려면 적절한 위치에서:
 // if (DEV_FAKE_MODE) {
 //   return Promise.resolve(makeFakeOk({ ok: true }, someConfig));
 //   // 혹은

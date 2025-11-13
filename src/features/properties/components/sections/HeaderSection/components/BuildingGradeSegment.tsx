@@ -1,10 +1,8 @@
-// src/features/properties/components/HeaderSection/components/BuildingGradeSegment.tsx
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
+import { BuildingGrade } from "@/features/properties/types/building-grade";
 import { cn } from "@/lib/cn";
-
-export type BuildingGrade = "new" | "old" | null;
 
 type Props = {
   value: BuildingGrade; // 표시상 null 허용(미선택)

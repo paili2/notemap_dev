@@ -10,22 +10,25 @@ import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 import type { AxiosRequestConfig } from "axios";
 
+/* 개발환경 플래그 */
+const DEV = process.env.NODE_ENV !== "production";
+
 /* ───────────── 로컬 좌표 디버그 유틸(외부 의존 제거) ───────────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {
   const latStr = String(lat);
   const lngStr = String(lng);
   const latDec = latStr.split(".")[1]?.length ?? 0;
   const lngDec = lngStr.split(".")[1]?.length ?? 0;
-  // eslint-disable-next-line no-console
-  console.debug(`[coords-send:${tag}]`, {
-    lat,
-    lng,
-    latStr,
-    lngStr,
-    latDecimals: latDec,
-    lngDecimals: lngDec,
-  });
-  if (process.env.NODE_ENV !== "production") {
+  if (DEV) {
+    // eslint-disable-next-line no-console
+    console.debug(`[coords-send:${tag}]`, {
+      lat,
+      lng,
+      latStr,
+      lngStr,
+      latDecimals: latDec,
+      lngDecimals: lngDec,
+    });
     if (latDec < 6 || lngDec < 6) {
       // eslint-disable-next-line no-console
       console.warn(`[coords-low-precision:${tag}] 소수 자릿수 부족`, {
@@ -205,8 +208,11 @@ export type CreatePinDto = {
 
   publicMemo?: string | null;
   privateMemo?: string | null;
+
+  // ✅ 신축/구옥 (camelCase만 사용)
   isOld?: boolean;
   isNew?: boolean;
+
   hasElevator?: boolean;
 
   /** ✅ 옵션 세트 */
@@ -400,20 +406,48 @@ export async function createPin(
   dto: CreatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string; matchedDraftId: number | null }> {
+  if (DEV) {
+    console.groupCollapsed("[createPin] start dto");
+    console.log(dto);
+    console.log("→ isNew/isOld:", dto.isNew, dto.isOld);
+    console.groupEnd();
+  }
+
   // ✅ directions: sanitizeDirections로 일관 처리
   const dirs = sanitizeDirections(dto.directions);
+  if (DEV) {
+    console.groupCollapsed("[createPin] directions sanitize");
+    console.log("raw =", dto.directions);
+    console.log("sanitized =", dirs);
+    console.groupEnd();
+  }
 
   // ✅ areaGroups 정규화
   const groups = sanitizeAreaGroups(dto.areaGroups);
+  if (DEV) {
+    console.groupCollapsed("[createPin] areaGroups sanitize");
+    console.log("raw =", dto.areaGroups);
+    console.log("sanitized =", groups);
+    console.groupEnd();
+  }
 
   // ✅ units 정규화
   const units = sanitizeUnits(dto.units);
+  if (DEV) {
+    console.groupCollapsed("[createPin] units sanitize");
+    console.log("raw =", dto.units);
+    console.log("sanitized =", units);
+    console.groupEnd();
+  }
 
   // ✅ parkingGrade: 문자열로 정규화
   const pg = normalizeParkingGradeStr(
     (dto as any)?.parkingGrade,
     (dto as any)?.propertyGrade // ← 등록 폼이 다른 키를 쓸 가능성 대비
   );
+  if (DEV) {
+    console.log("[createPin] parkingGrade normalized:", pg);
+  }
 
   // ✅ badge 자동 해석
   const pinKind: PinKind | undefined =
@@ -458,7 +492,6 @@ export async function createPin(
     areaGroupsLen: Array.isArray(groups) ? groups.length : 0,
     badge: resolvedBadge ?? undefined,
     unitsLen: Array.isArray(units) ? units.length : 0,
-    // ★ 미리보기에서 굳이 parkingGrade는 넣지 않아도 됨
   };
   const h = hashPayload(preview);
   if (G[KEY_HASH] === h && G[KEY_PROMISE]) return G[KEY_PROMISE];
@@ -551,8 +584,11 @@ export async function createPin(
 
     ...(dto.publicMemo ? { publicMemo: dto.publicMemo } : {}),
     ...(dto.privateMemo ? { privateMemo: dto.privateMemo } : {}),
+
+    // ✅ 신축/구옥(camleCase만 전송)
     ...(typeof dto.isOld === "boolean" ? { isOld: dto.isOld } : {}),
     ...(typeof dto.isNew === "boolean" ? { isNew: dto.isNew } : {}),
+
     ...(typeof dto.hasElevator === "boolean"
       ? { hasElevator: dto.hasElevator }
       : {}),
@@ -576,14 +612,20 @@ export async function createPin(
       : {}),
   } as const;
 
+  if (DEV) {
+    console.groupCollapsed("[createPin] final payload");
+    console.log(payload);
+    console.groupEnd();
+  }
+
   assertNoTruncate("createPin", payload.lat, payload.lng);
 
   const request = api.post<CreatePinResponse>("/pins", payload, {
     withCredentials: true,
     headers: {
       "Content-Type": "application/json",
-      "x-no-retry": "1",
-      "Idempotency-Key": makeIdempotencyKey(),
+      // "x-no-retry": "1",
+      // "Idempotency-Key": makeIdempotencyKey(),
     },
     maxRedirects: 0,
     signal,
@@ -594,6 +636,13 @@ export async function createPin(
 
   try {
     const { data, status } = await request;
+
+    if (DEV) {
+      console.groupCollapsed("[createPin] response");
+      console.log("status:", status);
+      console.log("data:", data);
+      console.groupEnd();
+    }
 
     if (status === 409) {
       throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
@@ -645,39 +694,87 @@ export async function updatePin(
   dto: UpdatePinDto,
   signal?: AbortSignal
 ): Promise<{ id: string }> {
+  if (DEV) {
+    console.groupCollapsed("[updatePin] start dto");
+    console.log("id =", id);
+    console.log(dto);
+    console.log("→ isNew/isOld:", dto.isNew, dto.isOld);
+    console.groupEnd();
+  }
+
   const has = (k: keyof UpdatePinDto) =>
     Object.prototype.hasOwnProperty.call(dto, k);
 
   // directions: 전달되었을 때만
   let directionsPayload: CreatePinDirectionDto[] | undefined;
   if (has("directions")) {
+    if (DEV) {
+      console.groupCollapsed("[updatePin] directions(raw in dto)");
+      console.log("dto.directions =", dto.directions);
+      console.groupEnd();
+    }
     if (dto.directions === null) directionsPayload = [];
     else if (Array.isArray(dto.directions))
       directionsPayload = sanitizeDirections(dto.directions) ?? [];
+    if (DEV) {
+      console.groupCollapsed("[updatePin] directions(after sanitize)");
+      console.log("directionsPayload =", directionsPayload);
+      console.groupEnd();
+    }
   }
 
   // areaGroups: 전달되었을 때만
   let areaGroupsPayload: CreatePinAreaGroupDto[] | undefined;
   if (has("areaGroups")) {
+    if (DEV) {
+      console.groupCollapsed("[updatePin] areaGroups(raw in dto)");
+      console.log("dto.areaGroups =", dto.areaGroups);
+      console.groupEnd();
+    }
     if (Array.isArray(dto.areaGroups)) {
       areaGroupsPayload = sanitizeAreaGroups(dto.areaGroups) ?? [];
     } else {
       areaGroupsPayload = []; // null 등 → 전체 삭제
+    }
+    if (DEV) {
+      console.groupCollapsed("[updatePin] areaGroups(after sanitize)");
+      console.log("areaGroupsPayload =", areaGroupsPayload);
+      console.groupEnd();
     }
   }
 
   // units: 전달되었을 때만 (sanitize)
   let unitsPayload: UnitsItemDto[] | undefined;
   if (has("units")) {
+    if (DEV) {
+      console.groupCollapsed("[updatePin] units(raw in dto)");
+      console.log("dto.units =", dto.units);
+      console.groupEnd();
+    }
     unitsPayload =
       dto.units === null ? [] : sanitizeUnits(dto.units ?? []) ?? [];
+    if (DEV) {
+      console.groupCollapsed("[updatePin] units(after sanitize)");
+      console.log("unitsPayload =", unitsPayload);
+      console.groupEnd();
+    }
   }
 
   // options: 객체면 sanitize, null이면 삭제
   let optionsPayload: CreatePinOptionsDto | null | undefined;
   if (has("options")) {
+    if (DEV) {
+      console.groupCollapsed("[updatePin] options(raw in dto)");
+      console.log("dto.options =", dto.options);
+      console.groupEnd();
+    }
     optionsPayload =
       dto.options === null ? null : sanitizeOptions(dto.options ?? undefined);
+    if (DEV) {
+      console.groupCollapsed("[updatePin] options(after sanitize)");
+      console.log("optionsPayload =", optionsPayload);
+      console.groupEnd();
+    }
   }
 
   // ✅ update에서도 parkingGrade를 문자열로 정규화
@@ -687,6 +784,9 @@ export async function updatePin(
         (dto as any)?.propertyGrade
       )
     : undefined;
+  if (DEV && has("parkingGrade")) {
+    console.log("[updatePin] parkingGrade normalized:", pg);
+  }
 
   // ✅ buildingType 최종 매핑 + null 지원
   let buildingTypePayload: any = {};
@@ -697,6 +797,9 @@ export async function updatePin(
       const mapped = toServerBuildingType(dto.buildingType);
       if (mapped) buildingTypePayload = { buildingType: mapped };
       // 매핑 실패 시 필드 제외(검증 에러 회피)
+    }
+    if (DEV) {
+      console.log("[updatePin] buildingTypePayload:", buildingTypePayload);
     }
   }
 
@@ -801,8 +904,11 @@ export async function updatePin(
       : {}),
     ...(has("publicMemo") ? { publicMemo: dto.publicMemo ?? null } : {}),
     ...(has("privateMemo") ? { privateMemo: dto.privateMemo ?? null } : {}),
+
+    // ✅ 신축/구옥: camelCase만 업데이트
     ...(has("isOld") ? { isOld: !!dto.isOld } : {}),
     ...(has("isNew") ? { isNew: !!dto.isNew } : {}),
+
     ...(has("hasElevator") ? { hasElevator: !!dto.hasElevator } : {}),
 
     ...(has("options") ? { options: optionsPayload } : {}),
@@ -821,10 +927,25 @@ export async function updatePin(
       : {}),
   };
 
+  if (DEV) {
+    console.groupCollapsed("[updatePin] payload(before prune)");
+    console.log("has('areaGroups') =", has("areaGroups"));
+    console.log("payload.areaGroups =", (payload as any).areaGroups);
+    console.log(payload);
+    console.groupEnd();
+  }
+
   // 🔒 최종 방어선: 빈 payload면 요청 자체를 막음
   const pruned = deepPrune(payload);
+
+  if (DEV) {
+    console.groupCollapsed("[updatePin] payload(after prune) - final request]");
+    console.log(pruned);
+    console.groupEnd();
+  }
+
   if (isEmpty(pruned)) {
-    if (process.env.NODE_ENV !== "production") {
+    if (DEV) {
       // eslint-disable-next-line no-console
       console.debug("[updatePin] skip empty patch", { id, payload });
     }
@@ -835,6 +956,13 @@ export async function updatePin(
   // 전송 직전 좌표 추적(있을 때만)
   safeAssertNoTruncate("updatePin", (pruned as any).lat, (pruned as any).lng);
 
+  if (DEV) {
+    console.groupCollapsed("[updatePin] PATCH request");
+    console.log("url:", `/pins/${encodeURIComponent(String(id))}`);
+    console.log("body:", pruned);
+    console.groupEnd();
+  }
+
   try {
     const { data, status } = await api.patch(
       `/pins/${encodeURIComponent(String(id))}`,
@@ -843,12 +971,19 @@ export async function updatePin(
         withCredentials: true,
         headers: {
           "Content-Type": "application/json",
-          "x-no-retry": "1",
+          // "x-no-retry": "1",
         },
         signal,
         validateStatus: () => true,
       }
     );
+
+    if (DEV) {
+      console.groupCollapsed("[updatePin] response");
+      console.log("status:", status);
+      console.log("data:", data);
+      console.groupEnd();
+    }
 
     if (status === 404) {
       throw new Error("핀을 찾을 수 없습니다.");
@@ -940,12 +1075,18 @@ export async function createPinDraft(
 
   assertNoTruncate("createPinDraft", payload.lat, payload.lng);
 
+  if (DEV) {
+    console.groupCollapsed("[createPinDraft] payload");
+    console.log(payload);
+    console.groupEnd();
+  }
+
   const request = api.post<CreatePinDraftResponse>("/pin-drafts", payload, {
     withCredentials: true,
     headers: {
       "Content-Type": "application/json",
-      "x-no-retry": "1",
-      "Idempotency-Key": makeIdempotencyKey(),
+      // "x-no-retry": "1",
+      // "Idempotency-Key": makeIdempotencyKey(),
     },
     maxRedirects: 0,
     signal,
@@ -953,6 +1094,13 @@ export async function createPinDraft(
   });
 
   const { data, headers, status } = await request;
+
+  if (DEV) {
+    console.groupCollapsed("[createPinDraft] response");
+    console.log("status:", status);
+    console.log("data:", data);
+    console.groupEnd();
+  }
 
   if (status === 409) {
     throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
@@ -998,7 +1146,7 @@ export async function searchPins(
   const qs = buildSearchQuery(params);
   const { data } = await api.get<ApiEnvelope<PinSearchResult>>(
     `/pins/search${qs ? `?${qs}` : ""}`,
-    { withCredentials: true, headers: { "x-no-retry": "1" } }
+    { withCredentials: true }
   );
 
   if (!data?.success || !data?.data) {

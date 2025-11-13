@@ -25,16 +25,22 @@ import {
 } from "@/features/properties/lib/badge";
 import ParkingContainer from "./ui/ParkingContainer";
 import CompletionRegistryContainer from "./ui/CompletionRegistryContainer";
-import { CompletionRegistryFormSlice } from "../../hooks/useEditForm/types";
+import type { CompletionRegistryFormSlice } from "../../hooks/useEditForm/types";
 
 /* 면적 그룹 유틸 & 타입 */
 import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
+import { Grade } from "../../types/property-domain";
 
 /** Parking 슬라이스 타입 */
 type ParkingFormSlice = {
+  // 🔼 확장: parkingTypeId 추가
+  parkingTypeId: number | null;
+  setParkingTypeId: (v: number | null) => void;
+
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
+
   totalParkingSlots: string | null;
   setTotalParkingSlots: (v: string | null) => void;
 };
@@ -49,6 +55,9 @@ function normalizeStarStr(v: unknown): StarStr {
   return (["", "1", "2", "3", "4", "5"].includes(s) ? s : "") as StarStr;
 }
 
+/** UI에서 허용하는 등기/건물타입 */
+type BuildingTypeUI = "주택" | "APT" | "OP" | "근생";
+
 /* ───────── helpers ───────── */
 
 // ── 전화번호(KR) 유틸 ──
@@ -57,7 +66,6 @@ const isValidPhoneKR = (raw?: string | null) => {
   const s = (raw ?? "").trim();
   if (!s) return false;
   const v = normalizePhone(s);
-  // 전체 10~11자리, 02는 9~10 허용
   if (!/^0\d{9,10}$/.test(v)) return false;
   if (v.startsWith("02")) return v.length === 9 || v.length === 10;
   return v.length === 10 || v.length === 11;
@@ -112,19 +120,13 @@ const validateUnitPriceRanges = (units?: any[]): string | null => {
     const min = priceOrNull(u?.minPrice ?? u?.primary);
     const max = priceOrNull(u?.maxPrice ?? u?.secondary);
 
-    // 하나만 입력한 경우에도 0은 금지
     if (min === 0 || max === 0) {
       return `${label}: 0원은 입력할 수 없습니다.`;
     }
-
-    // 둘 다 들어온 경우만 범위 비교
     if (min != null && max != null) {
-      if (max === min) {
-        return `${label}: 최소·최대 매매가가 같을 수 없습니다.`;
-      }
-      if (max < min) {
+      if (max === min) return `${label}: 최소·최대 매매가가 같을 수 없습니다.`;
+      if (max < min)
         return `${label}: 최대매매가는 최소매매가보다 커야 합니다.`;
-      }
     }
   }
   return null;
@@ -148,7 +150,6 @@ const checkRange = (
   const min = numOrNull(minRaw);
   const max = numOrNull(maxRaw);
 
-  // 둘 다 있을 때만 비교 (부분 입력은 그대로 허용하되 0만 막음)
   if (min === 0 || max === 0) {
     return { ok: false, msg: `${label}: 0은 입력할 수 없습니다.` };
   }
@@ -163,10 +164,9 @@ const checkRange = (
   return { ok: true };
 };
 
-/** baseAreaSet + extraAreaSets 전체 검사. 문제가 없으면 null, 있으면 에러 메시지 반환 */
+/** baseAreaSet + extraAreaSets 전체 검사. 문제가 없으면 null */
 const validateAreaRanges = (base?: any, extras?: any[]): string | null => {
   const checks = (g: any, prefix = ""): string | null => {
-    // 전용 m²
     {
       const r = checkRange(
         g?.exMinM2 ?? g?.exclusiveMin,
@@ -175,7 +175,6 @@ const validateAreaRanges = (base?: any, extras?: any[]): string | null => {
       );
       if (!r.ok) return r.msg;
     }
-    // 전용 평
     {
       const r = checkRange(
         g?.exMinPy ?? g?.exclusiveMinPy,
@@ -184,7 +183,6 @@ const validateAreaRanges = (base?: any, extras?: any[]): string | null => {
       );
       if (!r.ok) return r.msg;
     }
-    // 실평 m²
     {
       const r = checkRange(
         g?.realMinM2 ?? g?.realMin,
@@ -193,7 +191,6 @@ const validateAreaRanges = (base?: any, extras?: any[]): string | null => {
       );
       if (!r.ok) return r.msg;
     }
-    // 실평 평
     {
       const r = checkRange(g?.realMinPy, g?.realMaxPy, `${prefix}실평 평`);
       if (!r.ok) return r.msg;
@@ -274,7 +271,7 @@ const buildOptionsFromForm = (f: any) => {
     out.hasAirPurifier ||
     !!out.extraOptionsText;
 
-  return any ? out : null; // 객체면 upsert, null이면 삭제
+  return any ? out : null;
 };
 
 /* ⚠️ 비교용 옵션 정규화(빈 값 제거) */
@@ -360,15 +357,24 @@ const toServerBuildingType = (
   return undefined;
 };
 
+/** string 입력을 UI 유니온으로 정규화 (매칭 실패 시 null) */
+const toBuildingTypeUI = (v: any): BuildingTypeUI | null => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  if (s === "주택" || s === "APT" || s === "OP" || s === "근생") return s;
+  const mapped = toServerBuildingType(s);
+  return mapped ?? null;
+};
+
 /* ───────── deep prune & 비교 유틸 ───────── */
-const normalizeShallow = (v: any) => {
+const normalizeShallow2 = (v: any) => {
   if (v === "" || v === null || v === undefined) return undefined;
   if (Array.isArray(v) && v.length === 0) return undefined;
   return v;
 };
-const jsonEq = (a: any, b: any) => {
-  const na = normalizeShallow(a);
-  const nb = normalizeShallow(b);
+const jsonEq2 = (a: any, b: any) => {
+  const na = normalizeShallow2(a);
+  const nb = normalizeShallow2(b);
   if (na === nb) return true;
   if (!na || !nb || typeof na !== "object" || typeof nb !== "object")
     return false;
@@ -382,7 +388,7 @@ function deepPrune<T>(obj: T): Partial<T> {
   const prune = (v: any): any => {
     if (v === undefined) return undefined;
     if (Array.isArray(v)) {
-      const arr = v.map(prune).filter((x) => x !== undefined);
+      const arr = v.map(prune).filter((x: unknown) => x !== undefined);
       return arr.length ? arr : undefined;
     }
     if (v && typeof v === "object") {
@@ -456,7 +462,7 @@ const aspectBundlesEqual = (A: any, B: any): boolean => {
   }
 };
 
-type UnitLike = {
+type UnitLike2 = {
   rooms?: number | string | null;
   baths?: number | string | null;
   duplex?: boolean;
@@ -486,7 +492,7 @@ const toNumOrNull = (v: any): number | null => {
   const n = N(v);
   return n === undefined ? null : n;
 };
-const normUnit = (u?: UnitLike) => {
+const normUnit = (u?: UnitLike2) => {
   const x: any = u ?? {};
   return {
     rooms: toNumOrNull(nPick(x, "rooms")),
@@ -498,7 +504,7 @@ const normUnit = (u?: UnitLike) => {
     note: nPick<string | null>(x, "note") ?? null,
   };
 };
-const sameUnit = (a?: UnitLike, b?: UnitLike) => {
+const sameUnit2 = (a?: UnitLike2, b?: UnitLike2) => {
   const A = normUnit(a);
   const B = normUnit(b);
   return (
@@ -517,7 +523,7 @@ const unitsChanged = (prev?: any[], curr?: any[]) => {
   if (!P && !C) return false;
   if (!P || !C) return true;
   if (P.length !== C.length) return true;
-  for (let i = 0; i < P.length; i++) if (!sameUnit(P[i], C[i])) return true;
+  for (let i = 0; i < P.length; i++) if (!sameUnit2(P[i], C[i])) return true;
   return false;
 };
 
@@ -599,7 +605,7 @@ function toPinPatch(
 
   /* ✅ 옵션 diff */
   {
-    const nowOpts = buildOptionsFromForm(f); // 객체 or null
+    const nowOpts = buildOptionsFromForm(f);
     const initOptsObj = (initial as any)?.options ?? null;
 
     const initFromSlices = buildOptionsFromForm({
@@ -636,11 +642,9 @@ function toPinPatch(
   if (!jsonEq2(initMinCost, nowMinCostNum))
     (patch as any).minRealMoveInCost = nowMinCostNum ?? null;
 
-  // --- 등기(용도) 추출 유틸: 객체/문자열 모두 지원 ---
+  // --- 등기/건물타입 diff (변경시에만) ---
   const pickRegistryString = (src: any): string | undefined => {
     if (!src) return undefined;
-
-    // 단일 값 후보들을 최대한 넓게 커버 (문자열 또는 객체)
     const candidates = [
       src?.buildingType,
       src?.registry,
@@ -648,12 +652,9 @@ function toPinPatch(
       src?.propertyType,
       src?.registryOne,
     ];
-
     const fromAny = (v: any): string | undefined => {
       if (!v) return undefined;
-      // 문자열이면 그대로
       if (typeof v === "string" && v.trim() !== "") return v.trim();
-      // 객체이면 대표 필드(value/code/label/name/id) 중 먼저 있는 것 사용
       if (typeof v === "object") {
         const s =
           v.value ?? v.code ?? v.label ?? v.name ?? v.id ?? v.key ?? v.text;
@@ -661,31 +662,26 @@ function toPinPatch(
       }
       return undefined;
     };
-
     for (const c of candidates) {
       const val = fromAny(c);
       if (val) return val;
     }
-
     return undefined;
   };
 
   const btInitRaw = pickRegistryString(initial);
   const btNowRaw = pickRegistryString(f);
-
   const btInit = toServerBuildingType(btInitRaw);
   const btNow = toServerBuildingType(btNowRaw);
 
   console.log("[registry]", { btInitRaw, btNowRaw, btInit, btNow });
 
   if (btNow !== undefined && btNow !== btInit) {
-    // 서버 구현 차이 커버: 둘 다 보냄
     (patch as any).buildingType = btNow;
     (patch as any).registry = btNow;
   }
 
-  // ── 신축/구옥은 save()에서 isNew/isOld로 강제 세팅 ──
-  // ── 핀종류(pinKind) 변경 감지 추가 ──
+  // ── 핀종류(pinKind) 변경 감지 ──
   {
     const initPinKind =
       (initial as any)?.pinKind ??
@@ -696,7 +692,6 @@ function toPinPatch(
     console.log("[pinKind diff]", { initPinKind, nowPinKind });
     if (nowPinKind !== undefined && nowPinKind !== initPinKind) {
       (patch as any).pinKind = nowPinKind;
-      // 배지도 맞춰 보낼 수 있으면 함께
       try {
         const badge = mapPinKindToBadge?.(nowPinKind);
         if (badge) (patch as any).badge = badge;
@@ -710,7 +705,7 @@ function toPinPatch(
   if (!jsonEq2((initial as any)?.structureGrade, (f as any).structureGrade))
     (patch as any).structureGrade = (f as any).structureGrade ?? null;
 
-  // 주차 (문자열 parkingType 사용)
+  // 주차 (문자열 + ID 모두 지원)
   const pgNow =
     (f as any).parkingGrade && String((f as any).parkingGrade).trim() !== ""
       ? String((f as any).parkingGrade)
@@ -723,6 +718,15 @@ function toPinPatch(
   if (!jsonEq2(pgInit, pgNow) && pgNow !== undefined)
     (patch as any).parkingGrade = pgNow;
 
+  // ✅ parkingTypeId number|null diff
+  const initParkingTypeId = N2((initial as any)?.parkingTypeId);
+  const nowParkingTypeId = N2((f as any).parkingTypeId);
+  if (!jsonEq2(initParkingTypeId, nowParkingTypeId)) {
+    (patch as any).parkingTypeId =
+      nowParkingTypeId === undefined ? null : nowParkingTypeId;
+  }
+
+  // 문자열 parkingType (nullable)
   if (!jsonEq2((initial as any)?.parkingType, (f as any).parkingType)) {
     (patch as any).parkingType =
       (f as any).parkingType == null ||
@@ -850,8 +854,18 @@ function toPinPatch(
     putIfChanged("realMaxPy", "realAreaMaxPy");
   }
 
+  type AreaGroupNorm = {
+    title: string;
+    exclusiveMinM2?: string;
+    exclusiveMaxM2?: string;
+    realMinM2?: string;
+    realMaxM2?: string;
+  };
+
   /* 3) 면적 그룹 — 초기 vs 현재 그룹 ‘정규화’ 비교 */
   {
+    console.groupCollapsed("[areaGroups] 비교 시작");
+
     const canonNumStr = (v: any): string | undefined => {
       if (v === "" || v == null) return undefined;
       const n = Number(String(v).replace(/[^\d.-]/g, ""));
@@ -860,7 +874,7 @@ function toPinPatch(
       return String(+r.toFixed(3));
     };
 
-    const normGroup = (g: any) => ({
+    const normGroup = (g: any): AreaGroupNorm => ({
       title: String(g?.title ?? "").trim(),
       exclusiveMinM2: canonNumStr(
         g?.exclusiveMinM2 ?? g?.exMinM2 ?? g?.exclusiveMin
@@ -872,12 +886,12 @@ function toPinPatch(
       realMaxM2: canonNumStr(g?.realMaxM2 ?? g?.actualMaxM2 ?? g?.realMax),
     });
 
-    const pickMeaningful = (arr: any) =>
+    const pickMeaningful = (arr: unknown): AreaGroupNorm[] =>
       Array.isArray(arr)
-        ? arr
-            .map(normGroup)
+        ? (arr as any[])
+            .map((g: any) => normGroup(g))
             .filter(
-              (x) =>
+              (x: AreaGroupNorm) =>
                 x.title ||
                 x.exclusiveMinM2 ||
                 x.exclusiveMaxM2 ||
@@ -886,39 +900,36 @@ function toPinPatch(
             )
         : [];
 
-    const keyOf = (g: any) =>
+    const keyOf = (g: AreaGroupNorm) =>
       `${g.title}|${g.exclusiveMinM2 ?? ""}|${g.exclusiveMaxM2 ?? ""}|${
         g.realMinM2 ?? ""
       }|${g.realMaxM2 ?? ""}`;
 
-    const sortForCmp = (arr: any[]) =>
+    const sortForCmp = (arr: AreaGroupNorm[]) =>
       [...arr].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
 
     const initGroupsRaw: any[] = Array.isArray((initial as any)?.areaGroups)
       ? (initial as any).areaGroups
       : [];
 
-    // 현재 값 계산
-    const strictBase = toStrictAreaSet((f as any).baseAreaSet ?? {});
+    const strictOf = (s: any) => toStrictAreaSet(s ?? {});
+    const strictBase = strictOf((f as any).baseAreaSet ?? {});
     const strictExtras = (
       Array.isArray((f as any).extraAreaSets) ? (f as any).extraAreaSets : []
     ).map(toStrictAreaSet);
 
     let nowGroupsRaw: any[] = [];
     try {
+      console.log("[areaGroups] buildAreaGroups 입력:", {
+        strictBase,
+        strictExtras,
+      });
       nowGroupsRaw = buildAreaGroups(strictBase, strictExtras) ?? [];
     } catch (e) {
-      console.warn("[toPinPatch] buildAreaGroups failed:", e);
+      console.warn("[areaGroups] buildAreaGroups 실패:", e);
       nowGroupsRaw = [];
     }
 
-    // 그룹 동일성 비교
-    const initNorm = sortForCmp(pickMeaningful(initGroupsRaw));
-    const nowNorm = sortForCmp(pickMeaningful(nowGroupsRaw));
-    const groupsSame = JSON.stringify(initNorm) === JSON.stringify(nowNorm);
-
-    // 사용자가 AreaSet을 손댔는지
-    const strictOf = (s: any) => toStrictAreaSet(s ?? {});
     const normalizeArr = (arr: any[]) =>
       arr
         .map(toStrictAreaSet)
@@ -937,14 +948,55 @@ function toPinPatch(
       JSON.stringify(initialExtraStrict) !== JSON.stringify(nowExtraStrict);
     const userEditedAreaSets = baseChanged || extrasChanged;
 
-    if (!groupsSame && (initGroupsRaw.length > 0 || userEditedAreaSets)) {
+    const initNorm = sortForCmp(pickMeaningful(initGroupsRaw));
+    const nowNorm = sortForCmp(pickMeaningful(nowGroupsRaw));
+    const hasAreaGroupsDelta =
+      JSON.stringify(initNorm) !== JSON.stringify(nowNorm);
+
+    console.log("[areaGroups] 폼스냅샷 비교", {
+      initialBaseStrict,
+      nowBaseStrict,
+      baseChanged,
+      initialExtraStrict,
+      nowExtraStrict,
+      extrasChanged,
+      userEditedAreaSets,
+    });
+
+    console.log("[areaGroups] 결과 비교", {
+      initRaw: initGroupsRaw,
+      nowRaw: nowGroupsRaw,
+      initNorm,
+      nowNorm,
+      hasAreaGroupsDelta,
+    });
+
+    if (userEditedAreaSets && hasAreaGroupsDelta) {
       (patch as any).areaGroups = nowGroupsRaw.length ? nowGroupsRaw : [];
+      console.log(
+        "[areaGroups] ✅ areaGroups 넣음 (userEditedAreaSets && hasAreaGroupsDelta)"
+      );
+    } else {
+      console.log(
+        "[areaGroups] ❌ areaGroups 넣지 않음",
+        "(userEditedAreaSets:",
+        userEditedAreaSets,
+        ", hasAreaGroupsDelta:",
+        hasAreaGroupsDelta,
+        ")"
+      );
     }
+
+    console.groupEnd();
   }
+
+  console.log("[toPinPatch] patch.areaGroups 존재?", {
+    hasKey: Object.prototype.hasOwnProperty.call(patch, "areaGroups"),
+    value: (patch as any).areaGroups,
+  });
 
   // ── 향/방향: 변경시에만 directions 전송 ─────────────────────
   {
-    // 초기 스냅샷에 '향' 존재 여부
     const initialHasAnyAspect =
       !!normStrU((initial as any)?.aspect) ||
       !!normStrU((initial as any)?.aspectNo) ||
@@ -956,7 +1008,6 @@ function toPinPatch(
       (Array.isArray((initial as any)?.directions) &&
         (initial as any).directions.length > 0);
 
-    // directions에서 문자열 뽑기
     const pickDirStringsFromInitial = (init: any): string[] => {
       const fromArr = (Array.isArray(init?.directions) ? init.directions : [])
         .map(
@@ -966,15 +1017,12 @@ function toPinPatch(
               .find((x) => !!x) || ""
         )
         .filter(Boolean);
-
       if (fromArr.length) return fromArr;
-
       return [init?.aspect1, init?.aspect2, init?.aspect3]
         .map((v: any) => (typeof v === "string" ? v.trim() : ""))
         .filter(Boolean);
     };
 
-    // 폼 현재값에서 dir/ho 추출(ho 정렬 유지)
     const hoNum = (v: any) => {
       const s = String(v ?? "").replace(/[^\d]/g, "");
       const n = Number(s);
@@ -984,7 +1032,6 @@ function toPinPatch(
     const pickHoDirPairsFromForm = () => {
       const bo = (f as any).buildOrientation?.() ?? {};
       const oNow = Array.isArray(bo.orientations) ? bo.orientations : [];
-
       let pairs = oNow
         .map((o: any) => {
           const dir =
@@ -995,14 +1042,12 @@ function toPinPatch(
           return dir ? { ho, dir } : null;
         })
         .filter(Boolean) as Array<{ ho: number; dir: string }>;
-
       if (!pairs.length) {
         const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))
           .filter(Boolean);
         pairs = arr.map((dir: string, idx: number) => ({ ho: idx + 1, dir }));
       }
-
       pairs.sort((a, b) => a.ho - b.ho);
       return pairs;
     };
@@ -1016,10 +1061,19 @@ function toPinPatch(
     const nowPairs = pickHoDirPairsFromForm();
     const nowDirsSet = normSet(nowPairs.map((p) => p.dir));
 
-    // ⚠️ 초기값이 전혀 없으면 directions를 보내지 않음
-    if (initialHasAnyAspect) {
-      if (JSON.stringify(initDirs) !== JSON.stringify(nowDirsSet)) {
-        (patch as any).directions = nowPairs.map((p) => ({ direction: p.dir }));
+    // ✅ 사용자가 향을 편집했을 때만 directions 고려
+    if ((f as any).aspectsTouched) {
+      if (initialHasAnyAspect) {
+        if (JSON.stringify(initDirs) !== JSON.stringify(nowDirsSet)) {
+          (patch as any).directions = nowPairs.map((p) => ({
+            direction: p.dir,
+          }));
+        }
+      } else {
+        // 초기값이 전무하면 편집했더라도 이번 패치에 directions만 보내기
+        (patch as any).directions = nowPairs.map((p) => ({
+          direction: p.dir,
+        }));
       }
     }
   }
@@ -1085,7 +1139,7 @@ const stripNoopNulls = (dto: any, initial: any) => {
       delete dto[k];
       continue;
     }
-    // ✅ directions / units 는 빈 배열이라도 보존 (삭제 명시를 위해)
+    // ✅ directions / units 는 빈 배열이라도 보존
     if (Array.isArray(v) && v.length === 0) {
       if (k === "directions" || k === "units") continue;
       delete dto[k];
@@ -1130,11 +1184,9 @@ export default function PropertyEditModalBody({
     const rawReg =
       src?.registry ?? src?.type ?? src?.propertyType ?? src?.buildingType;
 
-    // ✅ UI용 등기 값 정규화 ("근생" -> "근/생" 등)
     let uiReg = mapRegistry(rawReg);
     if (!uiReg) uiReg = toUIRegistryFromBuildingType(src?.buildingType);
 
-    // ✅ 초기 pinKind (없으면 badge에서 유도)
     const initPinKind =
       src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
 
@@ -1317,30 +1369,36 @@ export default function PropertyEditModalBody({
     return "new";
   }, [bridgedInitial]);
 
-  // 항상 선택 상태 유지 (null 없음)
+  /** ✅ 초기 서버 응답에 isNew/isOld 존재했는지 추적 */
+  const hadAgeFlags = useMemo(() => {
+    const src = bridgedInitial as any;
+    if (!src) return false;
+    const hasNew = Object.prototype.hasOwnProperty.call(src, "isNew");
+    const hasOld = Object.prototype.hasOwnProperty.call(src, "isOld");
+    return hasNew || hasOld;
+  }, [bridgedInitial]);
+
   const [buildingGrade, _setBuildingGrade] = useState<"new" | "old">(
     initialBuildingGrade
   );
+  /** ✅ 사용자 터치 여부 */
+  const [buildingGradeTouched, setBuildingGradeTouched] = useState(false);
 
-  // bridgedInitial 바뀌면 buildingGrade 재동기화 (초기화 타이밍 이슈 방지)
   useEffect(() => {
     console.log(
       "[buildingGrade] sync from bridgedInitial:",
       initialBuildingGrade
     );
     _setBuildingGrade(initialBuildingGrade);
+    setBuildingGradeTouched(false); // 초기 동기화 시 터치 리셋
   }, [initialBuildingGrade]);
 
-  // setter 프록시: 클릭 시점 로그
-  const setBuildingGrade = useCallback(
-    (v: "new" | "old") => {
-      console.log("[Header] buildingGrade selected:", v);
-      _setBuildingGrade(v);
-    },
-    [_setBuildingGrade]
-  );
+  const setBuildingGrade = useCallback((v: "new" | "old") => {
+    console.log("[Header] buildingGrade selected:", v);
+    _setBuildingGrade(v);
+    setBuildingGradeTouched(true); // ✅ 터치 플래그 ON
+  }, []);
 
-  // HeaderContainer에 넘길 form 슬라이스 (setter 프록시 포함)
   const headerForm = useMemo(
     () => ({
       title: f.title,
@@ -1349,7 +1407,6 @@ export default function PropertyEditModalBody({
         f.setTitle(v);
       },
       parkingGrade: f.parkingGrade,
-      // ★ 타입 안전: StarStr로 정규화해서 전달
       setParkingGrade: (v: StarStr) => {
         const nv = normalizeStarStr(v);
         console.log("[Header] parkingGrade change:", v, "→", nv);
@@ -1411,12 +1468,23 @@ export default function PropertyEditModalBody({
     },
     [f.setTotalParkingSlots]
   );
+  const setParkingTypeIdProxy = useCallback(
+    (v: number | null) => {
+      console.log("[Parking] typeId change:", v);
+      f.setParkingTypeId(v);
+    },
+    [f.setParkingTypeId]
+  );
 
-  // Parking form 어댑터
+  // Parking form 어댑터 (parkingTypeId 포함)
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
+      parkingTypeId: f.parkingTypeId,
+      setParkingTypeId: setParkingTypeIdProxy,
+
       parkingType: f.parkingType || null,
       setParkingType: setParkingTypeProxy,
+
       totalParkingSlots: (() => {
         const raw = f.totalParkingSlots;
         if (raw == null) return null;
@@ -1426,6 +1494,8 @@ export default function PropertyEditModalBody({
       setTotalParkingSlots: setTotalParkingSlotsProxy,
     }),
     [
+      f.parkingTypeId,
+      setParkingTypeIdProxy,
       f.parkingType,
       f.totalParkingSlots,
       setParkingTypeProxy,
@@ -1441,25 +1511,32 @@ export default function PropertyEditModalBody({
         console.log("[Completion] date change:", v);
         f.setCompletionDate(v);
       },
+
+      // salePrice: string | number | null OK
       salePrice: f.salePrice,
-      setSalePrice: (v: string) => {
-        console.log("[Completion] salePrice change:", v);
-        f.setSalePrice(v);
+      setSalePrice: (v: string | number | null) => {
+        const s = v == null ? "" : String(v);
+        console.log("[Completion] salePrice change:", v, "→", s);
+        f.setSalePrice(s);
       },
+
       slopeGrade: f.slopeGrade,
-      setSlopeGrade: (v: string) => {
+      setSlopeGrade: (v?: Grade) => {
         console.log("[Completion] slopeGrade change:", v);
-        f.setSlopeGrade(v);
+        f.setSlopeGrade(() => v);
       },
+
       structureGrade: f.structureGrade,
-      setStructureGrade: (v: string) => {
+      setStructureGrade: (v?: Grade) => {
         console.log("[Completion] structureGrade change:", v);
-        f.setStructureGrade(v);
+        f.setStructureGrade(() => v);
       },
+
       buildingType: f.buildingType ?? null,
       setBuildingType: (v: string | null) => {
-        console.log("[Completion] buildingType change:", v);
-        f.setBuildingType(v);
+        const bt = toBuildingTypeUI(v);
+        console.log("[Completion] buildingType change:", v, "→", bt);
+        f.setBuildingType(() => bt);
       },
     }),
     [
@@ -1482,6 +1559,12 @@ export default function PropertyEditModalBody({
   const save = useCallback(async () => {
     console.groupCollapsed("[save] start");
     console.log("[save] current buildingGrade:", buildingGrade);
+    console.log(
+      "[save] buildingGradeTouched:",
+      buildingGradeTouched,
+      "hadAgeFlags:",
+      hadAgeFlags
+    );
     console.log("[save] current pinKind:", f.pinKind);
 
     if (!f.title.trim()) {
@@ -1570,84 +1653,49 @@ export default function PropertyEditModalBody({
         delete (raw as any).aspect1;
         delete (raw as any).aspect2;
         delete (raw as any).aspect3;
-        delete (raw as any).orientations; // directions 는 유지
+        delete (raw as any).orientations;
       }
 
       dto = deepPrune(raw) as UpdatePinDto;
 
       // 🔧 무의미한 null/빈값 제거 + [] 방지 (directions/units 보존)
       dto = stripNoopNulls(dto, bridgedInitial) as UpdatePinDto;
+      console.log(
+        "[save] stripNoopNulls 이후 dto.areaGroups:",
+        (dto as any).areaGroups
+      );
+
       if (
         (dto as any)?.areaGroups &&
         Array.isArray((dto as any).areaGroups) &&
         (dto as any).areaGroups.length === 0
       ) {
+        console.log("[save] areaGroups가 빈 배열 → 키 제거");
         delete (dto as any).areaGroups;
       }
 
-      // 항상 토글 값 고정 (신축/구옥)
-      (dto as any).isNew = buildingGrade === "new";
-      (dto as any).isOld = buildingGrade === "old";
-
-      // ✅ 라스트마일: 등기 강제 주입
-      {
-        const pickRegistryString = (src: any): string | undefined => {
-          if (!src) return undefined;
-          const candidates = [
-            src?.buildingType,
-            src?.registry,
-            src?.type,
-            src?.propertyType,
-            src?.registryOne,
-          ];
-          const fromAny = (v: any): string | undefined => {
-            if (!v) return undefined;
-            if (typeof v === "string" && v.trim() !== "") return v.trim();
-            if (typeof v === "object") {
-              const s =
-                v.value ??
-                v.code ??
-                v.label ??
-                v.name ??
-                v.id ??
-                v.key ??
-                v.text;
-              if (typeof s === "string" && s.trim() !== "") return s.trim();
-            }
-            return undefined;
-          };
-          for (const c of candidates) {
-            const val = fromAny(c);
-            if (val) return val;
-          }
-          return undefined;
-        };
-
-        const nowRaw = pickRegistryString(f);
-        const nowServer = toServerBuildingType(nowRaw); // "APT" | "OP" | "주택" | "근생" | undefined
-        console.log("[save][registry last-mile]", { nowRaw, nowServer });
-
-        if (nowServer !== undefined) {
-          (dto as any).buildingType = nowServer;
-          (dto as any).registry = nowServer;
-          (dto as any).type = nowServer;
-          (dto as any).propertyType = nowServer;
-          (dto as any).registryOne = nowServer;
-        }
+      // ✅ buildingGrade → 서버로 보낼지 결정 (터치/초기필드부재/값변경 중 하나라도 true면 포함)
+      if (
+        buildingGradeTouched ||
+        !hadAgeFlags ||
+        buildingGrade !== initialBuildingGrade
+      ) {
+        (dto as any).isNew = buildingGrade === "new";
+        (dto as any).isOld = buildingGrade === "old";
       }
 
-      // ✅ 신축/구옥/핀종류 최종 스냅샷 로깅
-      console.log("[save] final toggles:", {
+      console.log("[save] final toggles (diffed):", {
         buildingGrade,
+        buildingGradeTouched,
+        hadAgeFlags,
         isNew: (dto as any).isNew,
         isOld: (dto as any).isOld,
         pinKind: (dto as any).pinKind ?? f.pinKind,
       });
 
-      // ✅ 변경 여부 계산
       hasFormChanges = hasMeaningfulPatch(dto);
 
-      console.groupCollapsed("[save] after toPinPatch+strip+last-mile");
+      console.groupCollapsed("[save] after toPinPatch+strip (diffed only)");
       console.log("[save] dto:", dto);
       console.log("[save] hasFormChanges:", hasFormChanges);
       console.groupEnd();
@@ -1658,7 +1706,7 @@ export default function PropertyEditModalBody({
       return;
     }
 
-    // 1) 사진 커밋 (있을 때만)
+    // 1) 사진 커밋
     try {
       if (hasImageChanges?.()) {
         await (commitImageChanges?.() ?? commitPending?.());
@@ -1671,6 +1719,10 @@ export default function PropertyEditModalBody({
     }
 
     // 2) 폼 PATCH
+    if (!(f as any).aspectsTouched && dto && (dto as any).directions) {
+      delete (dto as any).directions;
+    }
+
     if (hasFormChanges && dto && Object.keys(dto).length > 0) {
       console.log("[save] → will PATCH /pins/:id", propertyId, "with", dto);
       try {
@@ -1713,6 +1765,7 @@ export default function PropertyEditModalBody({
       structure: f.structure,
 
       parkingGrade: f.parkingGrade,
+      parkingTypeId: f.parkingTypeId, // ✅ 로컬뷰 동기화에도 포함
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
@@ -1779,6 +1832,9 @@ export default function PropertyEditModalBody({
     commitImageChanges,
     commitPending,
     buildingGrade,
+    buildingGradeTouched,
+    hadAgeFlags,
+    initialBuildingGrade,
   ]);
 
   /* embedded 레이아웃 */

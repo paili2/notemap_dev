@@ -79,6 +79,10 @@ export type CreatePayload = {
   structureGrade?: Grade | null;
   completionDate?: string;
 
+  // ✅ 신축/구옥(폼 tri-state 고려)
+  isNew?: boolean | null;
+  isOld?: boolean | null;
+
   // 단지 숫자 (유연성 위해 number | string 허용; 서버단에서 정규화)
   totalBuildings?: number | string;
   totalFloors?: number | string;
@@ -174,6 +178,10 @@ export type UpdatePayload = {
   /** ✅ 구조 등급: "상" | "중" | "하" (또는 null) */
   structureGrade?: Grade | null;
   completionDate?: string;
+
+  // ✅ 신축/구옥(부분 업데이트 허용)
+  isNew?: boolean | null;
+  isOld?: boolean | null;
 
   // 단지 숫자
   totalBuildings?: number | string;

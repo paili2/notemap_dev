@@ -1,10 +1,8 @@
 "use client";
 
+import { BuildingGrade } from "@/features/properties/types/building-grade";
 import HeaderSection from "../../sections/HeaderSection/HeaderSection";
 import type { PinKind } from "../hooks/useEditForm/types";
-
-// ✅ 추가: HeaderSection의 BuildingGrade 타입 그대로 가져오기
-import type { BuildingGrade as HSBuildingGrade } from "../../sections/HeaderSection/types";
 
 /** 최신 버전 폼 타입 */
 export type HeaderForm = {
@@ -22,8 +20,8 @@ export type HeaderForm = {
   setPinKind: (v: PinKind) => void;
 
   /** 신축/구옥 - ✅ HeaderSection의 정의(널 허용)와 동일하게 맞춘다 */
-  buildingGrade: HSBuildingGrade; // "new" | "old" | null (HeaderSection 기준)
-  setBuildingGrade: (v: HSBuildingGrade) => void; // (null까지 받도록)
+  buildingGrade: BuildingGrade; // "new" | "old" | null (HeaderSection 기준)
+  setBuildingGrade: (v: BuildingGrade) => void; // (null까지 받도록)
 };
 
 export default function HeaderContainer({

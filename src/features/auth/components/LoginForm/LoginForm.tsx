@@ -20,6 +20,7 @@ import {
 import PasswordInput from "./PasswordInput";
 import { LoginSchema, type LoginValues } from "../../schemas/login";
 import { FormError } from "@/components/atoms/FormError/FormError";
+import { api } from "@/shared/api/api";
 
 type LoginFormProps = {
   onForgotClick?: () => void;
@@ -72,18 +73,13 @@ export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
   async function onSubmit(values: LoginValues) {
     setError(null);
     try {
-      const res = await fetch("/api/auth/signin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({
-          email: values.email,
-          password: values.password,
-        }),
-        credentials: "same-origin",
+      // ✅ axios 인스턴스로 로그인 (쿠키 자동 전송)
+      const res = await api.post("/auth/signin", {
+        email: values.email,
+        password: values.password,
       });
 
-      if (!res.ok) {
+      if (res.status < 200 || res.status >= 300) {
         setError("이메일 또는 비밀번호가 올바르지 않습니다.");
         return;
       }
@@ -105,11 +101,15 @@ export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
         // 저장 실패는 무시
       }
 
+      // 선택: 세션 플래그
       sessionStorage.setItem("nm_session", "1");
+
       onSuccess?.();
       router.replace(redirect);
-    } catch {
+    } catch (e: any) {
+      // 서버의 통일된 에러 포맷이 있다면 여기서 파싱 가능
       setError("이메일 또는 비밀번호가 올바르지 않습니다.");
+      // console.warn("[signin error]", e?.response?.status, e?.response?.data);
     }
   }
 
@@ -155,6 +155,7 @@ export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
             )}
           />
 
+          {/* Password */}
           <FormField
             control={control}
             name="password"
@@ -183,6 +184,7 @@ export function LoginForm({ onForgotClick, onSuccess }: LoginFormProps) {
             )}
           />
 
+          {/* Remember me */}
           <FormField
             control={control}
             name="remember"

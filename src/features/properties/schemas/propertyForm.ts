@@ -161,7 +161,7 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
 };
 
 /* ────────────────────────────────────────────────────────────
- * DTO 변환 유틸
+ * DTO 변환 유틸 (단일 소스)
  * ──────────────────────────────────────────────────────────── */
 export const toIntOrNull = (v: unknown) => {
   if (v === "" || v === null || v === undefined) return null;

@@ -1,5 +1,6 @@
 "use client";
 
+import { BuildingGrade } from "@/features/properties/types/building-grade";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import { useEffect, useMemo, useState } from "react";
 
@@ -17,11 +18,17 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
   const [roomNo, setRoomNo] = useState("");
   const [structure, setStructure] = useState("3룸");
 
-  // ✅ 건물유형(백엔드 enum: "APT" | "OP" | "주택" | "근생")
+  /** ✅ 건물유형(백엔드 enum: "APT" | "OP" | "주택" | "근생") */
   const [buildingType, setBuildingType] = useState<string | null>(null);
 
-  // ✅ 매물등록일 기본값: 오늘(KST, YYYY-MM-DD)
+  /** ✅ 준공일 기본값: 오늘(KST, YYYY-MM-DD) — 비워두는 정책이 아니라면 유지 */
   const [completionDate, setCompletionDate] = useState<string>(todayYmdKST());
+
+  /** ✅ 신축/구옥: 기본 "신축" */
+  const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("new");
+  // 호환 플래그 (기존 isNew/isOld 사용코드 대응)
+  const isNew = buildingGrade === "new";
+  const isOld = buildingGrade === "old";
 
   const state = useMemo(
     () => ({
@@ -35,6 +42,11 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
       structure,
       buildingType,
       completionDate,
+
+      // ⬇️ 추가
+      buildingGrade,
+      isNew,
+      isOld,
     }),
     [
       address,
@@ -47,6 +59,9 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
       structure,
       buildingType,
       completionDate,
+      buildingGrade,
+      isNew,
+      isOld,
     ]
   );
 
@@ -62,8 +77,23 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
       setStructure,
       setBuildingType,
       setCompletionDate,
+
+      // ⬇️ 추가
+      setBuildingGrade,
     }),
-    []
+    [
+      setAddress,
+      setOfficePhone,
+      setOfficePhone2,
+      setOfficeName,
+      setMoveIn,
+      setFloor,
+      setRoomNo,
+      setStructure,
+      setBuildingType,
+      setCompletionDate,
+      setBuildingGrade,
+    ]
   );
 
   return useMemo(() => ({ state, actions }), [state, actions]);

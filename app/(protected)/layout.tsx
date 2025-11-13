@@ -1,3 +1,4 @@
+// ✅ 수정안: 서버에서 백엔드로 직행 + 쿠키 전달
 import { cookies } from "next/headers";
 import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
 import SidebarProviders from "./SidebarProviders";
@@ -9,13 +10,12 @@ export default async function ProtectedLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // 현재 SSR 요청 쿠키를 그대로 /api/auth/me에 전달해서 1차 확인
   const cookieHeader = cookies().toString();
+  const base = process.env.NEXT_PUBLIC_API_BASE!; // 예: https://api.example.com
 
-  // 상대 경로 + SSR 쿠키 전달 (프록시/리라이트 통해 백엔드로 전달)
   let isLoggedIn = false;
   try {
-    const res = await fetch("/api/auth/me", {
+    const res = await fetch(`${base}/auth/me`, {
       method: "GET",
       headers: { cookie: cookieHeader },
       cache: "no-store",
@@ -28,10 +28,9 @@ export default async function ProtectedLayout({
     // 네트워크 에러면 false 유지
   }
 
-  // SSR에서 즉시 튕기고 싶으면 아래 주석 해제
-  // if (!isLoggedIn) redirect("/login");
+  // SSR에서 즉시 리다이렉트하고 싶으면:
+  // if (!isLoggedIn) redirect(`/login?redirect=${encodeURIComponent('/')}`);
 
-  // CSR에서도 한 번 더 확인(로그인 직후 쿠키 레이스 대비)
   return (
     <ClientSessionGuard redirectTo="/login">
       <SidebarProviders>{children}</SidebarProviders>

@@ -71,6 +71,17 @@ const isValidIsoDateStrict = (s?: string | null): boolean => {
   );
 };
 
+/* === 신축/구옥 보정 === */
+const toBoolUndef = (v: unknown): boolean | undefined => {
+  if (typeof v === "boolean") return v;
+  if (v == null) return undefined;
+  const s = String(v).trim().toLowerCase();
+  if (!s) return undefined;
+  if (["y", "yes", "1", "true", "o"].includes(s)) return true;
+  if (["n", "no", "0", "false", "x"].includes(s)) return false;
+  return undefined;
+};
+
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -265,19 +276,6 @@ export default function PropertyCreateModalBody({
 
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  const toIntOrNull = (v: unknown) => {
-    if (v === "" || v === null || v === undefined) return null;
-    const n = Number(v);
-    return Number.isFinite(n) ? Math.trunc(n) : null;
-  };
-
-  const toNum = (v: unknown) => {
-    const s = String(v ?? "").trim();
-    if (s === "") return undefined;
-    const n = Number(s);
-    return Number.isFinite(n) ? n : undefined;
-  };
 
   // ── 전화번호(KR) 유틸 ──
   const normalizePhone = (v: string) => v.replace(/[^\d]/g, "");
@@ -582,6 +580,18 @@ export default function PropertyCreateModalBody({
       // 비어 있으면 오늘 날짜, 값 있으면 정규화한 값 사용
       const effectiveCompletionDate = completionDateNormalized || todayYmdKST();
 
+      const toStrictAreaSet = (s: any): StrictAreaSet => ({
+        title: String(s?.title ?? ""),
+        exMinM2: String(s?.exMinM2 ?? ""),
+        exMaxM2: String(s?.exMaxM2 ?? ""),
+        exMinPy: String(s?.exMinPy ?? ""),
+        exMaxPy: String(s?.exMaxPy ?? ""),
+        realMinM2: String(s?.realMinM2 ?? ""),
+        realMaxM2: String(s?.realMaxM2 ?? ""),
+        realMinPy: String(s?.realMinPy ?? ""),
+        realMaxPy: String(s?.realMaxPy ?? ""),
+      });
+
       const strictBase = toStrictAreaSet(f.baseAreaSet);
       const strictExtras = (
         Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
@@ -710,6 +720,10 @@ export default function PropertyCreateModalBody({
             }))
           : [];
 
+      // ✅ 신축/구옥: camelCase만 전송
+      const isOld = toBoolUndef((f as any).isOld ?? (f as any).is_old);
+      const isNew = toBoolUndef((f as any).isNew ?? (f as any).is_new);
+
       const pinDto: CreatePinDto = {
         lat: latNum,
         lng: lngNum,
@@ -783,6 +797,8 @@ export default function PropertyCreateModalBody({
           pinDraftId: String(explicitPinDraftId),
         }),
         ...(unitsDto.length > 0 ? { units: unitsDto } : {}),
+        ...(isOld !== undefined ? { isOld } : {}),
+        ...(isNew !== undefined ? { isNew } : {}),
       } as any;
 
       // 1) 핀 생성
@@ -798,7 +814,7 @@ export default function PropertyCreateModalBody({
         console.warn("[PropertyCreate] media persist failed:", mediaErr);
       }
 
-      // 3) 예약/드래프트 정리 — ⚠️ 중복 선언 없이 위에서 선언한 변수 사용
+      // 3) 예약/드래프트 정리
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);

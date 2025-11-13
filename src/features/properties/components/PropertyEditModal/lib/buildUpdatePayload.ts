@@ -352,7 +352,6 @@ export function buildUpdatePayload(
   if (Array.isArray(a.orientations) && a.orientations.length > 0) {
     directions = a.orientations
       .map((o: any) => {
-        // dir 또는 value(문자) 우선 사용, weight(숫자)는 사용하지 않음
         const v =
           (typeof o?.dir === "string" && o.dir.trim()) ||
           (typeof o?.value === "string" && o.value.trim()) ||
@@ -361,7 +360,6 @@ export function buildUpdatePayload(
       })
       .filter(Boolean) as Array<{ direction: string }>;
   } else {
-    // aspect1~3로 구성 (빈 값은 제외)
     const arr = [a.aspect1, a.aspect2, a.aspect3]
       .map((v) => (v && String(v).trim()) || "")
       .filter(Boolean);
@@ -386,7 +384,7 @@ export function buildUpdatePayload(
     ? toIntOrNull(a.parkingTypeId)
     : undefined;
 
-  // 패치에 싣기 (초기값과 비교)
+  // ✅ parkingTypeId: 변경 시 null도 전송 (삭제 의도)
   putAllowNull(
     "parkingTypeId",
     parkingTypeIdN,
@@ -440,7 +438,7 @@ export function buildUpdatePayload(
     (initial as any)?.registry ?? (initial as any)?.registryOne;
   put("registry", uiRegistry, prevRegistry);
 
-  /* ✅ 신축/구옥 → isNew / isOld 매핑 (UpdatePayload에 키 없어도 putAny로 안전 전송) */
+  /* ✅ 신축/구옥 → isNew / isOld 매핑 */
   if (defined(a.buildingGrade)) {
     const nextIsNew = a.buildingGrade === "new";
     const nextIsOld = a.buildingGrade === "old";
@@ -448,20 +446,14 @@ export function buildUpdatePayload(
     putAny("isOld", nextIsOld, (initial as any)?.isOld);
   }
 
-  /* ✅ (대안) 서버가 building.grade 를 받는 경우: building 객체로 내려보내기 */
+  /* (대안) 서버가 building.grade 를 받는 경우 */
   if (defined(a.buildingGrade)) {
-    // 'new' | 'old' | null 로 정규화
     const nextGrade =
       a.buildingGrade === "new" || a.buildingGrade === "old"
         ? a.buildingGrade
         : null;
-
-    // prev 값 추출 (없으면 null)
     const prevGrade = (initial as any)?.building?.grade ?? null;
-
-    // 값이 바뀐 경우에만 patch에 포함
     if (initial === undefined || !deepEq(prevGrade, nextGrade)) {
-      // 기존 initial.building 의 다른 필드는 보존하고 grade만 교체
       const prevBuilding = (initial as any)?.building ?? {};
       (patch as any).building = { ...prevBuilding, grade: nextGrade };
     }
@@ -512,7 +504,6 @@ export function buildUpdatePayload(
   if (explicitRangeTouched || initialHasRangeKeys) {
     const pickNumStr = (v: any) => toNumericStringOrUndefined(v);
 
-    // baseAreaSet은 보조값으로만 사용 (UI가 아무 것도 안 건드렸다면 생성하지 않음)
     const fromSet = (s?: any) => ({
       exMin: pickNumStr(
         s?.exclusiveMin ?? s?.exMinM2 ?? s?.exclusive?.minM2 ?? s?.m2Min

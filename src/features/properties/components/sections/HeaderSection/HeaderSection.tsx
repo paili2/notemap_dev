@@ -9,23 +9,15 @@ import BuildingGradeSegment from "./components/BuildingGradeSegment";
 import { Button } from "@/components/atoms/Button/Button";
 import StarsRating from "@/components/molecules/StarsRating";
 import { HeaderSectionProps } from "./types";
-import type { BuildingGrade } from "./types"; // ⬅️ 공식 타입 import
 import { asControlled } from "@/features/properties/lib/forms/asControlled";
-
-// ⛔️ 아래 두 타입은 삭제하세요
-// type BuildingGradeUi = "" | "new" | "old";
-// type ExtraProps = {
-//   buildingGrade?: BuildingGradeUi;
-//   setBuildingGrade?: (v: BuildingGradeUi) => void;
-// };
+import { BuildingGrade } from "@/features/properties/types/building-grade";
 
 export default function HeaderSection(
-  // ⬇️ Partial<{ buildingGrade; setBuildingGrade }>를 공식 타입으로 명시
-  props: HeaderSectionProps &
-    Partial<{
-      buildingGrade: BuildingGrade;
-      setBuildingGrade: (v: BuildingGrade) => void;
-    }>
+  props: HeaderSectionProps & {
+    /** 내부 상태는 "new" | "old" 만 사용 */
+    buildingGrade?: BuildingGrade;
+    setBuildingGrade?: (v: BuildingGrade) => void;
+  }
 ) {
   const {
     title,
@@ -37,22 +29,35 @@ export default function HeaderSection(
     placeholderHint,
     pinKind,
     setPinKind,
-    buildingGrade,
-    setBuildingGrade,
+    buildingGrade: _buildingGrade,
+    setBuildingGrade: _setBuildingGrade,
   } = props;
 
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
+
+  /** ───────── 신축/구옥 어댑터 ─────────
+   * UI 컴포넌트는 "" | "new" | "old" 를 주고받을 수 있는데
+   * 폼 상태는 "new" | "old" 만 쓰도록 강제합니다.
+   */
+  const buildingGrade: "new" | "old" = _buildingGrade === "old" ? "old" : "new"; // ← 기본값은 항상 "new"
+
+  const setBuildingGrade =
+    typeof _setBuildingGrade === "function" ? _setBuildingGrade : () => {};
+
+  // UI로는 "" 도 올 수 있으니 안전 매핑
+  const uiValue: "" | "new" | "old" = buildingGrade;
+  const handleUiChange = (v: "" | "new" | "old" | null) => {
+    // 미선택 상태 없이 운용: ""/null 이 와도 "new" 로 고정
+    setBuildingGrade(v === "old" ? "old" : "new");
+  };
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="grid grid-cols-1 md:grid-cols-[auto_auto_auto_1fr_auto] items-center gap-3 px-4 py-4 min-w-0">
         {/* 1) 신축/구옥 */}
         <div className="order-1 md:order-1">
-          <BuildingGradeSegment
-            value={buildingGrade ?? null} // ⬅️ null 비선택 상태
-            onChange={(v) => setBuildingGrade?.(v)} // ⬅️ v: "new" | "old" | null
-          />
+          <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
         </div>
 
         {/* 2) 핀선택 */}

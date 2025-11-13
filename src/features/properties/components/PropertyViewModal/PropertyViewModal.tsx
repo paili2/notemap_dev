@@ -35,11 +35,12 @@ function eat(e: any) {
   } catch {}
 }
 
+/** ✅ 로컬 뷰 동기화용 패치에 isNew/isOld 반영 추가 */
 function toViewPatchFromEdit(
   p: UpdatePayload & Partial<CreatePayload>
 ): Partial<PropertyViewDetails> {
   const anyP = p as any;
-  return {
+  const patch: any = {
     ...(p as any),
     publicMemo: toUndef(anyP.publicMemo),
     secretMemo: toUndef(anyP.secretMemo),
@@ -47,6 +48,18 @@ function toViewPatchFromEdit(
     parkingType: toUndef(anyP.parkingType),
     minRealMoveInCost: toUndef(anyP.minRealMoveInCost),
   };
+
+  // 서버로 보낸 토글이 있다면 그대로 반영
+  if ("isNew" in anyP) patch.isNew = anyP.isNew;
+  if ("isOld" in anyP) patch.isOld = anyP.isOld;
+
+  // 헤더에서 buildingGrade만 넘어온 경우도 커버
+  if ("buildingGrade" in anyP && anyP.buildingGrade) {
+    patch.isNew = String(anyP.buildingGrade).toLowerCase() === "new";
+    patch.isOld = String(anyP.buildingGrade).toLowerCase() === "old";
+  }
+
+  return patch;
 }
 
 type Stage = "view" | "edit";
@@ -86,6 +99,40 @@ function ensureInitialForEdit(args: {
 
   if (raw || qData?.view) return { raw, view: ensuredView };
   return { view: ensuredView };
+}
+
+/* === 연식 플래그 유도 유틸 === */
+function normalizeBoolLoose(v: unknown): boolean | undefined {
+  if (v === true || v === false) return v;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    if (s === "true") return true;
+    if (s === "false") return false;
+  }
+  if (typeof v === "number") return v !== 0 ? true : false;
+  return undefined;
+}
+
+/** ⚠️ 우선순위 바꿈: buildingGrade → buildingAgeType → isNew/isOld */
+function deriveAgeFlagsFrom(src: any): { isNew: boolean; isOld: boolean } {
+  // 1) buildingGrade: "new" | "old" (라디오의 소스가 이쪽이면 최우선)
+  const g = (src?.buildingGrade ?? "").toString().toLowerCase();
+  if (g === "new") return { isNew: true, isOld: false };
+  if (g === "old") return { isNew: false, isOld: true };
+
+  // 2) buildingAgeType: "NEW" | "OLD"
+  const t = (src?.buildingAgeType ?? "").toString().toUpperCase();
+  if (t === "NEW") return { isNew: true, isOld: false };
+  if (t === "OLD") return { isNew: false, isOld: true };
+
+  // 3) 명시 불리언 (레거시/혼재 데이터 대응)
+  const nIsNew = normalizeBoolLoose(src?.isNew);
+  const nIsOld = normalizeBoolLoose(src?.isOld);
+  if (nIsNew === true && nIsOld !== true) return { isNew: true, isOld: false };
+  if (nIsOld === true && nIsNew !== true) return { isNew: false, isOld: true };
+
+  // 4) 스펙상 항상 하나 선택 → 기본 신축
+  return { isNew: true, isOld: false };
 }
 
 export default function PropertyViewModal({
@@ -239,6 +286,22 @@ function ViewStage({
   );
   const f = useViewForm(formInput);
 
+  const ageFlags = useMemo(() => {
+    const merged = {
+      ...(data ?? {}),
+      // 폼에서 선택된 최신 값이 있다면 그걸 최우선으로 사용
+      buildingGrade:
+        (f as any)?.buildingGrade ?? (data as any)?.buildingGrade ?? undefined,
+      buildingAgeType:
+        (f as any)?.buildingAgeType ??
+        (data as any)?.buildingAgeType ??
+        undefined,
+      isNew: (f as any)?.isNew ?? (data as any)?.isNew ?? undefined,
+      isOld: (f as any)?.isOld ?? (data as any)?.isOld ?? undefined,
+    };
+    return deriveAgeFlagsFrom(merged);
+  }, [data, f]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -259,7 +322,6 @@ function ViewStage({
           ?.focus();
       } catch {}
     }, 0);
-    return () => clearTimeout(t);
   }, []);
 
   // 배경 클릭 → 닫기
@@ -368,6 +430,15 @@ function ViewStage({
                 pinKind={f.pinKind}
                 headingId={headingId}
                 descId={descId}
+                isNew={ageFlags.isNew}
+                isOld={ageFlags.isOld}
+                buildingAgeType={(data as any)?.buildingAgeType ?? undefined}
+                completionDate={
+                  (data as any)?.completionDate ??
+                  (f as any)?.completionDate ??
+                  null
+                }
+                newYearsThreshold={5}
               />
             </div>
 

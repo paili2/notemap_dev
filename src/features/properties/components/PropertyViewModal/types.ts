@@ -129,6 +129,12 @@ export type PropertyViewDetails = {
   inspectedAt?: string;
   updatedByName?: string;
   updatedAt?: string;
+
+  /** ✅ 신축/구옥: 서버 GET 그대로 표시 전용 */
+  isNew?: boolean | null;
+  isOld?: boolean | null;
+  /** 서버가 문자열로 줄 때 대비 (예: "NEW" | "OLD") */
+  buildingAgeType?: "NEW" | "OLD" | "" | null;
 };
 
 export type UIImg = { url: string; name?: string; caption?: string };
