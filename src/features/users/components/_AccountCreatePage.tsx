@@ -26,7 +26,7 @@ import {
   FormControl,
   FormMessage,
 } from "@/components/atoms/Form/Form";
-import { Plus, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, ChevronDownIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getTeams } from "@/features/teams";
@@ -36,12 +36,17 @@ import {
 } from "@/features/users/api/account";
 import { useToast } from "@/hooks/use-toast";
 import {
+  uploadOnePhoto,
+  UploadDomain,
+} from "@/shared/api/photoUpload";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/atoms/Popover/Popover";
 import { Calendar } from "@/components/atoms/Calendar/Calendar";
 import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 
 /** ========== 타입 ========== */
 export type CreateAccountPayload = {
@@ -167,11 +172,9 @@ type UploadField =
 
 export default function AccountCreatePage({
   onCreate,
-  uploadEndpoint = "/api/upload",
   maxUploadBytes = 5 * 1024 * 1024,
 }: {
   onCreate: (payload: CreateAccountPayload) => void | Promise<void>;
-  uploadEndpoint?: string;
   maxUploadBytes?: number;
 }) {
   const form = useForm<CreateUserValues>({
@@ -207,6 +210,8 @@ export default function AccountCreatePage({
   const [uploadErrors, setUploadErrors] = useState<
     Partial<Record<UploadField, string>>
   >({});
+  const [isBirthdayOpen, setIsBirthdayOpen] = useState(false);
+
 
   /** 팀 목록 관리 */
   const [teams, setTeams] = useState<
@@ -301,6 +306,30 @@ export default function AccountCreatePage({
       );
       console.log("2단계: 직원 정보 생성 완료", employeeResult);
 
+      await onCreate({
+        email: v.email,
+        password: v.password,
+        name: v.name,
+        positionRank: v.positionRank,
+        phone: v.phone,
+        birthday: v.birthday ?? "",
+        emergency_contact: v.emergency_contact,
+        address: v.address,
+        salary_bank_name: v.salary_bank_name,
+        salary_account: v.salary_account,
+        team: {
+          teamId: v.team.teamId,
+          isPrimary: v.team.isPrimary ?? true,
+          joinedAt:
+            v.team.joinedAt && v.team.joinedAt !== "" ? v.team.joinedAt : undefined,
+        },
+        photo_url: v.photo_url || undefined,
+        id_photo_url: v.id_photo_url || undefined,
+        resident_register_url: v.resident_register_url || undefined,
+        resident_extract_url: v.resident_extract_url || undefined,
+        family_relation_url: v.family_relation_url || undefined,
+      });
+
       // 성공 토스트
       toast({
         title: "계정 생성 완료",
@@ -330,6 +359,15 @@ export default function AccountCreatePage({
     }
   };
 
+  /** 업로드 도메인 매핑 */
+  const uploadDomainMap: Record<UploadField, UploadDomain> = {
+    photo_url: "profile",
+    id_photo_url: "profile",
+    resident_register_url: "etc",
+    resident_extract_url: "etc",
+    family_relation_url: "etc",
+  };
+
   /** 공용 업로드 핸들러: 성공 시 해당 필드에 url 세팅 */
   const handleFileChange =
     (field: UploadField): React.ChangeEventHandler<HTMLInputElement> =>
@@ -355,18 +393,26 @@ export default function AccountCreatePage({
 
       setUploading(field);
       try {
-        const fd = new FormData();
-        fd.append("file", file);
+        const domain = uploadDomainMap[field] ?? "etc";
+        const meta = await uploadOnePhoto(file, { domain });
+        if (!meta?.url) {
+          throw new Error("업로드 응답에 URL이 없습니다.");
+        }
 
-        const res = await fetch(uploadEndpoint, { method: "POST", body: fd });
-        if (!res.ok) throw new Error(`업로드 실패 (${res.status})`);
-
-        const data = (await res.json()) as { url?: string; [k: string]: any };
-        if (!data.url) throw new Error("응답에 url이 없습니다.");
-
-        form.setValue(field, data.url, { shouldValidate: true });
+        form.setValue(field, meta.url, { shouldValidate: true });
       } catch (err: any) {
-        setFieldError(field, err?.message ?? "업로드 중 오류가 발생했습니다.");
+        const serverMessage =
+          err?.response?.data?.message ??
+          err?.response?.data?.messages ??
+          err?.message ??
+          "업로드 중 오류가 발생했습니다.";
+        console.error("파일 업로드 실패:", err?.response ?? err);
+        setFieldError(
+          field,
+          Array.isArray(serverMessage)
+            ? serverMessage.join(", ")
+            : serverMessage
+        );
       } finally {
         setUploading(null);
         // 파일 입력이 여전히 존재하는지 확인
@@ -471,34 +517,44 @@ export default function AccountCreatePage({
               <FormField
                 control={form.control}
                 name="birthday"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>생년월일</FormLabel>
-                    <FormControl>
-                      <Popover>
+                render={({ field }) => {
+                  const selectedDate = field.value
+                    ? new Date(field.value)
+                    : undefined;
+                  return (
+                    <FormItem className="flex flex-col gap-2">
+                      <FormLabel>생년월일</FormLabel>
+                      <Popover
+                        open={isBirthdayOpen}
+                        onOpenChange={setIsBirthdayOpen}
+                      >
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            className="w-full justify-start text-left font-normal"
+                            className={`flex w-full items-center justify-between text-left font-normal ${
+                              !selectedDate ? "text-muted-foreground" : ""
+                            }`}
                           >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {field.value ? (
-                              format(new Date(field.value), "PPP")
+                            {selectedDate ? (
+                              format(selectedDate, "PPP", { locale: ko })
                             ) : (
                               <span>생년월일을 선택하세요</span>
                             )}
+                            <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={
-                              field.value ? new Date(field.value) : undefined
-                            }
+                            selected={selectedDate}
+                            locale={ko}
+                            i18nLocale="ko-KR"
+                            captionLayout="dropdown"
                             onSelect={(date) => {
-                              if (date) {
-                                field.onChange(format(date, "yyyy-MM-dd"));
-                              }
+                              field.onChange(
+                                date ? format(date, "yyyy-MM-dd") : ""
+                              );
+                              setIsBirthdayOpen(false);
                             }}
                             disabled={(date) =>
                               date > new Date() || date < new Date("1900-01-01")
@@ -507,10 +563,10 @@ export default function AccountCreatePage({
                           />
                         </PopoverContent>
                       </Popover>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               {/* 비밀번호 */}
               <FormField
@@ -616,7 +672,7 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>급여계좌 *</FormLabel>
                     <FormControl>
-                      <Input placeholder="국민 123456-78-901234" {...field} />
+                      <Input placeholder="계좌번호를 입력해주세요" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

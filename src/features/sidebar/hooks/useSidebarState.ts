@@ -331,7 +331,16 @@ export function useSidebarState() {
     async (groupId: string, item: ListItem) => {
       try {
         // pinId 추출 (ListItem에서 pinId를 가져와야 함)
-        const pinId = item.id; // 임시로 id를 pinId로 사용
+        const pinId = String(item.id ?? "").trim();
+        if (!/^\d+$/.test(pinId)) {
+          toast({
+            title: "즐겨찾기 추가 불가",
+            description:
+              "등록된 매물만 즐겨찾기에 추가할 수 있습니다. 먼저 지도에서 매물을 저장해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         await upsertFavoriteItem({
           groupId: groupId,
@@ -361,7 +370,16 @@ export function useSidebarState() {
     async (groupId: string, item: ListItem) => {
       try {
         // pinId 추출
-        const pinId = item.id; // 임시로 id를 pinId로 사용
+        const pinId = String(item.id ?? "").trim();
+        if (!/^\d+$/.test(pinId)) {
+          toast({
+            title: "즐겨찾기 추가 불가",
+            description:
+              "등록된 매물만 즐겨찾기에 추가할 수 있습니다. 먼저 지도에서 매물을 저장해주세요.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         await upsertFavoriteItem({
           title: groupId, // 새 그룹 생성
