@@ -147,14 +147,26 @@ export default function DisplayImagesSection({
 
   // 인덱스 상태
   const [cardIdxs, setCardIdxs] = useState<number[]>([]);
+
   useEffect(() => {
+    const lengthKey = cardGroups.map((g) => g.items?.length ?? 0).join(",");
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[DisplayImagesSection] cardGroups effect", {
+        groups: cardGroups.length,
+        lengths: lengthKey,
+      });
+    }
+
     const next = [...cardIdxs];
     let changed = false;
+
     if (next.length !== cardGroups.length) {
       next.length = cardGroups.length;
       for (let i = 0; i < cardGroups.length; i++) next[i] = next[i] ?? 0;
       changed = true;
     }
+
     for (let i = 0; i < next.length; i++) {
       const len = cardGroups[i]?.items?.length ?? 0;
       const safe = len === 0 ? 0 : clamp(next[i] ?? 0, 0, len - 1);
@@ -163,19 +175,36 @@ export default function DisplayImagesSection({
         changed = true;
       }
     }
+
     if (changed) setCardIdxs(next);
+    // deps는 길이가 항상 2개로 고정됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardGroups.length, ...cardGroups.map((g) => g.items?.length ?? 0)]);
+  }, [
+    cardGroups.length,
+    cardGroups.map((g) => g.items?.length ?? 0).join(","),
+  ]);
 
   const [fileIdxs, setFileIdxs] = useState<number[]>([]);
+
   useEffect(() => {
+    const lengthKey = fileGroups.map((g) => g.items?.length ?? 0).join(",");
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.debug("[DisplayImagesSection] fileGroups effect", {
+        groups: fileGroups.length,
+        lengths: lengthKey,
+      });
+    }
+
     const next = [...fileIdxs];
     let changed = false;
+
     if (next.length !== fileGroups.length) {
       next.length = fileGroups.length;
       for (let i = 0; i < fileGroups.length; i++) next[i] = next[i] ?? 0;
       changed = true;
     }
+
     for (let i = 0; i < next.length; i++) {
       const len = fileGroups[i]?.items?.length ?? 0;
       const safe = len === 0 ? 0 : clamp(next[i] ?? 0, 0, len - 1);
@@ -184,9 +213,13 @@ export default function DisplayImagesSection({
         changed = true;
       }
     }
+
     if (changed) setFileIdxs(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileGroups.length, ...fileGroups.map((g) => g.items?.length ?? 0)]);
+  }, [
+    fileGroups.length,
+    fileGroups.map((g) => g.items?.length ?? 0).join(","),
+  ]);
 
   if (!hasAny) {
     return (

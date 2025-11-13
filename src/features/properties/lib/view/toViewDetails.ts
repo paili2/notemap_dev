@@ -128,6 +128,13 @@ export function toViewDetails(p: ViewSource): PropertyViewDetails {
   const optionEtc = toStrOr(v.optionEtc);
   const registry = isNonEmpty(v.registry) ? String(v.registry) : "주택";
 
+  // ✅ 연식 플래그: 서버 view 블록에 있으면 그대로 사용
+  const isNew = typeof v.isNew === "boolean" ? (v.isNew as boolean) : undefined;
+  const isOld = typeof v.isOld === "boolean" ? (v.isOld as boolean) : undefined;
+  const buildingAgeType = isNonEmpty(v.buildingAgeType)
+    ? String(v.buildingAgeType).toUpperCase()
+    : undefined;
+
   return {
     // 상단 메타
     status: (p as any).status ?? "공개",
@@ -160,6 +167,11 @@ export function toViewDetails(p: ViewSource): PropertyViewDetails {
     completionDate: isNonEmpty(v.completionDate)
       ? String(v.completionDate)
       : undefined,
+
+    // ✅ 연식 플래그 그대로 전달
+    isNew,
+    isOld,
+    buildingAgeType,
 
     // 면적 (숫자/배열 그대로 통과, undefined 허용)
     exclusiveArea: Number.isFinite(Number(v.exclusiveArea))

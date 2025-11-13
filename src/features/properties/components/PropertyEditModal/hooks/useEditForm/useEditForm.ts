@@ -64,7 +64,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   const [aspects, setAspects] = useState<AspectRowLite[]>(EMPTY_ASPECTS);
 
-  // ⭐ 사용자 향 편집 여부 (추가)
+  // ⭐ 사용자 향 편집 여부
   const aspectsTouchedRef = useRef(false);
   const [aspectsTouched, setAspectsTouched] = useState(false);
   const markAspectsTouched = () => {
@@ -77,7 +77,10 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   // ⭐ 매물평점(별 1~5, 공백 허용)
   const [parkingGrade, setParkingGrade] = useState<StarStr>("");
   const [parkingTypeId, setParkingTypeId] = useState<number | null>(null);
-  const [parkingType, setParkingType] = useState("");
+
+  /** ✅ 주차유형: string | null 로 관리 */
+  const [parkingType, setParkingType] = useState<string | null>(null);
+
   const [totalParkingSlots, setTotalParkingSlots] = useState<string>("");
   const [completionDate, setCompletionDate] = useState("");
 
@@ -192,7 +195,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setStructure("3룸");
     setAspects(EMPTY_ASPECTS);
     setParkingGrade("");
-    setParkingType("");
+    setParkingType(null); // ✅
     setParkingTypeId(null);
     setTotalParkingSlots("");
     setCompletionDate("");
@@ -227,7 +230,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setBuildingType(null);
   }, []);
 
-  /* ========== 초기 주입 (생략 없는 원본 그대로) ========== */
+  /* ========== 초기 주입 ========== */
   const wrapper = initialData as any;
   const sourceData =
     (wrapper?.raw as any) ?? (wrapper?.view as any) ?? initialData ?? null;
@@ -281,8 +284,14 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     const pg = (normalized as any)?.parkingGrade as StarStr | undefined;
     setParkingGrade(pg && ["1", "2", "3", "4", "5"].includes(pg) ? pg : "");
 
-    setParkingType(normalized.parkingType ?? "");
+    /** ✅ 초기 주차유형: string | null 그대로 주입 */
+    setParkingType(
+      (normalized as any).parkingType != null
+        ? (normalized as any).parkingType
+        : null
+    );
     setParkingTypeId((normalized as any)?.parkingTypeId ?? null);
+
     setTotalParkingSlots(
       (normalized as any).totalParkingSlots != null
         ? String((normalized as any).totalParkingSlots)
@@ -371,6 +380,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     (normalized as any)?.buildingType,
   ]);
 
+  // 🔎 디버그용: parkingType 변화 로그
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log("[useEditForm] parkingType state =", parkingType);
+  }, [parkingType]);
+
   /* ========== 파생값/유효성 ========== */
   const baseHasExclusive = useMemo(
     () =>
@@ -439,7 +454,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       filled(title) &&
       filled(address) &&
       filled(officePhone) &&
-      filled(parkingType) &&
+      filled(parkingType ?? "") && // ✅ null 안전
       filled(completionDate) &&
       salePriceOk &&
       hasExclusiveAny &&
@@ -532,7 +547,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       structure,
       aspects,
       parkingGrade,
-      parkingType,
+      parkingType, // ✅ string | null
       parkingTypeId,
       totalParkingSlots,
       completionDate,
@@ -555,7 +570,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       unitLines,
       buildingType,
       buildingGrade,
-      // 추가
       aspectsTouched,
     }),
     [
@@ -615,7 +629,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       setAspectDir,
       setAspects,
       setParkingGrade,
-      setParkingType,
+      setParkingType, // ✅ (v: string | null) => void
       setParkingTypeId,
       setTotalParkingSlots,
       setCompletionDate,

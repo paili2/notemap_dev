@@ -113,25 +113,26 @@ function normalizeBoolLoose(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** ⚠️ 우선순위 바꿈: buildingGrade → buildingAgeType → isNew/isOld */
+/** ✅ 우선순위 수정: isNew/isOld → buildingAgeType → buildingGrade(레거시) */
 function deriveAgeFlagsFrom(src: any): { isNew: boolean; isOld: boolean } {
-  // 1) buildingGrade: "new" | "old" (라디오의 소스가 이쪽이면 최우선)
-  const g = (src?.buildingGrade ?? "").toString().toLowerCase();
-  if (g === "new") return { isNew: true, isOld: false };
-  if (g === "old") return { isNew: false, isOld: true };
+  // 1) 명시 불리언 (가장 신뢰도 높음)
+  const nIsNew = normalizeBoolLoose(src?.isNew);
+  const nIsOld = normalizeBoolLoose(src?.isOld);
+
+  if (nIsNew === true && nIsOld !== true) return { isNew: true, isOld: false };
+  if (nIsOld === true && nIsNew !== true) return { isNew: false, isOld: true };
 
   // 2) buildingAgeType: "NEW" | "OLD"
   const t = (src?.buildingAgeType ?? "").toString().toUpperCase();
   if (t === "NEW") return { isNew: true, isOld: false };
   if (t === "OLD") return { isNew: false, isOld: true };
 
-  // 3) 명시 불리언 (레거시/혼재 데이터 대응)
-  const nIsNew = normalizeBoolLoose(src?.isNew);
-  const nIsOld = normalizeBoolLoose(src?.isOld);
-  if (nIsNew === true && nIsOld !== true) return { isNew: true, isOld: false };
-  if (nIsOld === true && nIsNew !== true) return { isNew: false, isOld: true };
+  // 3) 레거시 buildingGrade: "new" | "old"
+  const g = (src?.buildingGrade ?? "").toString().toLowerCase();
+  if (g === "new") return { isNew: true, isOld: false };
+  if (g === "old") return { isNew: false, isOld: true };
 
-  // 4) 스펙상 항상 하나 선택 → 기본 신축
+  // 4) 아무 정보 없으면 기본값(신축)
   return { isNew: true, isOld: false };
 }
 
@@ -279,6 +280,7 @@ function ViewStage({
   loading?: boolean;
   onRequestEdit: (seed: any) => void;
 }) {
+  console.log("[PropertyViewModal/ViewStage] render", { data });
   const hasData = !!data;
   const formInput = useMemo(
     () => ({ open: true, data: data ?? ({} as PropertyViewDetails) }),
@@ -287,19 +289,22 @@ function ViewStage({
   const f = useViewForm(formInput);
 
   const ageFlags = useMemo(() => {
-    const merged = {
-      ...(data ?? {}),
-      // 폼에서 선택된 최신 값이 있다면 그걸 최우선으로 사용
-      buildingGrade:
-        (f as any)?.buildingGrade ?? (data as any)?.buildingGrade ?? undefined,
-      buildingAgeType:
-        (f as any)?.buildingAgeType ??
-        (data as any)?.buildingAgeType ??
-        undefined,
-      isNew: (f as any)?.isNew ?? (data as any)?.isNew ?? undefined,
-      isOld: (f as any)?.isOld ?? (data as any)?.isOld ?? undefined,
-    };
-    return deriveAgeFlagsFrom(merged);
+    // 폼 값이 우선, 없으면 서버 뷰 데이터
+    const rawIsNew = (f as any)?.isNew ?? (data as any)?.isNew ?? undefined;
+    const rawIsOld = (f as any)?.isOld ?? (data as any)?.isOld ?? undefined;
+
+    const isNew = normalizeBoolLoose(rawIsNew);
+    const isOld = normalizeBoolLoose(rawIsOld);
+
+    const resolved = { isNew, isOld };
+
+    console.log("[PropertyViewModal/ViewStage] age flags", {
+      rawIsNew,
+      rawIsOld,
+      resolved,
+    });
+
+    return resolved;
   }, [data, f]);
 
   useEffect(() => {
@@ -322,6 +327,7 @@ function ViewStage({
           ?.focus();
       } catch {}
     }, 0);
+    return () => clearTimeout(t);
   }, []);
 
   // 배경 클릭 → 닫기

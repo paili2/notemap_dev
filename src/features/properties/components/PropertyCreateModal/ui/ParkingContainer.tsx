@@ -33,16 +33,12 @@ export default function ParkingContainer({ form }: Props) {
 
   return (
     <ParkingSection
-      /** 주차 유형은 문자열 그대로 */
+      /** 주차 유형은 string | null 그대로 */
       parkingType={parkingType}
       setParkingType={setParkingType}
       /** 총 주차대수는 Section이 number|null을 기대 */
       totalParkingSlots={toNum(totalParkingSlots)}
       setTotalParkingSlots={(v) => setTotalParkingSlots(toStr(v))}
-      /** 아래 prop들이 있다면 넘겨줘도 됨(없으면 제거) */
-      // parkingTypeId={null}
-      // setParkingTypeId={() => {}}
-      // parkingTypeNameToId={{}}
     />
   );
 }

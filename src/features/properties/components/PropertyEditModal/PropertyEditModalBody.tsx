@@ -705,40 +705,80 @@ function toPinPatch(
   if (!jsonEq2((initial as any)?.structureGrade, (f as any).structureGrade))
     (patch as any).structureGrade = (f as any).structureGrade ?? null;
 
-  // 주차 (문자열 + ID 모두 지원)
-  const pgNow =
-    (f as any).parkingGrade && String((f as any).parkingGrade).trim() !== ""
-      ? String((f as any).parkingGrade)
-      : undefined;
+  /* ── 주차 관련 필드: parkingGrade / parkingType / parkingTypeId / totalParkingSlots ── */
+
+  // 1) 별점(문자열 "1"~"5" 또는 null)
   const pgInitRaw = (initial as any)?.parkingGrade;
-  const pgInit =
-    pgInitRaw && String(pgInitRaw).trim() !== ""
-      ? String(pgInitRaw)
-      : undefined;
-  if (!jsonEq2(pgInit, pgNow) && pgNow !== undefined)
-    (patch as any).parkingGrade = pgNow;
+  const pgInitNorm =
+    pgInitRaw == null || String(pgInitRaw).trim() === ""
+      ? null
+      : String(pgInitRaw).trim();
 
-  // ✅ parkingTypeId number|null diff
-  const initParkingTypeId = N2((initial as any)?.parkingTypeId);
-  const nowParkingTypeId = N2((f as any).parkingTypeId);
+  const pgNowRaw = (f as any).parkingGrade;
+  const pgNowNorm =
+    pgNowRaw == null || String(pgNowRaw).trim() === ""
+      ? null
+      : String(pgNowRaw).trim();
+
+  if (!jsonEq2(pgInitNorm, pgNowNorm)) {
+    (patch as any).parkingGrade = pgNowNorm;
+  }
+
+  // 2) parkingTypeId: number | null (diff 기반)
+  const initParkingTypeIdRaw = (initial as any)?.parkingTypeId;
+  const initParkingTypeId =
+    initParkingTypeIdRaw == null || initParkingTypeIdRaw === ""
+      ? null
+      : Number(initParkingTypeIdRaw);
+
+  const nowParkingTypeIdForm = (f as any).parkingTypeId;
+  const nowParkingTypeId =
+    nowParkingTypeIdForm == null || nowParkingTypeIdForm === ""
+      ? null
+      : Number(nowParkingTypeIdForm);
+
   if (!jsonEq2(initParkingTypeId, nowParkingTypeId)) {
-    (patch as any).parkingTypeId =
-      nowParkingTypeId === undefined ? null : nowParkingTypeId;
+    (patch as any).parkingTypeId = nowParkingTypeId;
   }
 
-  // 문자열 parkingType (nullable)
-  if (!jsonEq2((initial as any)?.parkingType, (f as any).parkingType)) {
-    (patch as any).parkingType =
-      (f as any).parkingType == null ||
-      String((f as any).parkingType).trim() === ""
+  // 3) parkingType: ✅ 무조건 dto에 실어 보낸다 (diff 실패 방지)
+  {
+    const raw = (f as any).parkingType;
+    const value =
+      raw == null ||
+      String(raw).trim() === "" ||
+      String(raw).trim() === "custom"
         ? null
-        : String((f as any).parkingType);
+        : String(raw).trim();
+
+    console.log("[toPinPatch][parkingType]", {
+      initParkingType: (initial as any)?.parkingType,
+      nowRaw: raw,
+      send: value,
+    });
+
+    (patch as any).parkingType = value;
+    // ✔️ deepPrune + stripNoopNulls 로직 덕분에:
+    // - 처음부터 값이 없고(value도 null) → 어차피 서버에 안 날아가도 상관 없음
+    // - 원래 값이 있었는데 null로 바꿈 → null 그대로 PATCH에 남아서 "삭제"로 동작
   }
 
-  const initSlots = N2((initial as any)?.totalParkingSlots);
-  const nowSlots = N2((f as any).totalParkingSlots);
-  if (!jsonEq2(initSlots, nowSlots))
-    (patch as any).totalParkingSlots = nowSlots ?? null;
+  // 4) totalParkingSlots: number | null (diff 기반)
+  const slotsInitRaw = (initial as any)?.totalParkingSlots;
+  const slotsInit =
+    slotsInitRaw == null || String(slotsInitRaw).trim() === ""
+      ? null
+      : Number(String(slotsInitRaw).replace(/[^\d]/g, ""));
+
+  const slotsNowRaw = (f as any).totalParkingSlots;
+  const slotsNow =
+    slotsNowRaw == null || String(slotsNowRaw).trim() === ""
+      ? null
+      : Number(String(slotsNowRaw).replace(/[^\d]/g, ""));
+
+  if (!jsonEq2(slotsInit, slotsNow)) {
+    (patch as any).totalParkingSlots = slotsNow;
+  }
 
   // 숫자들
   const initTotalBuildings = N2((initial as any)?.totalBuildings);

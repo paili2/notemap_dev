@@ -13,7 +13,7 @@ export type Grade = "상" | "중" | "하";
  * 서버와 1:1 대응하는 enum 값만 포함합니다.
  * ※ 이 값만 서버로 전송하세요.
  */
-export const BUILDING_TYPES = ["APT", "OP", "주택", "근생"] as const;
+export const BUILDING_TYPES = ["주택", "APT", "OP", "도생", "근생"] as const;
 export type BuildingType = (typeof BUILDING_TYPES)[number];
 
 /* ───────── (옵션) UI 라벨 호환 ─────────
@@ -26,6 +26,8 @@ export const BUILDING_TYPE_LABELS = [
   "APT",
   "OP",
   "도/생",
+  "도생",
+  "도시형생활주택",
   "근/생",
   "근생", // 과거 표기 호환
 ] as const;
@@ -44,16 +46,31 @@ export function normalizeBuildingTypeLabelToEnum(
   }
 
   // 과거/대체 라벨 매핑
-  if (s === "도/생" || s === "도생") return "근생"; // 도생 → 근생으로 수렴
-  if (s === "근/생") return "근생";
+  // ✅ 도/생 관련 라벨 → "도생"
+  if (s === "도/생" || s === "도생" || s === "도시형생활주택") {
+    return "도생";
+  }
+
+  // ✅ 근/생 관련 라벨 → "근생"
+  if (s === "근/생" || s === "근생") return "근생";
 
   return null;
 }
 
 /** (선택) 백엔드 enum → UI 라벨 매핑이 필요하면 사용하세요. */
 export function buildingTypeEnumToLabel(bt: BuildingType): BuildingTypeLabel {
-  // 현재 정책: "근생"은 라벨도 "근생" 그대로 노출
-  return bt as BuildingTypeLabel;
+  // UI 정책에 맞게 enum 값을 라벨로 변환
+  switch (bt) {
+    case "도생":
+      return "도/생";
+    case "근생":
+      return "근/생"; // 또는 "근생"으로 바꾸고 싶으면 여기만 수정
+    case "주택":
+    case "APT":
+    case "OP":
+    default:
+      return bt as BuildingTypeLabel;
+  }
 }
 
 /* ───────── Orientation ───────── */

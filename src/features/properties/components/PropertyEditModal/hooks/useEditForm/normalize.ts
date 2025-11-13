@@ -26,6 +26,10 @@ const asNum = (v: unknown, fallback = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 };
+const asOptionalNum = (v: unknown): number | null => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 const unpackRange = (s: unknown): { min: string; max: string } => {
   const raw = asStr(s).trim();
   if (!raw) return { min: "", max: "" };
@@ -69,12 +73,14 @@ function normalizeBuildingType(input: unknown): BuildingType | null {
       case 3:
         return "OP";
       case 4:
+        return "도생";
       case 5:
         return "근생";
       default:
         return null;
     }
   }
+
   const raw = asStr(input).trim();
   if (!raw) return null;
 
@@ -100,6 +106,7 @@ type Normalized = {
   listingStars: number;
   parkingGrade: StarStr;
   parkingType: string | null;
+  parkingTypeId: number | null;
   totalParkingSlots: string;
   completionDate: string;
   salePrice: string;
@@ -184,10 +191,23 @@ export function normalizeInitialData(initialData: any | null): Normalized {
           dir: (dir as OrientationValue) ?? "",
         })) as AspectRowLite[]);
 
-  // 주차
-  const rawParkingType = asStr(d.parkingType).trim();
+  // ───────── 주차 ─────────
+  // 이름은 여러 필드 중 하나로 올 수 있음
+  const rawParkingType = asStr(
+    d.parkingType ?? d.parkingTypeName ?? d.parkingTypeLabel ?? d.parking?.type
+  ).trim();
   const parkingType: string | null = rawParkingType ? rawParkingType : null;
-  const totalParkingSlots = asStr(d.totalParkingSlots ?? "");
+
+  // ID도 여러 필드 후보
+  const parkingTypeId: number | null =
+    asOptionalNum(d.parkingTypeId) ??
+    asOptionalNum(d.parking?.typeId) ??
+    asOptionalNum(d.parkingTypeCode) ??
+    null;
+
+  const totalParkingSlots = asStr(
+    d.totalParkingSlots ?? d.parking?.totalSlots ?? ""
+  );
 
   // 평점
   const rawPg = asStr(d.parkingGrade).trim();
@@ -241,6 +261,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     listingStars,
     parkingGrade,
     parkingType,
+    parkingTypeId,
     totalParkingSlots,
     completionDate: asYMD(d.completionDate),
     salePrice: asStr(d.salePrice ?? d.minRealMoveInCost),

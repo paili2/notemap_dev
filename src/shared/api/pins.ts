@@ -197,6 +197,8 @@ export type CreatePinDto = {
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
 
+  parkingType?: string | null;
+
   /** ✅ 서버 전달 시 "1"~"5" 문자열 또는 null 권장 (입력은 number|string|null 수용) */
   parkingGrade?: number | string | null;
 

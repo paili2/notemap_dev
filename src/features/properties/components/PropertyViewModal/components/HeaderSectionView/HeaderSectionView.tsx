@@ -34,6 +34,7 @@ function fromBuildingAgeType(t: "NEW" | "OLD" | "" | null | undefined): {
 
 /* ───────────── 최종 플래그 결정(우선순위) ─────────────
    1) 명시 isNew/isOld (문자열/숫자 포함 정규화)
+      → ⚠️ isOld 가 true 면 구옥 우선
    2) buildingAgeType ("NEW"/"OLD")
    completionDate 보정은 getAgeLabel 내부에서 수행
 */
@@ -45,14 +46,23 @@ function resolveAgeFlags(opts: {
   const nIsNew = normalizeBool(opts.isNewRaw);
   const nIsOld = normalizeBool(opts.isOldRaw);
 
-  // 1) 명시 불리언 우선 (신축 > 구옥)
-  if (nIsNew === true) return { isNew: true, isOld: false };
-  if (nIsOld === true) return { isNew: false, isOld: true };
+  // 1) 명시 불리언 우선
+  //    👉 둘 다 true 인 경우에도 "구옥" 우선
+  if (nIsOld === true && nIsNew !== true) {
+    return { isNew: false, isOld: true };
+  }
+  if (nIsNew === true && nIsOld !== true) {
+    return { isNew: true, isOld: false };
+  }
+  if (nIsOld === true && nIsNew === true) {
+    // 둘 다 true 라면 구옥으로 고정
+    return { isNew: false, isOld: true };
+  }
   if (nIsNew === false && nIsOld === false) {
     return { isNew: undefined, isOld: undefined };
   }
 
-  // 2) 타입 문자열
+  // 2) 타입 문자열 (NEW/OLD)
   const byType = fromBuildingAgeType(opts.buildingAgeType);
   if (byType.isNew !== null || byType.isOld !== null) {
     return {
@@ -106,8 +116,8 @@ export default function HeaderSectionView({
       ? "bg-red-50 border-red-200 text-red-700"
       : "bg-gray-50 border-gray-200 text-gray-600";
 
-  // ✅ 신축/구옥 라벨 계산 (신축 > 구옥 > 완공일 추정)
-  const ageLabel = useMemo<"신축" | "구옥">(() => {
+  // ✅ 신축/구옥 라벨 계산 (구옥 우선)
+  const ageLabel = useMemo<string>(() => {
     const { isNew: finalIsNew, isOld: finalIsOld } = resolveAgeFlags({
       isNewRaw: isNew,
       isOldRaw: isOld,
@@ -124,25 +134,22 @@ export default function HeaderSectionView({
       newYearsThreshold,
     });
 
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[HeaderSectionView] age label debug", {
-        inputs: {
-          isNew,
-          isOld,
-          buildingAgeType,
-          completionDate,
-          newYearsThreshold,
-        },
-        normalized: { finalIsNew, finalIsOld },
-        label,
-      });
-    }
+    console.log("[HeaderSectionView] age label debug", {
+      inputs: {
+        isNew,
+        isOld,
+        buildingAgeType,
+        completionDate,
+        newYearsThreshold,
+      },
+      normalized: { finalIsNew, finalIsOld },
+      label,
+    });
 
-    return label; // "신축" | "구옥"
+    return label;
   }, [isNew, isOld, buildingAgeType, completionDate, newYearsThreshold]);
 
-  // 신축/구옥 뱃지 색상 (이분 전용: '-' 없음)
+  // 신축/구옥 뱃지 색상
   const ageClass =
     ageLabel === "신축"
       ? "bg-blue-50 border-blue-200 text-blue-700"
@@ -151,7 +158,7 @@ export default function HeaderSectionView({
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-5 whitespace-nowrap overflow-hidden">
-        {/* 🔵 신축/구옥 뱃지 — 제일 왼쪽 */}
+        {/* 🔵 신축/구옥 뱃지 */}
         <span
           className={cn(
             "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",

@@ -174,7 +174,6 @@ export default function ParkingSection({
             items={selectItems}
             placeholder="선택"
             className="w-28 h-9"
-            // ⬇ 드롭다운 레이어가 위로 오고, 모달의 overflow에 안 잘리게
             contentClassName="max-h-[320px] z-[10010]"
             side="bottom"
             align="start"

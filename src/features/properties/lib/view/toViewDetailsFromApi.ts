@@ -12,6 +12,11 @@ export type ApiPin = {
   addressLine?: string | null;
   completionDate?: string | null;
 
+  /** ✅ 연식 플래그 (백엔드 그대로 수용) */
+  isNew?: boolean | null;
+  isOld?: boolean | null;
+  buildingAgeType?: "NEW" | "OLD" | "" | null;
+
   buildingType?: "APT" | "OP" | "주택" | "근생" | string | null;
 
   /** ✅ 숫자 필드들 */
@@ -269,7 +274,7 @@ export function toViewDetailsFromApi(
   // ✅ 신규: units 맵핑(뷰로 그대로 넘김; note 제외)
   const units = mapUnits(api.units);
 
-  const view: PropertyViewDetails = {
+  const view = {
     id: String(api.id),
 
     /** ✅ 서버 badge → 핀 종류로 역매핑 (PinKind | undefined) */
@@ -287,6 +292,11 @@ export function toViewDetailsFromApi(
     listingStars: stars,
 
     elevator: boolToOX(api.hasElevator),
+
+    /** ✅ 연식 플래그(백엔드 값 그대로) */
+    isNew: api.isNew ?? null,
+    isOld: api.isOld ?? null,
+    buildingAgeType: api.buildingAgeType ?? null,
 
     /** 준공/등기 */
     completionDate: toYmd(api.completionDate),
@@ -354,7 +364,7 @@ export function toViewDetailsFromApi(
     inspectedAt: undefined,
     updatedByName: undefined,
     updatedAt: undefined,
-  };
+  } as PropertyViewDetails;
 
   return { ...view, lat: api.lat, lng: api.lng };
 }
