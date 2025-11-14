@@ -77,19 +77,38 @@ function normalizeParkingGradeStr(
   return undefined;
 }
 
-/* ✅ UI 등기/용어 → 서버 허용값 강제 변환 */
+/* ✅ UI 등기/용도 → 서버 허용값 강제 변환
+ *  - 도/생(도시형생활주택 계열) → "도생"
+ *  - 근/생(근린생활시설 계열) → "근생"
+ */
 function toServerBuildingType(
   v: any
-): "APT" | "OP" | "주택" | "근생" | undefined {
+): "APT" | "OP" | "주택" | "도생" | "근생" | undefined {
   if (v == null) return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (!s) return undefined;
 
+  const raw = String(v).trim();
+  if (!raw) return undefined;
+
+  const s = raw.toLowerCase();
+
+  // APT
   if (["apt", "아파트"].includes(s)) return "APT";
+
+  // OP
   if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
+
+  // 주택
   if (["house", "housing", "주택", "residential"].includes(s)) return "주택";
 
-  // UI 표현(도/생·근/생 등)과 상업/도시생활형은 모두 근생으로 수렴
+  // ✅ 도/생(도시형생활주택 계열) → "도생"
+  if (
+    ["도생", "도/생", "도시생활형", "도시생활형주택", "urban", "urb"].includes(
+      s
+    )
+  )
+    return "도생";
+
+  // ✅ 근생(근린생활시설 계열) → "근생"
   if (
     [
       "근생",
@@ -97,20 +116,15 @@ function toServerBuildingType(
       "near",
       "nearlife",
       "근린생활시설",
-      "urban",
-      "urb",
-      "도생",
-      "도시생활형",
-      "도시생활형주택",
-      "도/생",
       "commercial",
     ].includes(s)
   )
     return "근생";
 
-  // 이미 서버값인 경우 (소문자 방지)
-  if (["apt", "op"].includes(s)) return s === "apt" ? "APT" : "OP";
-  if (["주택", "근생"].includes(String(v))) return String(v) as any;
+  // 이미 서버 enum 문자열로 들어온 경우(raw 그대로 비교)
+  if (["APT", "OP", "주택", "도생", "근생"].includes(raw)) {
+    return raw as "APT" | "OP" | "주택" | "도생" | "근생";
+  }
 
   return undefined;
 }
@@ -508,7 +522,7 @@ export async function createPin(
 
   // ✅ buildingType 최종 매핑
   let buildingTypePayload:
-    | { buildingType: "APT" | "OP" | "주택" | "근생" }
+    | { buildingType: "APT" | "OP" | "주택" | "도생" | "근생" }
     | {} = {};
   if (dto.buildingType !== undefined && dto.buildingType !== null) {
     const mapped = toServerBuildingType(dto.buildingType);

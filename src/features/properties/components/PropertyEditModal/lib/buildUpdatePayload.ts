@@ -5,6 +5,7 @@ import type {
   Grade,
   UnitLine,
   OrientationRow,
+  BuildingType, // ✅ 추가
 } from "@/features/properties/types/property-domain";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { AreaSet } from "../../sections/AreaSetsSection/types";
@@ -217,6 +218,9 @@ type BuildUpdateArgs = {
   pinKind?: PinKind;
 
   buildingGrade?: "new" | "old";
+
+  // ✅ 추가: 수정모달에서 선택한 건물유형
+  buildingType?: BuildingType | null;
 };
 
 /** 초기 스냅샷: 자유 키 접근 허용 */
@@ -266,7 +270,7 @@ export function buildUpdatePayload(
     ? toIntOrNull(a.totalParkingSlots)
     : undefined;
 
-  // orientations 정규화
+  // orientations 정규화 (※ 현재 directions 변환에 사용)
   let orientationsNormalized: OrientationRow[] | undefined;
   if (Array.isArray(a.orientations)) {
     orientationsNormalized = a.orientations.map((o: any) =>
@@ -457,6 +461,17 @@ export function buildUpdatePayload(
       const prevBuilding = (initial as any)?.building ?? {};
       (patch as any).building = { ...prevBuilding, grade: nextGrade };
     }
+  }
+
+  // ✅ 건물유형(도생/근생/주택 등) PATCH
+  //  - a.buildingType가 undefined가 아니면 null 포함해서 그대로 서버로 보냄
+  //  - updatePin에서 toServerBuildingType이 최종 매핑을 해줌
+  if (defined(a.buildingType)) {
+    putAllowNull(
+      "buildingType",
+      a.buildingType ?? null,
+      (initial as any)?.buildingType
+    );
   }
 
   /* ===== 옵션/메모 ===== */

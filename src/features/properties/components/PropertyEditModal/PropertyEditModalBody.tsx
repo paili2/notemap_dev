@@ -34,7 +34,6 @@ import { Grade } from "../../types/property-domain";
 
 /** Parking 슬라이스 타입 */
 type ParkingFormSlice = {
-  // 🔼 확장: parkingTypeId 추가
   parkingTypeId: number | null;
   setParkingTypeId: (v: number | null) => void;
 
@@ -55,8 +54,19 @@ function normalizeStarStr(v: unknown): StarStr {
   return (["", "1", "2", "3", "4", "5"].includes(s) ? s : "") as StarStr;
 }
 
-/** UI에서 허용하는 등기/건물타입 */
-type BuildingTypeUI = "주택" | "APT" | "OP" | "근생";
+/** UI에서 허용하는 등기/건물타입 (라디오 버튼 라벨 기준) */
+type BuildingTypeUI = "주택" | "APT" | "OP" | "도생" | "근생";
+const BUILDING_TYPES: BuildingTypeUI[] = ["주택", "APT", "OP", "도생", "근생"];
+
+/** 서버/폼 값 → 우리가 쓰는 라벨 그대로만 허용 (추가 매핑 없음) */
+const normalizeBuildingType = (v: any): BuildingTypeUI | undefined => {
+  if (v == null) return undefined;
+  const s = typeof v === "string" ? v.trim() : "";
+  if (!s) return undefined;
+  return BUILDING_TYPES.includes(s as BuildingTypeUI)
+    ? (s as BuildingTypeUI)
+    : undefined;
+};
 
 /* ───────── helpers ───────── */
 
@@ -295,77 +305,6 @@ const normalizeOptionsForCompare = (o: any) => {
   return Object.keys(y).length ? y : null;
 };
 
-/** 서버 등기/용도 → UI 코드 */
-function mapRegistry(v: any): string | undefined {
-  if (v == null) return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (["house", "housing", "주택"].includes(s)) return "주택";
-  if (["apt", "apartment, 아파트", "아파트"].includes(s)) return "APT";
-  if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
-  if (
-    ["urban", "urb", "도생", "도시생활형", "도시생활형주택", "도/생"].includes(
-      s
-    )
-  )
-    return "도/생";
-  if (["near", "nearlife", "근생", "근린생활시설", "근/생"].includes(s))
-    return "근/생";
-  if (["주택", "APT", "OP", "도/생", "근/생"].includes(String(v)))
-    return String(v);
-  if (["residential"].includes(s)) return "주택";
-  if (["commercial"].includes(s)) return "근/생";
-  return undefined;
-}
-const toUIRegistryFromBuildingType = (v: any): string | undefined => {
-  const s = String(v ?? "").trim();
-  if (!s) return undefined;
-  if (s === "근생") return "근/생";
-  if (s === "APT" || s === "OP" || s === "주택") return s;
-  return undefined;
-};
-const toServerBuildingType = (
-  v: any
-): "APT" | "OP" | "주택" | "근생" | undefined => {
-  if (v == null) return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (!s) return undefined;
-  if (["apt", "아파트"].includes(s)) return "APT";
-  if (["op", "officetel", "오피스텔", "오피스텔형"].includes(s)) return "OP";
-  if (["house", "housing", "주택", "residential"].includes(s)) return "주택";
-  if (
-    [
-      "근생",
-      "근/생",
-      "near",
-      "nearlife",
-      "근린생활시설",
-      "urban",
-      "urb",
-      "도생",
-      "도시생활형",
-      "도시생활형주택",
-      "도/생",
-      "commercial",
-    ].includes(s)
-  )
-    return "근생";
-  if (["apt", "op", "주택", "근생"].includes(s)) {
-    if (s === "apt") return "APT";
-    if (s === "op") return "OP";
-    return s as any;
-  }
-  return undefined;
-};
-
-/** string 입력을 UI 유니온으로 정규화 (매칭 실패 시 null) */
-const toBuildingTypeUI = (v: any): BuildingTypeUI | null => {
-  const s = String(v ?? "").trim();
-  if (!s) return null;
-  if (s === "주택" || s === "APT" || s === "OP" || s === "근생") return s;
-  const mapped = toServerBuildingType(s);
-  return mapped ?? null;
-};
-
 /* ───────── deep prune & 비교 유틸 ───────── */
 const normalizeShallow2 = (v: any) => {
   if (v === "" || v === null || v === undefined) return undefined;
@@ -549,7 +488,7 @@ function toPinPatch(
     const n = Number(String(v).replace(/[^\d.-]/g, ""));
     return Number.isFinite(n) ? n : undefined;
   };
-  const jsonEq2 = (a: any, b: any) => {
+  const jsonEq2Local = (a: any, b: any) => {
     const norm = (x: any) =>
       x === "" || x === null || x === undefined ? undefined : x;
     try {
@@ -562,7 +501,7 @@ function toPinPatch(
   // name
   const initName = (initial as any)?.name ?? (initial as any)?.title ?? "";
   const nowName = S2((f as any).title);
-  if (nowName !== undefined && !jsonEq2(initName, nowName))
+  if (nowName !== undefined && !jsonEq2Local(initName, nowName))
     (patch as any).name = nowName;
 
   // 연락처
@@ -575,15 +514,17 @@ function toPinPatch(
   const nowMainLabel = S2((f as any).officeName);
   const nowMainPhone = S2((f as any).officePhone);
   const nowSubPhone = S2((f as any).officePhone2);
-  if (nowMainLabel !== undefined && !jsonEq2(initMainLabel, nowMainLabel))
+  if (nowMainLabel !== undefined && !jsonEq2Local(initMainLabel, nowMainLabel))
     (patch as any).contactMainLabel = nowMainLabel;
-  if (nowMainPhone !== undefined && !jsonEq2(initMainPhone, nowMainPhone))
+  if (nowMainPhone !== undefined && !jsonEq2Local(initMainPhone, nowMainPhone))
     (patch as any).contactMainPhone = nowMainPhone;
-  if (nowSubPhone !== undefined && !jsonEq2(initSubPhone, nowSubPhone))
+  if (nowSubPhone !== undefined && !jsonEq2Local(initSubPhone, nowSubPhone))
     (patch as any).contactSubPhone = nowSubPhone;
 
   // 완공일
-  if (!jsonEq2((initial as any)?.completionDate, (f as any).completionDate)) {
+  if (
+    !jsonEq2Local((initial as any)?.completionDate, (f as any).completionDate)
+  ) {
     (patch as any).completionDate = S2((f as any).completionDate) ?? null;
   }
 
@@ -596,11 +537,11 @@ function toPinPatch(
     (patch as any).hasElevator = nowElev;
 
   // 메모
-  if (!jsonEq2((initial as any)?.publicMemo, (f as any).publicMemo))
+  if (!jsonEq2Local((initial as any)?.publicMemo, (f as any).publicMemo))
     (patch as any).publicMemo = (f as any).publicMemo ?? null;
   const initPrivate =
     (initial as any)?.privateMemo ?? (initial as any)?.secretMemo;
-  if (!jsonEq2(initPrivate, (f as any).secretMemo))
+  if (!jsonEq2Local(initPrivate, (f as any).secretMemo))
     (patch as any).privateMemo = (f as any).secretMemo ?? null;
 
   /* ✅ 옵션 diff */
@@ -639,10 +580,10 @@ function toPinPatch(
       ? Number((initial as any)?.salePrice)
       : undefined);
   const nowMinCostNum = N2((f as any).salePrice);
-  if (!jsonEq2(initMinCost, nowMinCostNum))
+  if (!jsonEq2Local(initMinCost, nowMinCostNum))
     (patch as any).minRealMoveInCost = nowMinCostNum ?? null;
 
-  // --- 등기/건물타입 diff (변경시에만) ---
+  // --- 등기/건물타입 diff (변경시에만; 추가 매핑 없이 그대로 비교) ---
   const pickRegistryString = (src: any): string | undefined => {
     if (!src) return undefined;
     const candidates = [
@@ -670,12 +611,19 @@ function toPinPatch(
   };
 
   const btInitRaw = pickRegistryString(initial);
-  const btNowRaw = pickRegistryString(f);
-  const btInit = toServerBuildingType(btInitRaw);
-  const btNow = toServerBuildingType(btNowRaw);
+  const btInit = normalizeBuildingType(btInitRaw);
 
-  console.log("[registry]", { btInitRaw, btNowRaw, btInit, btNow });
+  const btNowUI = (f as any)?.buildingType as BuildingTypeUI | null | undefined;
+  const btNow = normalizeBuildingType(btNowUI);
 
+  console.log("[registry(buildingType)]", {
+    btInitRaw,
+    btInit,
+    btNowUI,
+    btNow,
+  });
+
+  // ✅ 사용자가 "도생" 같은 값을 선택하면 그대로 buildingType/registry에 실리도록
   if (btNow !== undefined && btNow !== btInit) {
     (patch as any).buildingType = btNow;
     (patch as any).registry = btNow;
@@ -700,9 +648,11 @@ function toPinPatch(
   }
 
   // 경사/구조 grade
-  if (!jsonEq2((initial as any)?.slopeGrade, (f as any).slopeGrade))
+  if (!jsonEq2Local((initial as any)?.slopeGrade, (f as any).slopeGrade))
     (patch as any).slopeGrade = (f as any).slopeGrade ?? null;
-  if (!jsonEq2((initial as any)?.structureGrade, (f as any).structureGrade))
+  if (
+    !jsonEq2Local((initial as any)?.structureGrade, (f as any).structureGrade)
+  )
     (patch as any).structureGrade = (f as any).structureGrade ?? null;
 
   /* ── 주차 관련 필드: parkingGrade / parkingType / parkingTypeId / totalParkingSlots ── */
@@ -720,7 +670,7 @@ function toPinPatch(
       ? null
       : String(pgNowRaw).trim();
 
-  if (!jsonEq2(pgInitNorm, pgNowNorm)) {
+  if (!jsonEq2Local(pgInitNorm, pgNowNorm)) {
     (patch as any).parkingGrade = pgNowNorm;
   }
 
@@ -737,7 +687,7 @@ function toPinPatch(
       ? null
       : Number(nowParkingTypeIdForm);
 
-  if (!jsonEq2(initParkingTypeId, nowParkingTypeId)) {
+  if (!jsonEq2Local(initParkingTypeId, nowParkingTypeId)) {
     (patch as any).parkingTypeId = nowParkingTypeId;
   }
 
@@ -758,9 +708,6 @@ function toPinPatch(
     });
 
     (patch as any).parkingType = value;
-    // ✔️ deepPrune + stripNoopNulls 로직 덕분에:
-    // - 처음부터 값이 없고(value도 null) → 어차피 서버에 안 날아가도 상관 없음
-    // - 원래 값이 있었는데 null로 바꿈 → null 그대로 PATCH에 남아서 "삭제"로 동작
   }
 
   // 4) totalParkingSlots: number | null (diff 기반)
@@ -776,7 +723,7 @@ function toPinPatch(
       ? null
       : Number(String(slotsNowRaw).replace(/[^\d]/g, ""));
 
-  if (!jsonEq2(slotsInit, slotsNow)) {
+  if (!jsonEq2Local(slotsInit, slotsNow)) {
     (patch as any).totalParkingSlots = slotsNow;
   }
 
@@ -791,13 +738,13 @@ function toPinPatch(
   const nowTotalHouseholds = N2((f as any).totalHouseholds);
   const nowRemainingHouseholds = N2((f as any).remainingHouseholds);
 
-  if (!jsonEq2(initTotalBuildings, nowTotalBuildings))
+  if (!jsonEq2Local(initTotalBuildings, nowTotalBuildings))
     (patch as any).totalBuildings = nowTotalBuildings ?? null;
-  if (!jsonEq2(initTotalFloors, nowTotalFloors))
+  if (!jsonEq2Local(initTotalFloors, nowTotalFloors))
     (patch as any).totalFloors = nowTotalFloors ?? null;
-  if (!jsonEq2(initTotalHouseholds, nowTotalHouseholds))
+  if (!jsonEq2Local(initTotalHouseholds, nowTotalHouseholds))
     (patch as any).totalHouseholds = nowTotalHouseholds ?? null;
-  if (!jsonEq2(initRemainingHouseholds, nowRemainingHouseholds))
+  if (!jsonEq2Local(initRemainingHouseholds, nowRemainingHouseholds))
     (patch as any).remainingHouseholds = nowRemainingHouseholds ?? null;
 
   // === 면적: 단일값 + 범위 ===
@@ -814,26 +761,28 @@ function toPinPatch(
     const Snum = (v: any) =>
       v === null || v === undefined || v === "" ? undefined : String(v).trim();
 
-    if (!jsonEq2((initial as any)?.exclusiveArea, exclusiveArea))
+    if (!jsonEq2Local((initial as any)?.exclusiveArea, exclusiveArea))
       (patch as any).exclusiveArea = Snum(exclusiveArea) ?? null;
 
-    if (!jsonEq2((initial as any)?.realArea, realArea))
+    if (!jsonEq2Local((initial as any)?.realArea, realArea))
       (patch as any).realArea = Snum(realArea) ?? null;
 
-    if (!jsonEq2((initial as any)?.extraExclusiveAreas, extraExclusiveAreas))
+    if (
+      !jsonEq2Local((initial as any)?.extraExclusiveAreas, extraExclusiveAreas)
+    )
       (patch as any).extraExclusiveAreas = Array.isArray(extraExclusiveAreas)
         ? extraExclusiveAreas
         : [];
 
-    if (!jsonEq2((initial as any)?.extraRealAreas, extraRealAreas))
+    if (!jsonEq2Local((initial as any)?.extraRealAreas, extraRealAreas))
       (patch as any).extraRealAreas = Array.isArray(extraRealAreas)
         ? extraRealAreas
         : [];
 
-    if (!jsonEq2((initial as any)?.baseAreaTitleOut, baseAreaTitleOut))
+    if (!jsonEq2Local((initial as any)?.baseAreaTitleOut, baseAreaTitleOut))
       (patch as any).baseAreaTitleOut = Snum(baseAreaTitleOut) ?? null;
 
-    if (!jsonEq2((initial as any)?.extraAreaTitlesOut, extraAreaTitlesOut))
+    if (!jsonEq2Local((initial as any)?.extraAreaTitlesOut, extraAreaTitlesOut))
       (patch as any).extraAreaTitlesOut = Array.isArray(extraAreaTitlesOut)
         ? extraAreaTitlesOut
         : [];
@@ -1110,7 +1059,6 @@ function toPinPatch(
           }));
         }
       } else {
-        // 초기값이 전무하면 편집했더라도 이번 패치에 directions만 보내기
         (patch as any).directions = nowPairs.map((p) => ({
           direction: p.dir,
         }));
@@ -1210,7 +1158,7 @@ export default function PropertyEditModalBody({
     return v;
   }, [initialData]);
 
-  // 브릿지: 최저실입/등기/핀종류 정규화
+  // 브릿지: 최저실입/등기/핀종류 정규화 (⚠️ 건물타입은 추가 매핑 없이 그대로만 사용)
   const bridgedInitial = useMemo(() => {
     const src = normalizedInitial as any;
     if (!src) return null;
@@ -1221,11 +1169,10 @@ export default function PropertyEditModalBody({
         ? String(src.minRealMoveInCost)
         : undefined);
 
-    const rawReg =
-      src?.registry ?? src?.type ?? src?.propertyType ?? src?.buildingType;
-
-    let uiReg = mapRegistry(rawReg);
-    if (!uiReg) uiReg = toUIRegistryFromBuildingType(src?.buildingType);
+    // buildingType/registry는 서버가 준 값 중에서 우리가 허용하는 라벨만 사용
+    const rawBt =
+      src?.buildingType ?? src?.registry ?? src?.propertyType ?? src?.type;
+    const bt = normalizeBuildingType(rawBt);
 
     const initPinKind =
       src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
@@ -1233,7 +1180,7 @@ export default function PropertyEditModalBody({
     const out = {
       ...src,
       ...(salePrice !== undefined ? { salePrice } : {}),
-      ...(uiReg !== undefined ? { registry: uiReg, buildingType: uiReg } : {}),
+      ...(bt !== undefined ? { buildingType: bt, registry: bt } : {}),
       ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
     console.log("[init] bridgedInitial:", {
@@ -1243,6 +1190,7 @@ export default function PropertyEditModalBody({
       pinKind: out?.pinKind,
       badge: out?.badge,
       registry: out?.registry,
+      buildingType: out?.buildingType,
     });
     return out;
   }, [normalizedInitial]);
@@ -1430,13 +1378,13 @@ export default function PropertyEditModalBody({
       initialBuildingGrade
     );
     _setBuildingGrade(initialBuildingGrade);
-    setBuildingGradeTouched(false); // 초기 동기화 시 터치 리셋
+    setBuildingGradeTouched(false);
   }, [initialBuildingGrade]);
 
   const setBuildingGrade = useCallback((v: "new" | "old") => {
     console.log("[Header] buildingGrade selected:", v);
     _setBuildingGrade(v);
-    setBuildingGradeTouched(true); // ✅ 터치 플래그 ON
+    setBuildingGradeTouched(true);
   }, []);
 
   const headerForm = useMemo(
@@ -1546,13 +1494,14 @@ export default function PropertyEditModalBody({
   /** CompletionRegistryContainer용 어댑터 */
   const completionRegistryForm: CompletionRegistryFormSlice = useMemo(
     () => ({
+      // 준공일
       completionDate: f.completionDate ?? "",
       setCompletionDate: (v: string) => {
         console.log("[Completion] date change:", v);
         f.setCompletionDate(v);
       },
 
-      // salePrice: string | number | null OK
+      // 최저 실입
       salePrice: f.salePrice,
       setSalePrice: (v: string | number | null) => {
         const s = v == null ? "" : String(v);
@@ -1560,23 +1509,27 @@ export default function PropertyEditModalBody({
         f.setSalePrice(s);
       },
 
+      // 경사도
       slopeGrade: f.slopeGrade,
       setSlopeGrade: (v?: Grade) => {
         console.log("[Completion] slopeGrade change:", v);
         f.setSlopeGrade(() => v);
       },
 
+      // 구조 등급
       structureGrade: f.structureGrade,
       setStructureGrade: (v?: Grade) => {
         console.log("[Completion] structureGrade change:", v);
         f.setStructureGrade(() => v);
       },
 
-      buildingType: f.buildingType ?? null,
+      // 등기/건물 타입 (⚠️ 추가 매핑 없이 우리가 쓰는 라벨만)
+      buildingType: (normalizeBuildingType(f.buildingType) ??
+        null) as BuildingTypeUI | null,
       setBuildingType: (v: string | null) => {
-        const bt = toBuildingTypeUI(v);
+        const bt = normalizeBuildingType(v);
         console.log("[Completion] buildingType change:", v, "→", bt);
-        f.setBuildingType(() => bt);
+        f.setBuildingType(bt ?? null);
       },
     }),
     [
@@ -1714,7 +1667,7 @@ export default function PropertyEditModalBody({
         delete (dto as any).areaGroups;
       }
 
-      // ✅ buildingGrade → 서버로 보낼지 결정 (터치/초기필드부재/값변경 중 하나라도 true면 포함)
+      // ✅ buildingGrade → 서버로 보낼지 결정
       if (
         buildingGradeTouched ||
         !hadAgeFlags ||
@@ -1731,6 +1684,8 @@ export default function PropertyEditModalBody({
         isNew: (dto as any).isNew,
         isOld: (dto as any).isOld,
         pinKind: (dto as any).pinKind ?? f.pinKind,
+        buildingType: (dto as any).buildingType,
+        registry: (dto as any).registry,
       });
 
       hasFormChanges = hasMeaningfulPatch(dto);
@@ -1805,7 +1760,7 @@ export default function PropertyEditModalBody({
       structure: f.structure,
 
       parkingGrade: f.parkingGrade,
-      parkingTypeId: f.parkingTypeId, // ✅ 로컬뷰 동기화에도 포함
+      parkingTypeId: f.parkingTypeId,
       parkingType: f.parkingType,
       totalParkingSlots: f.totalParkingSlots,
       completionDate: f.completionDate,
@@ -1932,7 +1887,6 @@ export default function PropertyEditModalBody({
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
             {mountParking && <ParkingContainer form={parkingForm as any} />}
-            {/* 섹션 전용 슬라이스 전달 */}
             <CompletionRegistryContainer form={completionRegistryForm} />
             <AspectsContainer form={f} />
             <AreaSetsContainer form={f} />

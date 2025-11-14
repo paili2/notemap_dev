@@ -19,17 +19,21 @@ type GradeLiteral = (typeof GRADES)[number];
 const UI_BUILDING_TYPES = ["주택", "APT", "OP", "도/생", "근/생"] as const;
 type UIBuildingType = (typeof UI_BUILDING_TYPES)[number];
 
-// 라벨 ↔ 백엔드 enum 매핑
+/** 라벨 ↔ 백엔드 enum 매핑
+ *  - 버튼     → 상태값: "도/생"  → "도생", "근/생" → "근생"
+ *  - 상태값   → 버튼:   "도생"   → "도/생", "근생" → "근/생"
+ */
 const mapLabelToBackend = (v?: UIBuildingType | null): BuildingType | null => {
   if (!v) return null;
   if (v === "근/생") return "근생";
-  if (v === "도/생") return "도/생" as any;
-  return v as unknown as BuildingType;
+  if (v === "도/생") return "도생"; // ✅ 도/생 → 도생(백엔드 enum)
+  return v as unknown as BuildingType; // "주택" | "APT" | "OP"
 };
+
 const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
   if (!v) return undefined;
-  if (v === "근생") return "근/생";
-  if (v === "도/생") return "도/생";
+  if (v === "근생") return "근/생"; // ✅ 근생 enum → 근/생 라벨
+  if (v === "도생" || v === "도/생") return "도/생"; // ✅ 도생/도/생 → 도/생 라벨
   if (["주택", "APT", "OP"].includes(v)) return v as UIBuildingType;
   return undefined;
 };
@@ -82,8 +86,16 @@ export default function CompletionRegistrySection({
     setLocalDate(toYmd(v));
   }, [localDate, setCompletionDate]);
 
-  /** UI 라벨로 변환 */
+  /** UI 라벨로 변환 (백엔드 enum → 버튼 라벨) */
   const uiBuildingType = mapBackendToLabel(buildingType as any);
+
+  // 🔍 디버그: 어떤 값이 왔다 갔다 하는지 확인용
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log("[CompletionRegistry] buildingType(raw) =", buildingType);
+    // eslint-disable-next-line no-console
+    console.log("[CompletionRegistry] uiBuildingType(label) =", uiBuildingType);
+  }, [buildingType, uiBuildingType]);
 
   /** ✅ 최저실입: 신규(minRealMoveInCost) 우선, 없으면 레거시(salePrice) 사용 */
   const priceValue = useMemo(() => {
@@ -168,9 +180,14 @@ export default function CompletionRegistrySection({
             name="buildingType"
             options={UI_BUILDING_TYPES}
             value={uiBuildingType}
-            onChange={(v) =>
-              setBuildingType?.(mapLabelToBackend(v as UIBuildingType))
-            }
+            onChange={(v) => {
+              // eslint-disable-next-line no-console
+              console.log("[CompletionRegistry] clicked label =", v);
+              const next = mapLabelToBackend(v as UIBuildingType);
+              // eslint-disable-next-line no-console
+              console.log("[CompletionRegistry] mapped to backend =", next);
+              setBuildingType?.(next);
+            }}
             allowUnset
           />
         </Field>

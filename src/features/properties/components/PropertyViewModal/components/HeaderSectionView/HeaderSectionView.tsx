@@ -117,7 +117,7 @@ export default function HeaderSectionView({
       : "bg-gray-50 border-gray-200 text-gray-600";
 
   // ✅ 신축/구옥 라벨 계산 (구옥 우선)
-  const ageLabel = useMemo<string>(() => {
+  const ageLabel = useMemo<"신축" | "구옥" | "-">(() => {
     const { isNew: finalIsNew, isOld: finalIsOld } = resolveAgeFlags({
       isNewRaw: isNew,
       isOldRaw: isOld,
@@ -149,11 +149,13 @@ export default function HeaderSectionView({
     return label;
   }, [isNew, isOld, buildingAgeType, completionDate, newYearsThreshold]);
 
-  // 신축/구옥 뱃지 색상
+  // 신축/구옥 뱃지 색상 (정보 없음일 때는 중립)
   const ageClass =
     ageLabel === "신축"
       ? "bg-blue-50 border-blue-200 text-blue-700"
-      : "bg-amber-50 border-amber-200 text-amber-700";
+      : ageLabel === "구옥"
+      ? "bg-amber-50 border-amber-200 text-amber-700"
+      : "bg-gray-50 border-gray-200 text-gray-500";
 
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
