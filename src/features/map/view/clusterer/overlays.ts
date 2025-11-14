@@ -65,8 +65,8 @@ export function createLabelOverlay(
   labelEl.className = "kakao-label";
   (labelEl as any).dataset.rawTitle = String(text ?? "");
 
+  // ✅ 라벨-핀 간격은 CSS로만 처리 (좌표는 항상 pos 그대로)
   applyLabelStyles(labelEl as HTMLDivElement, labelGapPx);
-  (labelEl as HTMLDivElement).style.color = "#FFFFFF";
 
   const orderNum =
     typeof order === "number" && Number.isFinite(order) ? order : undefined;
@@ -87,10 +87,10 @@ export function createLabelOverlay(
   } catch {}
 
   return new kakao.maps.CustomOverlay({
-    position: pos,
+    position: pos, // ✅ 핀과 같은 LatLng
     content: labelEl,
-    xAnchor: 0.5,
-    yAnchor: 1,
+    xAnchor: 0.5, // 가운데 정렬
+    yAnchor: 1, // 아래 기준 (핀 위쪽으로 뜸)
     zIndex: LABEL.Z_INDEX,
   });
 }

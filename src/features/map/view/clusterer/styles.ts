@@ -12,8 +12,12 @@ export const applyLabelStyles = (
 ) => {
   Object.assign(el.style, {
     position: "relative",
-    left: "50%",
-    transform: `translate(-50%, -${gapPx + 35}px)`,
+    // ✅ yAnchor: 1 에서 기준점은 라벨의 "아래"라서
+    //    top을 음수로 줘서 핀 기준 위로 gapPx + 35px 만큼 올려줌
+    top: `${-(gapPx + 35)}px`,
+    left: "0",
+    transform: "none",
+
     padding: "6px 10px",
     borderRadius: "8px",
     background: ACCENT,
