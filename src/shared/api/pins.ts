@@ -498,7 +498,6 @@ export async function createPin(
           d: !!dto.options.hasDryer,
           b: !!dto.options.hasBidet,
           p: !!dto.options.hasAirPurifier,
-          l: !!dto.options.isDirectLease,
           x: (dto.options.extraOptionsText ?? "").trim().slice(0, 32),
         }
       : undefined,

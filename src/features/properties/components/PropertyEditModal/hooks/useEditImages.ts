@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import type { ChangeEvent } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import type { AnyImageRef, ImageItem } from "../../../types/media";
 import { makeImgKey } from "@/features/properties/lib/mediaKeys";
@@ -328,20 +329,27 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   const onChangeImageCaption = useCallback(
     (folderIdx: number, imageIdx: number, text: string) => {
-      setImageFolders((prev) =>
-        prev.map((arr, i) =>
-          i !== folderIdx
-            ? arr
-            : arr.map((img, j) =>
-                j === imageIdx ? { ...img, caption: text } : img
-              )
-        )
-      );
-      const item = imageFolders[folderIdx]?.[imageIdx];
-      const pid = getServerPhotoId(item);
-      if (pid != null) queuePhotoCaption(pid, text ?? null);
+      let target: ImageItem | undefined;
+
+      setImageFolders((prev) => {
+        const next = prev.map((arr, i) => {
+          if (i !== folderIdx) return arr;
+          return arr.map((img, j) => {
+            if (j !== imageIdx) return img;
+            const updated = { ...img, caption: text };
+            target = updated;
+            return updated;
+          });
+        });
+
+        // 여기서 바로 서버 큐 처리까지
+        const pid = getServerPhotoId(target);
+        if (pid != null) queuePhotoCaption(pid, text ?? null);
+
+        return next;
+      });
     },
-    [imageFolders, queuePhotoCaption]
+    [queuePhotoCaption]
   );
 
   /* ─────────────────────────────
@@ -370,7 +378,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           })
         );
 
-        setGroups(list ?? {});
+        // 🔧 타입 맞게: [] 기본값 사용
+        setGroups(list ?? []);
         setPhotosByGroup(mapped);
 
         // 서버 하이드레이션 플래그
@@ -548,7 +557,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   // 폴더 인덱스와 매칭되는 서버 그룹을 보장(없으면 생성)
   const ensureFolderGroup = useCallback(
     async (pinId: IdLike, folderIdx: number) => {
-      await reloadGroups(pinId); // 최신화(디듀프됨)
+      // 서버 상태 최신화 (디듀프됨)
+      await reloadGroups(pinId);
       const list = (groups ?? []) as PinPhotoGroup[];
       const horiz = getHorizGroupsSorted(list);
       const existing = horiz[folderIdx];
@@ -562,27 +572,65 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     [groups, reloadGroups]
   );
 
-  // 카드형: 파일 추가 → 즉시 서버 업로드 → 재로딩(로컬 동기화)
+  // 카드형: 파일 추가 → 서버 업로드 + 로컬 폴더에 즉시 반영
   const onPickFilesToFolder = useCallback(
-    async (idx: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    async (idx: number, e: ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
       try {
-        // ✅ 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
+        // 1) 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
         const group = await ensureFolderGroup(propertyId, idx);
 
-        // ✅ 즉시 업로드 + /photos 등록
-        await uploadToGroup(group.id, files, { domain: "map" });
+        // 2) 업로드 + /photos 등록 (서버에 저장)
+        const created = await uploadToGroup(group.id, files, { domain: "map" });
 
-        // ✅ 서버 상태 재로딩 → 로컬 프리뷰 동기화
-        await reloadGroups(propertyId);
+        // 3) 서버 메모리 상태(groups / photosByGroup)도 함께 갱신
+        setGroups((prev) => {
+          if (!prev) return [group];
+          const list = [...prev];
+          const i = list.findIndex((g) => String(g.id) === String(group.id));
+          if (i >= 0) {
+            list[i] = { ...list[i] };
+          } else {
+            list.push(group);
+          }
+          return list;
+        });
+
+        setPhotosByGroup((prev) => {
+          const key = String(group.id);
+          const existing = prev?.[key] ?? [];
+          return {
+            ...prev,
+            [key]: [...existing, ...(created ?? [])],
+          };
+        });
+
+        // 4) 폴더(로컬 프리뷰)에도 바로 추가
+        const newItems: ImageItem[] =
+          (created ?? []).map((p) => {
+            const anyP: any = p;
+            const caption = anyP.caption ?? anyP.title ?? anyP.name ?? "";
+            return {
+              id: p.id as any,
+              url: p.url,
+              name: anyP.name ?? "",
+              caption,
+            } as ImageItem;
+          }) ?? [];
+
+        setImageFolders((prev) =>
+          prev.map((folder, i) =>
+            i === idx ? [...folder, ...newItems].slice(0, MAX_PER_CARD) : folder
+          )
+        );
       } finally {
-        // input reset (같은 파일 재선택 허용)
+        // 같은 파일 다시 선택 가능하도록 초기화
         e.target.value = "";
       }
     },
-    [propertyId, ensureFolderGroup, uploadToGroup, reloadGroups]
+    [propertyId, ensureFolderGroup, uploadToGroup]
   );
 
   // 카드형: 폴더 추가/삭제
@@ -676,14 +724,23 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   const onChangeFileItemCaption = useCallback(
     (index: number, text: string) => {
-      setVerticalImages((prev) =>
-        prev.map((f, i) => (i === index ? { ...f, caption: text } : f))
-      );
-      const item = verticalImages[index];
-      const pid = getServerPhotoId(item);
-      if (pid != null) queuePhotoCaption(pid, text ?? null);
+      let target: ImageItem | undefined;
+
+      setVerticalImages((prev) => {
+        const next = prev.map((f, i) => {
+          if (i !== index) return f;
+          const updated = { ...f, caption: text };
+          target = updated;
+          return updated;
+        });
+
+        const pid = getServerPhotoId(target);
+        if (pid != null) queuePhotoCaption(pid, text ?? null);
+
+        return next;
+      });
     },
-    [verticalImages, queuePhotoCaption]
+    [queuePhotoCaption]
   );
 
   // 언마운트 시 blob URL 정리

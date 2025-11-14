@@ -27,11 +27,11 @@ type Props = {
     files: FileList | null
   ) => void | Promise<void>;
 
-  /** 레거시: input change 이벤트 자체를 전달 */
+  /** 레거시: input change 이벤트 자체를 전달 (비동기 허용) */
   onChangeFiles?: (
     folderIdx: number,
     e: React.ChangeEvent<HTMLInputElement>
-  ) => void;
+  ) => void | Promise<void>;
 
   registerInputRef?: RegisterRef;
   onAddFolder: () => void;
@@ -184,7 +184,7 @@ export default function ImagesSection({
               onChangeFiles={(e) => {
                 const files = e?.target?.files ?? null;
                 if (onAddToFolder) void onAddToFolder(idx, files);
-                else if (onChangeFiles) onChangeFiles(idx, e);
+                else if (onChangeFiles) void onChangeFiles(idx, e);
               }}
               /* 💡 onReorder / onSetCover는 컴포넌트 prop이 아님 → 넘기지 않음 */
             />

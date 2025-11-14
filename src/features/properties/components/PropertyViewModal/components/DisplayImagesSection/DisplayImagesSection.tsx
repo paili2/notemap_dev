@@ -7,17 +7,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CaptionSlot from "./components/CaptionSlot";
 import { AnyImg, DisplayImagesSectionProps } from "./types";
 
+/* ───────── 로컬 전용 뷰 타입 ───────── */
+/** 전역 ImageItem 을 건드리지 않고, 뷰에서만 추가로 쓰는 필드들을 확장 */
+type DisplayImageItem = ImageItem & {
+  caption?: string;
+  name?: string;
+  dataUrl?: string;
+};
+
 /* ───────── 유틸 ───────── */
 const isOkUrl = (u: string) => /^https?:|^data:|^blob:/.test(u);
 const pickStr = (...xs: any[]) =>
   xs.find((x) => typeof x === "string" && x.trim())?.trim() ?? "";
 
-function normOne(it: AnyImg): ImageItem | null {
+/** AnyImg → DisplayImageItem 하나로 정규화 */
+function normOne(it: AnyImg): DisplayImageItem | null {
   if (!it) return null;
+
   if (typeof it === "string") {
     const s = it.startsWith("url:") ? it.slice(4) : it;
-    return isOkUrl(s) ? { url: s, name: "", caption: "" } : null;
+    return isOkUrl(s)
+      ? ({ url: s, name: "", caption: "" } as DisplayImageItem)
+      : null;
   }
+
   const raw = it as any;
   const url = pickStr(
     raw?.url,
@@ -26,22 +39,33 @@ function normOne(it: AnyImg): ImageItem | null {
   );
   if (!isOkUrl(url)) return null;
 
-  return {
+  const name = pickStr(raw?.name);
+  const caption = pickStr(raw?.caption, raw?.title);
+
+  const base: DisplayImageItem = {
+    ...(raw as ImageItem),
     url,
-    name: pickStr(raw?.name),
-    caption: pickStr(raw?.caption, raw?.title),
-    ...(typeof raw?.dataUrl === "string" ? { dataUrl: raw.dataUrl } : {}),
+    name,
+    caption,
   };
+
+  if (typeof raw?.dataUrl === "string") {
+    base.dataUrl = raw.dataUrl;
+  }
+
+  return base;
 }
-function normList(list?: Array<AnyImg>): ImageItem[] {
+
+function normList(list?: Array<AnyImg>): DisplayImageItem[] {
   if (!Array.isArray(list)) return [];
-  return list.map(normOne).filter(Boolean) as ImageItem[];
+  return list.map(normOne).filter(Boolean) as DisplayImageItem[];
 }
+
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
 /* ───────── 입력 정규화 (제목 무시) ───────── */
-type Group = { items: ImageItem[] };
+type Group = { items: DisplayImageItem[] };
 
 function normalizeCardGroups(cards?: unknown, images?: unknown): Group[] {
   const out: Group[] = [];
@@ -105,10 +129,10 @@ export default function DisplayImagesSection({
   const rawFileGroups = useMemo(() => normalizeFileGroups(files), [files]);
 
   // 아이템 참조 안정화
-  const cacheRef = useRef<Map<string, ImageItem>>(new Map());
-  const stabilizeItems = useCallback((items?: ImageItem[]) => {
+  const cacheRef = useRef<Map<string, DisplayImageItem>>(new Map());
+  const stabilizeItems = useCallback((items?: DisplayImageItem[]) => {
     const src = Array.isArray(items) ? items : [];
-    const next = new Map<string, ImageItem>();
+    const next = new Map<string, DisplayImageItem>();
     const out = src.map((it) => {
       const key = `${it?.url ?? ""}|${it?.name ?? ""}|${it?.caption ?? ""}`;
       const prev = cacheRef.current.get(key);
@@ -135,10 +159,10 @@ export default function DisplayImagesSection({
 
   // 라이트박스
   const [open, setOpen] = useState(false);
-  const [lightboxImages, setLightboxImages] = useState<ImageItem[]>([]);
+  const [lightboxImages, setLightboxImages] = useState<DisplayImageItem[]>([]);
   const [startIndex, setStartIndex] = useState(0);
 
-  const openLightbox = useCallback((group: ImageItem[], index = 0) => {
+  const openLightbox = useCallback((group: DisplayImageItem[], index = 0) => {
     const safeGroup = Array.isArray(group) ? group : [];
     setLightboxImages(safeGroup);
     setStartIndex(clamp(index, 0, Math.max(0, safeGroup.length - 1)));

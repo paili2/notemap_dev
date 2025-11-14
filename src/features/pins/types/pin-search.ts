@@ -9,6 +9,7 @@ export type PinSearchParams = {
   salePriceMax?: number;
   areaMinM2?: number;
   areaMaxM2?: number;
+  buildingType?: "APT" | "OP" | "주택" | "도생" | "근생";
 };
 
 /** 필터 없이 요청할 때만 함께 반환되는 draft */

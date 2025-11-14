@@ -9,24 +9,15 @@ import type {
   ResolvedFileItem,
 } from "@/features/properties/types/media";
 
-// 레거시 원본 입력 타입 (훅에서 오는 것)
-type Img = {
-  id?: string;
-  idbKey?: string;
-  url?: string;
-  name?: string;
-  caption?: string;
-};
-
 export default function ImagesContainer({
   images,
 }: {
   images: {
-    /** 카드(좌측) */
-    imageFolders: Img[][];
+    /** 카드(좌측) – useEditImages의 imageFolders 그대로 */
+    imageFolders: ImageItem[][];
     /** 세로(우측) – 프로젝트별로 verticalImages 또는 fileItems 중 하나 사용 */
-    verticalImages?: Img[];
-    fileItems?: Img[];
+    verticalImages?: ImageItem[];
+    fileItems?: ImageItem[];
 
     /** ref 연결 & 파일 열기/선택 */
     registerImageInput: {
@@ -47,12 +38,12 @@ export default function ImagesContainer({
     ) => void;
 
     /** ⬇️ 폴더 제목 편집용 (useEditImages에서 내려오는 값들; 없으면 기본제목 사용) */
-    groups?: Array<{ id: string; title?: string | null }>;
+    groups?: Array<{ id: string | number; title?: string | null }>;
     queueGroupTitle?: (groupId: string, title: string) => void;
 
     /** 세로 파일 조작 */
     onAddFiles: (files: FileList | null) => void;
-    onChangeFileItemCaption?: (index: number, v: string) => void; // (선택) 더이상 사용 안 해도 OK
+    onChangeFileItemCaption?: (index: number, v: string) => void;
     handleRemoveFileItem: (index: number) => void;
 
     /** 제한값 (없으면 기본값) */
@@ -64,12 +55,15 @@ export default function ImagesContainer({
   const itemsByCard: ImageItem[][] = React.useMemo(
     () =>
       images.imageFolders.map((folder) =>
-        folder.map((img) => ({
-          url: img?.url ?? "",
-          name: img?.name ?? "",
-          // 사진별 캡션은 더 이상 쓰지 않음 (폴더 단위 제목으로 전환)
-          ...(img?.id ? { id: img.id } : {}),
-        }))
+        folder.map((img) => {
+          // ImageItem 구조만 보장해주고, id 같은 서버 필드는 건드리지 않음
+          const base: ImageItem = {
+            ...(img as ImageItem),
+            url: (img as any)?.url ?? "",
+            name: (img as any)?.name ?? "",
+          };
+          return base;
+        })
       ),
     [images.imageFolders]
   );
@@ -82,23 +76,29 @@ export default function ImagesContainer({
     const gs = images.groups ?? [];
     return itemsByCard.map((items, idx) => {
       const g = gs[idx];
-      const id = g?.id ?? `folder-${idx}`;
+      // PhotoFolder.id 는 string 이라서 항상 문자열로 변환
+      const rawId = g?.id ?? `folder-${idx}`;
+      const id = String(rawId);
       const title = (g?.title ?? "").trim() || `사진 폴더 ${idx + 1}`;
       return { id, title, items };
     });
   }, [itemsByCard, images.groups]);
 
   /** 3) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
-  const verticalSource: Img[] = images.fileItems ?? images.verticalImages ?? [];
+  const verticalSource: ImageItem[] =
+    images.fileItems ?? images.verticalImages ?? [];
 
   /** 4) 세로 파일 정규화 → ResolvedFileItem[] */
   const fileItemsNormalized: ResolvedFileItem[] = React.useMemo(
     () =>
       verticalSource.map((img) => ({
-        url: img?.url ?? "",
-        name: img?.name ?? "",
-        idbKey: img?.idbKey,
-        ...(img?.id ? { id: img.id } : {}),
+        url: (img as any)?.url ?? "",
+        name: (img as any)?.name ?? "",
+        idbKey: (img as any)?.idbKey,
+        // ResolvedFileItem에 id가 있다면 any로 얹어줌 (없어도 문제 없음)
+        ...(typeof (img as any)?.id !== "undefined"
+          ? { id: (img as any).id }
+          : {}),
       })),
     [verticalSource]
   );
@@ -115,7 +115,8 @@ export default function ImagesContainer({
     (folderIdx: number, nextTitle: string) => {
       const gs = images.groups ?? [];
       const g = gs[folderIdx];
-      const groupId = g?.id ?? `folder-${folderIdx}`; // fallback
+      const rawId = g?.id ?? `folder-${folderIdx}`;
+      const groupId = String(rawId);
       images.queueGroupTitle?.(groupId, nextTitle);
     },
     [images.groups, images.queueGroupTitle]
@@ -130,7 +131,7 @@ export default function ImagesContainer({
         onChangeFolderTitle={handleChangeFolderTitle}
         /** 파일 선택창 열기 */
         onOpenPicker={images.openImagePicker}
-        /** ✅ 레거시 시그니처 그대로 연결 */
+        /** ✅ 수정모달용: onPickFilesToFolder는 이제 "로컬에만" 추가 */
         onChangeFiles={images.onPickFilesToFolder}
         /** ref 등록 */
         registerInputRef={registerInputRef}
@@ -142,7 +143,7 @@ export default function ImagesContainer({
         /** ⛔️ 사진 개별 캡션/편집은 사용 중단 → 안전한 no-op 전달 */
         onChangeCaption={() => {}}
         onRemoveImage={() => {}}
-        /** 세로형(파일 대기열) – 캡션 사용 안해도 무방 */
+        /** 세로형(파일 대기열) */
         fileItems={fileItemsNormalized}
         onAddFiles={images.onAddFiles}
         onChangeFileItemCaption={images.onChangeFileItemCaption ?? (() => {})}

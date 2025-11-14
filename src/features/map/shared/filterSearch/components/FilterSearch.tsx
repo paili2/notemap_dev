@@ -63,25 +63,49 @@ const toPrice = (s: string) => {
 function buildPinSearchParams(ui: FilterState): PinSearchParams {
   const params: PinSearchParams = {};
 
+  // 1) 방 개수
   const rooms = ui.rooms.map((r) => Number(r)).filter((n) => !isNaN(n));
   if (rooms.length) params.rooms = rooms;
 
-  // 문자열 → 숫자 변환 (Number())
+  // 2) 매매가 (문자열 → 숫자)
   const priceMin = Number(ui.priceMin);
   const priceMax = Number(ui.priceMax);
   if (!isNaN(priceMin) && priceMin > 0) params.salePriceMin = priceMin;
   if (!isNaN(priceMax) && priceMax > 0) params.salePriceMax = priceMax;
 
+  // 3) 면적(평 → ㎡)
   const areaMin = Number(ui.areaMin);
   const areaMax = Number(ui.areaMax);
-  if (!isNaN(areaMin) && areaMin > 0)
+  if (!isNaN(areaMin) && areaMin > 0) {
     params.areaMinM2 = Math.round(areaMin * 3.305785);
-  if (!isNaN(areaMax) && areaMax > 0)
+  }
+  if (!isNaN(areaMax) && areaMax > 0) {
     params.areaMaxM2 = Math.round(areaMax * 3.305785);
+  }
 
+  // 4) 엘리베이터
   const elev =
     ui.elevator === "있음" ? true : ui.elevator === "없음" ? false : undefined;
-  if (elev !== undefined) params.hasElevator = elev;
+  if (elev !== undefined) {
+    params.hasElevator = elev;
+  }
+
+  // 5) 건물 유형(등기) - 🔥 여기 부분만 수정
+  if (ui.buildingType && ui.buildingType !== "전체") {
+    const allowed: PinSearchParams["buildingType"][] = [
+      "APT",
+      "OP",
+      "주택",
+      "도생",
+      "근생",
+    ];
+
+    if (allowed.includes(ui.buildingType as any)) {
+      params.buildingType = ui.buildingType as PinSearchParams["buildingType"];
+    }
+  }
+
+  // 6) 실입주금(필요하면 나중에 추가)
 
   return params;
 }

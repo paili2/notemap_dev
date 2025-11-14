@@ -237,7 +237,10 @@ export function buildUpdatePayload(
   const pushUrl = (into: string[], u?: string) => {
     if (typeof u !== "string") return;
     const s = u.trim();
-    if (s && !into.includes(s)) into.push(s);
+    if (!s) return;
+    // ✅ blob:, data: 같은 로컬 전용 URL은 서버로 보내지 않도록 필터링
+    if (!/^https?:\/\//.test(s)) return;
+    if (!into.includes(s)) into.push(s);
   };
 
   if (Array.isArray(a.imageFolders)) {
