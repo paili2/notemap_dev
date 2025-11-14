@@ -1,10 +1,10 @@
 "use client";
 
 import CompletionRegistrySection from "../../sections/CompletionRegistrySection/CompletionRegistrySection";
-import type { Grade } from "@/features/properties/types/property-domain";
-
-// 백엔드 enum과 동일
-export type BuildingType = "APT" | "OP" | "주택" | "근생";
+import type {
+  BuildingType,
+  Grade,
+} from "@/features/properties/types/property-domain";
 
 /** ✅ 섹션 전용 폼 슬라이스 — 고유 이름 사용 */
 export type CRContainerForm = {

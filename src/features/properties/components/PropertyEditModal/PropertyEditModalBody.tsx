@@ -30,7 +30,7 @@ import type { CompletionRegistryFormSlice } from "../../hooks/useEditForm/types"
 /* 면적 그룹 유틸 & 타입 */
 import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
-import { Grade } from "../../types/property-domain";
+import { BuildingType, Grade } from "../../types/property-domain";
 
 /** Parking 슬라이스 타입 */
 type ParkingFormSlice = {
@@ -55,16 +55,16 @@ function normalizeStarStr(v: unknown): StarStr {
 }
 
 /** UI에서 허용하는 등기/건물타입 (라디오 버튼 라벨 기준) */
-type BuildingTypeUI = "주택" | "APT" | "OP" | "도생" | "근생";
-const BUILDING_TYPES: BuildingTypeUI[] = ["주택", "APT", "OP", "도생", "근생"];
+
+const BUILDING_TYPES: BuildingType[] = ["주택", "APT", "OP", "도생", "근생"];
 
 /** 서버/폼 값 → 우리가 쓰는 라벨 그대로만 허용 (추가 매핑 없음) */
-const normalizeBuildingType = (v: any): BuildingTypeUI | undefined => {
+const normalizeBuildingType = (v: any): BuildingType | undefined => {
   if (v == null) return undefined;
   const s = typeof v === "string" ? v.trim() : "";
   if (!s) return undefined;
-  return BUILDING_TYPES.includes(s as BuildingTypeUI)
-    ? (s as BuildingTypeUI)
+  return BUILDING_TYPES.includes(s as BuildingType)
+    ? (s as BuildingType)
     : undefined;
 };
 
@@ -613,7 +613,7 @@ function toPinPatch(
   const btInitRaw = pickRegistryString(initial);
   const btInit = normalizeBuildingType(btInitRaw);
 
-  const btNowUI = (f as any)?.buildingType as BuildingTypeUI | null | undefined;
+  const btNowUI = (f as any)?.buildingType as BuildingType | null | undefined;
   const btNow = normalizeBuildingType(btNowUI);
 
   console.log("[registry(buildingType)]", {
@@ -1525,7 +1525,7 @@ export default function PropertyEditModalBody({
 
       // 등기/건물 타입 (⚠️ 추가 매핑 없이 우리가 쓰는 라벨만)
       buildingType: (normalizeBuildingType(f.buildingType) ??
-        null) as BuildingTypeUI | null,
+        null) as BuildingType | null,
       setBuildingType: (v: string | null) => {
         const bt = normalizeBuildingType(v);
         console.log("[Completion] buildingType change:", v, "→", bt);
