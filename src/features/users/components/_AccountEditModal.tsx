@@ -13,6 +13,10 @@ import {
 import BirthdayPicker from "@/components/organisms/BirthdayPicker/BirthdayPicker";
 import { Button } from "@/components/atoms/Button/Button";
 import { useEffect, useState } from "react";
+import {
+  uploadOnePhoto,
+  UploadDomain,
+} from "@/shared/api/photoUpload";
 
 type Patch = Partial<UserRow> & {
   email?: string;
@@ -43,7 +47,6 @@ export default function AccountEditModal(props: {
   user: UserRow;
   onClose: () => void;
   onSave: (patch: Patch) => void;
-  uploadEndpoint?: string;
   maxUploadBytes?: number;
   addressLocked?: boolean;
 }) {
@@ -56,7 +59,6 @@ function AccountEditModalBody({
   user,
   onClose,
   onSave,
-  uploadEndpoint = "/api/upload",
   maxUploadBytes = 5 * 1024 * 1024,
   addressLocked = false,
 }: {
@@ -64,7 +66,6 @@ function AccountEditModalBody({
   user: UserRow;
   onClose: () => void;
   onSave: (patch: Patch) => void;
-  uploadEndpoint?: string;
   maxUploadBytes?: number;
   addressLocked?: boolean;
 }) {
@@ -149,6 +150,14 @@ function AccountEditModalBody({
   const setFieldError = (field: UploadField, msg: string | null) =>
     setUploadErrors((prev) => ({ ...prev, [field]: msg || undefined }));
 
+  const uploadDomainMap: Record<UploadField, UploadDomain> = {
+    photo_url: "profile",
+    id_photo_url: "profile",
+    resident_register_url: "etc",
+    resident_extract_url: "etc",
+    family_relation_url: "etc",
+  };
+
   const handleFileChange =
     (field: UploadField, setter: (url: string) => void) =>
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,15 +179,25 @@ function AccountEditModalBody({
 
       setUploading(field);
       try {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch(uploadEndpoint, { method: "POST", body: fd });
-        if (!res.ok) throw new Error(`업로드 실패 (${res.status})`);
-        const data = (await res.json()) as { url?: string };
-        if (!data.url) throw new Error("응답에 url이 없습니다.");
-        setter(data.url);
+        const domain = uploadDomainMap[field] ?? "etc";
+        const meta = await uploadOnePhoto(file, { domain });
+        if (!meta?.url) {
+          throw new Error("업로드 응답에 URL이 없습니다.");
+        }
+        setter(meta.url);
       } catch (err: any) {
-        setFieldError(field, err?.message ?? "업로드 중 오류가 발생했습니다.");
+        const serverMessage =
+          err?.response?.data?.message ??
+          err?.response?.data?.messages ??
+          err?.message ??
+          "업로드 중 오류가 발생했습니다.";
+        console.error("파일 업로드 실패:", err?.response ?? err);
+        setFieldError(
+          field,
+          Array.isArray(serverMessage)
+            ? serverMessage.join(", ")
+            : serverMessage
+        );
       } finally {
         setUploading(null);
         e.currentTarget.value = "";
