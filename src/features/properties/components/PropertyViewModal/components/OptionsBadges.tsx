@@ -3,24 +3,55 @@
 type OptionsBadgesProps = {
   /** 어댑터에서 넘어오는 옵션 라벨들(예: ["에어컨", "세탁기"]) */
   options?: string[] | null;
-  /** 기타 입력(자유 텍스트) */
+  /** 기타 입력(자유 텍스트: "노트북, 컴퓨터" 이런 문자열) */
   optionEtc?: string | null;
 };
+
+const SPLIT_RE = /[,\n;/]+/;
+const normalize = (s: string) => s.trim().toLowerCase();
 
 export default function OptionsBadges({
   options,
   optionEtc,
 }: OptionsBadgesProps) {
-  // 1) 기본 옵션 라벨 정리(문자만, 공백 제거, 중복 제거)
-  const base = Array.isArray(options)
+  // 1) 기본 옵션 라벨 정리(문자만, 공백 제거)
+  const base: string[] = Array.isArray(options)
     ? options
         .map((s) => (typeof s === "string" ? s.trim() : ""))
         .filter((s) => s.length > 0)
     : [];
 
-  // 2) optionEtc가 있으면 뒤에 추가(중복 방지)
-  const etc = typeof optionEtc === "string" ? optionEtc.trim() : "";
-  const list = etc && !base.includes(etc) ? [...base, etc] : base;
+  // 기본 옵션 중복 제거 (대소문자 무시)
+  const seen = new Set<string>();
+  const baseDedup: string[] = [];
+  for (const label of base) {
+    const key = normalize(label);
+    if (!seen.has(key)) {
+      seen.add(key);
+      baseDedup.push(label);
+    }
+  }
+
+  // 2) optionEtc 문자열을 여러 개로 분리하여 추가
+  const extras: string[] =
+    typeof optionEtc === "string"
+      ? optionEtc
+          .split(SPLIT_RE)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : [];
+
+  const extrasDedup: string[] = [];
+  for (const label of extras) {
+    const key = normalize(label);
+    // 기본 옵션에 이미 있거나, 이전 extra에 있으면 스킵
+    if (seen.has(key)) continue;
+    seen.add(key);
+    extrasDedup.push(label);
+  }
+
+  // 최종 리스트: 기본 옵션 + 직접입력 옵션들
+  const list = [...baseDedup, ...extrasDedup];
 
   if (list.length === 0) {
     return (

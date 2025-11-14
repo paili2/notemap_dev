@@ -23,7 +23,7 @@ type OptionCellProps = {
   autoFocus?: boolean;
 };
 
-function OptionCellImpl({
+function OptionCell({
   value,
   index,
   placeholder,
@@ -37,21 +37,36 @@ function OptionCellImpl({
   inputWidthMd = "md:w-[180px]",
   autoFocus,
 }: OptionCellProps) {
-  // ✅ undefined일 때도 빈 문자열로 컨트롤드 인풋을 렌더
+  // ✅ undefined일 때도 항상 컨트롤드 인풋 유지
   const safeValue = value ?? "";
+
+  const handleChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    onChangeLocal(index, e.target.value);
+  };
+
+  const handleBlur: React.FocusEventHandler<HTMLInputElement> = () => {
+    onCommit?.();
+  };
+
+  const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      // 엔터 시 최종 커밋
+      onCommit?.();
+      // 필요하면 다음 칸 추가
+      if (onAddAfter) {
+        onAddAfter(index);
+      }
+    }
+  };
 
   return (
     <div className={`flex items-center gap-1 ${cellWidthBase} ${cellWidthMd}`}>
       <Input
         value={safeValue}
-        onChange={(e) => onChangeLocal(index, e.target.value)}
-        onBlur={() => onCommit?.()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && onAddAfter) {
-            e.preventDefault();
-            onAddAfter(index);
-          }
-        }}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
         className={`h-9 ${inputWidthBase} ${inputWidthMd} shrink-0`}
         autoFocus={autoFocus}
@@ -71,18 +86,5 @@ function OptionCellImpl({
     </div>
   );
 }
-
-const OptionCell = React.memo(
-  OptionCellImpl,
-  (prev, next) =>
-    prev.value === next.value &&
-    prev.index === next.index &&
-    prev.placeholder === next.placeholder &&
-    prev.cellWidthBase === next.cellWidthBase &&
-    prev.cellWidthMd === next.cellWidthMd &&
-    prev.inputWidthBase === next.inputWidthBase &&
-    prev.inputWidthMd === next.inputWidthMd &&
-    prev.autoFocus === next.autoFocus
-);
 
 export default OptionCell;

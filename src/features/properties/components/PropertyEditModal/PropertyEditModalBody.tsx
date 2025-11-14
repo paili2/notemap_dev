@@ -268,7 +268,7 @@ const buildOptionsFromForm = (f: any) => {
     hasWasher: has("세탁기"),
     hasDryer: has("건조기"),
     hasBidet: has("비데"),
-    hasAirPurifier: has("공기청정기") || has("공기순환기"),
+    hasAirPurifier: has("공기순환기"),
   };
   if (extraRaw) out.extraOptionsText = extraRaw.slice(0, 255);
 

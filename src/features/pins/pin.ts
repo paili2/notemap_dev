@@ -5,7 +5,6 @@ export type PinOption = {
   hasDryer?: boolean;
   hasBidet?: boolean;
   hasAirPurifier?: boolean;
-  isDirectLease?: boolean;
   extraOptionsText?: string | null;
 };
 

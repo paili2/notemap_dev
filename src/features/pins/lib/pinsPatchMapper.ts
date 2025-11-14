@@ -87,7 +87,6 @@ function buildOptionsObject(
       hasDryer?: boolean;
       hasBidet?: boolean;
       hasAirPurifier?: boolean;
-      isDirectLease?: boolean;
       extraOptionsText?: string;
     }
   | undefined {
@@ -104,14 +103,7 @@ function buildOptionsObject(
   obj.hasDryer = set.has("건조기") || set.has("dryer") || undefined;
   obj.hasBidet = set.has("비데") || set.has("bidet") || undefined;
   obj.hasAirPurifier =
-    set.has("공기청정기") || set.has("airpurifier") || undefined;
-
-  // 직거래 여부 같은 스위치가 라벨로 들어오는 구조라면 여기에 규칙 추가
-  obj.isDirectLease =
-    set.has("직거래") ||
-    set.has("direct") ||
-    set.has("directlease") ||
-    undefined;
+    set.has("공기순환기") || set.has("airpurifier") || undefined;
 
   if (optionEtc && optionEtc.trim() !== "") {
     obj.extraOptionsText = optionEtc.trim();

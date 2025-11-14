@@ -54,7 +54,6 @@ export type ApiPin = {
     hasDryer?: boolean | null;
     hasBidet?: boolean | null;
     hasAirPurifier?: boolean | null;
-    isDirectLease?: boolean | null;
     extraOptionsText?: string | null;
   } | null;
 

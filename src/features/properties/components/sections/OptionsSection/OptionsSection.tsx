@@ -51,82 +51,40 @@ export default function OptionsSection({
   const safeSetOptionEtc =
     typeof setOptionEtc === "function" ? setOptionEtc : (_: string) => {};
 
+  // ----- 프리셋 / 커스텀 분리 -----
+  const PRESETS_NO_ETC = PRESET_OPTIONS.filter((op) => !isEtcLabel(op));
+  const presetSet = new Set(PRESETS_NO_ETC.map((v) => normalize(v)));
+
+  const presetSelected = safeOptions.filter((v) => presetSet.has(normalize(v)));
+  const customFromOptions = safeOptions.filter(
+    (v) => !presetSet.has(normalize(v))
+  );
   const legacyEtc = (optionEtc ?? "")
     .split(SPLIT_RE)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const PRESETS_NO_ETC = useMemo(
-    () => PRESET_OPTIONS.filter((op) => !isEtcLabel(op)),
-    [PRESET_OPTIONS]
-  );
+  // ----- 로컬 입력 필드 상태 (한 번만 초기화) -----
+  const [customInputs, setCustomInputs] = useState<string[]>(() => {
+    const merged = dedupNormalized([...customFromOptions, ...legacyEtc]);
+    return merged.length > 0 ? merged : [""];
+  });
 
-  const presetSet = useMemo(
-    () => new Set(PRESETS_NO_ETC.map((v) => normalize(v))),
-    [PRESETS_NO_ETC]
-  );
-  const presetSelected = useMemo(
-    () => safeOptions.filter((v) => presetSet.has(normalize(v))),
-    [safeOptions, presetSet]
-  );
-  const customFromOptions = useMemo(
-    () => safeOptions.filter((v) => !presetSet.has(normalize(v))),
-    [safeOptions, presetSet]
-  );
-
-  const computedEtcOn = useMemo(() => {
+  const [etcOn, setEtcOn] = useState<boolean>(() => {
     const hasLegacy = legacyEtc.length > 0;
     const hasCustom = customFromOptions.length > 0;
     return Boolean(etcChecked || hasLegacy || hasCustom);
-  }, [etcChecked, legacyEtc.length, customFromOptions.length]);
+  });
 
-  const [etcOn, setEtcOn] = useState<boolean>(computedEtcOn);
-  useEffect(() => {
-    if (!etcOn && computedEtcOn) setEtcOn(true);
-  }, [computedEtcOn, etcOn]);
-
-  const [customInputs, setCustomInputs] = useState<string[]>(
-    customFromOptions.length > 0 ? customFromOptions : []
-  );
-  const customInputsRef = useRef(customInputs);
+  // ref로 현재 customInputs 보관 (commitSync에서 사용)
+  const customInputsRef = useRef<string[]>(customInputs);
   useEffect(() => {
     customInputsRef.current = customInputs;
   }, [customInputs]);
 
-  const echoGuardRef = useRef(false);
-
-  useEffect(() => {
-    if (echoGuardRef.current) {
-      echoGuardRef.current = false;
-      return;
-    }
-    if (!arrShallowEqual(customInputsRef.current, customFromOptions)) {
-      setCustomInputs(customFromOptions);
-    }
-  }, [customFromOptions]);
-
-  const absorbedRef = useRef(false);
-  useEffect(() => {
-    if (absorbedRef.current) return;
-    if (legacyEtc.length && etcOn) {
-      setCustomInputs((prev) => {
-        const merged = dedupNormalized([...prev, ...legacyEtc]);
-        if (arrShallowEqual(prev, merged)) return prev;
-        return merged;
-      });
-      if ((optionEtc ?? "") !== "") safeSetOptionEtc("");
-      absorbedRef.current = true;
-    }
-  }, [etcOn, legacyEtc.length, optionEtc, safeSetOptionEtc]);
-
-  useEffect(() => {
-    if (etcOn && customInputsRef.current.length === 0) {
-      setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
-    }
-  }, [etcOn]);
-
-  /** ===== 동기화: 디바운스 & 커밋 시점만 부모 갱신 (IME 안전) ===== */
+  /** ===== 부모와 동기화: 디바운스 & 커밋 시점만 ===== */
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const flushSync = useCallback(
     (nextCustomInputs: string[]) => {
       const uniqCustoms = dedupNormalized(nextCustomInputs);
@@ -136,9 +94,9 @@ export default function OptionsSection({
 
       const nextOptions = [...presetSelected, ...customsNotPreset];
       if (!arrShallowEqual(safeOptions, nextOptions)) {
-        echoGuardRef.current = true;
         safeSetOptions(nextOptions);
       }
+
       const nextEtc = customsNotPreset.join(", ");
       if ((optionEtc ?? "") !== nextEtc) {
         safeSetOptionEtc(nextEtc);
@@ -159,7 +117,7 @@ export default function OptionsSection({
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       debounceTimer.current = setTimeout(() => {
         flushSync(nextCustomInputs);
-      }, 200); // 200ms 디바운스
+      }, 200);
     },
     [flushSync]
   );
@@ -180,7 +138,6 @@ export default function OptionsSection({
         ? safeOptions.filter((x) => x !== op)
         : [...safeOptions, op];
       if (!arrShallowEqual(safeOptions, next)) {
-        echoGuardRef.current = true;
         safeSetOptions(next);
       }
     },
@@ -198,37 +155,36 @@ export default function OptionsSection({
     return !cur;
   };
 
+  /** 직접입력 토글 */
   const toggleEtc = useCallback(
     (val: any) => {
       const next = toBool(val, etcOn);
-      if (next !== etcOn) setEtcOn(next);
-      if (next !== etcChecked) safeSetEtcChecked(next);
+      if (next === etcOn) return;
+
+      setEtcOn(next);
+      safeSetEtcChecked(next);
 
       if (!next) {
-        setCustomInputs((prev) => {
-          const cleared = [""];
-          if (!arrShallowEqual(prev, cleared)) return cleared;
-          return prev;
-        });
-        const nextOptions = presetSelected;
-        if (!arrShallowEqual(safeOptions, nextOptions)) {
-          echoGuardRef.current = true;
-          safeSetOptions(nextOptions);
+        // 직접입력 끄면 커스텀 옵션 제거하고 프리셋만 남김
+        if (!arrShallowEqual(safeOptions, presetSelected)) {
+          safeSetOptions(presetSelected);
         }
         if ((optionEtc ?? "") !== "") safeSetOptionEtc("");
       } else {
+        // 켤 때 입력칸이 없으면 하나 만들기
         setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
+        syncOptionsDebounced(customInputsRef.current);
       }
     },
     [
       etcOn,
-      etcChecked,
       safeSetEtcChecked,
-      presetSelected,
       safeOptions,
+      presetSelected,
       safeSetOptions,
       optionEtc,
       safeSetOptionEtc,
+      syncOptionsDebounced,
     ]
   );
 
@@ -237,7 +193,7 @@ export default function OptionsSection({
     (index?: number) => {
       if (!etcOn) {
         setEtcOn(true);
-        if (!etcChecked) safeSetEtcChecked(true);
+        safeSetEtcChecked(true);
         setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
       }
       setCustomInputs((prev) => {
@@ -246,9 +202,8 @@ export default function OptionsSection({
         copy.splice(insertAt, 0, "");
         return copy;
       });
-      // 추가 직후 동기화는 커밋/타이핑으로 이뤄짐
     },
-    [etcOn, etcChecked, safeSetEtcChecked]
+    [etcOn, safeSetEtcChecked]
   );
 
   const removeCustomField = useCallback(
@@ -264,7 +219,7 @@ export default function OptionsSection({
     [syncOptionsDebounced]
   );
 
-  // 🔧 IME 안전: 로컬만 업데이트, 부모는 디바운스 동기화
+  // IME 안전: 로컬만 즉시 업데이트, 부모는 디바운스
   const handleCustomChangeLocal = useCallback(
     (idx: number, val: string) => {
       setCustomInputs((prev) => {
@@ -278,6 +233,7 @@ export default function OptionsSection({
     [syncOptionsDebounced]
   );
 
+  /** 2칸씩 나누어 행 구성 */
   const rows: Array<[string | undefined, string | undefined]> = useMemo(() => {
     const r: Array<[string | undefined, string | undefined]> = [];
     for (let i = 0; i < customInputs.length; i += 2) {
@@ -295,6 +251,7 @@ export default function OptionsSection({
     <div className="space-y-3">
       <div className="text-sm font-medium">옵션</div>
 
+      {/* 프리셋 옵션 체크박스 */}
       <div className="grid grid-cols-3 gap-2 items-center">
         {PRESETS_NO_ETC.map((op) => (
           <label key={op} className="inline-flex items-center gap-2 text-sm">
@@ -307,12 +264,14 @@ export default function OptionsSection({
         ))}
       </div>
 
+      {/* 직접입력 영역 */}
       <div className="space-y-2">
         <div className="grid grid-cols-[auto_120px_120px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-7 gap-y-2 items-center">
           {etcOn ? (
             <>
               {rows.length === 0 ? (
                 <>
+                  {/* 첫 행 + 빈 입력칸 1개 */}
                   <div className="min-h-9 flex items-center">
                     <label className="inline-flex items-center gap-2 text-sm">
                       <Checkbox checked={etcOn} onCheckedChange={toggleEtc} />

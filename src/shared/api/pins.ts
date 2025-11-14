@@ -161,7 +161,6 @@ export type CreatePinOptionsDto = {
   hasDryer?: boolean;
   hasBidet?: boolean;
   hasAirPurifier?: boolean;
-  isDirectLease?: boolean;
   /** 최대 255자 */
   extraOptionsText?: string | null;
 };
@@ -303,7 +302,6 @@ function sanitizeOptions(o?: CreatePinOptionsDto) {
     hasDryer: !!o.hasDryer,
     hasBidet: !!o.hasBidet,
     hasAirPurifier: !!o.hasAirPurifier,
-    isDirectLease: !!o.isDirectLease,
   };
   const txt = clip255(o.extraOptionsText);
   if (txt !== undefined) payload.extraOptionsText = txt;
