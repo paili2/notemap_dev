@@ -51,18 +51,24 @@ export default function ImagesContainer({
     maxFiles?: number;
   };
 }) {
-  /** 1) 카드 이미지 → ImageItem[]로 정규화 (state/prop 아님: 계산 값만) */
+  /** 1) 카드 이미지 → ImageItem[]로 정규화 (state/prop 아님: 계산 값만)
+   *  - 원본 ImageItem 구조 유지 (file, dataUrl 등 포함)
+   */
   const itemsByCard: ImageItem[][] = React.useMemo(
     () =>
       images.imageFolders.map((folder) =>
         folder.map((img) => {
-          // ImageItem 구조만 보장해주고, id 같은 서버 필드는 건드리지 않음
-          const base: ImageItem = {
-            ...(img as ImageItem),
-            url: (img as any)?.url ?? "",
-            name: (img as any)?.name ?? "",
+          const base = img as ImageItem;
+          return {
+            ...base,
+            // url / name이 없으면 기본값만 살짝 보정
+            url:
+              typeof (base as any).url === "string"
+                ? (base as any).url
+                : undefined,
+            name:
+              typeof (base as any).name === "string" ? (base as any).name : "",
           };
-          return base;
         })
       ),
     [images.imageFolders]
@@ -95,7 +101,6 @@ export default function ImagesContainer({
         url: (img as any)?.url ?? "",
         name: (img as any)?.name ?? "",
         idbKey: (img as any)?.idbKey,
-        // ResolvedFileItem에 id가 있다면 any로 얹어줌 (없어도 문제 없음)
         ...(typeof (img as any)?.id !== "undefined"
           ? { id: (img as any).id }
           : {}),

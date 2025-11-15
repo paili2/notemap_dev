@@ -38,7 +38,11 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const objectURLsRef = useRef<string[]>([]);
   useEffect(() => {
     return () => {
-      objectURLsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      objectURLsRef.current.forEach((u) => {
+        try {
+          URL.revokeObjectURL(u);
+        } catch {}
+      });
       objectURLsRef.current = [];
     };
   }, []);

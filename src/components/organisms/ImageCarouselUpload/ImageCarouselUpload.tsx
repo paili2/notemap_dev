@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { ImageCarouselUploadProps } from "./types";
 
@@ -36,10 +36,31 @@ export default function ImageCarouselUpload({
   const [current, setCurrent] = useState(0);
   const [imgError, setImgError] = useState(false);
 
+  // ✅ file 이 있는 경우에도 미리보기를 위해 objectURL 생성
+  const fileUrls = useMemo(
+    () =>
+      Array.isArray(items)
+        ? items.map((it: ImageItem | undefined) =>
+            it?.file ? URL.createObjectURL(it.file) : undefined
+          )
+        : [],
+    [items]
+  );
+
+  // objectURL 정리 (items / fileUrls 변경 시 이전 URL revoke)
+  useEffect(() => {
+    return () => {
+      fileUrls.forEach((u) => {
+        if (u) URL.revokeObjectURL(u);
+      });
+    };
+  }, [fileUrls]);
+
   // 로컬 캡션 폴백(사진별 캡션 모드에서만 사용)
   const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
   );
+
   useEffect(() => {
     setLocalCaptions(
       items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
@@ -128,7 +149,12 @@ export default function ImageCarouselUpload({
     const s = (raw ?? "").trim();
     return s.length > 0 ? s : undefined;
   };
-  const safeSrc = cur ? toSafeSrc(cur.dataUrl ?? cur.url) : undefined;
+
+  // ✅ dataUrl → url → file(objectURL) 순으로 사용
+  const safeSrc = cur
+    ? toSafeSrc(cur.dataUrl ?? cur.url ?? fileUrls[current])
+    : undefined;
+
   const showFallback = count === 0 || !safeSrc || imgError;
 
   return (

@@ -143,6 +143,22 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   const hasServerHydratedRef = useRef(false);
 
+  /* ✅ groups 최신값을 항상 참조하기 위한 ref */
+  const groupsRef = useRef<PinPhotoGroup[] | null>(null);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
+
+  /* ✅ 이미지 상태도 언마운트에서 최신값을 보게 하기 위한 ref */
+  const imageFoldersRef = useRef<ImageItem[][]>([]);
+  const verticalImagesRef = useRef<ImageItem[]>([]);
+  useEffect(() => {
+    imageFoldersRef.current = imageFolders;
+  }, [imageFolders]);
+  useEffect(() => {
+    verticalImagesRef.current = verticalImages;
+  }, [verticalImages]);
+
   /* ───────── 초기 하이드레이션 ───────── */
   useEffect(() => {
     let mounted = true;
@@ -378,21 +394,18 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           })
         );
 
-        // 🔧 타입 맞게: [] 기본값 사용
         setGroups(list ?? []);
+        groupsRef.current = list ?? [];
         setPhotosByGroup(mapped);
 
-        // 서버 하이드레이션 플래그
         hasServerHydratedRef.current = true;
 
-        // ✅ 세로 그룹 식별
         const isVerticalGroup = (g: any) =>
           typeof g?.title === "string" && g.title.startsWith(VERT_PREFIX);
 
         const horizGroups = (list ?? []).filter((g) => !isVerticalGroup(g));
         const vertGroups = (list ?? []).filter(isVerticalGroup);
 
-        // 가로 카드(폴더)
         const folders: ImageItem[][] = horizGroups
           .slice()
           .sort(
@@ -420,9 +433,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           );
 
         const cleaned = dropEmptyCards(folders);
-        setImageFolders(cleaned.length ? cleaned : [[]]);
 
-        // ✅ 세로: 여러 그룹을 우측 세로 리스트로 병합
         const verticalFlat: ImageItem[] = vertGroups
           .slice()
           .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
@@ -445,7 +456,17 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
               })
           );
 
-        setVerticalImages(verticalFlat);
+        // 🔥 여기서 로컬 변경 여부 체크
+        const hasPendingLocal =
+          pendingGroupMap.current.size > 0 ||
+          pendingPhotoMap.current.size > 0 ||
+          pendingDeleteSet.current.size > 0;
+
+        // ❗로컬 변경이 없을 때만 서버 상태로 UI를 덮어씀
+        if (!hasPendingLocal) {
+          setImageFolders(cleaned.length ? cleaned : [[]]);
+          setVerticalImages(verticalFlat);
+        }
       } catch (e: any) {
         setMediaError(e?.message || "사진 그룹 로딩 실패");
       } finally {
@@ -559,7 +580,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     async (pinId: IdLike, folderIdx: number) => {
       // 서버 상태 최신화 (디듀프됨)
       await reloadGroups(pinId);
-      const list = (groups ?? []) as PinPhotoGroup[];
+      const list = (groupsRef.current ?? []) as PinPhotoGroup[];
       const horiz = getHorizGroupsSorted(list);
       const existing = horiz[folderIdx];
       if (existing) return existing;
@@ -569,23 +590,43 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       const group = await apiCreatePhotoGroup({ pinId, title, sortOrder });
       return group;
     },
-    [groups, reloadGroups]
+    [reloadGroups]
   );
 
-  // 카드형: 파일 추가 → 서버 업로드 + 로컬 폴더에 즉시 반영
+  // 카드형: 파일 추가 → (1) 로컬 프리뷰에 즉시 추가 → (2) 서버 업로드 후 교체
   const onPickFilesToFolder = useCallback(
     async (idx: number, e: ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
+      // 0) FileList를 배열로
+      const fileArr = Array.from(files);
+
+      // 1) 로컬 프리뷰용 임시 아이템 먼저 추가 (id는 안 줌: 순수 로컬)
+      const tempItems: ImageItem[] = fileArr.map((f) => ({
+        file: f,
+        name: f.name,
+      }));
+
+      // 이 폴더에 몇 개 임시를 추가했는지 보관 (나중에 교체용)
+      const tempCount = tempItems.length;
+
+      setImageFolders((prev) =>
+        prev.map((folder, i) =>
+          i === idx ? [...folder, ...tempItems].slice(0, MAX_PER_CARD) : folder
+        )
+      );
+
       try {
-        // 1) 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
+        // 2) 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
         const group = await ensureFolderGroup(propertyId, idx);
 
-        // 2) 업로드 + /photos 등록 (서버에 저장)
-        const created = await uploadToGroup(group.id, files, { domain: "map" });
+        // 3) 업로드 + /photos 등록 (서버에 저장)
+        const created = await uploadToGroup(group.id, fileArr, {
+          domain: "map",
+        });
 
-        // 3) 서버 메모리 상태(groups / photosByGroup)도 함께 갱신
+        // 4) 서버 메모리 상태(groups / photosByGroup) 갱신
         setGroups((prev) => {
           if (!prev) return [group];
           const list = [...prev];
@@ -607,7 +648,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           };
         });
 
-        // 4) 폴더(로컬 프리뷰)에도 바로 추가
+        // 5) 서버에서 받은 항목들로, 방금 추가한 임시 아이템들을 교체
         const newItems: ImageItem[] =
           (created ?? []).map((p) => {
             const anyP: any = p;
@@ -621,9 +662,14 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           }) ?? [];
 
         setImageFolders((prev) =>
-          prev.map((folder, i) =>
-            i === idx ? [...folder, ...newItems].slice(0, MAX_PER_CARD) : folder
-          )
+          prev.map((folder, i) => {
+            if (i !== idx) return folder;
+
+            // 뒤에서 tempCount 개를 교체한다고 가정
+            const baseLen = Math.max(0, folder.length - tempCount);
+            const base = folder.slice(0, baseLen);
+            return [...base, ...newItems].slice(0, MAX_PER_CARD);
+          })
         );
       } finally {
         // 같은 파일 다시 선택 가능하도록 초기화
@@ -743,17 +789,24 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     [queuePhotoCaption]
   );
 
-  // 언마운트 시 blob URL 정리
+  // ✅ 언마운트 시 blob URL 정리 (최신 상태를 ref에서 조회)
   useEffect(() => {
     return () => {
-      imageFolders.flat().forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      imageFoldersRef.current.flat().forEach((f) => {
+        if (f?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(f.url);
+          } catch {}
+        }
       });
-      verticalImages.forEach((f) => {
-        if (f?.url?.startsWith("blob:")) URL.revokeObjectURL(f.url);
+      verticalImagesRef.current.forEach((f) => {
+        if (f?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(f.url);
+          } catch {}
+        }
       });
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** 변경 여부 빠르게 확인 */

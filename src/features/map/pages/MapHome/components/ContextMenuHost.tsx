@@ -234,7 +234,7 @@ export default function ContextMenuHost(props: {
   );
 
   /** 1) 앵커 후보: menuAnchor 우선, 없으면 클릭된 핀 좌표 */
-  const anchorCandidate = useMemo(() => {
+  const anchorBase = useMemo(() => {
     if (menuAnchor) return { lat: menuAnchor.lat, lng: menuAnchor.lng };
     if (menuTargetId && targetPin?.position) {
       const p = normalizeLL((targetPin as any).position);
@@ -245,14 +245,14 @@ export default function ContextMenuHost(props: {
 
   /** 2) 주소검색 보정: 앵커 후보 아래 ‘실제 등록핀’ 탐색 (draft/visit 제외 + 거리 임계값) */
   const underlyingMarker = useMemo(() => {
-    if (!anchorCandidate) return undefined;
+    if (!anchorBase) return undefined;
 
     const isDraftLike = (id: any) =>
       typeof id === "string" &&
       (id.startsWith("__draft__") || id.startsWith("__visit__"));
 
     // 2-1) posKey(소수 5자리) 완전일치
-    const key = toGroupingPosKeyFromPos(anchorCandidate);
+    const key = toGroupingPosKeyFromPos(anchorBase);
     let cand = visibleMarkers.find((m) => {
       if (isDraftLike(m.id)) return false;
       const p = normalizeLL((m as any).position);
@@ -266,8 +266,8 @@ export default function ContextMenuHost(props: {
     for (const m of visibleMarkers) {
       if (isDraftLike(m.id)) continue;
       const p = normalizeLL((m as any).position);
-      const dx = p.lat - anchorCandidate.lat;
-      const dy = p.lng - anchorCandidate.lng;
+      const dx = p.lat - anchorBase.lat;
+      const dy = p.lng - anchorBase.lng;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestD2) {
         bestD2 = d2;
@@ -276,9 +276,9 @@ export default function ContextMenuHost(props: {
     }
     // 위경도 약식: 0.0002 ≈ 20m
     return bestD2 < 0.0002 * 0.0002 ? best : undefined;
-  }, [visibleMarkers, anchorCandidate]);
+  }, [visibleMarkers, anchorBase]);
 
-  /** 3) effective target: 클릭된 핀이 있으면 그것, 없으면 underlying 등록핀, 없으면 draft */
+  /** 3) effective target: 클릭된 핀 있으면 그것, 없으면 underlying 등록핀, 없으면 draft */
   const effectiveTarget = useMemo((): { id: string; marker?: MapMarker } => {
     if (menuTargetId && targetPin) {
       return { id: String(menuTargetId), marker: targetPin as MapMarker };
@@ -289,11 +289,54 @@ export default function ContextMenuHost(props: {
     return { id: "__draft__", marker: undefined };
   }, [menuTargetId, targetPin, underlyingMarker]);
 
-  /** 4) 앵커 최종값: menuAnchor 또는 클릭핀 좌표 */
-  const anchorPos = anchorCandidate;
+  /** 4) 최종 앵커: draft/question 핀이 있으면 그 핀 좌표 기준으로 강제 */
+  const anchorPos = useMemo(() => {
+    if (
+      effectiveTarget.marker &&
+      (effectiveTarget.marker as any).kind === "question"
+    ) {
+      const p = normalizeLL((effectiveTarget.marker as any).position);
+      return { lat: p.lat, lng: p.lng };
+    }
+    return anchorBase;
+  }, [effectiveTarget.marker, anchorBase]);
 
   /** 5) 렌더/라벨숨김 조건을 anchorPos 기준으로: 검색 경로에서도 동작 */
   const shouldRender = !!open && !!mapInstance && !!kakaoSDK && !!anchorPos;
+
+  // === 디버그: 현재 상태 로그 ===
+  useEffect(() => {
+    if (!shouldRender || !anchorPos) return;
+    const draftMarkerPos =
+      effectiveTarget.marker &&
+      (effectiveTarget.marker as any).kind === "question"
+        ? normalizeLL((effectiveTarget.marker as any).position)
+        : null;
+
+    // eslint-disable-next-line no-console
+    console.debug("[ContextMenuHost] anchorPos", {
+      anchorBase,
+      anchorPos,
+      menuTargetId,
+      effectiveId: effectiveTarget.id,
+      targetPinPos: targetPin ? normalizeLL((targetPin as any).position) : null,
+      underlyingId: underlyingMarker ? underlyingMarker.id : null,
+      draftMarkerPos,
+    });
+    // eslint-disable-next-line no-console
+    console.debug("[usePinsFromViewport] markers ▶", visibleMarkers);
+  }, [
+    shouldRender,
+    anchorPos?.lat,
+    anchorPos?.lng,
+    anchorBase?.lat,
+    anchorBase?.lng,
+    menuTargetId,
+    effectiveTarget.id,
+    targetPin,
+    underlyingMarker,
+    visibleMarkers,
+  ]);
 
   // ★ open 기준 라벨 마스크
   useLabelMaskOnMenuOpen({
@@ -305,10 +348,10 @@ export default function ContextMenuHost(props: {
   });
 
   // ======== 렌더 분기 ========
-  if (!shouldRender) return null;
+  if (!shouldRender || !anchorPos) return null;
 
   type LatLngRO = Readonly<{ lat: number; lng: number }>;
-  const anchorPosRO: LatLngRO = { lat: anchorPos!.lat, lng: anchorPos!.lng };
+  const anchorPosRO: LatLngRO = { lat: anchorPos.lat, lng: anchorPos.lng };
   assertNoTruncate(
     "ContextMenuHost:anchorPos",
     anchorPosRO.lat,

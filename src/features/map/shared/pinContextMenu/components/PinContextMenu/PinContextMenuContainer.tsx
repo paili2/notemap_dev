@@ -37,7 +37,7 @@ function extractDraftIdFromPin(pin: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** before 목록에서 좌표/주소로 draft 찾기 (객체 인자 1개, 반환 number | undefined) */
+/** before 목록에서 좌표/주소로 draft 찾기 */
 function findDraftIdByHeuristics(args: {
   before: BeforeDraft[];
   lat: number;
@@ -115,7 +115,7 @@ export default function PinContextMenuContainer(props: Props) {
   const handleView = () => {
     const id = String(propertyId ?? "");
     if (!id || id === "__draft__" || id.startsWith("__visit__")) return;
-    props.onView?.(id);
+    onView?.(id);
     Promise.resolve().then(() => onClose?.());
   };
 
@@ -327,7 +327,7 @@ export default function PinContextMenuContainer(props: Props) {
     try {
       setReserving(true);
 
-      let draftId = await getDraftIdForReservation();
+      const draftId = await getDraftIdForReservation();
       if (draftId == null) {
         // eslint-disable-next-line no-console
         console.error("No pinDraftId resolved for reservation", {
@@ -347,7 +347,6 @@ export default function PinContextMenuContainer(props: Props) {
         await refetchScheduledReservations();
       } catch {}
 
-      // 오버레이 정리 (라벨 복원은 Host unmount에서 처리)
       cleanupOverlaysAt(position.getLat(), position.getLng());
       bump();
       onClose?.();
@@ -389,7 +388,6 @@ export default function PinContextMenuContainer(props: Props) {
       jibunAddress: jibunAddress ?? null,
     });
 
-    // 오버레이 정리 (라벨 복원은 Host unmount에서 처리)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         try {
@@ -414,15 +412,22 @@ export default function PinContextMenuContainer(props: Props) {
 
   const xAnchor = 0.5;
   const yAnchor = 1;
-  const offsetPx = 57;
+
+  /** 🔍 검색 드래프트인지 (선택 위치) 여부 */
+  const isSearchDraft = String((pin as any)?.id ?? "") === "__draft__";
+
+  /** 🔥 검색 드래프트 vs 기존핀 offset 분리
+   *  - 검색 드래프트: 좀 더 위로 (핀을 거의 안 가리게)
+   *  - 기존 핀/답사예정 핀: 예전 느낌에 가깝게 낮게
+   */
+  const offsetPx = isSearchDraft ? 78 : 56;
 
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
-  /** ✅ 여기서 ID/제목 보강 */
+  /** ✅ ID/제목 보강 */
   const propertyIdClean = React.useMemo(() => {
     const raw = String(propertyId ?? "").trim();
     if (!raw) return null;
-    // 숫자 뒷부분만 추출 (예: "point:123" -> "123")
     const m = raw.match(/(\d{1,})$/);
     return (m?.[1] ?? raw) || null;
   }, [propertyId]);
@@ -448,32 +453,18 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [propertyTitle, pin, metaAtPos]);
 
-  // 디버깅용 (원인추적 끝나면 삭제 가능)
+  /** 📌 위치 디버그 로그 */
   React.useEffect(() => {
     // eslint-disable-next-line no-console
-    console.debug("[PinContextMenuContainer] title/ids", {
-      inProp_propertyId: propertyId,
-      propertyIdClean,
-      inProp_title: propertyTitle,
-      pinTitle: (pin as any)?.property?.title ?? (pin as any)?.title,
-      metaTitle:
-        (metaAtPos as any)?.property?.title ?? (metaAtPos as any)?.title,
-      resolvedDraftState,
-      planned,
-      reserved,
-      listed,
+    console.debug("[PinContextMenu] position", {
+      lat: position.getLat(),
+      lng: position.getLng(),
+      propertyId,
+      pinId: (pin as any)?.id,
+      isSearchDraft,
+      offsetPx,
     });
-  }, [
-    propertyId,
-    propertyIdClean,
-    propertyTitle,
-    pin,
-    metaAtPos,
-    resolvedDraftState,
-    planned,
-    reserved,
-    listed,
-  ]);
+  }, [position, propertyId, pin, isSearchDraft, offsetPx]);
 
   return (
     <CustomOverlay
@@ -488,15 +479,14 @@ export default function PinContextMenuContainer(props: Props) {
       zIndex={MENU_Z}
       pointerEventsEnabled
     >
-      <div style={{ transform: `translateY(-${offsetPx}px)` }}>
+      {/* ✅ 전체 메뉴(카드+꼬리)를 한 덩어리로 위로 올린다 */}
+      <div style={{ position: "relative", top: -offsetPx }}>
         <div role="dialog" aria-modal="true">
           <div className="relative pointer-events-auto">
             <ContextMenuPanel
               roadAddress={roadAddress ?? null}
               jibunAddress={jibunAddress ?? null}
-              /** ✅ 숫자만 추린 깨끗한 ID를 내려줌 */
               propertyId={propertyIdClean}
-              /** ✅ 여러 소스에서 모은 제목을 내려줌 */
               propertyTitle={derivedPropertyTitle || null}
               draftState={resolvedDraftState}
               onClose={props.onClose}
@@ -511,6 +501,7 @@ export default function PinContextMenuContainer(props: Props) {
               favActive={favActive}
               position={position}
             />
+            {/* ⬇️ 카드 바로 아래에 붙어있는 말꼬리 (카드와 항상 붙어 있음) */}
             <div
               aria-hidden="true"
               className="absolute left-1/2 top-full -mt-px -translate-x-1/2 w-0 h-0

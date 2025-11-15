@@ -83,8 +83,8 @@ export default function ImagesSection({
   onChangeFileItemCaption,
   onRemoveFileItem,
   maxFiles,
-  onReorder, // 현재 파일에서는 사용하지 않음(추후 연결용)
-  onSetCover, // 현재 파일에서는 사용하지 않음(추후 연결용)
+  onReorder, // 현재 파일에서는 직접 사용하지 않음 (추후 ImageCarouselUpload props 연결 시 활용)
+  onSetCover, // 현재 파일에서는 직접 사용하지 않음
   syncServer = false, // 기본은 큐잉 방식
 }: Props) {
   const hasFolders = Array.isArray(folders) && folders.length > 0;
@@ -186,7 +186,7 @@ export default function ImagesSection({
                 if (onAddToFolder) void onAddToFolder(idx, files);
                 else if (onChangeFiles) void onChangeFiles(idx, e);
               }}
-              /* 💡 onReorder / onSetCover는 컴포넌트 prop이 아님 → 넘기지 않음 */
+              /* 💡 onReorder / onSetCover는 현재 ImageCarouselUpload prop이 아님 → 여기서는 넘기지 않음 */
             />
           </div>
         );
