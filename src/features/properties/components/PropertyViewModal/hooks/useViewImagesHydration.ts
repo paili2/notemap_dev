@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { hydrateRefsToMedia } from "@/lib/media/refs";
-import { listPhotoGroupsByPin, listGroupPhotos } from "@/shared/api/photos";
+
+/* 🔧 import 분리: 그룹/사진 API */
+import { listGroupPhotos } from "@/shared/api/photos";
+import { listPhotoGroupsByPin } from "@/shared/api/photoGroups";
+
+/* ───────── 상수: 세로 그룹 식별 프리픽스 ───────── */
+const VERT_PREFIX = "__V__";
 
 /* ───────── 타입 ───────── */
 type AnyImg = {
@@ -208,12 +214,15 @@ export function useViewImagesHydration({
     data?.view?._fileItemRefs,
   ]);
 
-  /* 3) 서버 사진 그룹/사진 조회 (열렸을 때만) — 그룹 제목까지 반영 */
+  /* 3) 서버 사진 그룹/사진 조회 (열렸을 때만) — 그룹 제목 + 세로 그룹 분리 */
   const [_cardsFromServer, setCardsFromServer] = useState<ImagesGroup[]>([]);
+  const [_filesFromServer, setFilesFromServer] = useState<ImagesGroup[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     if (!open || !pinId) {
       setCardsFromServer([]);
+      setFilesFromServer([]);
       return;
     }
 
@@ -221,7 +230,10 @@ export function useViewImagesHydration({
       try {
         const groups = await listPhotoGroupsByPin(pinId);
         if (!groups?.length) {
-          if (!cancelled) setCardsFromServer([]);
+          if (!cancelled) {
+            setCardsFromServer([]);
+            setFilesFromServer([]);
+          }
           return;
         }
 
@@ -231,36 +243,60 @@ export function useViewImagesHydration({
           )
         );
 
-        const serverCards: ImagesGroup[] = groups
-          .map((g, idx) => {
-            const items = (photosList[idx] ?? []) as Array<{
-              url: string;
-              sortOrder?: number;
-              name?: string;
-              caption?: string;
-            }>;
-            const images = items
-              .slice()
-              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-              .map((p) => ({
-                url: p.url,
-                name: p.name ?? "",
-                ...(p.caption ? { caption: p.caption } : {}),
-              })) as HydratedImg[];
+        const serverCards: ImagesGroup[] = [];
+        const serverFiles: ImagesGroup[] = [];
 
-            const title =
-              (typeof (g as any)?.title === "string"
-                ? (g as any).title.trim()
-                : "") || undefined;
+        const isVerticalGroup = (g: any) =>
+          typeof g?.title === "string" && g.title.startsWith(VERT_PREFIX);
 
-            return images.length ? ({ title, images } as ImagesGroup) : null;
-          })
-          .filter(Boolean) as ImagesGroup[];
+        groups.forEach((g, idx) => {
+          const items = (photosList[idx] ?? []) as Array<{
+            url: string;
+            sortOrder?: number;
+            name?: string;
+            caption?: string;
+          }>;
 
-        if (!cancelled) setCardsFromServer(serverCards);
+          const images = items
+            .slice()
+            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+            .map((p) => ({
+              url: p.url,
+              name: p.name ?? "",
+              ...(p.caption ? { caption: p.caption } : {}),
+            })) as HydratedImg[];
+
+          if (!images.length) return;
+
+          const rawTitle =
+            typeof (g as any)?.title === "string"
+              ? (g as any).title.trim()
+              : "";
+          const isVert = isVerticalGroup(g);
+          const title = isVert
+            ? rawTitle.replace(new RegExp(`^${VERT_PREFIX}`), "").trim() ||
+              undefined
+            : rawTitle || undefined;
+
+          const groupObj: ImagesGroup = { title, images };
+
+          if (isVert) {
+            serverFiles.push(groupObj);
+          } else {
+            serverCards.push(groupObj);
+          }
+        });
+
+        if (!cancelled) {
+          setCardsFromServer(serverCards);
+          setFilesFromServer(serverFiles);
+        }
       } catch (e) {
         console.warn("[useViewImagesHydration] server fetch failed:", e);
-        if (!cancelled) setCardsFromServer([]);
+        if (!cancelled) {
+          setCardsFromServer([]);
+          setFilesFromServer([]);
+        }
       }
     })();
 
@@ -278,7 +314,11 @@ export function useViewImagesHydration({
       : normalized.cardsBase;
 
   const filesHydrated: ImagesGroup[] =
-    _filesFromRefs.length > 0 ? _filesFromRefs : normalized.filesBase;
+    _filesFromServer.length > 0
+      ? _filesFromServer
+      : _filesFromRefs.length > 0
+      ? _filesFromRefs
+      : normalized.filesBase;
 
   const preferCards = cardsHydrated.length > 0;
 

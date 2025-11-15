@@ -578,38 +578,44 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   // 폴더 인덱스와 매칭되는 서버 그룹을 보장(없으면 생성)
   const ensureFolderGroup = useCallback(
     async (pinId: IdLike, folderIdx: number) => {
-      // 서버 상태 최신화 (디듀프됨)
-      await reloadGroups(pinId);
+      // 1) 현재 메모리의 groups에서 수평(카드) 그룹만 추려 정렬
       const list = (groupsRef.current ?? []) as PinPhotoGroup[];
       const horiz = getHorizGroupsSorted(list);
       const existing = horiz[folderIdx];
       if (existing) return existing;
 
+      // 2) 없으면 새 그룹 생성
       const title = `사진 폴더 ${folderIdx + 1}`;
       const sortOrder = folderIdx;
       const group = await apiCreatePhotoGroup({ pinId, title, sortOrder });
+
+      // 3) 메모리 상태 업데이트
+      setGroups((prev) => {
+        const base = prev ?? [];
+        const next = [...base, group];
+        groupsRef.current = next;
+        return next;
+      });
+
       return group;
     },
-    [reloadGroups]
+    []
   );
 
-  // 카드형: 파일 추가 → (1) 로컬 프리뷰에 즉시 추가 → (2) 서버 업로드 후 교체
+  // 카드형: 파일 추가 → 로컬 프리뷰에만 즉시 추가 (서버 호출 X, 저장 시 업로드)
   const onPickFilesToFolder = useCallback(
     async (idx: number, e: ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
 
-      // 0) FileList를 배열로
       const fileArr = Array.from(files);
 
-      // 1) 로컬 프리뷰용 임시 아이템 먼저 추가 (id는 안 줌: 순수 로컬)
+      // 🔥 프리뷰용 URL 포함
       const tempItems: ImageItem[] = fileArr.map((f) => ({
         file: f,
         name: f.name,
+        url: URL.createObjectURL(f),
       }));
-
-      // 이 폴더에 몇 개 임시를 추가했는지 보관 (나중에 교체용)
-      const tempCount = tempItems.length;
 
       setImageFolders((prev) =>
         prev.map((folder, i) =>
@@ -617,66 +623,10 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         )
       );
 
-      try {
-        // 2) 폴더 인덱스에 해당하는 서버 그룹 확보(없으면 생성)
-        const group = await ensureFolderGroup(propertyId, idx);
-
-        // 3) 업로드 + /photos 등록 (서버에 저장)
-        const created = await uploadToGroup(group.id, fileArr, {
-          domain: "map",
-        });
-
-        // 4) 서버 메모리 상태(groups / photosByGroup) 갱신
-        setGroups((prev) => {
-          if (!prev) return [group];
-          const list = [...prev];
-          const i = list.findIndex((g) => String(g.id) === String(group.id));
-          if (i >= 0) {
-            list[i] = { ...list[i] };
-          } else {
-            list.push(group);
-          }
-          return list;
-        });
-
-        setPhotosByGroup((prev) => {
-          const key = String(group.id);
-          const existing = prev?.[key] ?? [];
-          return {
-            ...prev,
-            [key]: [...existing, ...(created ?? [])],
-          };
-        });
-
-        // 5) 서버에서 받은 항목들로, 방금 추가한 임시 아이템들을 교체
-        const newItems: ImageItem[] =
-          (created ?? []).map((p) => {
-            const anyP: any = p;
-            const caption = anyP.caption ?? anyP.title ?? anyP.name ?? "";
-            return {
-              id: p.id as any,
-              url: p.url,
-              name: anyP.name ?? "",
-              caption,
-            } as ImageItem;
-          }) ?? [];
-
-        setImageFolders((prev) =>
-          prev.map((folder, i) => {
-            if (i !== idx) return folder;
-
-            // 뒤에서 tempCount 개를 교체한다고 가정
-            const baseLen = Math.max(0, folder.length - tempCount);
-            const base = folder.slice(0, baseLen);
-            return [...base, ...newItems].slice(0, MAX_PER_CARD);
-          })
-        );
-      } finally {
-        // 같은 파일 다시 선택 가능하도록 초기화
-        e.target.value = "";
-      }
+      // 같은 파일 다시 선택 가능하도록 초기화
+      e.target.value = "";
     },
-    [propertyId, ensureFolderGroup, uploadToGroup]
+    []
   );
 
   // 카드형: 폴더 추가/삭제
@@ -811,11 +761,19 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   /** 변경 여부 빠르게 확인 */
   const hasImageChanges = useCallback(() => {
-    return (
+    const hasPending =
       pendingGroupMap.current.size > 0 ||
       pendingPhotoMap.current.size > 0 ||
-      pendingDeleteSet.current.size > 0
+      pendingDeleteSet.current.size > 0;
+
+    // 🔥 새로 추가된 파일이 있는지(서버 id 없고 file 이 있는 항목)
+    const hasNewFiles = imageFoldersRef.current.some((folder) =>
+      (folder ?? []).some(
+        (it: any) => !getServerPhotoId(it) && it.file instanceof File
+      )
     );
+
+    return hasPending || hasNewFiles;
   }, []);
 
   /**
@@ -824,20 +782,81 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
    */
   const commitImageChanges = useCallback(async (): Promise<boolean> => {
     const groupChanges = Array.from(pendingGroupMap.current.values());
-    const photoChanges = Array.from(pendingPhotoMap.current.values());
+    const photoChangesPending = Array.from(pendingPhotoMap.current.values());
     const deleteIds = Array.from(pendingDeleteSet.current.values());
+
+    // 0) 폴더별 신규 파일 수집 (server id 없는 + file 이 있는 것만)
+    const foldersSnapshot = imageFoldersRef.current;
+    type NewUploadPlan = {
+      folderIdx: number;
+      files: File[];
+      captions: (string | undefined)[];
+    };
+    const newUploadPlans: NewUploadPlan[] = [];
+
+    foldersSnapshot.forEach((folder, idx) => {
+      const newItems = (folder ?? []).filter(
+        (it: any) => !getServerPhotoId(it) && it.file instanceof File
+      );
+
+      if (!newItems.length) return;
+
+      newUploadPlans.push({
+        folderIdx: idx,
+        files: newItems.map((it: any) => it.file as File),
+        captions: newItems.map((it: any) =>
+          typeof it.caption === "string" ? it.caption : undefined
+        ),
+      });
+    });
 
     // 네트워크 호출 필요 없으면 바로 false
     if (
       groupChanges.length === 0 &&
-      photoChanges.length === 0 &&
-      deleteIds.length === 0
+      photoChangesPending.length === 0 &&
+      deleteIds.length === 0 &&
+      newUploadPlans.length === 0
     ) {
       return false;
     }
 
-    // 실패 시 큐 보존, 성공 시에만 clear
     try {
+      const extraPhotoPatches: {
+        id: IdLike;
+        caption?: string | null;
+      }[] = [];
+
+      // 1) 신규 파일 업로드 (그룹 생성 포함)
+      for (const plan of newUploadPlans) {
+        const { folderIdx, files, captions } = plan;
+
+        // 폴더 인덱스에 대응되는 그룹 보장
+        const group = await ensureFolderGroup(propertyId, folderIdx);
+
+        // 실제 업로드 + /photos 생성
+        const created = await uploadToGroup(group.id, files, { domain: "map" });
+
+        // 생성된 사진들에 캡션이 있으면 패치 큐에 추가
+        created.forEach((p, i) => {
+          const cap = captions[i];
+          if (!cap) return;
+          extraPhotoPatches.push({
+            id: p.id as IdLike,
+            caption: cap,
+          });
+        });
+      }
+
+      // 2) 기존 pending + 신규 생성분 캡션 패치 합치기
+      const photoChanges = [
+        ...photoChangesPending,
+        ...extraPhotoPatches.map((p) => ({
+          id: p.id,
+          caption: p.caption ?? null,
+        })),
+      ];
+
+      // 3) 그룹 변경 커밋
       if (groupChanges.length) {
         await batchPatchPhotoGroups(
           groupChanges.map((g) => ({
@@ -847,26 +866,37 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         );
       }
 
+      // 4) 사진 변경 커밋(캡션/정렬/그룹 이동 등 + 신규 사진 캡션)
       if (photoChanges.length) {
         await batchPatchPhotos(
           photoChanges.map((p) => ({
             id: p.id,
             dto: {
               caption: p.caption,
-              groupId: p.groupId ?? undefined,
-              sortOrder: p.sortOrder ?? undefined,
-              isCover: p.isCover ?? undefined,
-              name: p.name,
+              groupId:
+                (p as any).groupId !== undefined
+                  ? (p as any).groupId
+                  : undefined,
+              sortOrder:
+                (p as any).sortOrder !== undefined
+                  ? (p as any).sortOrder
+                  : undefined,
+              isCover:
+                (p as any).isCover !== undefined
+                  ? (p as any).isCover
+                  : undefined,
+              name: (p as any).name,
             },
           }))
         );
       }
 
+      // 5) 삭제 커밋
       if (deleteIds.length) {
         await apiDeletePhotos(deleteIds);
       }
 
-      // 성공 → 큐 비움
+      // 6) 성공 → 큐 비움
       pendingGroupMap.current.clear();
       pendingPhotoMap.current.clear();
       pendingDeleteSet.current.clear();
@@ -876,7 +906,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       // 실패 → 큐 유지 후 에러 전달
       throw e;
     }
-  }, []);
+  }, [ensureFolderGroup, uploadToGroup, propertyId]);
 
   // ⛳️ 과거 이름과 호환(기존 코드가 commitPending을 부를 수 있으므로)
   const commitPending = commitImageChanges;

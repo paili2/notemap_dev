@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { ImageCarouselUploadProps } from "./types";
 
@@ -36,31 +36,10 @@ export default function ImageCarouselUpload({
   const [current, setCurrent] = useState(0);
   const [imgError, setImgError] = useState(false);
 
-  // ✅ file 이 있는 경우에도 미리보기를 위해 objectURL 생성
-  const fileUrls = useMemo(
-    () =>
-      Array.isArray(items)
-        ? items.map((it: ImageItem | undefined) =>
-            it?.file ? URL.createObjectURL(it.file) : undefined
-          )
-        : [],
-    [items]
-  );
-
-  // objectURL 정리 (items / fileUrls 변경 시 이전 URL revoke)
-  useEffect(() => {
-    return () => {
-      fileUrls.forEach((u) => {
-        if (u) URL.revokeObjectURL(u);
-      });
-    };
-  }, [fileUrls]);
-
   // 로컬 캡션 폴백(사진별 캡션 모드에서만 사용)
   const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
   );
-
   useEffect(() => {
     setLocalCaptions(
       items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
@@ -106,6 +85,68 @@ export default function ImageCarouselUpload({
   const cur = count > 0 ? items[current] : null;
   const fit = objectFit ?? (layout === "wide" ? "cover" : "contain");
 
+  // ✅ 미리보기용 objectURL 캐시 (file용)
+  type UrlMap = Record<string, string>;
+  const [fileUrls, setFileUrls] = useState<UrlMap>({});
+  const fileUrlsRef = useRef<UrlMap>({});
+
+  // 각 아이템을 구분할 키 (서버 id 우선, 없으면 name+size+index)
+  const makeKey = (it: ImageItem, idx: number) => {
+    const anyIt: any = it;
+    return (
+      anyIt.id ??
+      anyIt.photoId ??
+      anyIt.serverId ??
+      anyIt.idbKey ??
+      `${anyIt.name ?? "file"}_${
+        (anyIt.file as File | undefined)?.size ?? ""
+      }_${idx}`
+    ).toString();
+  };
+
+  // items가 바뀔 때마다 file → objectURL 생성 & 이전 URL 정리
+  useEffect(() => {
+    const nextMap: UrlMap = {};
+
+    items.forEach((it, idx) => {
+      const anyIt: any = it;
+      const f: File | undefined =
+        anyIt.file instanceof File ? anyIt.file : undefined;
+      if (!f) return;
+      const key = makeKey(it, idx);
+      // 새 URL 생성
+      const url = URL.createObjectURL(f);
+      nextMap[key] = url;
+    });
+
+    // 이전 URL 정리
+    Object.entries(fileUrlsRef.current).forEach(([key, url]) => {
+      if (!nextMap[key] && url.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {}
+      }
+    });
+
+    fileUrlsRef.current = nextMap;
+    setFileUrls(nextMap);
+  }, [items]);
+
+  // 언마운트 시 전체 정리
+  useEffect(
+    () => () => {
+      Object.values(fileUrlsRef.current).forEach((url) => {
+        if (url.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {}
+        }
+      });
+      fileUrlsRef.current = {};
+    },
+    []
+  );
+
   // ✅ 인풋 값 결정: 폴더제목 모드면 folderTitle 그대로(빈 값 허용), 아니면 사진별 캡션
   const currentCaption = captionAsFolderTitle
     ? folderTitle ?? ""
@@ -144,16 +185,18 @@ export default function ImageCarouselUpload({
     onRemoveImage(current);
   };
 
-  // 안전한 src
+  // 안전한 src (file → objectURL, 없으면 dataUrl/url)
   const toSafeSrc = (raw?: string | null) => {
     const s = (raw ?? "").trim();
     return s.length > 0 ? s : undefined;
   };
 
-  // ✅ dataUrl → url → file(objectURL) 순으로 사용
-  const safeSrc = cur
-    ? toSafeSrc(cur.dataUrl ?? cur.url ?? fileUrls[current])
-    : undefined;
+  let safeSrc: string | undefined;
+  if (cur) {
+    const key = makeKey(cur, current);
+    const fromFile = fileUrls[key];
+    safeSrc = toSafeSrc(fromFile ?? cur.dataUrl ?? cur.url);
+  }
 
   const showFallback = count === 0 || !safeSrc || imgError;
 
