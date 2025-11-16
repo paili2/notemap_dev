@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { createRef, useEffect, useRef } from "react";
 import { FolderPlus } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
@@ -17,17 +18,18 @@ type RegisterRef =
   | ((idx: number, el: HTMLInputElement | null) => void);
 
 type Props = {
+  /* 가로 폴더(카드형) */
   folders: PhotoFolder[];
   onChangeFolderTitle?: (folderIdx: number, nextTitle: string) => void;
   onOpenPicker: (folderIdx: number) => void;
 
-  /** 폴더에 파일 추가: FileList만 받도록 (비동기 허용) */
+  /** 새 시그니처: (idx, FileList|null) */
   onAddToFolder?: (
     folderIdx: number,
     files: FileList | null
   ) => void | Promise<void>;
 
-  /** 레거시: input change 이벤트 자체를 전달 (비동기 허용) */
+  /** 레거시 시그니처: (idx, ChangeEvent<HTMLInputElement>) */
   onChangeFiles?: (
     folderIdx: number,
     e: React.ChangeEvent<HTMLInputElement>
@@ -45,26 +47,30 @@ type Props = {
   onChangeCaption?: (folderIdx: number, imageIdx: number, text: string) => void;
   onRemoveImage?: (folderIdx: number, imageIdx: number) => void;
 
-  /* 세로형 파일 대기열 */
+  /* 세로형 파일 대기열(= 폴더 1개) */
   fileItems: ResolvedFileItem[];
   onAddFiles: (files: FileList | null) => void;
+
+  /** 세로 폴더 제목 변경 → photo-group title 변경 */
+  onChangeVerticalFolderTitle?: (nextTitle: string) => void;
+
+  /** 필요하면 세로 이미지 개별 캡션 */
   onChangeFileItemCaption?: (index: number, text: string) => void;
   onRemoveFileItem?: (index: number) => void;
   maxFiles: number;
 
-  /* 서버 큐잉 콜백(기존 기능 유지용, 여기서는 UI에 노출 X) */
+  /** 세로 폴더의 현재 제목 */
+  verticalFolderTitle?: string;
+
+  // 아직 ImageCarouselUpload가 안 받으니까 여기선 안 씀
   onReorder?: (
     photoId: number | string | undefined,
     to: number
   ) => void | Promise<void>;
   onSetCover?: (photoId: number | string | undefined) => void | Promise<void>;
 
-  /* 즉시 서버 동기화 여부(기본은 큐잉 방식) */
   syncServer?: boolean;
 };
-
-const getPhotoId = (item: ImageItem) =>
-  (item as any).id as number | string | undefined;
 
 export default function ImagesSection({
   folders,
@@ -76,33 +82,29 @@ export default function ImagesSection({
   onAddFolder,
   onRemoveFolder,
   maxPerCard,
-  onChangeCaption,
   onRemoveImage,
   fileItems,
   onAddFiles,
-  onChangeFileItemCaption,
+  onChangeVerticalFolderTitle,
   onRemoveFileItem,
   maxFiles,
-  onReorder, // 현재 파일에서는 직접 사용하지 않음 (추후 ImageCarouselUpload props 연결 시 활용)
-  onSetCover, // 현재 파일에서는 직접 사용하지 않음
-  syncServer = false, // 기본은 큐잉 방식
+  verticalFolderTitle,
 }: Props) {
   const hasFolders = Array.isArray(folders) && folders.length > 0;
 
   useEffect(() => {
     if (!hasFolders) onAddFolder?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasFolders]);
+  }, [hasFolders, onAddFolder]);
 
   const renderFolders: PhotoFolder[] = hasFolders
     ? folders
     : [{ id: "__placeholder__", title: "", items: [] }];
 
   const handleRemove = (folderIdx: number, imageIdx: number) => {
-    // 서버 삭제는 상위 훅의 commit에서 일괄 처리(큐잉)하므로 여기선 로컬 콜백만 호출
     onRemoveImage?.(folderIdx, imageIdx);
   };
 
+  /* 가로 폴더 input refs */
   const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
   if (cardInputRefs.current.length !== renderFolders.length) {
     cardInputRefs.current = Array.from(
@@ -116,6 +118,7 @@ export default function ImagesSection({
     if (!registerInputRef) return;
     const nextNodes = cardInputRefs.current.map((r) => r.current ?? null);
     const prevNodes = prevNodesRef.current;
+
     for (let i = 0; i < nextNodes.length; i++) {
       if (prevNodes[i] !== nextNodes[i]) {
         try {
@@ -127,10 +130,11 @@ export default function ImagesSection({
         }
       }
     }
+
     prevNodesRef.current = nextNodes;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [renderFolders.length, registerInputRef]);
 
+  /* 세로 폴더 input */
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -138,10 +142,12 @@ export default function ImagesSection({
       className="relative z-0 isolate flex flex-col gap-3"
       data-images-root
     >
+      {/* 가로 폴더들 */}
       {renderFolders.map((folder, idx) => {
         const fallbackLabel = `사진 폴더 ${idx + 1}`;
+        // 인풋에 들어갈 진짜 제목: 기본 라벨(사진 폴더 N)이면 비워두기
         const titleForInput =
-          !folder.title || /^사진 폴더\s*\d+$/i.test(folder.title.trim())
+          !folder.title || /^사진\s*폴더\s*\d+$/i.test(folder.title.trim())
             ? ""
             : folder.title;
 
@@ -151,15 +157,15 @@ export default function ImagesSection({
             className="image-card rounded-xl border p-3"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
+              {/* 화면에는 항상 '사진 폴더 N'만 표시 */}
               <div className="text-sm font-medium text-slate-700">
-                {folder.title?.trim() || fallbackLabel}
+                {fallbackLabel}
               </div>
               {idx > 0 && hasFolders && (
                 <Button
                   type="button"
                   variant="outline"
                   className="h-8 px-2 text-xs"
-                  aria-label={`사진 폴더 ${idx + 1} 삭제`}
                   onClick={() => onRemoveFolder?.(idx)}
                 >
                   폴더 삭제
@@ -173,11 +179,9 @@ export default function ImagesSection({
               layout="wide"
               wideAspectClass="aspect-video"
               objectFit="cover"
-              /* 사진별 캡션 대신 폴더 제목 1개만 입력 */
               captionAsFolderTitle
               folderTitle={titleForInput}
               onChangeFolderTitle={(text) => onChangeFolderTitle?.(idx, text)}
-              /* 이미지 삭제/추가 */
               onRemoveImage={(imageIdx) => handleRemove(idx, imageIdx)}
               onOpenPicker={() => onOpenPicker(idx)}
               inputRef={cardInputRefs.current[idx]}
@@ -186,12 +190,12 @@ export default function ImagesSection({
                 if (onAddToFolder) void onAddToFolder(idx, files);
                 else if (onChangeFiles) void onChangeFiles(idx, e);
               }}
-              /* 💡 onReorder / onSetCover는 현재 ImageCarouselUpload prop이 아님 → 여기서는 넘기지 않음 */
             />
           </div>
         );
       })}
 
+      {/* 세로 폴더 */}
       <div className="image-card">
         <ImageCarouselUpload
           items={fileItems}
@@ -199,14 +203,17 @@ export default function ImagesSection({
           layout="tall"
           tallHeightClass="h-80"
           objectFit="cover"
-          onChangeCaption={(i, text) => onChangeFileItemCaption?.(i, text)}
-          onRemoveImage={(i) => onRemoveFileItem?.(i)}
+          captionAsFolderTitle
+          folderTitle={verticalFolderTitle ?? ""}
+          onChangeFolderTitle={(text) => onChangeVerticalFolderTitle?.(text)}
+          onRemoveImage={onRemoveFileItem}
           onOpenPicker={() => fileInputRef.current?.click()}
           inputRef={fileInputRef}
           onChangeFiles={(e) => onAddFiles(e.target.files)}
         />
       </div>
 
+      {/* 새 폴더 추가 버튼 */}
       <Button
         type="button"
         variant="ghost"

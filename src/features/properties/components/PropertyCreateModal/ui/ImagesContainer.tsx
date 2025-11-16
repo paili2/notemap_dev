@@ -21,8 +21,8 @@ export default function ImagesContainer({
 
     /** ref 연결 & 파일 열기/선택 */
     registerImageInput: {
-      (idx: number): (el: HTMLInputElement | null) => void; // 새 권장 방식
-      (idx: number, el: HTMLInputElement | null): void; // 과거 방식 호환
+      (idx: number): (el: HTMLInputElement | null) => void;
+      (idx: number, el: HTMLInputElement | null): void;
     };
     openImagePicker: (folderIndex: number) => void;
     onPickFilesToFolder: (
@@ -51,9 +51,7 @@ export default function ImagesContainer({
     maxFiles?: number;
   };
 }) {
-  /** 1) 카드 이미지 → ImageItem[]로 정규화 (state/prop 아님: 계산 값만)
-   *  - 원본 ImageItem 구조 유지 (file, dataUrl 등 포함)
-   */
+  /** 1) 카드 이미지 정규화 */
   const itemsByCard: ImageItem[][] = React.useMemo(
     () =>
       images.imageFolders.map((folder) =>
@@ -61,7 +59,6 @@ export default function ImagesContainer({
           const base = img as ImageItem;
           return {
             ...base,
-            // url / name이 없으면 기본값만 살짝 보정
             url:
               typeof (base as any).url === "string"
                 ? (base as any).url
@@ -74,15 +71,11 @@ export default function ImagesContainer({
     [images.imageFolders]
   );
 
-  /** 2) folders prop으로 변환
-   *  - groups가 있으면 group.id / group.title 사용
-   *  - 없으면 인덱스 기반 가짜 id와 기본 제목 사용
-   */
+  /** 2) folders prop 변환 */
   const folders: PhotoFolder[] = React.useMemo(() => {
     const gs = images.groups ?? [];
     return itemsByCard.map((items, idx) => {
       const g = gs[idx];
-      // PhotoFolder.id 는 string 이라서 항상 문자열로 변환
       const rawId = g?.id ?? `folder-${idx}`;
       const id = String(rawId);
       const title = (g?.title ?? "").trim() || `사진 폴더 ${idx + 1}`;
@@ -90,7 +83,7 @@ export default function ImagesContainer({
     });
   }, [itemsByCard, images.groups]);
 
-  /** 3) 세로 아이템 소스 선택 (fileItems 우선, 없으면 verticalImages) */
+  /** 3) 세로 아이템 소스 선택 */
   const verticalSource: ImageItem[] =
     images.fileItems ?? images.verticalImages ?? [];
 
@@ -100,6 +93,8 @@ export default function ImagesContainer({
       verticalSource.map((img) => ({
         url: (img as any)?.url ?? "",
         name: (img as any)?.name ?? "",
+        // ✅ 세로 폴더 제목 보존을 위해 caption도 유지
+        caption: (img as any)?.caption ?? "",
         idbKey: (img as any)?.idbKey,
         ...(typeof (img as any)?.id !== "undefined"
           ? { id: (img as any).id }
@@ -108,14 +103,22 @@ export default function ImagesContainer({
     [verticalSource]
   );
 
+  /** 4-1) 세로 폴더 제목: 첫번째 아이템의 caption을 폴더제목으로 사용 */
+  const verticalFolderTitle = React.useMemo(() => {
+    const first = verticalSource[0] as any;
+    if (!first) return "";
+    const cap = first?.caption;
+    return typeof cap === "string" ? cap : "";
+  }, [verticalSource]);
+
   /** 5) 제한값 디폴트 */
   const maxPerCard = images.maxPerCard ?? 20;
   const maxFiles = images.maxFiles ?? 200;
 
-  /** 6) ref 시그니처 통일 래퍼 (그대로 전달) */
+  /** 6) ref 래퍼 */
   const registerInputRef = images.registerImageInput;
 
-  /** 7) 폴더 제목 변경 콜백: index -> groupId로 매핑해서 큐에 반영 */
+  /** 7) 가로 폴더 제목 변경 → groupId로 매핑 */
   const handleChangeFolderTitle = React.useCallback(
     (folderIdx: number, nextTitle: string) => {
       const gs = images.groups ?? [];
@@ -128,32 +131,28 @@ export default function ImagesContainer({
   );
 
   return (
-    // ✅ 오버레이/파일 인풋이 섹션 경계를 넘어 확장되지 않도록 relative로 감쌈
     <div className="relative z-0" data-images-root>
       <ImagesSection
-        /** ✅ 폴더 구조 & 제목 전달 */
+        /** 가로 폴더 */
         folders={folders}
         onChangeFolderTitle={handleChangeFolderTitle}
-        /** 파일 선택창 열기 */
         onOpenPicker={images.openImagePicker}
-        /** ✅ 수정모달용: onPickFilesToFolder는 이제 "로컬에만" 추가 */
         onChangeFiles={images.onPickFilesToFolder}
-        /** ref 등록 */
         registerInputRef={registerInputRef}
-        /** 폴더 조작 */
         onAddFolder={images.addPhotoFolder}
         onRemoveFolder={images.removePhotoFolder}
-        /** 제한값 */
         maxPerCard={maxPerCard}
-        /** ⛔️ 사진 개별 캡션/편집은 사용 중단 → 안전한 no-op 전달 */
+        /** 개별 사진 캡션은 사용 안 함 */
         onChangeCaption={() => {}}
         onRemoveImage={() => {}}
-        /** 세로형(파일 대기열) */
+        /** 세로 폴더 (파일 대기열) */
         fileItems={fileItemsNormalized}
         onAddFiles={images.onAddFiles}
         onChangeFileItemCaption={images.onChangeFileItemCaption ?? (() => {})}
         onRemoveFileItem={images.handleRemoveFileItem}
         maxFiles={maxFiles}
+        /** ✅ 세로 폴더 제목 (생성모달은 로컬 상태만) */
+        verticalFolderTitle={verticalFolderTitle}
       />
     </div>
   );

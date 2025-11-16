@@ -836,7 +836,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         });
       }
 
-      // 2) 세로 신규 파일 업로드 (file 없으면 blob URL 로 File 재생성)
+      // 2) 세로 신규 파일 업로드
       if (verticalNewItems.length) {
         const vGroup = await ensureVerticalGroup(propertyId);
 
@@ -856,7 +856,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
                 type: blob.type || "image/jpeg",
               });
             } catch (e) {
-              // blob fetch 실패하면 해당 이미지는 건너뜀
               // eslint-disable-next-line no-console
               console.warn("[useEditImages] blob→File 변환 실패:", e);
             }

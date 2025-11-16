@@ -127,7 +127,7 @@ export async function patchPhotoGroupById(
   };
 
   const { data } = await api.patch<{ data?: PinPhotoGroup; message?: string }>(
-    `/pin/photo-groups/${encodeURIComponent(String(toKey(groupId)))}`,
+    `/photo-groups/${encodeURIComponent(String(toKey(groupId)))}`,
     payload,
     { withCredentials: true, ...(config ?? {}) }
   );
@@ -245,30 +245,33 @@ export async function updatePhotos(
   return assertArray<PinPhoto>(data?.data, data?.message || "사진 수정 실패");
 }
 
-/** ✅ PATCH /pin/photos/:id  (신규: 단건 사진 수정) */
+/** ✅ PATCH /photos/:id  (단건 사진 수정 — groupId 절대 전송 X) */
 export async function patchPhotoById(
   photoId: IdLike,
   dto: Partial<{
     caption: string | null;
-    groupId: IdLike | null;
     sortOrder: number | null;
     isCover: boolean | null;
     name?: string | null;
   }>,
   config?: AxiosRequestConfig
 ): Promise<PinPhoto> {
-  const payload = {
-    ...dto,
-    groupId:
-      dto.groupId === null || dto.groupId === undefined
-        ? dto.groupId ?? null
-        : toKey(dto.groupId),
-  };
+  // 🔥 dto 안에서 필요한 필드만 선택해서 payload 구성
+  const payload: any = {};
+
+  if ("caption" in dto) payload.caption = dto.caption;
+  if ("name" in dto) payload.name = dto.name;
+  if ("isCover" in dto) payload.isCover = dto.isCover;
+  if ("sortOrder" in dto) payload.sortOrder = dto.sortOrder;
+
+  // groupId는 절대 추가하지 않음!
+
   const { data } = await api.patch<{ data?: PinPhoto; message?: string }>(
-    `/pin/photos/${encodeURIComponent(String(toKey(photoId)))}`,
+    `/photos/${encodeURIComponent(String(toKey(photoId)))}`, // 🔥 /pin 제거, 올바른 엔드포인트
     payload,
     { withCredentials: true, ...(config ?? {}) }
   );
+
   if (!data?.data) throw new Error(data?.message || "사진 수정 실패");
   return data.data;
 }

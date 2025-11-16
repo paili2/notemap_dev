@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import ImagesSection, {
@@ -12,13 +13,16 @@ import type {
 } from "@/features/properties/types/media";
 import type { PinPhotoGroup } from "@/shared/api/types/pinPhotos";
 
+/** 세로 그룹 식별 프리픽스(서버 title에 항상 포함) */
+const VERT_PREFIX = "__V__";
+
 export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const {
     imageFolders,
     verticalImages,
     registerImageInput,
     openImagePicker,
-    onPickFilesToFolder, // (folderIdx, e)
+    onPickFilesToFolder,
     addPhotoFolder,
     removePhotoFolder,
     onChangeImageCaption,
@@ -27,14 +31,13 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     onChangeFileItemCaption,
     handleRemoveFileItem,
 
-    // ⬇️ 훅의 서버 상태/큐잉 API (제목/정렬/커버 연결용)
+    // ⬇️ 훅의 서버 상태/큐잉 API
     groups,
     queueGroupTitle,
     reorder,
     makeCover,
   } = images;
 
-  // objectURL 수명 관리
   const objectURLsRef = useRef<string[]>([]);
   useEffect(() => {
     return () => {
@@ -47,7 +50,51 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     };
   }, []);
 
-  /** 1) 카드 이미지: EditImagesAPI.imageFolders -> PhotoFolder[] */
+  /** 0) 가로 그룹 목록 (세로 그룹 제외) */
+  const horizGroups = useMemo<PinPhotoGroup[]>(() => {
+    const list = (groups ?? []) as PinPhotoGroup[];
+    return list
+      .filter(
+        (g) => !(typeof g.title === "string" && g.title.startsWith(VERT_PREFIX))
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          String(a.title ?? "").localeCompare(String(b.title ?? ""))
+      );
+  }, [groups]);
+
+  /** 1) 세로 그룹 (title이 "__V__" 로 시작하는 그룹 하나 가정) */
+  const verticalGroup = useMemo<PinPhotoGroup | null>(() => {
+    const list = (groups ?? []) as PinPhotoGroup[];
+    return (
+      list.find(
+        (g) => typeof g.title === "string" && g.title.startsWith(VERT_PREFIX)
+      ) ?? null
+    );
+  }, [groups]);
+
+  /** 2) UI에 표시할 세로 폴더 제목 ("__V__" 프리픽스 제거) */
+  const verticalFolderTitle = useMemo(() => {
+    if (!verticalGroup?.title) return "";
+    const raw = String(verticalGroup.title);
+    return raw.replace(/^__V__\s*/i, "");
+  }, [verticalGroup]);
+
+  /** 세로 그룹용 raw title 생성: "__V__ 사용자입력" 형태 유지 */
+  const buildVerticalRawTitle = (title: string | null | undefined): string => {
+    const safe = (title ?? "").trim();
+    if (!safe) {
+      // 비어 있으면 기본값
+      return `${VERT_PREFIX} files`;
+    }
+    // 혹시 사용자가 "__V__"를 직접 쳤다가 또 바꾸는 경우 방어
+    const withoutPrefix = safe.replace(/^__V__\s*/i, "");
+    return `${VERT_PREFIX} ${withoutPrefix}`;
+  };
+
+  /** 3) 가로 카드용 folders (서버 그룹 title 반영) */
   const folders: PhotoFolder[] = useMemo(
     () =>
       imageFolders.map((folder, idx) => {
@@ -62,16 +109,22 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
           }
           return base;
         });
+
+        const g = horizGroups[idx] as any | undefined;
+        const rawTitle =
+          typeof g?.title === "string" ? (g.title as string) : "";
+
         return {
-          id: `folder-${idx}`,
-          title: `사진 폴더 ${idx + 1}`,
+          id: g?.id != null ? String(g.id) : `folder-${idx}`,
+          // 입력칸 기본값: 서버에서 내려준 제목, 없으면 빈 문자열
+          title: rawTitle,
           items,
         };
       }),
-    [imageFolders]
+    [imageFolders, horizGroups]
   );
 
-  /** 2) 세로형(업로드 대기) 파일들: ImageItem[] -> ResolvedFileItem[] */
+  /** 4) 세로형(업로드 대기) 파일들 */
   const fileItems: ResolvedFileItem[] = useMemo(
     () =>
       verticalImages.flatMap((it) => {
@@ -99,7 +152,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     [verticalImages]
   );
 
-  /** 3) 새 시그니처 어댑터: (idx, FileList|null) -> 기존 onPickFilesToFolder 호출 */
+  /** 5) 새 시그니처 어댑터: (idx, FileList|null) -> 기존 onPickFilesToFolder 호출 */
   const addToFolder = (folderIdx: number, files: FileList | null) => {
     const evt = {
       target: { files },
@@ -107,27 +160,22 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     return onPickFilesToFolder(folderIdx, evt);
   };
 
-  /** 4) 폴더 인덱스 ↔ 서버 그룹(가로 카드 전용) 매핑 */
-  const horizGroups = useMemo<PinPhotoGroup[]>(() => {
-    const list = (groups ?? []) as PinPhotoGroup[];
-    return list
-      .filter(
-        (g) => !(typeof g.title === "string" && g.title.startsWith("__V__"))
-      )
-      .slice()
-      .sort(
-        (a, b) =>
-          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-          String(a.title ?? "").localeCompare(String(b.title ?? ""))
-      );
-  }, [groups]);
-
-  // 폴더 제목 수정 → 그룹 제목 큐잉
+  // 가로 폴더 제목 수정 → 해당 그룹 title 큐잉
   const onChangeFolderTitle = (folderIdx: number, title: string) => {
     const g = horizGroups[folderIdx];
     if (!g) return;
-    const normalized = title?.trim() || null; // 빈 문자열이면 null 처리
+    const normalized = title?.trim() || null;
     queueGroupTitle(g.id, normalized);
+  };
+
+  // 🔥 세로 폴더 제목/캡션 수정 → verticalGroup title 큐잉 + 기존 캡션 로직 유지
+  const handleChangeVerticalCaption = (index: number, text: string) => {
+    // 원래 훅에 있던 캡션 갱신
+    onChangeFileItemCaption(index, text);
+    // 폴더 제목은 index 0 기준으로만 그룹 title 패치
+    if (index !== 0 || !verticalGroup) return;
+    const rawTitle = buildVerticalRawTitle(text);
+    queueGroupTitle(verticalGroup.id, rawTitle);
   };
 
   // 정렬/커버 → 훅 큐잉
@@ -142,11 +190,11 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
 
   return (
     <ImagesSection
-      /* 폴더(가로형 카드) */
+      /* 가로 폴더 */
       folders={folders}
       onChangeFolderTitle={onChangeFolderTitle}
       onOpenPicker={openImagePicker}
-      onAddToFolder={addToFolder} // ✅ FileList만 올리는 새 시그니처
+      onAddToFolder={addToFolder}
       registerInputRef={registerImageInput}
       onAddFolder={addPhotoFolder}
       onRemoveFolder={removePhotoFolder}
@@ -155,12 +203,13 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
       onRemoveImage={handleRemoveImage}
       onReorder={onReorder}
       onSetCover={onSetCover}
-      /* 세로형(파일 대기열) */
+      /* 세로 (파일 대기열) */
       fileItems={fileItems}
       onAddFiles={onAddFiles}
-      onChangeFileItemCaption={onChangeFileItemCaption}
+      onChangeFileItemCaption={handleChangeVerticalCaption}
       onRemoveFileItem={handleRemoveFileItem}
       maxFiles={MAX_FILES}
+      verticalFolderTitle={verticalFolderTitle}
     />
   );
 }

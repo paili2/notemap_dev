@@ -48,6 +48,19 @@ function pickUnits(raw: any): any[] | undefined {
   );
 }
 
+/** ✅ 여러 후보 경로에서 photoGroups 추출 (뷰모달용 폴더제목) */
+function pickPhotoGroups(raw: any): any[] | undefined {
+  if (!raw) return undefined;
+  return (
+    raw.photoGroups ?? // 백엔드에서 이 이름으로 내려올 가능성 높음
+    raw.photo_groups ??
+    raw.imageGroups ??
+    raw.image_groups ??
+    raw.groups ?? // 혹시 공용 groups 필드를 쓰는 경우
+    undefined
+  );
+}
+
 /** unitLines(구버전) -> units(신버전) 변환 폴백 */
 function convertLinesToUnits(lines: any[] | undefined): UnitView[] {
   if (!Array.isArray(lines)) return [];
@@ -146,6 +159,23 @@ export function useViewForm({
         ? normalizedUnits
         : convertLinesToUnits((d as any)?.unitLines);
 
+    /* ✅ 카드(폴더) 제목 생성
+       - 우선순위: data.photoGroups[].title → 없으면 "사진 폴더 N"
+       - cardsHydrated 길이만큼 fallback 생성(안전용)
+    */
+    const rawGroups = pickPhotoGroups(d);
+    let cardTitles: string[] | undefined;
+
+    if (Array.isArray(rawGroups) && rawGroups.length > 0) {
+      cardTitles = rawGroups.map((g, idx) => {
+        const t = (g?.title ?? "").toString().trim();
+        return t || `사진 폴더 ${idx + 1}`;
+      });
+    } else if (Array.isArray(cardsHydrated) && cardsHydrated.length > 0) {
+      // photoGroups가 없으면 최소한 폴더 개수만큼 기본 제목이라도
+      cardTitles = cardsHydrated.map((_, idx) => `사진 폴더 ${idx + 1}`);
+    }
+
     // 디버그(필요시 콘솔에서 확인)
     if (typeof window !== "undefined") {
       console.debug("[useViewForm] units.len:", units.length, {
@@ -160,6 +190,7 @@ export function useViewForm({
         filesHydratedLen: filesHydrated?.length,
         legacyImagesHydratedLen: imagesProp?.length,
       });
+      console.debug("[useViewForm] cardTitles:", cardTitles);
     }
 
     return {
@@ -207,6 +238,9 @@ export function useViewForm({
       extraRealAreas: (d as any)?.extraRealAreas,
       baseAreaTitleView,
       extraAreaTitlesView,
+
+      // ✅ 카드(폴더) 제목
+      cardTitles,
     };
   }, [
     data,
@@ -231,6 +265,8 @@ export function useViewForm({
       cardsHydrated,
       filesHydrated,
       imagesProp,
+      /** ✅ 뷰모달용: 카드(폴더) 제목 배열 */
+      cardTitles: view.cardTitles,
 
       // 기본정보
       address: view.address,

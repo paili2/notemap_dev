@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { ChevronLeft, ChevronRight, Upload, X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
@@ -36,10 +37,19 @@ export default function ImageCarouselUpload({
   const [current, setCurrent] = useState(0);
   const [imgError, setImgError] = useState(false);
 
+  // ✅ 폴더 제목 로컬 상태 (부모에서 안 넘겨줘도 입력 가능하게)
+  const [folderTitleLocal, setFolderTitleLocal] = useState(folderTitle ?? "");
+
+  // props로 넘어오는 folderTitle이 바뀌면 로컬 상태 동기화
+  useEffect(() => {
+    setFolderTitleLocal(folderTitle ?? "");
+  }, [folderTitle]);
+
   // 로컬 캡션 폴백(사진별 캡션 모드에서만 사용)
   const [localCaptions, setLocalCaptions] = useState<string[]>(() =>
     items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
   );
+
   useEffect(() => {
     setLocalCaptions(
       items.map((it) => (typeof it?.caption === "string" ? it.caption! : ""))
@@ -114,12 +124,10 @@ export default function ImageCarouselUpload({
         anyIt.file instanceof File ? anyIt.file : undefined;
       if (!f) return;
       const key = makeKey(it, idx);
-      // 새 URL 생성
       const url = URL.createObjectURL(f);
       nextMap[key] = url;
     });
 
-    // 이전 URL 정리
     Object.entries(fileUrlsRef.current).forEach(([key, url]) => {
       if (!nextMap[key] && url.startsWith("blob:")) {
         try {
@@ -147,25 +155,31 @@ export default function ImageCarouselUpload({
     []
   );
 
-  // ✅ 인풋 값 결정: 폴더제목 모드면 folderTitle 그대로(빈 값 허용), 아니면 사진별 캡션
+  // ✅ 인풋 값 결정: 폴더제목 모드면 로컬 상태 사용
   const currentCaption = captionAsFolderTitle
-    ? folderTitle ?? ""
+    ? folderTitleLocal
     : cur?.caption ??
       (useLocalCaptionFallback ? localCaptions[current] : "") ??
       "";
 
   const handleCaptionChange = (text: string) => {
     if (captionAsFolderTitle) {
-      onChangeFolderTitle?.(text); // 폴더 제목 변경
+      // 폴더 제목 모드: 로컬 상태 업데이트 + 필요하면 부모 콜백 호출
+      setFolderTitleLocal(text);
+      onChangeFolderTitle?.(text);
       return;
     }
-    if (onChangeCaption) onChangeCaption(current, text);
-    else if (useLocalCaptionFallback)
+
+    // 사진별 캡션 모드
+    if (onChangeCaption) {
+      onChangeCaption(current, text);
+    } else if (useLocalCaptionFallback) {
       setLocalCaptions((prev) => {
         const next = [...prev];
         next[current] = text;
         return next;
       });
+    }
   };
 
   // 파일 선택 후 value 초기화(같은 파일 재선택 허용)
@@ -310,7 +324,7 @@ export default function ImageCarouselUpload({
         )}
       </div>
 
-      {/* 하단 입력: 폴더제목 모드면 folderTitle(빈 값 허용) 사용 */}
+      {/* 하단 입력: 폴더제목 모드면 folderTitleLocal 사용 */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <input
           type="text"

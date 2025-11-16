@@ -288,6 +288,74 @@ function ViewStage({
   );
   const f = useViewForm(formInput);
 
+  const photoGroups = useMemo(() => {
+    const anyData = data as any;
+    // 백에서 내려주는 그룹 배열 키 추측: 없으면 빈 배열
+    return (
+      anyData?.photoGroups ?? anyData?.groups ?? anyData?.imageGroups ?? []
+    );
+  }, [data]);
+
+  // 세로 그룹(__V__ prefix) / 가로 그룹 분리
+  const horizGroups = useMemo(
+    () =>
+      (photoGroups as any[]).filter(
+        (g) => !(typeof g?.title === "string" && g.title.startsWith("__V__"))
+      ),
+    [photoGroups]
+  );
+
+  const verticalGroup = useMemo(
+    () =>
+      (photoGroups as any[]).find(
+        (g) => typeof g?.title === "string" && g.title.startsWith("__V__")
+      ) ?? null,
+    [photoGroups]
+  );
+
+  // "__V__" 프리픽스 제거해서 세로 폴더용 타이틀로 사용
+  const verticalFolderTitle = useMemo(() => {
+    if (!verticalGroup?.title) return null;
+    const raw = String(verticalGroup.title);
+    return raw.replace(/^__V__\s*/, ""); // "__V__ " 떼기
+  }, [verticalGroup]);
+
+  // 👉 뷰모달용 가로 카드 데이터: title + images
+  const cardsForDisplay = useMemo(
+    () =>
+      Array.isArray(f.cardsHydrated)
+        ? (f.cardsHydrated as any[]).map((imgs, idx) => {
+            const g = horizGroups[idx] as any | undefined;
+            const title =
+              typeof g?.title === "string" && g.title.trim().length > 0
+                ? g.title
+                : null;
+            const sortOrder =
+              typeof g?.sortOrder === "number" ? g.sortOrder : idx;
+            const id = g?.id ?? g?.groupId ?? idx;
+            return {
+              id,
+              title,
+              images: imgs,
+              sortOrder,
+            };
+          })
+        : [],
+    [f.cardsHydrated, horizGroups]
+  );
+
+  // 👉 뷰모달용 세로 파일 데이터: title + images
+  const filesForDisplay = useMemo(() => {
+    if (!Array.isArray(f.filesHydrated) || f.filesHydrated.length === 0)
+      return [];
+    return [
+      {
+        title: verticalFolderTitle,
+        images: f.filesHydrated,
+      },
+    ];
+  }, [f.filesHydrated, verticalFolderTitle]);
+
   const ageFlags = useMemo(() => {
     // 폼 값이 우선, 없으면 서버 뷰 데이터
     const rawIsNew = (f as any)?.isNew ?? (data as any)?.isNew ?? undefined;

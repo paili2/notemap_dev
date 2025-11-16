@@ -89,6 +89,7 @@ function toImage(x: unknown): DisplayImage {
 function toCard(x: unknown): DisplayCard | null {
   const o = (x ?? {}) as any;
   if (!Array.isArray(o.images)) return null;
+
   const imgs = sortByOrderStable(o.images.map(toImage)).slice(0, MAX_PER_GROUP);
   const n = (v: unknown) =>
     typeof v === "number"
@@ -96,9 +97,11 @@ function toCard(x: unknown): DisplayCard | null {
       : Number.isFinite(v as any)
       ? Number(v)
       : undefined;
+
   return {
     id: o.id ?? o.groupId ?? undefined,
-    title: null, // 뷰에서 타이틀은 숨김
+    // ✅ 서버/훅에서 내려준 title 그대로 사용
+    title: typeof o.title === "string" ? o.title : null,
     images: imgs,
     sortOrder: n(o.sortOrder),
     ...o,
@@ -167,11 +170,13 @@ export default function DisplayImagesContainer({
   }, [images, fileUrlSet]);
 
   /** 3) 세로 파일을 그룹 형태로 변환 */
-  const filesAsGroups = useMemo<{ images: DisplayImage[] }[]>(() => {
+  const filesAsGroups = useMemo<
+    { title: string | null; images: DisplayImage[] }[]
+  >(() => {
     if (!Array.isArray(files) || files.length === 0) return [];
     const first: any = files[0];
 
-    // 이미 [{ images }] 그룹 형태
+    // 이미 [{ title, images }] 그룹 형태
     if (first && Array.isArray(first.images)) {
       return (files as any[])
         .map((g) => {
@@ -179,24 +184,35 @@ export default function DisplayImagesContainer({
             0,
             MAX_PER_GROUP
           );
-          return items.length ? { images: items } : null;
+          if (!items.length) return null;
+
+          const title =
+            typeof g.title === "string" && g.title.trim().length > 0
+              ? g.title
+              : null;
+
+          return { title, images: items };
         })
-        .filter(Boolean) as { images: DisplayImage[] }[];
+        .filter(Boolean) as { title: string | null; images: DisplayImage[] }[];
     }
 
-    // 평면 배열 → 단일 그룹
+    // 평면 배열 → 단일 그룹 (타이틀 없음)
     const flat = sortByOrderStable((files as unknown[]).map(toFile)).slice(
       0,
       MAX_PER_GROUP
     );
-    return flat.length ? [{ images: flat }] : [];
+    return flat.length ? [{ title: null, images: flat }] : [];
   }, [files]);
 
   /** 4) 섹션 입력 형태로 변환 */
   const cardsForSection = useMemo<ImagesGroup[]>(() => {
     const groups: ImagesGroup[] = safeCards
       .map((c) => ({
-        title: null,
+        // ✅ 가로 폴더 제목
+        title:
+          typeof c.title === "string" && c.title.trim().length > 0
+            ? c.title
+            : null,
         images: (c.images ?? []).slice(0, MAX_PER_GROUP) as unknown as AnyImg[],
       }))
       .filter((g) => g.images.length > 0);
@@ -214,7 +230,8 @@ export default function DisplayImagesContainer({
   const filesForSection = useMemo<ImagesGroup[]>(
     () =>
       filesAsGroups.map((g) => ({
-        title: null,
+        // ✅ 세로 그룹도 title 있으면 그대로 전달
+        title: g.title,
         images: g.images as unknown as AnyImg[],
       })),
     [filesAsGroups]
