@@ -8,7 +8,6 @@ import CaptionSlot from "./components/CaptionSlot";
 import { AnyImg, DisplayImagesSectionProps } from "./types";
 
 /* ───────── 로컬 전용 뷰 타입 ───────── */
-/** 전역 ImageItem 을 건드리지 않고, 뷰에서만 추가로 쓰는 필드들을 확장 */
 type DisplayImageItem = ImageItem & {
   caption?: string;
   name?: string;
@@ -64,12 +63,14 @@ function normList(list?: Array<AnyImg>): DisplayImageItem[] {
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
-/* ───────── 입력 정규화 (제목 무시) ───────── */
-type Group = { items: DisplayImageItem[] };
+/* ───────── 입력 정규화 (제목 유지) ───────── */
+type Group = { items: DisplayImageItem[]; title?: string | null };
 
 function normalizeCardGroups(cards?: unknown, images?: unknown): Group[] {
   const out: Group[] = [];
+
   if (Array.isArray(cards)) {
+    // [{ title, images }] 형태
     if (
       cards.length > 0 &&
       typeof cards[0] === "object" &&
@@ -77,19 +78,27 @@ function normalizeCardGroups(cards?: unknown, images?: unknown): Group[] {
     ) {
       (cards as any[]).forEach((c) => {
         const items = normList(c?.images);
-        out.push({ items });
+        const title =
+          typeof c?.title === "string" && c.title.trim().length > 0
+            ? c.title
+            : null;
+        out.push({ items, title });
       });
     } else {
+      // [[...], [...]] 형태
       (cards as any[]).forEach((arr) => {
         const items = normList(arr);
         out.push({ items });
       });
     }
   }
+
+  // cards가 없고 legacy images만 있는 경우
   if (out.length === 0 && Array.isArray(images)) {
     const legacy = normList(images as AnyImg[]);
     out.push({ items: legacy });
   }
+
   return out;
 }
 
@@ -98,20 +107,29 @@ function normalizeFileGroups(files?: unknown): Group[] {
   if (!Array.isArray(files)) return out;
 
   const first = files[0];
+
+  // [{ title, images }] 형태
   if (first && typeof first === "object" && !Array.isArray(first)) {
     (files as any[]).forEach((f) => {
       const items = normList(f?.images);
-      out.push({ items });
+      const title =
+        typeof f?.title === "string" && f.title.trim().length > 0
+          ? f.title
+          : null;
+      out.push({ items, title });
     });
   } else if (Array.isArray(first)) {
+    // [[...], [...]] 형태
     (files as any[]).forEach((arr) => {
       const items = normList(arr);
       out.push({ items });
     });
   } else {
+    // 평면 배열 하나만 온 경우
     const single = normList(files as AnyImg[]);
     out.push({ items: single });
   }
+
   return out;
 }
 
@@ -145,11 +163,20 @@ export default function DisplayImagesSection({
   }, []);
 
   const cardGroups = useMemo<Group[]>(
-    () => rawCardGroups.map((g) => ({ items: stabilizeItems(g?.items) })),
+    () =>
+      rawCardGroups.map((g) => ({
+        items: stabilizeItems(g?.items),
+        title: g?.title ?? null,
+      })),
     [rawCardGroups, stabilizeItems]
   );
+
   const fileGroups = useMemo<Group[]>(
-    () => rawFileGroups.map((g) => ({ items: stabilizeItems(g?.items) })),
+    () =>
+      rawFileGroups.map((g) => ({
+        items: stabilizeItems(g?.items),
+        title: g?.title ?? null,
+      })),
     [rawFileGroups, stabilizeItems]
   );
 
@@ -201,7 +228,6 @@ export default function DisplayImagesSection({
     }
 
     if (changed) setCardIdxs(next);
-    // deps는 길이가 항상 2개로 고정됨
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     cardGroups.length,
@@ -271,6 +297,12 @@ export default function DisplayImagesSection({
         const curCaption = cur?.caption || "";
         const curName = cur?.name?.trim();
 
+        // 제목 우선, 없으면 캡션 사용
+        const slotText =
+          (group.title && group.title.trim().length > 0
+            ? group.title
+            : curCaption) || "";
+
         return (
           <div
             key={`card-${gi}`}
@@ -303,7 +335,8 @@ export default function DisplayImagesSection({
               ) : null}
             </div>
 
-            <CaptionSlot text={curCaption} />
+            {/* 🔥 이미지 아래, 가운데 위치 (CaptionSlot) 에 제목/캡션 표시 */}
+            <CaptionSlot text={slotText} />
           </div>
         );
       })}
@@ -318,6 +351,13 @@ export default function DisplayImagesSection({
           0,
           Math.max(0, items.length - 1)
         );
+        const cur = items[curIdx];
+
+        // 세로도 그룹 제목이 있으면 우선, 없으면 이미지 캡션
+        const slotText =
+          (group.title && group.title.trim().length > 0
+            ? group.title
+            : cur?.caption) || "";
 
         return (
           <div
@@ -346,7 +386,8 @@ export default function DisplayImagesSection({
               />
             </div>
 
-            <CaptionSlot text={items[curIdx]?.caption} />
+            {/* 🔥 세로 카드도 이미지 아래 캡션 위치에 제목/캡션 */}
+            <CaptionSlot text={slotText} />
           </div>
         );
       })}
