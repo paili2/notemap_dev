@@ -492,8 +492,19 @@ export default function PropertyCreateModalBody({
   /* ── ParkingContainer 어댑터 ── */
   const parkingForm = useMemo(
     () => ({
+      // 🔹 enum id (form 안에 이미 있다고 보고 any 캐스팅)
+      parkingTypeId: (f as any).parkingTypeId ?? null,
+      setParkingTypeId: (v: number | null) => {
+        const setter = (f as any).setParkingTypeId as
+          | ((next: number | null) => void)
+          | undefined;
+        if (setter) setter(v);
+      },
+
+      // 🔹 기존 string|null 어댑터
       parkingType: f.parkingType ?? null,
       setParkingType: (v: string | null) => f.setParkingType(v ?? ""),
+
       totalParkingSlots:
         f.totalParkingSlots == null ? null : String(f.totalParkingSlots),
       setTotalParkingSlots: (v: string | null) => {
@@ -509,12 +520,17 @@ export default function PropertyCreateModalBody({
         const n = Number(s);
         f.setTotalParkingSlots(Number.isFinite(n) ? n : null);
       },
+
+      // (옵션) 나중에 name → id 매핑 내려주고 싶으면 여기서 추가
+      // parkingTypeNameToId: { 병렬: 1, 직렬: 2, ... },
     }),
     [
       f.parkingType,
       f.totalParkingSlots,
       f.setParkingType,
       f.setTotalParkingSlots,
+      (f as any).parkingTypeId,
+      (f as any).setParkingTypeId,
     ]
   );
 

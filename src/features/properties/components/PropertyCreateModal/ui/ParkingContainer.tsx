@@ -8,11 +8,16 @@ type ParkingFormSliceFromBody = {
   parkingTypeId: number | null;
   setParkingTypeId: (v: number | null) => void;
 
+  /** UI에 보이는 주차 유형 라벨 */
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
 
-  totalParkingSlots: string | null; // 문자열 기반
+  /** 총 주차대수 — Body에서는 문자열로 관리 */
+  totalParkingSlots: string | null;
   setTotalParkingSlots: (v: string | null) => void;
+
+  /** (옵션) name -> id 매핑 */
+  parkingTypeNameToId?: Record<string, number>;
 };
 
 type Props = {
@@ -27,6 +32,7 @@ export default function ParkingContainer({ form }: Props) {
     setParkingType,
     totalParkingSlots,
     setTotalParkingSlots,
+    parkingTypeNameToId,
   } = form;
 
   // Body(문자열) ↔ Section(숫자) 변환 어댑터
@@ -35,6 +41,7 @@ export default function ParkingContainer({ form }: Props) {
     const n = Number(String(s).replace(/[^\d]/g, ""));
     return Number.isFinite(n) ? n : null;
   };
+
   const toStr = (n: number | null): string | null =>
     n == null ? null : String(n);
 
@@ -49,6 +56,8 @@ export default function ParkingContainer({ form }: Props) {
       /** 서버 enum id 동기화 */
       parkingTypeId={parkingTypeId}
       setParkingTypeId={setParkingTypeId}
+      /** (옵션) name -> id 매핑 (나중에 필요하면 사용) */
+      parkingTypeNameToId={parkingTypeNameToId}
     />
   );
 }
