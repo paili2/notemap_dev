@@ -1548,6 +1548,12 @@ export default function PropertyEditModalBody({
 
   const isSaveEnabled = f.isSaveEnabled;
 
+  /** 저장 가능 여부: 폼 변경 or 이미지 변경 */
+  const canSaveNow = useMemo(
+    () => isSaveEnabled || hasImageChanges?.(),
+    [isSaveEnabled, hasImageChanges]
+  );
+
   /** 저장 */
   const save = useCallback(async () => {
     console.groupCollapsed("[save] start");
@@ -1701,11 +1707,9 @@ export default function PropertyEditModalBody({
       return;
     }
 
-    // 1) 사진 커밋
+    // 1) 사진 커밋 (가로/세로 모두 포함, 변경 여부는 훅 내부에서 판단)
     try {
-      if (hasImageChanges?.()) {
-        await (commitImageChanges?.() ?? commitPending?.());
-      }
+      await (commitImageChanges?.() ?? commitPending?.());
     } catch (e: any) {
       console.error("[images.commit] 실패:", e);
       console.groupEnd();
@@ -1823,7 +1827,6 @@ export default function PropertyEditModalBody({
     onClose,
     imageFolders,
     verticalImages,
-    hasImageChanges,
     commitImageChanges,
     commitPending,
     buildingGrade,
@@ -1854,11 +1857,7 @@ export default function PropertyEditModalBody({
           </div>
         </div>
 
-        <FooterButtons
-          onClose={onClose}
-          onSave={save}
-          canSave={isSaveEnabled}
-        />
+        <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
       </div>
     );
   }
@@ -1896,11 +1895,7 @@ export default function PropertyEditModalBody({
           </div>
         </div>
 
-        <FooterButtons
-          onClose={onClose}
-          onSave={save}
-          canSave={isSaveEnabled}
-        />
+        <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
       </div>
     </div>
   );
