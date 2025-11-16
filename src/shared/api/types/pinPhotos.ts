@@ -6,6 +6,8 @@ export type PinPhotoGroup = {
   pinId: IdLike;
   title?: string | null; // 서버에서 null/빈문자 허용 가능성 고려
   sortOrder?: number | null;
+  /** 세로(파일) 폴더 여부: true면 파일폴더, 그 외는 가로 폴더 */
+  isDocument?: boolean | null;
   // createdAt/updatedAt 필요하면 여기에 선택적으로 추가
 };
 
@@ -23,12 +25,18 @@ export type CreatePinPhotoGroupDto = {
   pinId: IdLike;
   title?: string; // 서버에서 MinLength(1)일 수 있으니 프론트에서 기본값 보정
   sortOrder?: number | null;
+
+  /** true면 세로(파일) 폴더로 생성 */
+  isDocument?: boolean;
 };
 
 /** PATCH /photo-groups/:groupId */
 export type UpdatePinPhotoGroupDto = {
   title?: string | null;
   sortOrder?: number | null;
+
+  /** 세로(파일) 폴더 승격/해제 */
+  isDocument?: boolean | null;
 };
 
 /** POST /photos/:groupId */

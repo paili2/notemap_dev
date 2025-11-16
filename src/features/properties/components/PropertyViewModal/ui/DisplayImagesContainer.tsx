@@ -47,6 +47,14 @@ type Props = {
 /* ---------- 유틸 ---------- */
 const MAX_PER_GROUP = 20;
 
+/** 레거시 "__V__" 프리픽스 제거(대소문자 무시) */
+const stripLegacyVertPrefix = (t: unknown): string | null => {
+  if (typeof t !== "string") return null;
+  const raw = t.trim();
+  const cleaned = raw.replace(/^__V__\s*/i, "").trim();
+  return cleaned || null;
+};
+
 function sortByOrderStable<T extends { sortOrder?: number }>(arr: T[]): T[] {
   let hasOrder = false;
   for (const a of arr) {
@@ -98,10 +106,11 @@ function toCard(x: unknown): DisplayCard | null {
       ? Number(v)
       : undefined;
 
+  const title = stripLegacyVertPrefix(o.title);
+
   return {
     id: o.id ?? o.groupId ?? undefined,
-    // ✅ 서버/훅에서 내려준 title 그대로 사용
-    title: typeof o.title === "string" ? o.title : null,
+    title,
     images: imgs,
     sortOrder: n(o.sortOrder),
     ...o,
@@ -186,10 +195,7 @@ export default function DisplayImagesContainer({
           );
           if (!items.length) return null;
 
-          const title =
-            typeof g.title === "string" && g.title.trim().length > 0
-              ? g.title
-              : null;
+          const title = stripLegacyVertPrefix(g.title);
 
           return { title, images: items };
         })
@@ -230,7 +236,7 @@ export default function DisplayImagesContainer({
   const filesForSection = useMemo<ImagesGroup[]>(
     () =>
       filesAsGroups.map((g) => ({
-        // ✅ 세로 그룹도 title 있으면 그대로 전달
+        // ✅ 세로 그룹도 title 있으면 그대로 전달(이미 __V__ 제거됨)
         title: g.title,
         images: g.images as unknown as AnyImg[],
       })),

@@ -61,11 +61,19 @@ export async function createPhotoGroup(
       : "사진그룹";
   const title = (dto.title ?? "").toString().trim() || fallbackTitle;
 
-  const payload: { pinId: IdLike; title: string; sortOrder?: number } = {
+  const payload: {
+    pinId: IdLike;
+    title: string;
+    sortOrder?: number;
+    isDocument?: boolean;
+  } = {
     pinId,
     title,
     ...(dto.sortOrder === 0 || Number.isFinite(Number(dto.sortOrder))
       ? { sortOrder: Number(dto.sortOrder) }
+      : {}),
+    ...(typeof dto.isDocument === "boolean"
+      ? { isDocument: dto.isDocument }
       : {}),
   };
 
@@ -124,6 +132,8 @@ export async function patchPhotoGroupById(
       : dto.sortOrder === 0 || Number.isFinite(Number(dto.sortOrder))
       ? { sortOrder: Number(dto.sortOrder) }
       : {}),
+    // isDocument는 null/boolean 그대로 패스
+    ...("isDocument" in dto ? { isDocument: dto.isDocument ?? null } : {}),
   };
 
   const { data } = await api.patch<{ data?: PinPhotoGroup; message?: string }>(
@@ -148,6 +158,7 @@ export async function updatePhotoGroup(
       : dto.sortOrder === 0 || Number.isFinite(Number(dto.sortOrder))
       ? { sortOrder: Number(dto.sortOrder) }
       : {}),
+    ...("isDocument" in dto ? { isDocument: dto.isDocument ?? null } : {}),
   };
 
   const { data } = await api.patch<{ data?: PinPhotoGroup; message?: string }>(

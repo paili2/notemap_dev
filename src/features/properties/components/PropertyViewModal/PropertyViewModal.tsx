@@ -296,11 +296,11 @@ function ViewStage({
     );
   }, [data]);
 
-  // 세로 그룹(__V__ prefix) / 가로 그룹 분리
+  // ✅ 세로/가로 구분: isDocument 기준
   const horizGroups = useMemo(
     () =>
       (photoGroups as any[]).filter(
-        (g) => !(typeof g?.title === "string" && g.title.startsWith("__V__"))
+        (g) => !g || g.isDocument !== true // isDocument !== true → 가로 폴더
       ),
     [photoGroups]
   );
@@ -308,16 +308,15 @@ function ViewStage({
   const verticalGroup = useMemo(
     () =>
       (photoGroups as any[]).find(
-        (g) => typeof g?.title === "string" && g.title.startsWith("__V__")
+        (g) => g && g.isDocument === true // isDocument === true → 세로(파일) 폴더
       ) ?? null,
     [photoGroups]
   );
 
-  // "__V__" 프리픽스 제거해서 세로 폴더용 타이틀로 사용
+  // 세로 폴더 타이틀: title 그대로 사용
   const verticalFolderTitle = useMemo(() => {
     if (!verticalGroup?.title) return null;
-    const raw = String(verticalGroup.title);
-    return raw.replace(/^__V__\s*/, ""); // "__V__ " 떼기
+    return String(verticalGroup.title);
   }, [verticalGroup]);
 
   // 👉 뷰모달용 가로 카드 데이터: title + images
@@ -344,7 +343,7 @@ function ViewStage({
     [f.cardsHydrated, horizGroups]
   );
 
-  // 👉 뷰모달용 세로 파일 데이터: title + images
+  // 👉 뷰모달용 세로 파일 데이터: title + images (현재는 DisplayImagesContainer에 title 안 넘기지만, 필요하면 확장용)
   const filesForDisplay = useMemo(() => {
     if (!Array.isArray(f.filesHydrated) || f.filesHydrated.length === 0)
       return [];

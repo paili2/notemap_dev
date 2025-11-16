@@ -24,6 +24,7 @@ export async function persistCardToServer(args: {
     pinId,
     title: title ?? undefined,
     sortOrder: groupSortOrder,
+    // isDocument: false, // 굳이 안 보내도 기본값 false라고 보면 됨
   });
 
   const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });
@@ -38,7 +39,7 @@ export async function persistCardToServer(args: {
   return group;
 }
 
-/** ✅ 세로(파일) 그룹 저장: 제목 prefix로 세로 그룹임을 표시 */
+/** ✅ 세로(파일) 그룹 저장: isDocument 플래그로 세로 그룹 표시 */
 export async function persistVerticalGroupToServer(args: {
   pinId: number | string;
   title?: string | null;
@@ -47,13 +48,11 @@ export async function persistVerticalGroupToServer(args: {
 }) {
   const { pinId, title, files, groupSortOrder = 0 } = args;
 
-  // 세로 그룹임을 식별할 마커
-  const VERT_PREFIX = "__V__";
-
   const group = await createPhotoGroup({
     pinId,
-    title: `${VERT_PREFIX}${title ?? ""}`,
+    title: title ?? undefined,
     sortOrder: groupSortOrder,
+    isDocument: true, // 🔥 이 값으로 세로(파일) 그룹임을 표시
   });
 
   const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });

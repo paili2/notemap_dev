@@ -29,9 +29,6 @@ import type {
   PinPhotoGroup,
 } from "@/shared/api/types/pinPhotos";
 
-/* 세로 그룹 식별 프리픽스 */
-const VERT_PREFIX = "__V__";
-
 /* 파일 시그니처 */
 const filesSignature = (files: File[] | FileList) =>
   Array.from(files as File[])
@@ -385,8 +382,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
         hasServerHydratedRef.current = true;
 
-        const isVerticalGroup = (g: any) =>
-          typeof g?.title === "string" && g.title.startsWith(VERT_PREFIX);
+        // ✅ isDocument 기반으로 세로/가로 그룹 구분
+        const isVerticalGroup = (g: PinPhotoGroup) => g.isDocument === true;
 
         const horizGroups = (list ?? []).filter((g) => !isVerticalGroup(g));
         const vertGroups = (list ?? []).filter(isVerticalGroup);
@@ -525,6 +522,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           pinId,
           title,
           sortOrder: sortOrder ?? null,
+          // 여기서는 일반 가로 폴더 생성 용도만 사용 (세로는 ensureVerticalGroup에서 따로 생성)
         });
         const photos = files ? await uploadToGroup(group.id, files) : [];
         return { group, photos };
@@ -541,11 +539,11 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   );
 
   /* 폴더/세로 그룹 보장 헬퍼 */
+
+  // ✅ 가로 그룹: isDocument !== true 인 그룹만
   const getHorizGroupsSorted = (list: PinPhotoGroup[]) =>
     list
-      .filter(
-        (g) => !(typeof g.title === "string" && g.title.startsWith(VERT_PREFIX))
-      )
+      .filter((g) => g.isDocument !== true)
       .slice()
       .sort(
         (a, b) =>
@@ -553,16 +551,31 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           String(a.title ?? "").localeCompare(String(b.title ?? ""))
       );
 
+  // 🔥 가로 그룹: 첫 캡션 등에서 넘어온 preferredTitle 을 우선 사용
   const ensureFolderGroup = useCallback(
-    async (pinId: IdLike, folderIdx: number) => {
+    async (
+      pinId: IdLike,
+      folderIdx: number,
+      preferredTitle?: string | null
+    ) => {
       const list = (groupsRef.current ?? []) as PinPhotoGroup[];
       const horiz = getHorizGroupsSorted(list);
       const existing = horiz[folderIdx];
       if (existing) return existing;
 
-      const title = `사진 폴더 ${folderIdx + 1}`;
+      const fallback = `사진 폴더 ${folderIdx + 1}`;
+      const title =
+        (preferredTitle ?? "").toString().trim().length > 0
+          ? (preferredTitle as string)
+          : fallback;
+
       const sortOrder = folderIdx;
-      const group = await apiCreatePhotoGroup({ pinId, title, sortOrder });
+      const group = await apiCreatePhotoGroup({
+        pinId,
+        title,
+        sortOrder,
+        // 가로 폴더 → isDocument 기본 false (생략)
+      });
 
       setGroups((prev) => {
         const base = prev ?? [];
@@ -576,28 +589,37 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
-  const ensureVerticalGroup = useCallback(async (pinId: IdLike) => {
-    const list = (groupsRef.current ?? []) as PinPhotoGroup[];
-    const vertical = list.find(
-      (g) => typeof g.title === "string" && g.title.startsWith(VERT_PREFIX)
-    );
-    if (vertical) return vertical;
+  // ✅ 세로 파일폴더: isDocument === true 인 그룹 하나 보장
+  const ensureVerticalGroup = useCallback(
+    async (pinId: IdLike, preferredTitle?: string | null) => {
+      const list = (groupsRef.current ?? []) as PinPhotoGroup[];
+      const vertical = list.find((g) => g.isDocument === true);
+      if (vertical) return vertical;
 
-    const group = await apiCreatePhotoGroup({
-      pinId,
-      title: `${VERT_PREFIX}files`,
-      sortOrder: 9999,
-    });
+      const fallback = "파일 폴더";
+      const title =
+        (preferredTitle ?? "").toString().trim().length > 0
+          ? (preferredTitle as string)
+          : fallback;
 
-    setGroups((prev) => {
-      const base = prev ?? [];
-      const next = [...base, group];
-      groupsRef.current = next;
-      return next;
-    });
+      const group = await apiCreatePhotoGroup({
+        pinId,
+        title, // 화면에서 쓸 기본 이름
+        sortOrder: 9999,
+        isDocument: true, // 🔥 세로(파일) 폴더로 생성
+      });
 
-    return group;
-  }, []);
+      setGroups((prev) => {
+        const base = prev ?? [];
+        const next = [...base, group];
+        groupsRef.current = next;
+        return next;
+      });
+
+      return group;
+    },
+    []
+  );
 
   /* 카드형 파일 추가/삭제 */
   const onPickFilesToFolder = useCallback(
@@ -823,7 +845,16 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       for (const plan of newUploadPlans) {
         const { folderIdx, files, captions } = plan;
 
-        const group = await ensureFolderGroup(propertyId, folderIdx);
+        // 🔥 첫 번째 non-empty 캡션을 그룹 제목 후보로 사용
+        const firstCaption =
+          captions.find((c) => typeof c === "string" && c.trim().length > 0) ??
+          null;
+
+        const group = await ensureFolderGroup(
+          propertyId,
+          folderIdx,
+          firstCaption
+        );
         const created = await uploadToGroup(group.id, files, { domain: "map" });
 
         created.forEach((p, i) => {
@@ -838,8 +869,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
       // 2) 세로 신규 파일 업로드
       if (verticalNewItems.length) {
-        const vGroup = await ensureVerticalGroup(propertyId);
-
         const files: File[] = [];
         const captions: (string | undefined)[] = [];
 
@@ -871,6 +900,14 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         }
 
         if (files.length) {
+          // 🔥 세로 그룹 제목 후보: 첫 번째 non-empty 캡션
+          const firstCaption =
+            captions.find(
+              (c) => typeof c === "string" && c.trim().length > 0
+            ) ?? null;
+
+          const vGroup = await ensureVerticalGroup(propertyId, firstCaption);
+
           const created = await uploadToGroup(vGroup.id, files, {
             domain: "map",
           });
@@ -895,7 +932,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         })),
       ];
 
-      // 4) 그룹 변경 커밋
+      // 4) 그룹 변경 커밋 (isDocument는 여기서 건드리지 않음)
       if (groupChanges.length) {
         await batchPatchPhotoGroups(
           groupChanges.map((g) => ({

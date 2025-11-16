@@ -13,9 +13,6 @@ import type {
 } from "@/features/properties/types/media";
 import type { PinPhotoGroup } from "@/shared/api/types/pinPhotos";
 
-/** 세로 그룹 식별 프리픽스(서버 title에 항상 포함) */
-const VERT_PREFIX = "__V__";
-
 export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const {
     imageFolders,
@@ -54,9 +51,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const horizGroups = useMemo<PinPhotoGroup[]>(() => {
     const list = (groups ?? []) as PinPhotoGroup[];
     return list
-      .filter(
-        (g) => !(typeof g.title === "string" && g.title.startsWith(VERT_PREFIX))
-      )
+      .filter((g) => g.isDocument !== true) // ✅ isDocument 아닌 것만 가로 폴더
       .slice()
       .sort(
         (a, b) =>
@@ -65,34 +60,17 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
       );
   }, [groups]);
 
-  /** 1) 세로 그룹 (title이 "__V__" 로 시작하는 그룹 하나 가정) */
+  /** 1) 세로 그룹 (isDocument === true 인 그룹 하나 가정) */
   const verticalGroup = useMemo<PinPhotoGroup | null>(() => {
     const list = (groups ?? []) as PinPhotoGroup[];
-    return (
-      list.find(
-        (g) => typeof g.title === "string" && g.title.startsWith(VERT_PREFIX)
-      ) ?? null
-    );
+    return list.find((g) => g.isDocument === true) ?? null;
   }, [groups]);
 
-  /** 2) UI에 표시할 세로 폴더 제목 ("__V__" 프리픽스 제거) */
+  /** 2) UI에 표시할 세로 폴더 제목 (title 그대로) */
   const verticalFolderTitle = useMemo(() => {
     if (!verticalGroup?.title) return "";
-    const raw = String(verticalGroup.title);
-    return raw.replace(/^__V__\s*/i, "");
+    return String(verticalGroup.title);
   }, [verticalGroup]);
-
-  /** 세로 그룹용 raw title 생성: "__V__ 사용자입력" 형태 유지 */
-  const buildVerticalRawTitle = (title: string | null | undefined): string => {
-    const safe = (title ?? "").trim();
-    if (!safe) {
-      // 비어 있으면 기본값
-      return `${VERT_PREFIX} files`;
-    }
-    // 혹시 사용자가 "__V__"를 직접 쳤다가 또 바꾸는 경우 방어
-    const withoutPrefix = safe.replace(/^__V__\s*/i, "");
-    return `${VERT_PREFIX} ${withoutPrefix}`;
-  };
 
   /** 3) 가로 카드용 folders (서버 그룹 title 반영) */
   const folders: PhotoFolder[] = useMemo(
@@ -168,14 +146,16 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     queueGroupTitle(g.id, normalized);
   };
 
-  // 🔥 세로 폴더 제목/캡션 수정 → verticalGroup title 큐잉 + 기존 캡션 로직 유지
+  // 🔥 세로 폴더 제목 수정 → verticalGroup title 큐잉
+  const onChangeVerticalFolderTitle = (title: string) => {
+    if (!verticalGroup) return;
+    const normalized = title.trim() || null;
+    queueGroupTitle(verticalGroup.id, normalized);
+  };
+
+  // 세로 파일 개별 캡션은 그대로 훅으로 위임 (폴더 제목이랑 분리!)
   const handleChangeVerticalCaption = (index: number, text: string) => {
-    // 원래 훅에 있던 캡션 갱신
     onChangeFileItemCaption(index, text);
-    // 폴더 제목은 index 0 기준으로만 그룹 title 패치
-    if (index !== 0 || !verticalGroup) return;
-    const rawTitle = buildVerticalRawTitle(text);
-    queueGroupTitle(verticalGroup.id, rawTitle);
   };
 
   // 정렬/커버 → 훅 큐잉
@@ -210,6 +190,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
       onRemoveFileItem={handleRemoveFileItem}
       maxFiles={MAX_FILES}
       verticalFolderTitle={verticalFolderTitle}
+      onChangeVerticalFolderTitle={onChangeVerticalFolderTitle}
     />
   );
 }
