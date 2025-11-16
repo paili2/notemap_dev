@@ -55,7 +55,6 @@ function normalizeStarStr(v: unknown): StarStr {
 }
 
 /** UI에서 허용하는 등기/건물타입 (라디오 버튼 라벨 기준) */
-
 const BUILDING_TYPES: BuildingType[] = ["주택", "APT", "OP", "도생", "근생"];
 
 /** 서버/폼 값 → 우리가 쓰는 라벨 그대로만 허용 (추가 매핑 없음) */
@@ -674,7 +673,7 @@ function toPinPatch(
     (patch as any).parkingGrade = pgNowNorm;
   }
 
-  // 2) parkingTypeId: number | null (diff 기반)
+  // 2) parkingTypeId: number | null (diff 기반, 숫자로 변환)
   const initParkingTypeIdRaw = (initial as any)?.parkingTypeId;
   const initParkingTypeId =
     initParkingTypeIdRaw == null || initParkingTypeIdRaw === ""
@@ -960,6 +959,11 @@ function toPinPatch(
       hasAreaGroupsDelta,
     });
 
+    console.log("[toPinPatch] patch.areaGroups 존재?", {
+      hasKey: Object.prototype.hasOwnProperty.call(patch, "areaGroups"),
+      value: (patch as any).areaGroups,
+    });
+
     if (userEditedAreaSets && hasAreaGroupsDelta) {
       (patch as any).areaGroups = nowGroupsRaw.length ? nowGroupsRaw : [];
       console.log(
@@ -978,11 +982,6 @@ function toPinPatch(
 
     console.groupEnd();
   }
-
-  console.log("[toPinPatch] patch.areaGroups 존재?", {
-    hasKey: Object.prototype.hasOwnProperty.call(patch, "areaGroups"),
-    value: (patch as any).areaGroups,
-  });
 
   // ── 향/방향: 변경시에만 directions 전송 ─────────────────────
   {
@@ -1123,10 +1122,15 @@ const stripNoopNulls = (dto: any, initial: any) => {
       delete dto[k];
       continue;
     }
+
+    // 🔴 여기에서 parkingTypeId 도 같이 지워져버릴 수 있었음
     if (v === null && norm(initial?.[k]) === undefined) {
+      // ✅ parkingTypeId 는 null 이라도 "의도적인 삭제"일 수 있으니 지우지 않는다
+      if (k === "parkingTypeId") continue;
       delete dto[k];
       continue;
     }
+
     // ✅ directions / units 는 빈 배열이라도 보존
     if (Array.isArray(v) && v.length === 0) {
       if (k === "directions" || k === "units") continue;
@@ -1664,6 +1668,21 @@ export default function PropertyEditModalBody({
         (dto as any).areaGroups
       );
 
+      // ✅ 주차 유형: 폼 기준으로 항상 dto에 실어 보냄 (diff / prune 실패 방지)
+      {
+        const rawPt = (f as any).parkingTypeId;
+        const numPt =
+          rawPt == null || rawPt === ""
+            ? null
+            : Number(String(rawPt).replace(/[^\d.-]/g, ""));
+        (dto as any).parkingTypeId =
+          numPt === null || Number.isNaN(numPt) ? null : numPt;
+        console.log("[save] forced dto.parkingTypeId from form:", {
+          raw: rawPt,
+          num: (dto as any).parkingTypeId,
+        });
+      }
+
       if (
         (dto as any)?.areaGroups &&
         Array.isArray((dto as any).areaGroups) &&
@@ -1752,62 +1771,67 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
-    const payload = buildUpdatePayload({
-      title: f.title,
-      address: f.address,
-      officeName: f.officeName,
-      officePhone: f.officePhone,
-      officePhone2: f.officePhone2,
-      moveIn: f.moveIn,
-      floor: f.floor,
-      roomNo: f.roomNo,
-      structure: f.structure,
+    const payload = buildUpdatePayload(
+      {
+        title: f.title,
+        address: f.address,
+        officeName: f.officeName,
+        officePhone: f.officePhone,
+        officePhone2: f.officePhone2,
+        moveIn: f.moveIn,
+        floor: f.floor,
+        roomNo: f.roomNo,
+        structure: f.structure,
 
-      parkingGrade: f.parkingGrade,
-      parkingTypeId: f.parkingTypeId,
-      parkingType: f.parkingType,
-      totalParkingSlots: f.totalParkingSlots,
-      completionDate: f.completionDate,
-      salePrice: f.salePrice,
+        parkingGrade: f.parkingGrade,
+        parkingTypeId: f.parkingTypeId,
+        parkingType: f.parkingType,
+        totalParkingSlots: f.totalParkingSlots,
+        completionDate: f.completionDate,
+        salePrice: f.salePrice,
 
-      baseAreaSet: f.baseAreaSet,
-      extraAreaSets: f.extraAreaSets,
-      exclusiveArea,
-      realArea,
-      extraExclusiveAreas,
-      extraRealAreas,
-      baseAreaTitleOut,
-      extraAreaTitlesOut,
+        baseAreaSet: f.baseAreaSet,
+        extraAreaSets: f.extraAreaSets,
+        exclusiveArea,
+        realArea,
+        extraExclusiveAreas,
+        extraRealAreas,
+        baseAreaTitleOut,
+        extraAreaTitlesOut,
 
-      elevator: f.elevator,
-      slopeGrade: f.slopeGrade,
-      structureGrade: f.structureGrade,
+        elevator: f.elevator,
+        slopeGrade: f.slopeGrade,
+        structureGrade: f.structureGrade,
 
-      totalBuildings: f.totalBuildings,
-      totalFloors: f.totalFloors,
-      totalHouseholds: f.totalHouseholds,
-      remainingHouseholds: f.remainingHouseholds,
+        totalBuildings: f.totalBuildings,
+        totalFloors: f.totalFloors,
+        totalHouseholds: f.totalHouseholds,
+        remainingHouseholds: f.remainingHouseholds,
 
-      options: f.options,
-      etcChecked: f.etcChecked,
-      optionEtc: f.optionEtc,
-      publicMemo: f.publicMemo,
-      secretMemo: f.secretMemo,
+        options: f.options,
+        etcChecked: f.etcChecked,
+        optionEtc: f.optionEtc,
+        publicMemo: f.publicMemo,
+        secretMemo: f.secretMemo,
 
-      orientations, // 로컬 뷰용
-      aspect: aspect ?? "",
-      aspectNo: Number(aspectNo ?? 0),
-      aspect1,
-      aspect2,
-      aspect3,
-      unitLines: f.unitLines,
+        orientations, // 로컬 뷰용
+        aspect: aspect ?? "",
+        aspectNo: Number(aspectNo ?? 0),
+        aspect1,
+        aspect2,
+        aspect3,
+        unitLines: f.unitLines,
 
-      imageFolders,
-      verticalImages,
+        imageFolders,
+        verticalImages,
 
-      pinKind: f.pinKind,
-      buildingGrade, // "new" | "old"
-    });
+        pinKind: f.pinKind,
+        buildingGrade, // "new" | "old"
+        buildingType: f.buildingType as BuildingType | null,
+      },
+      // initial은 여기선 안 넣어서 "뷰용 payload"는 diff 안 쓰고 그대로 씀
+      undefined
+    );
 
     console.log("[save] onSubmit payload (view sync):", {
       buildingGrade,

@@ -210,6 +210,7 @@ export type CreatePinDto = {
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
 
+  /** 프론트 전용 라벨 (서버에는 보내지 않음) */
   parkingType?: string | null;
 
   /** ✅ 서버 전달 시 "1"~"5" 문자열 또는 null 권장 (입력은 number|string|null 수용) */
@@ -722,7 +723,7 @@ export async function updatePin(
   let directionsPayload: CreatePinDirectionDto[] | undefined;
   if (has("directions")) {
     if (DEV) {
-      console.groupCollapsed("[updatePin] directions(raw in dto)");
+      console.groupCollapsed("[updatePin] directions(raw in dto)]");
       console.log("dto.directions =", dto.directions);
       console.groupEnd();
     }
@@ -730,7 +731,7 @@ export async function updatePin(
     else if (Array.isArray(dto.directions))
       directionsPayload = sanitizeDirections(dto.directions) ?? [];
     if (DEV) {
-      console.groupCollapsed("[updatePin] directions(after sanitize)");
+      console.groupCollapsed("[updatePin] directions(after sanitize)]");
       console.log("directionsPayload =", directionsPayload);
       console.groupEnd();
     }
@@ -740,7 +741,7 @@ export async function updatePin(
   let areaGroupsPayload: CreatePinAreaGroupDto[] | undefined;
   if (has("areaGroups")) {
     if (DEV) {
-      console.groupCollapsed("[updatePin] areaGroups(raw in dto)");
+      console.groupCollapsed("[updatePin] areaGroups(raw in dto)]");
       console.log("dto.areaGroups =", dto.areaGroups);
       console.groupEnd();
     }
@@ -750,7 +751,7 @@ export async function updatePin(
       areaGroupsPayload = []; // null 등 → 전체 삭제
     }
     if (DEV) {
-      console.groupCollapsed("[updatePin] areaGroups(after sanitize)");
+      console.groupCollapsed("[updatePin] areaGroups(after sanitize)]");
       console.log("areaGroupsPayload =", areaGroupsPayload);
       console.groupEnd();
     }
@@ -760,14 +761,14 @@ export async function updatePin(
   let unitsPayload: UnitsItemDto[] | undefined;
   if (has("units")) {
     if (DEV) {
-      console.groupCollapsed("[updatePin] units(raw in dto)");
+      console.groupCollapsed("[updatePin] units(raw in dto)]");
       console.log("dto.units =", dto.units);
       console.groupEnd();
     }
     unitsPayload =
       dto.units === null ? [] : sanitizeUnits(dto.units ?? []) ?? [];
     if (DEV) {
-      console.groupCollapsed("[updatePin] units(after sanitize)");
+      console.groupCollapsed("[updatePin] units(after sanitize)]");
       console.log("unitsPayload =", unitsPayload);
       console.groupEnd();
     }
@@ -777,14 +778,14 @@ export async function updatePin(
   let optionsPayload: CreatePinOptionsDto | null | undefined;
   if (has("options")) {
     if (DEV) {
-      console.groupCollapsed("[updatePin] options(raw in dto)");
+      console.groupCollapsed("[updatePin] options(raw in dto)]");
       console.log("dto.options =", dto.options);
       console.groupEnd();
     }
     optionsPayload =
       dto.options === null ? null : sanitizeOptions(dto.options ?? undefined);
     if (DEV) {
-      console.groupCollapsed("[updatePin] options(after sanitize)");
+      console.groupCollapsed("[updatePin] options(after sanitize)]");
       console.log("optionsPayload =", optionsPayload);
       console.groupEnd();
     }

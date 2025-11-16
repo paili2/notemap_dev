@@ -63,6 +63,9 @@ export default function ParkingSection({
 
   /* ───────── prop → 내부 상태 동기화 ───────── */
   useEffect(() => {
+    // 🔒 이미 직접입력 모드면, 상위 값으로 상태를 리셋하지 않는다
+    if (selectValue === "custom") return;
+
     // 0) parkingType이 비어있고 parkingTypeId만 있는 경우 → id를 name으로 역해석
     if (!parkingType && parkingTypeId != null) {
       const name = idToName[parkingTypeId];
@@ -100,7 +103,14 @@ export default function ParkingSection({
     if (selectValue !== "custom") setSelectValue("custom");
     if (custom !== parkingType) setCustom(parkingType);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [parkingType, parkingTypeId, idToName]);
+  }, [
+    parkingType,
+    parkingTypeId,
+    idToName,
+    selectValue,
+    custom,
+    setParkingType,
+  ]);
 
   /* ───────── 이벤트 → 상위 반영 ───────── */
 
@@ -164,6 +174,52 @@ export default function ParkingSection({
     [setTotalParkingSlots]
   );
 
+  /* ───────── 레이아웃 분기 ───────── */
+
+  // ✅ 직접입력일 때: 한 줄에 두 필드(주차유형/총 주차대수), 인풋 폭은 조금 짧게
+  if (selectValue === "custom") {
+    return (
+      <div className="grid grid-cols-2 items-center gap-4 md:gap-6">
+        <Field label="주차 유형">
+          <div className="flex items-center gap-2">
+            <SafeSelect
+              value={selectValue || null}
+              onChange={onChangeSelect}
+              items={selectItems}
+              placeholder="선택"
+              className="w-28 h-9 flex-shrink-0"
+              contentClassName="max-h-[320px] z-[10010]"
+              side="bottom"
+              align="start"
+            />
+            <Input
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onBlur={onBlurCustom}
+              placeholder="예: 지상 병렬 1대"
+              className="h-9 w-40 flex-shrink-0" // 🔹 폭 조금 짧게 + 줄어들지 않도록
+            />
+          </div>
+        </Field>
+
+        <Field label="총 주차대수">
+          <div className="flex items-center gap-3">
+            <Input
+              value={displayCountStr}
+              onChange={(e) => onChangeCount(e.target.value)}
+              className="w-16 h-9"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="0"
+            />
+            <span className="text-gray-500">대</span>
+          </div>
+        </Field>
+      </div>
+    );
+  }
+
+  // 나머지(프리셋/미선택): 기존 레이아웃
   return (
     <div className="grid grid-cols-2 items-center md:grid-cols-3">
       <Field label="주차 유형">
@@ -178,16 +234,6 @@ export default function ParkingSection({
             side="bottom"
             align="start"
           />
-
-          {selectValue === "custom" && (
-            <Input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              onBlur={onBlurCustom}
-              placeholder="예: 지상 병렬 1대"
-              className="h-9 flex-1"
-            />
-          )}
         </div>
       </Field>
 

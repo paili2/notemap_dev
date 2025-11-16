@@ -4,8 +4,13 @@ import ParkingSection from "../../sections/ParkingSection/ParkingSection";
 
 /** Body에서 내려오는 슬라이스(문자열 기반) */
 type ParkingFormSliceFromBody = {
+  /** 서버 enum id (number | null) */
+  parkingTypeId: number | null;
+  setParkingTypeId: (v: number | null) => void;
+
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
+
   totalParkingSlots: string | null; // 문자열 기반
   setTotalParkingSlots: (v: string | null) => void;
 };
@@ -16,6 +21,8 @@ type Props = {
 
 export default function ParkingContainer({ form }: Props) {
   const {
+    parkingTypeId,
+    setParkingTypeId,
     parkingType,
     setParkingType,
     totalParkingSlots,
@@ -39,6 +46,9 @@ export default function ParkingContainer({ form }: Props) {
       /** 총 주차대수는 Section이 number|null을 기대 */
       totalParkingSlots={toNum(totalParkingSlots)}
       setTotalParkingSlots={(v) => setTotalParkingSlots(toStr(v))}
+      /** 서버 enum id 동기화 */
+      parkingTypeId={parkingTypeId}
+      setParkingTypeId={setParkingTypeId}
     />
   );
 }

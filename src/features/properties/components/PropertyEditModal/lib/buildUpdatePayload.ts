@@ -5,7 +5,7 @@ import type {
   Grade,
   UnitLine,
   OrientationRow,
-  BuildingType, // ✅ 추가
+  BuildingType, // ✅ 건물타입
 } from "@/features/properties/types/property-domain";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { AreaSet } from "../../sections/AreaSetsSection/types";
@@ -135,6 +135,103 @@ const unitLinesChanged = (prev?: UnitLine[], curr?: UnitLine[]) => {
   return false;
 };
 
+/* ───────── areaGroups 정규화/비교 ───────── */
+type AreaGroupPayload = {
+  title: string;
+  exclusiveMinM2: number | null;
+  exclusiveMaxM2: number | null;
+  actualMinM2: number | null;
+  actualMaxM2: number | null;
+  sortOrder: number;
+};
+
+const toNumOrNullFromAny = (v: any): number | null => {
+  const s = toNumericStringOrUndefined(v as any);
+  if (s === undefined) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+};
+
+/** UI AreaSet → 서버 areaGroups payload */
+const areaSetsToGroups = (
+  base?: AreaSet,
+  extras?: AreaSet[],
+  baseTitleOut?: string,
+  extraTitlesOut?: string[]
+): AreaGroupPayload[] => {
+  const items: { set: any; title?: string | null }[] = [];
+
+  if (base) {
+    items.push({
+      set: base,
+      title: baseTitleOut ?? (base as any).title ?? null,
+    });
+  }
+
+  (extras ?? []).forEach((s, idx) => {
+    items.push({
+      set: s,
+      title: extraTitlesOut?.[idx] ?? (s as any).title ?? null,
+    });
+  });
+
+  const groups: AreaGroupPayload[] = [];
+
+  items.forEach(({ set, title }, idx) => {
+    const exMin = toNumOrNullFromAny(
+      set?.exclusiveMinM2 ?? set?.exclusiveMin ?? set?.m2Min
+    );
+    const exMax = toNumOrNullFromAny(
+      set?.exclusiveMaxM2 ?? set?.exclusiveMax ?? set?.m2Max
+    );
+    const acMin = toNumOrNullFromAny(
+      set?.actualMinM2 ?? set?.realMinM2 ?? set?.realMin
+    );
+    const acMax = toNumOrNullFromAny(
+      set?.actualMaxM2 ?? set?.realMaxM2 ?? set?.realMax
+    );
+
+    const rawTitle = (title ?? "").toString().trim();
+    const finalTitle = rawTitle || String(idx + 1);
+
+    const isEmpty =
+      !rawTitle &&
+      exMin == null &&
+      exMax == null &&
+      acMin == null &&
+      acMax == null;
+    if (isEmpty) return;
+
+    groups.push({
+      title: finalTitle,
+      exclusiveMinM2: exMin,
+      exclusiveMaxM2: exMax,
+      actualMinM2: acMin,
+      actualMaxM2: acMax,
+      sortOrder: idx,
+    });
+  });
+
+  return groups;
+};
+
+/** areaGroups 비교용: sortOrder는 무시하고 값만 비교 */
+const normalizeAreaGroupsForCompare = (groups: any[] | undefined) => {
+  if (!Array.isArray(groups)) return [] as AreaGroupPayload[];
+  return groups.map((g: any, idx: number) => ({
+    title: (g.title ?? "").toString().trim() || String(idx + 1),
+    exclusiveMinM2: toNumOrNullFromAny(
+      g.exclusiveMinM2 ?? g.exclusiveMin ?? g.exMinM2
+    ),
+    exclusiveMaxM2: toNumOrNullFromAny(
+      g.exclusiveMaxM2 ?? g.exclusiveMax ?? g.exMaxM2
+    ),
+    actualMinM2: toNumOrNullFromAny(g.actualMinM2 ?? g.realMinM2 ?? g.realMin),
+    actualMaxM2: toNumOrNullFromAny(g.actualMaxM2 ?? g.realMaxM2 ?? g.realMax),
+    sortOrder: 0, // 비교에서는 무시
+  }));
+};
+
 /* ───────── 입력 타입 ───────── */
 type BuildUpdateArgs = {
   // 기본
@@ -150,7 +247,7 @@ type BuildUpdateArgs = {
 
   // 평점/주차/준공/매매
   parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
-  parkingType?: string | null;
+  parkingType?: string | null; // UI 용도만, 서버로는 안 보냄
   parkingTypeId?: number | string | null;
   totalParkingSlots?: number | string | null;
   completionDate?: string;
@@ -219,7 +316,7 @@ type BuildUpdateArgs = {
 
   buildingGrade?: "new" | "old";
 
-  // ✅ 추가: 수정모달에서 선택한 건물유형
+  // ✅ 수정모달에서 선택한 건물유형
   buildingType?: BuildingType | null;
 };
 
@@ -386,7 +483,7 @@ export function buildUpdatePayload(
       ? undefined
       : String(initial!.salePrice as any);
 
-  // 숫자 변환
+  // parkingTypeId 숫자 변환
   const parkingTypeIdN = defined(a.parkingTypeId)
     ? toIntOrNull(a.parkingTypeId)
     : undefined;
@@ -404,15 +501,18 @@ export function buildUpdatePayload(
     prevSaleStr
   );
 
-  putAllowNull(
-    "parkingType",
-    defined(a.parkingType)
-      ? a.parkingType === ""
-        ? undefined
-        : a.parkingType
-      : undefined,
-    initial?.parkingType
-  );
+  // ✅ parkingType 문자열은 이제 서버로 보내지 않음 (백엔드는 parkingTypeId 기준)
+  // 필요하면 여기 putAllowNull으로 다시 살릴 수 있음
+  // putAllowNull(
+  //   "parkingType",
+  //   defined(a.parkingType)
+  //     ? a.parkingType === ""
+  //       ? undefined
+  //       : a.parkingType
+  //     : undefined,
+  //   initial?.parkingType
+  // );
+
   putAllowNull(
     "totalParkingSlots",
     totalParkingSlotsN,
@@ -467,8 +567,6 @@ export function buildUpdatePayload(
   }
 
   // ✅ 건물유형(도생/근생/주택 등) PATCH
-  //  - a.buildingType가 undefined가 아니면 null 포함해서 그대로 서버로 보냄
-  //  - updatePin에서 toServerBuildingType이 최종 매핑을 해줌
   if (defined(a.buildingType)) {
     putAllowNull(
       "buildingType",
@@ -579,6 +677,35 @@ export function buildUpdatePayload(
     putAny("realAreaMinPy", realMinPy, (initial as any)?.realAreaMinPy);
     putAny("realAreaMaxPy", realMaxPy, (initial as any)?.realAreaMaxPy);
   }
+
+  /* ===== 면적 (그룹: areaGroups) ===== */
+  const currAreaGroupsRaw = areaSetsToGroups(
+    a.baseAreaSet,
+    a.extraAreaSets,
+    a.baseAreaTitleOut,
+    a.extraAreaTitlesOut
+  );
+  const prevAreaGroupsRaw = (initial as any)?.areaGroups as any[] | undefined;
+
+  const currAreaGroups = normalizeAreaGroupsForCompare(currAreaGroupsRaw);
+  const prevAreaGroups = normalizeAreaGroupsForCompare(prevAreaGroupsRaw);
+
+  // ✅ 규칙:
+  //  - 초기값이 없는 신규 생성(initial === undefined) 이면 값이 있으면 areaGroups 보냄
+  //  - 수정(initial 존재)에서는 "실제 면적 범위 입력을 건드렸을 때(explicitRangeTouched)"만 areaGroups 전송
+  if (initial === undefined) {
+    if (currAreaGroups.length > 0) {
+      (patch as any).areaGroups = currAreaGroupsRaw;
+    }
+  } else if (explicitRangeTouched) {
+    if (!deepEq(prevAreaGroups, currAreaGroups)) {
+      (patch as any).areaGroups = currAreaGroupsRaw.length
+        ? currAreaGroupsRaw
+        : [];
+    }
+  }
+  // 👉 이렇게 하면: 편집 모달에서 아무것도 안 건드리고 저장할 때는
+  //    explicitRangeTouched가 false라서 areaGroups 필드가 아예 요청에 안 실림
 
   /* ===== 유닛 ===== */
   if (defined(a.unitLines)) {
