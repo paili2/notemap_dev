@@ -41,13 +41,13 @@ export function useClustererWithLabels(
 
   const [rerenderTick, setRerenderTick] = useState(0);
 
+  // 🔹 마커 집합이 바뀌었는지 추적하기 위한 키
+  //    좌표는 가공하지 않고 그대로 문자열화해서 사용
   const markersKey = useMemo(() => {
     return [...markers]
       .map((m) => {
         const label = (m as any).name ?? m.title ?? "";
-        return `${String(m.id)}:${m.position.lat.toFixed(
-          6
-        )},${m.position.lng.toFixed(6)}:${label}`;
+        return `${String(m.id)}:${m.position.lat},${m.position.lng}:${label}`;
       })
       .sort()
       .join("|");
@@ -88,7 +88,7 @@ export function useClustererWithLabels(
     if (!hitboxOvRef.current) hitboxOvRef.current = {};
   }, [isReady, realMarkersKey]);
 
-  // (옵션) 클릭 막는 UI가 있을 때 대비한 스타일 패치
+  // (옵션) 디버그용 스타일 패치
   useEffect(() => {
     if (!enableDebug || !isClient) return;
     const id = "kakao-pin-pointer-patch";

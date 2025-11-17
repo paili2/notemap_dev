@@ -19,7 +19,10 @@ import { useReservationVersion } from "@/features/survey-reservations/store/useR
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
 
-/** 소수점 5자리 posKey */
+/** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용)
+ *  - ⚠️ 이 문자열을 역파싱해서 서버 payload 좌표로 사용하면 안 됨!
+ *  - 서버 전송/DB 저장에는 항상 원본 lat/lng 숫자를 그대로 사용해야 함.
+ */
 function posKey(lat: number, lng: number) {
   return `${lat.toFixed(5)},${lng.toFixed(5)}`;
 }
@@ -37,7 +40,7 @@ function extractDraftIdFromPin(pin: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** before 목록에서 좌표/주소로 draft 찾기 */
+/** before 목록에서 좌표/주소로 draft 찾기 (비교 용도라 toFixed/근사 사용 OK) */
 function findDraftIdByHeuristics(args: {
   before: BeforeDraft[];
   lat: number;
@@ -167,7 +170,7 @@ export default function PinContextMenuContainer(props: Props) {
     listed = false;
   }
 
-  /** ⭐ 낙관적 planned 반영 */
+  /** ⭐ 낙관적 planned 반영 (좌표 키 기반) */
   const posK = React.useMemo(
     () => posKey(position.getLat(), position.getLng()),
     [position]
@@ -379,6 +382,7 @@ export default function PinContextMenuContainer(props: Props) {
       }
     }
 
+    // ✅ 여기서 onCreate 로 넘기는 lat/lng 이 바로 매물 생성 모달에서 쓰는 "원본 좌표"
     onCreate?.({
       latFromPin: lat,
       lngFromPin: lng,
@@ -468,9 +472,7 @@ export default function PinContextMenuContainer(props: Props) {
 
   return (
     <CustomOverlay
-      key={`ctx:${version}:${position.getLat().toFixed(5)},${position
-        .getLng()
-        .toFixed(5)}`}
+      key={`ctx:${version}:${posK}`} // 🔹 key 도 posKey 재사용
       kakao={kakao}
       map={map}
       position={position}

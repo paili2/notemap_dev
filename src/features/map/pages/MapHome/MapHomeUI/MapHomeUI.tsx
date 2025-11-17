@@ -29,7 +29,7 @@ import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
-/* ⬇️ 추가: 라벨 숨김/복원 직접 호출 */
+/* 라벨 숨김/복원 */
 import {
   hideLabelsAround,
   showLabelsAround,
@@ -49,6 +49,7 @@ function parseStationAndExit(qRaw: string) {
     .trim();
   return { stationName: station, exitNo, hasExit: exitNo !== null, raw: q };
 }
+
 const norm = (s: string) => (s || "").replace(/\s+/g, "");
 
 function pickBestStation(data: any[], stationName: string) {
@@ -176,6 +177,8 @@ function ensureViewForEdit(
   } as any;
 }
 
+/* =================================================================== */
+
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -220,15 +223,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onReserveFromMenu,
     onViewFromMenu,
     closeView,
+    createFromDraftId,
   } = props;
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
   const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
 
   const [localDraftMarkers, setLocalDraftMarkers] = useState<MapMarker[]>([]);
-  const [filterParams, setFilterParams] = useState<PinSearchParams | null>(
-    null
-  );
+  const [, setFilterParams] = useState<PinSearchParams | null>(null);
   const [searchRes, setSearchRes] = useState<PinSearchResult | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -369,21 +371,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
     },
     []
   );
-  const clearLocalDrafts = useCallback(() => setLocalDrafts([]), []);
-  function setLocalDrafts(v: MapMarker[] | ((p: MapMarker[]) => MapMarker[])) {
-    setLocalDraftMarkers(v as any);
-  }
 
   const handleAfterCreate = useCallback(
-    (args: {
+    async (args: {
       pinId: string;
       matchedDraftId?: string | number | null;
       lat: number;
       lng: number;
     }) => {
       const { pinId, matchedDraftId, lat, lng } = args;
-      if (matchedDraftId != null) replaceTempByRealId(matchedDraftId, pinId);
-      else
+
+      // 1) 기존 로직: 임시 마커 → 실제 id로 치환 or 방문 마커 추가
+      if (matchedDraftId != null) {
+        replaceTempByRealId(matchedDraftId, pinId);
+      } else {
         upsertDraftMarker({
           id: `__visit__${pinId}`,
           lat,
@@ -391,8 +392,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
           address: null,
           source: "draft",
         });
+      }
+
+      // 2) ✅ 방금 만든 매물로 뷰모달 열기
+      await handleViewFromMenuLocal(String(pinId));
     },
-    [replaceTempByRealId, upsertDraftMarker]
+    [replaceTempByRealId, upsertDraftMarker, handleViewFromMenuLocal]
   );
 
   const draftStateForQuery = useMemo<
@@ -418,11 +423,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
   });
 
   const normServerPoints = useMemo(
-    () => serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })),
+    () =>
+      serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })) ?? [],
     [serverPoints]
   );
   const normServerDrafts = useMemo(
-    () => serverDrafts?.map((d) => ({ ...d, title: d.title ?? undefined })),
+    () =>
+      serverDrafts?.map((d) => ({ ...d, title: d.title ?? undefined })) ?? [],
     [serverDrafts]
   );
 
@@ -441,7 +448,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [searchRes?.drafts, normServerDrafts, toServerDraftsFromDrafts]
   );
 
-  const { mergedMarkers, mergedWithTempDraft, mergedMeta } = useMergedMarkers({
+  const { mergedWithTempDraft, mergedMeta } = useMergedMarkers({
     localMarkers: useMemo(
       () => [...(markers ?? []), ...localDraftMarkers],
       [markers, localDraftMarkers]
@@ -613,7 +620,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           const afterStationFound = (st: any) => {
             const sLat = +st.y;
             const sLng = +st.x;
-            const stationLL = new kakaoSDK.maps.LatLng(sLat, sLng);
+            const stationLL = new kakao.maps.LatLng(sLat, sLng);
 
             if (hasExit) {
               const queries = [
@@ -750,7 +757,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     return ensureViewForEdit(base);
   }, [selectedViewItem, viewDataLocal]);
 
-  /* 👇👇👇 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 */
+  /* 👇 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 */
   useEffect(() => {
     if (!mapInstance || !menuAnchor) return;
     if (menuOpen) {
@@ -763,7 +770,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
 
-  /* ✅ selectedViewItem이 생기면 모달을 연다(열기만 동기화) */
+  /* ✅ selectedViewItem이 생기면 모달을 연다 */
   useEffect(() => {
     if (selectedViewItem) setViewOpenLocal(true);
   }, [selectedViewItem]);
@@ -897,6 +904,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
           ...createHostHandlers,
           onAfterCreate: handleAfterCreate,
         }}
+        pinDraftId={
+          createFromDraftId != null ? Number(createFromDraftId) : undefined
+        }
         roadviewVisible={roadviewVisible}
         roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}

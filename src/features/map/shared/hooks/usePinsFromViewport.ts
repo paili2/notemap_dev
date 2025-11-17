@@ -1,4 +1,5 @@
 "use client";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fetchPinsByBBox, type PinPoint } from "@/features/pins/api";
 import type { MapMarker } from "@/features/map/shared/types/map";
@@ -11,7 +12,7 @@ type UsePinsOpts = {
 
 /** 🔹 그룹핑/매칭 전용 키 (표시·클러스터 용)
  *  - 절대 이 값을 split(',').map(Number)로 역파싱해 payload 좌표로 사용하지 말 것!
- *  - 실제 전송 좌표는 반드시 원본(lat/lng)에서 직접 사용
+ *  - 실제 전송 좌표는 반드시 원본 lat/lng 값을 그대로 사용
  */
 function toPosKey(lat?: number, lng?: number) {
   return Number.isFinite(lat) && Number.isFinite(lng)
@@ -53,14 +54,14 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
 
   return {
     id: String(p.id),
-    position: { lat, lng }, // ✅ 원본 좌표 보존
+    position: { lat, lng }, // ✅ 원본 좌표 보존 (절삭/반올림 없음)
     name: displayName,
     title: displayName,
     address: (p as any).addressLine ?? (p as any).address ?? undefined,
     kind: ((p as any).pinKind ?? "1room") as any,
     source,
     pinDraftId: (p as any).draftId ?? (p as any).pin_draft_id ?? undefined,
-    posKey: toPosKey(lat, lng), // 🔹 키만 고정 소수
+    posKey: toPosKey(lat, lng), // 🔹 그룹 키만 고정 소수
     isNew: (p as any).isNew ?? undefined,
   };
 }

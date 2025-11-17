@@ -34,6 +34,9 @@ type MapCreateModalHostProps = {
     /** 🔹 옵션: 생성때의 payload 스냅샷 전달 */
     payload?: any;
   }) => void;
+
+  /** 임시핀 id (문자/숫자 둘 다 가능) */
+  pinDraftId?: number | string | null;
 };
 
 export default function MapCreateModalHost({
@@ -46,9 +49,17 @@ export default function MapCreateModalHost({
   selectAndOpenView,
   resetAfterCreate,
   onAfterCreate,
+  pinDraftId,
 }: MapCreateModalHostProps) {
   const submittingRef = useRef(false);
   const resolvePos = (): LatLng => draftPin ?? selectedPos ?? DEFAULT_CENTER;
+
+  // ✅ PropertyCreateModal 쪽에 넘겨줄 "정제된" draftId (number | undefined)
+  const resolvedPinDraftId = (() => {
+    if (pinDraftId == null || pinDraftId === "") return undefined;
+    const n = Number(pinDraftId);
+    return Number.isFinite(n) ? n : undefined;
+  })();
 
   return (
     <PropertyCreateModal
@@ -59,6 +70,8 @@ export default function MapCreateModalHost({
       /** ✅ 기존 핀 좌표 그대로 사용 */
       initialLat={resolvePos().lat}
       initialLng={resolvePos().lng}
+      /** ✅ 임시핀 아이디 전달 (없으면 undefined) */
+      pinDraftId={resolvedPinDraftId}
       onSubmit={async ({
         pinId,
         matchedDraftId,

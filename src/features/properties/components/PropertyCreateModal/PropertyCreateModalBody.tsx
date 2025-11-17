@@ -88,6 +88,7 @@ export default function PropertyCreateModalBody({
   initialAddress,
   initialLat,
   initialLng,
+  pinDraftId,
 }: Omit<PropertyCreateModalProps, "open">) {
   const f = useCreateForm({ initialAddress });
 
@@ -668,10 +669,10 @@ export default function PropertyCreateModalBody({
 
       // ⬇️ 여기서 한 번만 선언 (중복 선언 제거)
       const reservationId = (f as any).reservationId as string | number | null;
-      const explicitPinDraftId = (f as any).pinDraftId as
-        | string
-        | number
-        | null;
+      const explicitPinDraftId =
+        pinDraftId != null
+          ? pinDraftId
+          : ((f as any).pinDraftId as string | number | null);
 
       const selected: string[] = Array.isArray(f.options) ? f.options : [];
       const has = (label: string) => selected.includes(label);
@@ -873,8 +874,6 @@ export default function PropertyCreateModalBody({
           payload,
         } as any)
       );
-
-      onClose?.();
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
       const msg =
@@ -898,6 +897,7 @@ export default function PropertyCreateModalBody({
     persistVerticalFiles,
     removeReservation,
     removeDraft,
+    pinDraftId,
   ]);
 
   const imagesProp = useMemo(

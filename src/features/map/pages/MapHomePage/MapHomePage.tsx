@@ -233,6 +233,7 @@ export default function MapHomePage() {
       onOpenMenu: s.onOpenMenu,
       onChangeHideLabelForId,
       onReserveFromMenu,
+      createFromDraftId: s.createFromDraftId,
     }),
     [
       KAKAO_MAP_KEY,

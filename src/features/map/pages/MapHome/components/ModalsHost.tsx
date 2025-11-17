@@ -12,7 +12,9 @@ export default function ModalsHost(props: {
   selectedViewItem: PropertyViewDetails | null;
   onCloseView: () => void;
   onSaveViewPatch: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
-  onDeleteFromView: (id: string) => void | Promise<void>;
+
+  /** ✅ MapHomeUI 쪽 시그니처에 맞게: 인자 없는 함수 */
+  onDeleteFromView: () => void | Promise<void>;
 
   /** Create Modal */
   createOpen: boolean;
@@ -34,6 +36,9 @@ export default function ModalsHost(props: {
     }) => void;
   };
 
+  /** ✅ 새로 추가: draft 기반 생성용 id */
+  pinDraftId?: number;
+
   /** Roadview */
   roadviewVisible: boolean;
   roadviewContainerRef: any;
@@ -52,6 +57,7 @@ export default function ModalsHost(props: {
     draftPin,
     selectedPos,
     createHostHandlers,
+    pinDraftId,
     // roadview
     roadviewVisible,
     roadviewContainerRef,
@@ -76,7 +82,8 @@ export default function ModalsHost(props: {
           /** ✅ 에디트 초기 주입 키/캐시 안정화를 위해 pinId도 전달 */
           pinId={itemId!}
           onSave={onSaveViewPatch}
-          onDelete={() => onDeleteFromView(String(itemId!))}
+          /** ✅ 인자 없는 콜백 그 자체를 넘김 */
+          onDelete={onDeleteFromView}
         />
       )}
 
@@ -92,6 +99,8 @@ export default function ModalsHost(props: {
           selectAndOpenView={createHostHandlers.selectAndOpenView}
           resetAfterCreate={createHostHandlers.resetAfterCreate}
           onAfterCreate={createHostHandlers.onAfterCreate}
+          /** ✅ draft에서 왔을 때 연결용 */
+          pinDraftId={pinDraftId}
         />
       )}
 

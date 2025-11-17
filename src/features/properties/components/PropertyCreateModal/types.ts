@@ -14,4 +14,5 @@ export type PropertyCreateModalProps = {
   initialLng: number;
   onClose: () => void;
   onSubmit: (r: PropertyCreateResult) => void;
+  pinDraftId?: number | string;
 };

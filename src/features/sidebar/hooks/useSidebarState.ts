@@ -33,38 +33,50 @@ const LS_KEY = "sidebar:favGroups"; // 즐겨찾기만 로컬 유지
 const makePosKey = (lat: number, lng: number) =>
   `${Number(lat).toFixed(6)},${Number(lng).toFixed(6)}`;
 
+/** ✅ 예약(내 예약 목록) → ListItem 매핑
+ *  - lat/lng: 서버 원본 숫자 그대로 보존
+ *  - posKey: 비교/매칭용(절대 역파싱해서 좌표로 쓰지 말 것)
+ */
 const mapReservationToListItem = (r: any): ListItem => {
   const lat = Number(r?.lat);
   const lng = Number(r?.lng);
   const created = String(r?.createdAt ?? new Date().toISOString());
   const title = String(r?.addressLine ?? "");
   const reserved = String(r?.reservedDate ?? ""); // "YYYY-MM-DD"
+
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+
   return {
     id: String(r?.id ?? crypto.randomUUID()),
     title,
     dateISO: reserved || created.slice(0, 10),
     createdAt: created,
-    posKey:
-      Number.isFinite(lat) && Number.isFinite(lng)
-        ? makePosKey(lat, lng)
-        : undefined,
+    // ✅ 실제 좌표: 지도 이동/컨텍스트 메뉴용
+    ...(hasCoords ? { lat, lng } : {}),
+    // ✅ posKey: 동일 위치 매칭용(역파싱 금지)
+    ...(hasCoords ? { posKey: makePosKey(lat, lng) } : {}),
   };
 };
 
+/** ✅ 예약 전 임시핀 → ListItem 매핑
+ *  - lat/lng: 서버 원본 숫자 그대로 보존
+ *  - posKey: 비교/매칭용(절대 역파싱해서 좌표로 쓰지 말 것)
+ */
 const mapBeforeDraftToListItem = (d: any): ListItem => {
   const lat = Number(d?.lat);
   const lng = Number(d?.lng);
   const created = String(d?.createdAt ?? new Date().toISOString());
   const title = String(d?.addressLine ?? "");
+
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+
   return {
     id: String(d?.id ?? crypto.randomUUID()),
     title,
     dateISO: created.slice(0, 10),
     createdAt: created,
-    posKey:
-      Number.isFinite(lat) && Number.isFinite(lng)
-        ? makePosKey(lat, lng)
-        : undefined,
+    ...(hasCoords ? { lat, lng } : {}),
+    ...(hasCoords ? { posKey: makePosKey(lat, lng) } : {}),
   };
 };
 

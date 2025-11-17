@@ -94,6 +94,10 @@ export function useMapHomeState() {
   const [viewOpen, setViewOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
+  const [createFromDraftId, setCreateFromDraftId] = useState<string | null>(
+    null
+  );
+
   const [menuRoadAddr, setMenuRoadAddr] = useState<string | null>(null);
   const [menuJibunAddr, setMenuJibunAddr] = useState<string | null>(null);
 
@@ -270,17 +274,27 @@ export function useMapHomeState() {
     ) => {
       const p = normalizeLL(position);
       const isDraft = propertyId === "__draft__";
-      setSelectedId(isDraft ? null : String(propertyId));
-      setMenuTargetId(isDraft ? "__draft__" : String(propertyId));
+      const sid = String(propertyId);
+
+      setSelectedId(isDraft ? null : sid);
+      setMenuTargetId(isDraft ? "__draft__" : sid);
       setDraftPinSafe(isDraft ? p : null);
       setFitAllOnce(false);
 
+      // ✅ 임시 방문핀(__visit__123)에서 온 경우, draftId 기억
+      if (sid.startsWith("__visit__")) {
+        const rawId = sid.replace("__visit__", "");
+        setCreateFromDraftId(rawId || null);
+      } else {
+        setCreateFromDraftId(null);
+      }
+
       onChangeHideLabelForId("__draft__");
-      onChangeHideLabelForId(isDraft ? "__draft__" : String(propertyId));
+      onChangeHideLabelForId(isDraft ? "__draft__" : sid);
 
       setRawMenuAnchor(p);
 
-      // ✅ 오픈 즉시 라벨 숨김 (검색/클릭 공통)
+      // 이하 그대로
       try {
         if (mapInstance) hideLabelsAround(mapInstance, p.lat, p.lng, 40);
       } catch {}
@@ -306,7 +320,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
-      mapInstance, // ⬅️ 의존성 포함
+      mapInstance,
     ]
   );
 
@@ -339,7 +353,10 @@ export function useMapHomeState() {
       setFitAllOnce(false);
       onChangeHideLabelForId(sid);
 
-      // ✅ 기존핀 검색 오픈 시도 즉시 숨김
+      // ✅ 기존 핀에서는 draft 매칭 X
+      setCreateFromDraftId(null);
+
+      // 이하 그대로
       try {
         if (mapInstance) hideLabelsAround(mapInstance, pos.lat, pos.lng, 40);
       } catch {}
@@ -365,7 +382,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
-      mapInstance, // ⬅️ 의존성 포함
+      mapInstance,
     ]
   );
 
@@ -450,6 +467,8 @@ export function useMapHomeState() {
       setFitAllOnce(false);
       setRawMenuAnchor(pos);
       onChangeHideLabelForId(sid);
+
+      setCreateFromDraftId(null);
 
       // ✅ 클릭 경로에서도 즉시 숨김(안전)
       try {
@@ -639,6 +658,7 @@ export function useMapHomeState() {
         setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setMenuOpen(false);
+        setCreateFromDraftId(null); // ✅ 같이 초기화
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
       selectAndOpenView: (id: string | number) => {
@@ -651,6 +671,7 @@ export function useMapHomeState() {
         setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setCreateOpen(false);
+        setCreateFromDraftId(null); // ✅ 여기도
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
@@ -676,6 +697,7 @@ export function useMapHomeState() {
     setDraftPinSafe(null);
     setPrefillAddress(undefined);
     setMenuOpen(false);
+    setCreateFromDraftId(null);
   }, [setDraftPinSafe]);
 
   // POI 변경 즉시 반영
@@ -850,5 +872,6 @@ export function useMapHomeState() {
     // 숨김 제어
     hideDraft,
     clearHiddenDraft,
+    createFromDraftId,
   } as const;
 }

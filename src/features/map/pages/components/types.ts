@@ -97,6 +97,14 @@ export type MapHomeUIProps = {
     appendItem: (item: PropertyItem) => void;
     selectAndOpenView: (id: string | number) => void;
     resetAfterCreate: () => void;
+    // (있으면 MapHomeUI에서 onAfterCreate 오버라이드해서 씀)
+    onAfterCreate?: (args: {
+      pinId: string;
+      matchedDraftId?: string | number | null;
+      lat: number;
+      lng: number;
+      payload?: any;
+    }) => void;
   };
   editHostHandlers: {
     onClose: () => void;
@@ -117,4 +125,7 @@ export type MapHomeUIProps = {
   onChangeHideLabelForId?: (id?: string) => void;
 
   onReserveFromMenu?: (args: ReserveFromMenuPayload) => Promise<void>;
+
+  /** 시청역 답사예정핀 등에서 create 눌렀을 때 연결할 draftId (문자열) */
+  createFromDraftId?: string | null;
 };
