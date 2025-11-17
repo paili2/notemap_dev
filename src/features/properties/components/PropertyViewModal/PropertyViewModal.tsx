@@ -25,9 +25,11 @@ import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { togglePinDisabled } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
+import MetaInfoContainer from "./components/MetaInfoContainer";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
+
 // 지도 이벤트만 막고 기본 클릭은 그대로 두기
 function eat(e: any) {
   try {
@@ -113,21 +115,18 @@ function normalizeBoolLoose(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** ✅ 우선순위 수정: isNew/isOld → buildingAgeType → buildingGrade(레거시) */
+/** ✅ 우선순위: isNew/isOld → buildingAgeType → buildingGrade(레거시) */
 function deriveAgeFlagsFrom(src: any): { isNew: boolean; isOld: boolean } {
-  // 1) 명시 불리언 (가장 신뢰도 높음)
   const nIsNew = normalizeBoolLoose(src?.isNew);
   const nIsOld = normalizeBoolLoose(src?.isOld);
 
   if (nIsNew === true && nIsOld !== true) return { isNew: true, isOld: false };
   if (nIsOld === true && nIsNew !== true) return { isNew: false, isOld: true };
 
-  // 2) buildingAgeType: "NEW" | "OLD"
   const t = (src?.buildingAgeType ?? "").toString().toUpperCase();
   if (t === "NEW") return { isNew: true, isOld: false };
   if (t === "OLD") return { isNew: false, isOld: true };
 
-  // 3) 레거시 buildingGrade: "new" | "old"
   const g = (src?.buildingGrade ?? "").toString().toLowerCase();
   if (g === "new") return { isNew: true, isOld: false };
   if (g === "old") return { isNew: false, isOld: true };
@@ -167,6 +166,12 @@ export default function PropertyViewModal({
     if (v) return v;
     return (data as PropertyViewDetails) ?? null;
   }, [q.data, data]);
+
+  // ✅ 메타 정보로 쓸 데이터(raw + view를 통째로 넘김)
+  const metaDetails = useMemo(
+    () => (q.data as any) ?? (data as any) ?? viewData,
+    [q.data, data, viewData]
+  );
 
   const initialForEdit: any | null = useMemo(() => {
     return ensureInitialForEdit({ qData: q.data, data, effectiveId });
@@ -239,6 +244,7 @@ export default function PropertyViewModal({
       <ViewStage
         key={`view-${String(idForActions ?? "")}`}
         data={viewData}
+        metaDetails={metaDetails}
         headingId={headingId}
         descId={descId}
         onClose={onClose}
@@ -261,6 +267,7 @@ export default function PropertyViewModal({
 /* ================= View ================= */
 function ViewStage({
   data,
+  metaDetails,
   headingId,
   descId,
   onClose,
@@ -271,6 +278,7 @@ function ViewStage({
   onRequestEdit,
 }: {
   data: PropertyViewDetails | null;
+  metaDetails: any;
   headingId: string;
   descId: string;
   onClose: () => void;
@@ -288,86 +296,12 @@ function ViewStage({
   );
   const f = useViewForm(formInput);
 
-  const photoGroups = useMemo(() => {
-    const anyData = data as any;
-    // 백에서 내려주는 그룹 배열 키 추측: 없으면 빈 배열
-    return (
-      anyData?.photoGroups ?? anyData?.groups ?? anyData?.imageGroups ?? []
-    );
-  }, [data]);
-
-  // ✅ 세로/가로 구분: isDocument 기준
-  const horizGroups = useMemo(
-    () =>
-      (photoGroups as any[]).filter(
-        (g) => !g || g.isDocument !== true // isDocument !== true → 가로 폴더
-      ),
-    [photoGroups]
-  );
-
-  const verticalGroup = useMemo(
-    () =>
-      (photoGroups as any[]).find(
-        (g) => g && g.isDocument === true // isDocument === true → 세로(파일) 폴더
-      ) ?? null,
-    [photoGroups]
-  );
-
-  // 세로 폴더 타이틀: title 그대로 사용
-  const verticalFolderTitle = useMemo(() => {
-    if (!verticalGroup?.title) return null;
-    return String(verticalGroup.title);
-  }, [verticalGroup]);
-
-  // 👉 뷰모달용 가로 카드 데이터: title + images
-  const cardsForDisplay = useMemo(
-    () =>
-      Array.isArray(f.cardsHydrated)
-        ? (f.cardsHydrated as any[]).map((imgs, idx) => {
-            const g = horizGroups[idx] as any | undefined;
-            const title =
-              typeof g?.title === "string" && g.title.trim().length > 0
-                ? g.title
-                : null;
-            const sortOrder =
-              typeof g?.sortOrder === "number" ? g.sortOrder : idx;
-            const id = g?.id ?? g?.groupId ?? idx;
-            return {
-              id,
-              title,
-              images: imgs,
-              sortOrder,
-            };
-          })
-        : [],
-    [f.cardsHydrated, horizGroups]
-  );
-
-  // 👉 뷰모달용 세로 파일 데이터: title + images (현재는 DisplayImagesContainer에 title 안 넘기지만, 필요하면 확장용)
-  const filesForDisplay = useMemo(() => {
-    if (!Array.isArray(f.filesHydrated) || f.filesHydrated.length === 0)
-      return [];
-    return [
-      {
-        title: verticalFolderTitle,
-        images: f.filesHydrated,
-      },
-    ];
-  }, [f.filesHydrated, verticalFolderTitle]);
-
   const ageFlags = useMemo(() => {
-    // 폼 값이 우선, 없으면 서버 뷰 데이터
-    const rawIsNew = (f as any)?.isNew ?? (data as any)?.isNew ?? undefined;
-    const rawIsOld = (f as any)?.isOld ?? (data as any)?.isOld ?? undefined;
-
-    const isNew = normalizeBoolLoose(rawIsNew);
-    const isOld = normalizeBoolLoose(rawIsOld);
-
-    const resolved = { isNew, isOld };
+    const src = { ...(data as any), ...(f as any) };
+    const resolved = deriveAgeFlagsFrom(src);
 
     console.log("[PropertyViewModal/ViewStage] age flags", {
-      rawIsNew,
-      rawIsOld,
+      src,
       resolved,
     });
 
@@ -581,8 +515,8 @@ function ViewStage({
                   secretMemo={f.secretMemo}
                 />
 
-                {/* 👇 생성자/답사자/수정자 메타 바 */}
-                <MetaAuditBar details={data!} />
+                {/* 👇 생성자/답사자/수정자 메타 정보 (메모 밑) */}
+                <MetaInfoContainer details={metaDetails} />
 
                 <div className="h-16 md:hidden" />
               </div>
@@ -704,87 +638,5 @@ function LoadingSkeleton({
         </div>
       </div>
     </>
-  );
-}
-
-/* ================= 메타(생성/답사/수정) 바 ================= */
-function MetaAuditBar({ details }: { details: any }) {
-  // 다양한 응답 키 지원(최대한 유연)
-  const pick = (...keys: string[]) =>
-    keys.reduce<any>(
-      (acc, k) =>
-        acc ?? details?.[k] ?? details?.raw?.[k] ?? details?.view?.[k],
-      undefined
-    );
-
-  const creatorName = pick(
-    "creatorName",
-    "createdByName",
-    "creator",
-    "creator_name"
-  );
-  const createdAt = pick("createdAt", "created_at");
-  const surveyedName = pick(
-    "surveyedByName",
-    "surveyedBy",
-    "surveyor",
-    "surveyed_by_name"
-  );
-  const surveyedAt = pick("surveyedAt", "surveyed_at");
-  const updaterName = pick(
-    "updatedByName",
-    "updatedBy",
-    "modifier",
-    "updated_by_name",
-    "lastModifierName"
-  );
-  const updatedAt = pick("updatedAt", "updated_at", "modifiedAt");
-
-  const fmt = (d: any) => {
-    if (!d) return null;
-    const dt = new Date(d);
-    if (Number.isNaN(dt.getTime())) return null;
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const day = String(dt.getDate()).padStart(2, "0");
-    return `${y}.${m}.${day}`;
-  };
-
-  const items = [
-    (creatorName || createdAt) && {
-      label: "생성자",
-      name: creatorName ?? "-",
-      date: fmt(createdAt),
-    },
-    (surveyedName || surveyedAt) && {
-      label: "답사자",
-      name: surveyedName ?? "-",
-      date: fmt(surveyedAt),
-    },
-    (updaterName || updatedAt) && {
-      label: "수정자",
-      name: updaterName ?? "-",
-      date: fmt(updatedAt),
-    },
-  ].filter(Boolean) as Array<{
-    label: string;
-    name: string;
-    date: string | null;
-  }>;
-
-  if (!items.length) return null;
-
-  return (
-    <div className="mt-2 pt-3 border-t text-[13px] text-slate-600">
-      <div className="flex flex-wrap gap-x-6 gap-y-1">
-        {items.map((it, i) => (
-          <div key={i} className="flex items-center whitespace-pre">
-            <span className="text-slate-500">{it.label}:</span>&nbsp;
-            <span className="font-medium">{it.name}</span>
-            {it.date ? <span className="ml-1">({it.date})</span> : null}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }

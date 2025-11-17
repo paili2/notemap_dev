@@ -993,7 +993,7 @@ export async function updatePin(
     );
 
     if (DEV) {
-      console.groupCollapsed("[updatePin] response");
+      console.groupCollapsed("[updatePin] response]");
       console.log("status:", status);
       console.log("data:", data);
       console.groupEnd();

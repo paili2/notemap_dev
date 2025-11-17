@@ -14,6 +14,12 @@ type ImageRefLite = {
   caption?: string;
 };
 
+/** 🔹 생성자/답사자/수정자 정보 */
+export type PropertyViewPersonInfo = {
+  id: string;
+  name: string | null;
+};
+
 /* ✅ 구조별 입력(뷰 전용) */
 export type UnitView = {
   rooms: number;
@@ -123,12 +129,21 @@ export type PropertyViewDetails = {
   type?: string;
 
   // 메타 표시용(선택)
-  createdByName?: string;
+
+  /** ✅ 서버에서 내려오는 사람 정보(선호) */
+  creator?: PropertyViewPersonInfo | null;
+  surveyor?: PropertyViewPersonInfo | null;
+  lastEditor?: PropertyViewPersonInfo | null;
+
+  /** ✅ 서버 생성/수정/답사 일시 */
   createdAt?: string;
-  inspectedByName?: string;
-  inspectedAt?: string;
-  updatedByName?: string;
   updatedAt?: string;
+  surveyedAt?: string | null;
+
+  /** ⛔️ 레거시: 이름만 별도로 표시하고 싶을 때 사용 (가능하면 위 creator/surveyor/lastEditor 사용) */
+  createdByName?: string;
+  inspectedByName?: string;
+  updatedByName?: string;
 
   /** ✅ 신축/구옥: 서버 GET 그대로 표시 전용 */
   isNew?: boolean | null;
