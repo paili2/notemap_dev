@@ -10,15 +10,10 @@ import type { ListItem } from "@/features/sidebar/types/sidebar";
 
 import { useReverseGeocode } from "./hooks/useReverseGeocode";
 import { useFavModalController } from "./hooks/useFavModalController";
-import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
+import { useReserveFromMenu, eqId } from "./hooks/useReserveFromMenu";
 
 import { createPinDraft } from "@/shared/api/pins";
 import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
-
-const eqId = (
-  a: string | number | null | undefined,
-  b: string | number | null | undefined
-) => a != null && b != null && String(a) === String(b);
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -91,9 +86,17 @@ export default function MapHomePage() {
     [s]
   );
 
-  const onCreateFromMenu = useCallback(() => {
-    (s as any).onCreateFromMenu?.() ?? (s as any).createFromMenu?.();
-  }, [s]);
+  const onCreateFromMenu = useCallback(
+    (pos: { lat: number; lng: number }) => {
+      // 1) 클릭한 위치를 draftPin으로 박제해서
+      //    센터 말고 "진짜 핀 좌표"가 생성 모달로 넘어가게 한다.
+      (s as any).setDraftPin?.(pos);
+
+      // 2) 나머지 동작은 그대로
+      (s as any).onCreateFromMenu?.() ?? (s as any).createFromMenu?.();
+    },
+    [s]
+  );
 
   const onChangeHideLabelForId = useCallback(
     (id?: string | null) => {
@@ -212,7 +215,6 @@ export default function MapHomePage() {
       onViewportChange: s.onViewportChange,
 
       /* modals (MapHomeUI가 view를 직접 관리) */
-      // create/edit 등 기존 값은 그대로 전달
       editOpen: s.editOpen,
       createOpen: s.createOpen,
       selectedId: s.selectedId,

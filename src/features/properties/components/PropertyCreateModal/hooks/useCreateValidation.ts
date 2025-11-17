@@ -136,7 +136,7 @@ export function useCreateValidation(a: Args) {
       filled(a.completionDate) &&
       (hasExclusiveAny || hasRealAny || hasUnitsAny);
 
-    // ⭐ 별점 필수 정책 유지하려면 gradeNum > 0 체크 유지
+    // ⭐ 별점 필수 정책 유지
     return (
       basicOk &&
       numbersOk &&

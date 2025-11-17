@@ -263,6 +263,9 @@ export default function ContextMenuPanel({
     const pinDraftId = extractDraftIdFromPropertyId(propertyId);
     const { lat, lng } = getLatLng(position);
 
+    console.log("✳️ handleCreateClick position:", position);
+    console.log("✳️ lat/lng from marker:", lat, lng);
+
     onCreate?.({
       latFromPin: lat,
       lngFromPin: lng,

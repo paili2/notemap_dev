@@ -62,7 +62,7 @@ export type MapHomeUIProps = {
   // ✅ 상세보기 트리거 (컨트롤드 지원 시에만 전달; 없으면 내부에서 처리)
   onViewFromMenu?: (id: string | number) => void;
 
-  onCreateFromMenu: () => void;
+  onCreateFromMenu: (pos: LatLng) => void;
   onPlanFromMenu: (pos: LatLng) => void;
 
   // map callbacks

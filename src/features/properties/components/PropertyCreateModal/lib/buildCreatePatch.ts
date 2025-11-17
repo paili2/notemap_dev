@@ -79,6 +79,16 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
     normalizeOrientations(payload);
   const { cardsInput, filesInput } = extractMediaInputs(payload);
 
+  // ⭐ parkingGrade → listingStars 숫자 변환
+  const rawParkingGrade = (payload as any).parkingGrade;
+  let listingStars = 0;
+  if (rawParkingGrade != null) {
+    const n = Number(rawParkingGrade);
+    if (Number.isFinite(n) && n >= 1 && n <= 5) {
+      listingStars = n;
+    }
+  }
+
   const base: any = {
     id,
     title: payload.title,
@@ -97,10 +107,16 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
     view: {
       officePhone: (payload as any).officePhone,
       officePhone2: (payload as any).officePhone2,
-      listingStars: payload.listingStars ?? 0,
+
+      // ✅ listingStars는 parkingGrade에서 계산
+      listingStars,
+      // 필요하면 원본 parkingGrade도 같이 보존
+      parkingGrade: rawParkingGrade ?? null,
+
       elevator: payload.elevator,
 
-      totalParkingSlots: (payload as any).parkingCount,
+      // ✅ 총 주차대수: 새 필드 사용
+      totalParkingSlots: (payload as any).totalParkingSlots,
 
       parkingType: payload.parkingType,
       completionDate: payload.completionDate,
