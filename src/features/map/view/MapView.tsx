@@ -64,6 +64,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     viewportDebounceMs: 500,
     onMapReady,
     onViewportChange, // 그대로 전달 (훅이 디바운스 처리)
+    useCurrentLocationOnInit: true,
   });
 
   // 외부로 제어 메서드 노출

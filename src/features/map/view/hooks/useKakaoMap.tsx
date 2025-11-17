@@ -9,6 +9,8 @@ type Args = {
   level?: number;
   /** 초기 로드시 전국 bounds에 맞추기 */
   fitKoreaBounds?: boolean;
+  /** 최초 로드시 브라우저 현재 위치를 center로 사용 */
+  useCurrentLocationOnInit?: boolean;
   /** 우리가 허용하는 최대 축소 레벨 */
   maxLevel?: number;
   /** center prop 변경 시 자동 panTo 비활성화 */
@@ -113,6 +115,8 @@ const useKakaoMap = ({
   center,
   level = 5,
   fitKoreaBounds = false,
+  /** 기본값: false */
+  useCurrentLocationOnInit = false,
   maxLevel = 11,
   disableAutoPan = false,
   viewportDebounceMs = DEFAULT_VIEWPORT_DEBOUNCE,
@@ -140,6 +144,9 @@ const useKakaoMap = ({
   const zoomListenerRef = useRef<((...a: any[]) => void) | null>(null);
   const idleListenerRef = useRef<((...a: any[]) => void) | null>(null);
   const idleTimerRef = useRef<number | null>(null);
+
+  // center prop → map.panTo 동기화 시 첫 호출은 스킵(초기값은 생성자에서 이미 반영됨)
+  const firstCenterSyncRef = useRef(true);
 
   // ─────────────────────────────────────────────
   // 1) 지도 초기화: 최초 1회만 생성
@@ -209,6 +216,34 @@ const useKakaoMap = ({
             const lv = map.getLevel();
             maxLevelRef.current = lv;
             map.setMaxLevel(lv);
+          }
+
+          // ✅ 최초 로드시 현재 위치로 지도 중심 이동 (옵션 켰을 때만)
+          if (useCurrentLocationOnInit && "geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                const { latitude, longitude } = pos.coords;
+                const next = new kakao.maps.LatLng(latitude, longitude);
+                const cur = map.getCenter?.();
+
+                if (
+                  !cur ||
+                  cur.getLat() !== next.getLat() ||
+                  cur.getLng() !== next.getLng()
+                ) {
+                  map.setCenter(next);
+                }
+              },
+              (err) => {
+                console.warn("[useKakaoMap] 현재 위치 가져오기 실패:", err);
+                // 실패 시에는 그냥 center/fitKoreaBounds 값 유지
+              },
+              {
+                enableHighAccuracy: false,
+                timeout: 5000,
+                maximumAge: 60_000, // 1분 이내 캐시된 위치 허용
+              }
+            );
           }
         }
 
@@ -315,6 +350,12 @@ const useKakaoMap = ({
     const kakao = kakaoRef.current;
     const map = mapRef.current;
     if (!ready || !kakao || !map || disableAutoPan) return;
+
+    // 첫 호출은 스킵 (초기 center는 생성자/현재위치 로직에서 처리)
+    if (firstCenterSyncRef.current) {
+      firstCenterSyncRef.current = false;
+      return;
+    }
 
     const current = map.getCenter?.();
     const next = new kakao.maps.LatLng(center.lat, center.lng);
