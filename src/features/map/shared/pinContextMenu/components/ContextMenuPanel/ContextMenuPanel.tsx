@@ -99,6 +99,11 @@ export default function ContextMenuPanel({
     (propertyTitle ?? "").trim()
   );
 
+  // propertyTitle이 바뀌면 displayTitle도 맞춰줌
+  useEffect(() => {
+    setDisplayTitle((propertyTitle ?? "").trim());
+  }, [propertyTitle]);
+
   /** 파생 상태: 예약 > 예정 > 드래프트 > 일반  */
   const { draft, reserved, planned } = useMemo(() => {
     const idStr = String(propertyId ?? "").trim();
@@ -161,10 +166,10 @@ export default function ContextMenuPanel({
         const name =
           pin?.property?.title ??
           pin?.title ??
-          pin?.name ?? // ✅ 추가: name
-          pin?.property?.name ?? // ✅ 추가: property.name
-          pin?.data?.title ?? // (혹시 data 래핑)
-          pin?.data?.name ?? // ✅ 추가: data.name
+          pin?.name ??
+          pin?.property?.name ??
+          pin?.data?.title ??
+          pin?.data?.name ??
           "";
 
         if (name) setDisplayTitle(String(name).trim());
@@ -177,9 +182,20 @@ export default function ContextMenuPanel({
 
   /** 최종 헤더 타이틀: draft는 "선택 위치", 그 외엔 매물명 우선 */
   const headerTitle = useMemo(() => {
+    // 1️⃣ 드래프트 핀은 항상 "선택 위치"
     if (draft) return "선택 위치";
-    return displayTitle || (propertyTitle ?? "").trim() || "선택된 매물";
-  }, [draft, displayTitle, propertyTitle]);
+
+    // 2️⃣ 매물명이 하나라도 있으면 무조건 그걸 사용
+    const name = (displayTitle || propertyTitle || "").trim();
+    if (name) return name;
+
+    // 3️⃣ 임시핀인데 제목이 없으면 상태 라벨 사용
+    if (reserved) return "답사지예약";
+    if (planned) return "답사예정";
+
+    // 4️⃣ 그 외는 그냥 선택 위치
+    return "선택 위치";
+  }, [draft, reserved, planned, displayTitle, propertyTitle]);
 
   /** 초기 포커스/복귀 */
   useEffect(() => {

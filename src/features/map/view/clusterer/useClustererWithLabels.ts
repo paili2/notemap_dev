@@ -41,8 +41,7 @@ export function useClustererWithLabels(
 
   const [rerenderTick, setRerenderTick] = useState(0);
 
-  // 🔹 마커 집합이 바뀌었는지 추적하기 위한 키
-  //    좌표는 가공하지 않고 그대로 문자열화해서 사용
+  // 🔹 마커 집합이 바뀌었는지 추적
   const markersKey = useMemo(() => {
     return [...markers]
       .map((m) => {
@@ -190,6 +189,57 @@ export function useClustererWithLabels(
     markerObjsRef,
     labelOvRef
   );
+
+  // 🔧 idle 시점 보정 (줌 레벨 & visible 라벨만 대상으로)
+  useEffect(() => {
+    if (!isReady || !kakao || !map) return;
+
+    const handleIdle = () => {
+      const level = map.getLevel?.() ?? 0;
+
+      // 라벨이 나오는 레벨이 아니면 아무 것도 안 함 → 줌아웃 상태에서 깜빡임 방지
+      if (level > safeLabelMax) return;
+
+      const labels = labelOvRef.current ?? {};
+      const hitboxes = hitboxOvRef.current ?? {};
+
+      // 이미 화면에 붙어 있는(= getMap() !== null) 라벨만 보정
+      Object.values(labels).forEach((ov: any) => {
+        if (!ov) return;
+        try {
+          const currentMap = ov.getMap?.();
+          if (!currentMap) return; // 숨겨진 라벨은 건드리지 않음
+          ov.setMap(null);
+          ov.setMap(currentMap);
+        } catch {
+          // ignore
+        }
+      });
+
+      // 히트박스도 같은 방식으로 (필요하면)
+      Object.values(hitboxes).forEach((ov: any) => {
+        if (!ov) return;
+        try {
+          const currentMap = ov.getMap?.();
+          if (!currentMap) return;
+          ov.setMap(null);
+          ov.setMap(currentMap);
+        } catch {
+          // ignore
+        }
+      });
+    };
+
+    kakao.maps.event.addListener(map, "idle", handleIdle);
+
+    return () => {
+      try {
+        kakao.maps.event.removeListener(map, "idle", handleIdle);
+      } catch {
+        // ignore
+      }
+    };
+  }, [isReady, kakao, map, safeLabelMax, realMarkersKey]);
 
   // 🔒 프로덕션: 세이프티 리스너 비활성 (디버그시에만 부착)
   useEffect(() => {

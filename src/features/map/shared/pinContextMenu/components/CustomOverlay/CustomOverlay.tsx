@@ -82,7 +82,7 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
         xAnchor,
         yAnchor,
         zIndex,
-        clickable: peEnabled, // pointer-events와 동기화
+        clickable: peEnabled,
       });
 
       overlayRef.current = overlay;
@@ -94,7 +94,7 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
         } catch {}
         overlayRef.current = null;
       };
-      // position은 아래 별도 effect로 setPosition 하므로 의존성에서 제외
+      // ✅ 여기에서 children 제거 (원래대로)
     }, [kakao, map, xAnchor, yAnchor, peEnabled]);
 
     // 위치/층위 반영
