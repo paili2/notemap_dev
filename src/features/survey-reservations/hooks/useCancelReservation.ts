@@ -1,16 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import type React from "react";
 import type { MyReservation } from "@/shared/api/surveyReservations";
 import { cancelSurveyReservation } from "@/shared/api/surveyReservations";
 import { useToast } from "@/hooks/use-toast";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
+import { useQueryClient } from "@tanstack/react-query";
+import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 
 /**
  * 예약 취소(DELETE) 훅
  * - 전역 스토어(useScheduledReservations) 기반 옵티미스틱 삭제 → 실패 시 롤백
  * - 성공/이미취소 케이스 모두 토스트 안내
  * - ✅ 기존 시그니처(items, setItems, onAfterSuccess)와 완전 호환 (없으면 전역 스토어 자동 사용)
+ * - ✅ 성공 시 핀/지도 쿼리까지 무효화 + 예약 버전 bump → 컨텍스트메뉴에 즉시 반영
  */
 export function useCancelReservation(
   items?: MyReservation[] | undefined,
@@ -18,6 +22,8 @@ export function useCancelReservation(
   onAfterSuccess?: () => void
 ) {
   const { toast } = useToast();
+  const qc = useQueryClient();
+  const bump = useReservationVersion((s) => s.bump);
 
   // 전역 스토어 훅
   const {
@@ -67,11 +73,17 @@ export function useCancelReservation(
           }`,
         });
 
-        // 서버 정합성 확보용 동기화 (선택적이지만 권장)
-        // - 전역 스토어만 쓰면 refetch만으로 충분
-        // - 로컬 목록을 함께 쓰면, 보통 onAfterSuccess에서 refetch 호출하거나 여기서 호출
+        // ✅ 예약 리스트 동기화
         onAfterSuccess?.();
         refetch();
+
+        // ✅ 지도/핀 쿼리 무효화 → draftState, mergedMeta 등이 최신으로 갱신됨
+        //   - 실제 프로젝트의 map 쿼리 키에 맞게 조정 가능
+        //   - 너무 넓게 invalidate 하기 싫으면 ["pins", "map"] 등으로 좁혀도 OK
+        qc.invalidateQueries({ queryKey: ["pins"] });
+
+        // ✅ 예약 버전 bump → version 구독 중인 컴포넌트들이 재평가
+        bump();
       } catch (e: any) {
         // 2) 실패 → 롤백
         // - 전역 스토어 롤백
@@ -117,6 +129,8 @@ export function useCancelReservation(
       setStoreItems,
       toast,
       onAfterSuccess,
+      qc,
+      bump,
     ]
   );
 

@@ -19,10 +19,7 @@ import { useReservationVersion } from "@/features/survey-reservations/store/useR
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
 
-/** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용)
- *  - ⚠️ 이 문자열을 역파싱해서 서버 payload 좌표로 사용하면 안 됨!
- *  - 서버 전송/DB 저장에는 항상 원본 lat/lng 숫자를 그대로 사용해야 함.
- */
+/** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 function posKey(lat: number, lng: number) {
   return `${lat.toFixed(5)},${lng.toFixed(5)}`;
 }
@@ -40,7 +37,7 @@ function extractDraftIdFromPin(pin: any): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** before 목록에서 좌표/주소로 draft 찾기 (비교 용도라 toFixed/근사 사용 OK) */
+/** before 목록에서 좌표/주소로 draft 찾기 */
 function findDraftIdByHeuristics(args: {
   before: BeforeDraft[];
   lat: number;
@@ -51,17 +48,20 @@ function findDraftIdByHeuristics(args: {
   const { before, lat, lng, roadAddress, jibunAddress } = args;
   const targetKey = posKey(lat, lng);
 
+  // 1) posKey 기반
   const byPos = before.find(
     (d) => `${d.lat.toFixed(5)},${d.lng.toFixed(5)}` === targetKey
   );
   if (byPos) return Number(byPos.id);
 
+  // 2) 주소 기반
   const addr = (roadAddress ?? jibunAddress ?? "").trim();
   if (addr) {
     const byAddr = before.find((d) => (d.addressLine ?? "").trim() === addr);
     if (byAddr) return Number(byAddr.id);
   }
 
+  // 3) 근사 lat/lng
   const EPS = 1e-5;
   const byNear = before.find(
     (d) => Math.abs(d.lat - lat) < EPS && Math.abs(d.lng - lng) < EPS
@@ -115,6 +115,11 @@ export default function PinContextMenuContainer(props: Props) {
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
 
+  const {
+    items: scheduledReservations,
+    refetch: refetchScheduledReservations,
+  } = useScheduledReservations();
+
   const handleView = () => {
     const id = String(propertyId ?? "");
     if (!id || id === "__draft__" || id.startsWith("__visit__")) return;
@@ -140,7 +145,7 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [mergedMeta, position]);
 
-  /** ✅ draftState 해석 (UI 표기용) */
+  /** 핀/메타에서 읽은 draftState (원본) */
   const resolvedDraftState = React.useMemo<string | undefined>(() => {
     const fromMeta =
       metaAtPos?.source === "draft" ? metaAtPos?.draftState : undefined;
@@ -153,48 +158,107 @@ export default function PinContextMenuContainer(props: Props) {
     return typeof v === "string" ? v : undefined;
   }, [metaAtPos, pin]);
 
-  /** 기본 판정 */
   const base = useDerivedPinState({
     propertyId,
     pin,
     isPlanPinFromParent,
     isVisitReservedFromParent,
   });
-  let { reserved, planned, listed, favActive } = base;
 
-  /** 신규 클릭 가드: '__draft__' 는 항상 신규로 취급 */
-  const isNewClick = propertyId === "__draft__";
-  if (isNewClick) {
-    reserved = false;
-    planned = false;
-    listed = false;
-  }
+  let { listed, favActive } = base;
 
-  /** ⭐ 낙관적 planned 반영 (좌표 키 기반) */
+  /** 🔍 검색 드래프트인지 (선택 위치) 여부 */
+  const isSearchDraft = String((pin as any)?.id ?? "") === "__draft__";
+
+  /** 신규 클릭 가드: "검색 드래프트 + __draft__" 만 신규로 취급 */
+  const isNewClick = propertyId === "__draft__" && isSearchDraft;
+
+  /** 현재 위치 posKey */
   const posK = React.useMemo(
     () => posKey(position.getLat(), position.getLng()),
     [position]
   );
-  if (!isNewClick && optimisticPlannedPosSet.has(posK)) {
-    planned = true;
-    reserved = false;
-    listed = false;
-  }
 
-  /** 메타 override (신규 클릭일 땐 override 하지 않음) */
-  if (!isNewClick && metaAtPos) {
-    if (metaAtPos.source === "draft") {
-      reserved = metaAtPos.draftState === "SCHEDULED";
-      planned = metaAtPos.draftState !== "SCHEDULED" || planned;
-      listed = false;
-    } else if (metaAtPos.source === "point") {
-      listed = true;
+  /** 예약 리스트 기준 "현재 위치에 예약이 존재하는지" */
+  const hasReservationAtPos = React.useMemo(() => {
+    if (!scheduledReservations?.length) return false;
+    const key = posK;
+
+    // posKey 우선
+    const byPosKey = scheduledReservations.find(
+      (r: any) => r.posKey && r.posKey === key
+    );
+    if (byPosKey) return true;
+
+    // lat/lng 보정
+    const lat = position.getLat();
+    const lng = position.getLng();
+    const EPS = 1e-5;
+
+    const byLatLng = scheduledReservations.find(
+      (r: any) =>
+        typeof r.lat === "number" &&
+        typeof r.lng === "number" &&
+        Math.abs(r.lat - lat) < EPS &&
+        Math.abs(r.lng - lng) < EPS
+    );
+
+    return !!byLatLng;
+  }, [scheduledReservations, posK, position]);
+
+  /** 이 위치가 낙관적으로 "답사예정" 처리된 상태인지 */
+  const optimisticPlannedHere =
+    !isNewClick && optimisticPlannedPosSet.has(posK);
+
+  /** 🔥 최종 reserved/planned 판정
+   *  - 예약 여부는 /scheduled 리스트만 신뢰
+   *  - 리스트에 없으면 무조건 reserved = false
+   *  - draft/meta 가 있으면 planned = true 로 보고 "답사지 예약" 버튼 노출
+   */
+  let reserved = false;
+  let planned = false;
+
+  if (!isNewClick) {
+    if (hasReservationAtPos) {
+      // ✅ 실제 예약 존재 → 무조건 예약 상태
+      reserved = true;
       planned = false;
+    } else {
+      // ✅ 예약 리스트에는 없음 → 예약 아님
+      reserved = false;
+
+      // 1) 낙관적 planned
+      if (optimisticPlannedHere) {
+        planned = true;
+      } else {
+        // 2) 메타/원본 draftState 기반
+        const s = (resolvedDraftState ?? "").toUpperCase();
+
+        if (metaAtPos?.source === "draft") {
+          // draft 자체가 있으면 항상 "답사예정"으로 취급
+          planned = true;
+        } else if (s && s !== "DELETED") {
+          // 서버가 어떤 draftState 를 들고 있어도, 예약이 없으면 "답사예정 있음"
+          planned = true;
+        } else if (isPlanPinFromParent) {
+          // 부모에서 내려준 힌트
+          planned = true;
+        }
+      }
     }
   }
 
+  /** 패널에 넘길 draftState: reserved/planned 에 맞춰 단순화 */
+  let draftStateForPanel: string | undefined;
+  if (reserved) {
+    draftStateForPanel = "SCHEDULED";
+  } else if (planned) {
+    draftStateForPanel = "PLANNED";
+  } else {
+    draftStateForPanel = undefined;
+  }
+
   const { createVisitPlanAt, reserveVisitPlan } = useSidebar();
-  const { refetch: refetchScheduledReservations } = useScheduledReservations();
 
   const { handlePlan } = usePlanReserve({
     mode: "create",
@@ -271,7 +335,6 @@ export default function PinContextMenuContainer(props: Props) {
       });
     }
 
-    // 오버레이 정리 (라벨 복원은 Host unmount에서 처리)
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         cleanupOverlaysAt(lat, lng);
@@ -350,9 +413,25 @@ export default function PinContextMenuContainer(props: Props) {
         await refetchScheduledReservations();
       } catch {}
 
-      cleanupOverlaysAt(position.getLat(), position.getLng());
+      const lat = position.getLat();
+      const lng = position.getLng();
+
+      cleanupOverlaysAt(lat, lng);
       bump();
       onClose?.();
+
+      const box = getBoundsBox();
+      if (refreshViewportPins && box) {
+        try {
+          await refreshViewportPins(box);
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[PinContextMenu] refreshViewportPins after reservation failed:",
+            e
+          );
+        }
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
@@ -382,7 +461,6 @@ export default function PinContextMenuContainer(props: Props) {
       }
     }
 
-    // ✅ 여기서 onCreate 로 넘기는 lat/lng 이 바로 매물 생성 모달에서 쓰는 "원본 좌표"
     onCreate?.({
       latFromPin: lat,
       lngFromPin: lng,
@@ -417,18 +495,9 @@ export default function PinContextMenuContainer(props: Props) {
   const xAnchor = 0.5;
   const yAnchor = 1;
 
-  /** 🔍 검색 드래프트인지 (선택 위치) 여부 */
-  const isSearchDraft = String((pin as any)?.id ?? "") === "__draft__";
-
-  /** 🔥 검색 드래프트 vs 기존핀 offset 분리
-   *  - 검색 드래프트: 좀 더 위로 (핀을 거의 안 가리게)
-   *  - 기존 핀/답사예정 핀: 예전 느낌에 가깝게 낮게
-   */
   const offsetPx = isSearchDraft ? 78 : 56;
-
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
-  /** ✅ ID/제목 보강 */
   const propertyIdClean = React.useMemo(() => {
     const raw = String(propertyId ?? "").trim();
     if (!raw) return null;
@@ -457,8 +526,8 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [propertyTitle, pin, metaAtPos]);
 
-  /** 📌 위치 디버그 로그 */
   React.useEffect(() => {
+    // 상태 디버그용
     // eslint-disable-next-line no-console
     console.debug("[PinContextMenu] position", {
       lat: position.getLat(),
@@ -467,12 +536,30 @@ export default function PinContextMenuContainer(props: Props) {
       pinId: (pin as any)?.id,
       isSearchDraft,
       offsetPx,
+      version,
+      hasReservationAtPos,
+      resolvedDraftState,
+      reserved,
+      planned,
+      draftStateForPanel,
     });
-  }, [position, propertyId, pin, isSearchDraft, offsetPx]);
+  }, [
+    position,
+    propertyId,
+    pin,
+    isSearchDraft,
+    offsetPx,
+    version,
+    hasReservationAtPos,
+    resolvedDraftState,
+    reserved,
+    planned,
+    draftStateForPanel,
+  ]);
 
   return (
     <CustomOverlay
-      key={`ctx:${version}:${posK}`} // 🔹 key 도 posKey 재사용
+      key={`ctx:${version}:${posK}`}
       kakao={kakao}
       map={map}
       position={position}
@@ -481,7 +568,6 @@ export default function PinContextMenuContainer(props: Props) {
       zIndex={MENU_Z}
       pointerEventsEnabled
     >
-      {/* ✅ 전체 메뉴(카드+꼬리)를 한 덩어리로 위로 올린다 */}
       <div style={{ position: "relative", top: -offsetPx }}>
         <div role="dialog" aria-modal="true">
           <div className="relative pointer-events-auto">
@@ -490,7 +576,7 @@ export default function PinContextMenuContainer(props: Props) {
               jibunAddress={jibunAddress ?? null}
               propertyId={propertyIdClean}
               propertyTitle={derivedPropertyTitle || null}
-              draftState={resolvedDraftState}
+              draftState={draftStateForPanel}
               onClose={props.onClose}
               onView={handleView}
               onCreate={handleCreateClick}
@@ -503,7 +589,6 @@ export default function PinContextMenuContainer(props: Props) {
               favActive={favActive}
               position={position}
             />
-            {/* ⬇️ 카드 바로 아래에 붙어있는 말꼬리 (카드와 항상 붙어 있음) */}
             <div
               aria-hidden="true"
               className="absolute left-1/2 top-full -mt-px -translate-x-1/2 w-0 h-0

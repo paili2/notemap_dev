@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useCallback, useEffect, useState } from "react";
+import {
+  useMemo,
+  useCallback,
+  useEffect,
+  useState,
+  useRef, // ✅ 추가
+} from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import type { PropertyEditModalProps } from "./types";
 import { useEditImages } from "./hooks/useEditImages";
@@ -877,7 +883,9 @@ function toPinPatch(
     const pickMeaningful = (arr: unknown): AreaGroupNorm[] =>
       Array.isArray(arr)
         ? (arr as any[])
+
             .map((g: any) => normGroup(g))
+
             .filter(
               (x: AreaGroupNorm) =>
                 x.title ||
@@ -998,16 +1006,21 @@ function toPinPatch(
 
     const pickDirStringsFromInitial = (init: any): string[] => {
       const fromArr = (Array.isArray(init?.directions) ? init.directions : [])
+
         .map(
           (d: any) =>
             [d?.direction, d?.dir, d?.value, d?.name, d?.code]
               .map((x) => (typeof x === "string" ? x.trim() : ""))
+
               .find((x) => !!x) || ""
         )
+
         .filter(Boolean);
       if (fromArr.length) return fromArr;
       return [init?.aspect1, init?.aspect2, init?.aspect3]
+
         .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+
         .filter(Boolean);
     };
 
@@ -1025,6 +1038,7 @@ function toPinPatch(
           const dir =
             [o?.dir, o?.value, o?.direction, o?.name, o?.code]
               .map((x) => (typeof x === "string" ? x.trim() : ""))
+
               .find((x) => !!x) || "";
           const ho = hoNum(o?.ho);
           return dir ? { ho, dir } : null;
@@ -1033,6 +1047,7 @@ function toPinPatch(
       if (!pairs.length) {
         const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))
+
           .filter(Boolean);
         pairs = arr.map((dir: string, idx: number) => ({ ho: idx + 1, dir }));
       }
@@ -1552,6 +1567,22 @@ export default function PropertyEditModalBody({
 
   const isSaveEnabled = f.isSaveEnabled;
 
+  /** ✅ 편집 모달 내부 스크롤 컨테이너의 가로 스크롤 강제 리셋 */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      if (el.scrollLeft !== 0) {
+        el.scrollLeft = 0;
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
   /** 저장 가능 여부: 폼 변경 or 이미지 변경 */
   const canSaveNow = useMemo(
     () => isSaveEnabled || hasImageChanges?.(),
@@ -1865,7 +1896,11 @@ export default function PropertyEditModalBody({
       <div className="flex flex-col h-full">
         <HeaderContainer form={headerForm as any} onClose={onClose} />
 
-        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        {/* ✅ 스크롤 컨테이너에 ref 연결 */}
+        <div
+          ref={scrollRef}
+          className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+        >
           <ImagesContainer images={imagesProp} />
           <div className="space-y-4 md:space-y-6 overflow-visible">
             <BasicInfoContainer form={f} />
@@ -1899,14 +1934,15 @@ export default function PropertyEditModalBody({
       <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
         <HeaderContainer form={headerForm as any} onClose={onClose} />
 
-        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        {/* 🔧 여기 레이아웃을 embedded 버전과 동일하게 수정 */}
+        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
           {/* 좌측: 이미지 */}
           <div className="relative z-[1]">
             <ImagesContainer images={imagesProp} />
           </div>
 
           {/* 우측: 폼 */}
-          <div className="relative z-[2] space-y-6">
+          <div className="relative z-[2] space-y-4 md:space-y-6">
             <BasicInfoContainer form={f} />
             <NumbersContainer form={f} />
             {mountParking && <ParkingContainer form={parkingForm as any} />}
@@ -1916,6 +1952,7 @@ export default function PropertyEditModalBody({
             <StructureLinesContainer form={f} />
             <OptionsContainer form={f} />
             <MemosContainer form={f} />
+            <div className="h-16 md:hidden" />
           </div>
         </div>
 

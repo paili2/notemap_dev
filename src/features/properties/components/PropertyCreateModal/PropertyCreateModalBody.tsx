@@ -419,9 +419,7 @@ export default function PropertyCreateModalBody({
   const processedCardSetRef = useRef<Set<number>>(new Set());
   const processedVerticalRef = useRef<boolean>(false);
 
-  /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록
-   *  🔹 여기서도 폴더 제목 사용 (없으면 "카드 n")
-   */
+  /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록 */
   const persistOneCard = useCallback(
     async (pinId: string | number, folderIdx: number) => {
       if (processedCardSetRef.current.has(folderIdx)) return;
@@ -498,7 +496,6 @@ export default function PropertyCreateModalBody({
         const group = await createPhotoGroup({
           pinId,
           title: "세로 파일",
-          // 🔹 imageFolders는 배열이므로 length는 nullish가 아님 → ?? 0 제거
           sortOrder: (imageFolders as any[]).length,
         });
 
@@ -518,7 +515,6 @@ export default function PropertyCreateModalBody({
   /* ── ParkingContainer 어댑터 ── */
   const parkingForm = useMemo(
     () => ({
-      // 🔹 enum id (form 안에 이미 있다고 보고 any 캐스팅)
       parkingTypeId: (f as any).parkingTypeId ?? null,
       setParkingTypeId: (v: number | null) => {
         const setter = (f as any).setParkingTypeId as
@@ -527,7 +523,6 @@ export default function PropertyCreateModalBody({
         if (setter) setter(v);
       },
 
-      // 🔹 기존 string|null 어댑터
       parkingType: f.parkingType ?? null,
       setParkingType: (v: string | null) => f.setParkingType(v ?? ""),
 
@@ -557,6 +552,22 @@ export default function PropertyCreateModalBody({
     ]
   );
 
+  /* === 생성 카드 내부 스크롤 컨테이너의 가로 스크롤 강제 리셋 === */
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      if (el.scrollLeft !== 0) {
+        el.scrollLeft = 0;
+      }
+    };
+
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
     isSavingRef.current = true;
@@ -572,7 +583,7 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // 🔹 가로 카드 폴더 제목 검증 (이미지가 있는 폴더는 제목 필수)
+      // 🔹 가로 카드 폴더 제목 검증
       {
         const foldersAny = imageFolders as any[];
         for (let idx = 0; idx < foldersAny.length; idx++) {
@@ -605,7 +616,7 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // ✅ 준공일 형식 검증 (값이 있을 때만 / 8자리 자동 포맷)
+      // ✅ 준공일 형식 검증
       let completionDateNormalized = (f.completionDate ?? "").trim();
       if (completionDateNormalized) {
         completionDateNormalized = normalizeDateInput(completionDateNormalized);
@@ -639,7 +650,6 @@ export default function PropertyCreateModalBody({
       const badgeFromKind = mapPinKindToBadge(f.pinKind);
       const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
 
-      // 비어 있으면 오늘 날짜, 값 있으면 정규화한 값 사용
       const effectiveCompletionDate = completionDateNormalized || todayYmdKST();
 
       const strictBase = toStrictAreaSet(f.baseAreaSet);
@@ -692,7 +702,6 @@ export default function PropertyCreateModalBody({
         aspects: f.aspects,
         unitLines: f.unitLines,
 
-        // 🔹 imageFolders는 PhotoFolder[] / ImageItem[][] 둘 다 허용
         imageFolders,
         fileItems,
 
@@ -770,7 +779,6 @@ export default function PropertyCreateModalBody({
             }))
           : [];
 
-      // ✅ 신축/구옥: camelCase만 전송
       const isOld = toBoolUndef((f as any).isOld ?? (f as any).is_old);
       const isNew = toBoolUndef((f as any).isNew ?? (f as any).is_new);
 
@@ -851,12 +859,9 @@ export default function PropertyCreateModalBody({
         ...(isNew !== undefined ? { isNew } : {}),
       } as any;
 
-      // 1) 핀 생성
       const { id: pinId, matchedDraftId } = await createPin(pinDto);
 
-      // 2) 사진/파일 영속화
       try {
-        // 🔹 imageFolders는 배열이므로 ?? 0 없이 length만 사용
         for (let i = 0; i < (imageFolders as any[]).length; i++) {
           await persistOneCard(pinId, i);
         }
@@ -865,7 +870,6 @@ export default function PropertyCreateModalBody({
         console.warn("[PropertyCreate] media persist failed:", mediaErr);
       }
 
-      // 3) 예약/드래프트 정리
       try {
         if (reservationId != null) {
           await api.delete(`/survey-reservations/${reservationId}`);
@@ -909,8 +913,6 @@ export default function PropertyCreateModalBody({
         } as any)
       );
 
-      // ✅ 원래는 여기서 모달을 닫았는데,
-      // asInner 모드(단일 호스트 내부)는 카드만 교체해야 하므로 닫지 않는다.
       if (!asInner) {
         onClose?.();
       }
@@ -974,18 +976,28 @@ export default function PropertyCreateModalBody({
     ]
   );
 
-  // ✅ 카드 안 내용만 따로 분리
+  /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
       <HeaderContainer form={f} onClose={onClose} />
 
-      <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+      {/* ⭐ 내부 스크롤 래퍼에 ref 연결 + 가로 스크롤 숨김 */}
+      <div
+        ref={scrollRef}
+        className="
+          flex-1 min-h-0
+          overflow-y-auto overflow-x-hidden overscroll-y-contain
+          px-4 py-4 md:px-5 md:py-4
+          grid gap-4 md:gap-6
+          grid-cols-1 md:grid-cols-[300px_1fr]
+        "
+      >
         <ImagesContainer images={imagesProp} />
 
-        <div className="space-y-6">
+        {/* 오른쪽 컬럼: 내용 넓이 제한용 min-w-0 */}
+        <div className="space-y-6 min-w-0">
           <BasicInfoContainer form={f} />
           <NumbersContainer form={f} />
-          {/* string|null 어댑터 */}
           <ParkingContainer form={parkingForm} />
           <CompletionRegistryContainer form={f} />
           <AspectsContainer form={f} />
@@ -1015,12 +1027,10 @@ export default function PropertyCreateModalBody({
     </>
   );
 
-  // ✅ asInner 모드: 카드 프레임/딤 없이 내용만 반환
   if (asInner) {
     return content;
   }
 
-  // ✅ 기존처럼 단독 모달로 사용할 때
   return (
     <div className="fixed inset-0 z-[100]">
       <div
