@@ -13,7 +13,7 @@ export default function ImagesContainer({
   images,
 }: {
   images: {
-    /** 카드(좌측) – useEditImages의 imageFolders 그대로 */
+    /** 카드(좌측) – usePropertyImages/useEditImages 의 imageFolders 그대로 */
     imageFolders: ImageItem[][];
     /** 세로(우측) – 프로젝트별로 verticalImages 또는 fileItems 중 하나 사용 */
     verticalImages?: ImageItem[];
@@ -37,7 +37,10 @@ export default function ImagesContainer({
       opts?: { keepAtLeastOne?: boolean }
     ) => void;
 
-    /** ⬇️ 폴더 제목 편집용 (useEditImages에서 내려오는 값들; 없으면 기본제목 사용) */
+    /** ✅ 카드 이미지 삭제 핸들러 */
+    handleRemoveImage: (folderIdx: number, imageIdx: number) => void;
+
+    /** ⬇️ 폴더 제목 편집용 (usePropertyImages/useEditImages 에서 내려오는 값들; 없으면 기본제목 사용) */
     groups?: Array<{ id: string | number; title?: string | null }>;
     queueGroupTitle?: (groupId: string | number, title: string) => void;
 
@@ -122,8 +125,6 @@ export default function ImagesContainer({
   /** 7) 가로 폴더 제목 변경 → folder-idx 가짜 id로 큐잉 */
   const handleChangeFolderTitle = React.useCallback(
     (folderIdx: number, nextTitle: string) => {
-      // 생성모달에서는 아직 실제 groupId가 없으니,
-      // 항상 folder-{idx} 키로 큐에 넣고, ensureFolderGroup 에서 이 키를 읽는다.
       const pseudoId = `folder-${folderIdx}`;
       images.queueGroupTitle?.(pseudoId, nextTitle);
     },
@@ -150,9 +151,10 @@ export default function ImagesContainer({
         onAddFolder={images.addPhotoFolder}
         onRemoveFolder={images.removePhotoFolder}
         maxPerCard={maxPerCard}
+        /** ✅ 카드 이미지 삭제 연결 */
+        onRemoveImage={images.handleRemoveImage}
         /** 개별 사진 캡션은 사용 안 함 */
         onChangeCaption={() => {}}
-        onRemoveImage={() => {}}
         /** 세로 폴더 (파일 대기열) */
         fileItems={fileItemsNormalized}
         onAddFiles={images.onAddFiles}
