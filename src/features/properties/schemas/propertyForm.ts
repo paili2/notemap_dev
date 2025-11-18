@@ -1,4 +1,3 @@
-// src/features/properties/schemas/propertyForm.ts
 import { z } from "zod";
 
 /* ────────────────────────────────────────────────────────────

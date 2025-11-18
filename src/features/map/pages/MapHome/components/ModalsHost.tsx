@@ -1,4 +1,3 @@
-// features/map/view/components/ModalsHost.tsx
 "use client";
 
 import RoadviewHost from "../../../view/roadview/RoadviewHost";
@@ -89,22 +88,28 @@ export default function ModalsHost(props: {
   return (
     <>
       {cardOpen && (
-        <PropertyCreateViewHost
-          open={cardOpen}
-          initialStage={initialStage}
-          onClose={handleCloseCard}
-          /* 생성 단계 props */
-          initialAddress={prefillAddress}
-          initialPos={initialPos}
-          pinDraftId={pinDraftId ?? null}
-          appendItem={createHostHandlers.appendItem}
-          resetAfterCreate={createHostHandlers.resetAfterCreate}
-          onAfterCreate={createHostHandlers.onAfterCreate}
-          /* 뷰 단계 props */
-          initialViewData={selectedViewItem ?? undefined}
-          onSaveViewPatch={onSaveViewPatch}
-          onDeleteFromView={onDeleteFromView}
-        />
+        // 🔥 모달/검은배경을 맵 + 상단 토글보다 항상 위에 두는 래퍼
+        <div className="fixed inset-0 z-[80] pointer-events-none">
+          {/* 안쪽은 다시 이벤트 활성화해서 기존 Host 동작 그대로 */}
+          <div className="h-full w-full pointer-events-auto">
+            <PropertyCreateViewHost
+              open={cardOpen}
+              initialStage={initialStage}
+              onClose={handleCloseCard}
+              /* 생성 단계 props */
+              initialAddress={prefillAddress}
+              initialPos={initialPos}
+              pinDraftId={pinDraftId ?? null}
+              appendItem={createHostHandlers.appendItem}
+              resetAfterCreate={createHostHandlers.resetAfterCreate}
+              onAfterCreate={createHostHandlers.onAfterCreate}
+              /* 뷰 단계 props */
+              initialViewData={selectedViewItem ?? undefined}
+              onSaveViewPatch={onSaveViewPatch}
+              onDeleteFromView={onDeleteFromView}
+            />
+          </div>
+        </div>
       )}
 
       {/* 카드가 떠 있을 땐 로드뷰 숨김 */}

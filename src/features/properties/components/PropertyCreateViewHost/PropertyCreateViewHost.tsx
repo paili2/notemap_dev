@@ -1,4 +1,3 @@
-// features/properties/components/PropertyCreateViewHost/PropertyCreateViewHost.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -99,7 +98,7 @@ export default function PropertyCreateViewHost({
   //    - 카드: flex-col + overflow-hidden
   //    - sm에선 전체 h-screen, md 이상에서 max-h-[92vh]
   const frame = (inner: React.ReactNode) => (
-    <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-[200]" role="dialog" aria-modal="true">
       <button
         type="button"
         className="absolute inset-0 bg-black/40"
@@ -111,7 +110,6 @@ export default function PropertyCreateViewHost({
         className={cn(
           "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
           "bg-white shadow-xl overflow-hidden flex flex-col",
-          // 🔽 여기서 높이/폭을 예전처럼 설정
           "w-screen h-screen max-w-none max-h-none rounded-none",
           "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
         )}

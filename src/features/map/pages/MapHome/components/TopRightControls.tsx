@@ -81,7 +81,7 @@ export default function TopRightControls(props: {
     "fixed top-3 right-3 " +
     (props.roadviewVisible
       ? "z-[10] pointer-events-none opacity-40"
-      : "z-[700] pointer-events-auto"); // 필요 시 숫자 조정
+      : "z-[20] pointer-events-auto"); // 필요 시 숫자 조정
 
   return (
     <Portal>

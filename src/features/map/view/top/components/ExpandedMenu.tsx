@@ -114,7 +114,7 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
 
     return (
       <div
-        className="fixed top-16 right-16 z-[60] w-56 rounded-lg border border-gray-400 bg-white p-1 shadow-xl pointer-events-auto"
+        className="fixed top-16 right-16 z-[20] w-56 rounded-lg border border-gray-400 bg-white p-1 shadow-xl pointer-events-auto"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="region"

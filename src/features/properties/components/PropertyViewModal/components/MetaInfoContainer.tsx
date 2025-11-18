@@ -1,4 +1,3 @@
-// MetaInfoContainer.tsx
 "use client";
 
 type Props = {

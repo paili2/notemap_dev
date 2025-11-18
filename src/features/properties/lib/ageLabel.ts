@@ -1,5 +1,3 @@
-// lib/ageLabel.ts
-
 export const DEFAULT_NEW_YEARS_THRESHOLD = 5;
 
 /** 유효한 Date 객체인지 검사 */

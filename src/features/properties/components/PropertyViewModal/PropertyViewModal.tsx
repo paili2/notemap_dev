@@ -1,4 +1,3 @@
-// features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
