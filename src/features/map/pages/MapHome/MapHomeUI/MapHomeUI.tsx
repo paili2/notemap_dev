@@ -293,6 +293,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       })),
     []
   );
+
   const toServerDraftsFromDrafts = useCallback(
     (drafts: NonNullable<PinSearchResult["drafts"]>) =>
       drafts.map((d) => ({
@@ -372,8 +373,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     []
   );
 
+  /** ✅ 생성 후: 마커만 정리 (뷰모달 오픈은 단일 호스트가 담당) */
   const handleAfterCreate = useCallback(
-    async (args: {
+    (args: {
       pinId: string;
       matchedDraftId?: string | number | null;
       lat: number;
@@ -381,7 +383,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }) => {
       const { pinId, matchedDraftId, lat, lng } = args;
 
-      // 1) 기존 로직: 임시 마커 → 실제 id로 치환 or 방문 마커 추가
       if (matchedDraftId != null) {
         replaceTempByRealId(matchedDraftId, pinId);
       } else {
@@ -393,11 +394,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
           source: "draft",
         });
       }
-
-      // 2) ✅ 방금 만든 매물로 뷰모달 열기
-      await handleViewFromMenuLocal(String(pinId));
     },
-    [replaceTempByRealId, upsertDraftMarker, handleViewFromMenuLocal]
+    [replaceTempByRealId, upsertDraftMarker]
   );
 
   const draftStateForQuery = useMemo<
@@ -890,7 +888,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       <ModalsHost
-        /* ✅ 모달 열림 여부는 오직 로컬 상태만 따릅니다 */
+        /* ✅ 모달 열림 여부는 로컬 뷰 상태 + 상위에서 내려온 createOpen */
         viewOpen={viewOpenLocal}
         selectedViewItem={selectedViewForModal}
         onCloseView={handleCloseView}

@@ -1,3 +1,4 @@
+// features/properties/components/PropertyViewModal/PropertyViewModal.tsx
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -142,6 +143,8 @@ export default function PropertyViewModal({
   pinId,
   onSave,
   onDelete,
+  /** ✅ 카드 안에서만 쓸 때: 딤/포털/포지셔닝 없이 패널만 렌더 */
+  asInner,
 }: {
   open: boolean;
   onClose: () => void;
@@ -149,10 +152,11 @@ export default function PropertyViewModal({
   pinId?: string | number | null;
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
+  asInner?: boolean;
 }) {
   const [stage, setStage] = useState<Stage>("view");
   const [deleting, setDeleting] = useState(false);
-  useBodyScrollLock(open);
+  useBodyScrollLock(open && !asInner);
 
   const [editInitial, setEditInitial] = useState<any | null>(null);
 
@@ -239,6 +243,7 @@ export default function PropertyViewModal({
         initialData={editInitial ?? initialForEdit}
         onClose={onEditClose}
         onSubmit={onEditSubmit}
+        asInner={asInner}
       />
     ) : (
       <ViewStage
@@ -256,8 +261,15 @@ export default function PropertyViewModal({
           setStage("edit");
         }}
         onClickEdit={() => {}}
+        asInner={asInner}
       />
     );
+
+  // ✅ 단일 모달 호스트(stage create/view/edit) 안에서 쓸 때는
+  // asInner=true로 넘겨서 카드 패널만 사용
+  if (asInner) {
+    return portalChild;
+  }
 
   return typeof document !== "undefined"
     ? createPortal(portalChild, document.body)
@@ -276,6 +288,7 @@ function ViewStage({
   deleting,
   loading,
   onRequestEdit,
+  asInner,
 }: {
   data: PropertyViewDetails | null;
   metaDetails: any;
@@ -287,6 +300,7 @@ function ViewStage({
   deleting: boolean;
   loading?: boolean;
   onRequestEdit: (seed: any) => void;
+  asInner?: boolean;
 }) {
   console.log("[PropertyViewModal/ViewStage] render", { data });
   const hasData = !!data;
@@ -331,7 +345,7 @@ function ViewStage({
     return () => clearTimeout(t);
   }, []);
 
-  // 배경 클릭 → 닫기
+  // 배경 클릭 → 닫기 (포털 모드에서만 사용)
   const onDimClick = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>) => {
       eat(e);
@@ -340,7 +354,7 @@ function ViewStage({
     [onClose]
   );
 
-  // ✨ 콘텐츠 패널에만 버블 단계 전파 차단
+  // ✨ 콘텐츠 패널에만 버블 단계 전파 차단 (포털 모드에서만 사용)
   const stopBubble = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
   }, []);
@@ -364,7 +378,37 @@ function ViewStage({
     onRequestEdit(editSeed);
   }, [data, f, onRequestEdit]);
 
+  const panelClass = cn(
+    "bg-white shadow-xl overflow-hidden flex flex-col",
+    "w-screen h-screen max-w-none max-h-none rounded-none",
+    "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
+  );
+
+  const positionedPanelClass = cn(
+    "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+    panelClass
+  );
+
   if (loading && !hasData) {
+    const panel = (
+      <div
+        className={asInner ? panelClass : positionedPanelClass}
+        {...(!asInner && {
+          onMouseDown: stopBubble,
+          onPointerDown: stopBubble,
+          onKeyDownCapture: (e: React.KeyboardEvent) => {
+            if (e.key === "Escape") e.stopPropagation();
+          },
+        })}
+      >
+        <LoadingSkeleton onClose={onClose} headingId={headingId} />
+      </div>
+    );
+
+    if (asInner) {
+      return panel;
+    }
+
     return (
       <div
         className="fixed inset-0 z-[99999]"
@@ -380,23 +424,177 @@ function ViewStage({
           aria-label="닫기"
           title="닫기"
         />
-        <div
-          className={cn(
-            "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-            "bg-white shadow-xl overflow-hidden flex flex-col",
-            "w-screen h-screen max-w-none max-h-none rounded-none",
-            "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
-          )}
-          onMouseDown={stopBubble}
-          onPointerDown={stopBubble}
-          onKeyDownCapture={(e) => {
-            if (e.key === "Escape") e.stopPropagation();
-          }}
-        >
-          <LoadingSkeleton onClose={onClose} headingId={headingId} />
-        </div>
+        {panel}
       </div>
     );
+  }
+
+  const panel = (
+    <div
+      className={asInner ? panelClass : positionedPanelClass}
+      {...(!asInner && {
+        onMouseDown: stopBubble,
+        onPointerDown: stopBubble,
+        onKeyDownCapture: (e: React.KeyboardEvent) => {
+          if (e.key === "Escape") e.stopPropagation();
+        },
+      })}
+    >
+      {hasData ? (
+        <>
+          <div className="sticky top-0 z-10 bg-white border-b">
+            <HeaderViewContainer
+              title={f.title}
+              parkingGrade={f.parkingGrade}
+              elevator={f.elevator}
+              pinKind={f.pinKind}
+              headingId={headingId}
+              descId={descId}
+              isNew={ageFlags.isNew}
+              isOld={ageFlags.isOld}
+              buildingAgeType={(data as any)?.buildingAgeType ?? undefined}
+              completionDate={
+                (data as any)?.completionDate ??
+                (f as any)?.completionDate ??
+                null
+              }
+              newYearsThreshold={5}
+            />
+          </div>
+
+          <div
+            className={cn(
+              "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
+              "px-4 py-4 md:px-5 md:py-4",
+              "grid gap-4 md:gap-6",
+              "grid-cols-1 md:grid-cols-[300px_1fr]"
+            )}
+          >
+            <div className="space-y-4">
+              <DisplayImagesContainer
+                cards={f.cardsHydrated}
+                images={f.imagesProp}
+                files={f.filesHydrated}
+              />
+            </div>
+
+            <div className="space-y-4 md:space-y-6">
+              <BasicInfoViewContainer
+                address={f.address ?? ""}
+                officePhone={f.officePhone ?? ""}
+                officePhone2={f.officePhone2 ?? ""}
+              />
+              <NumbersViewContainer
+                totalBuildings={f.totalBuildings}
+                totalFloors={f.totalFloors}
+                totalHouseholds={f.totalHouseholds}
+                remainingHouseholds={f.remainingHouseholds}
+              />
+              <ParkingViewContainer
+                parkingType={f.parkingType}
+                totalParkingSlots={
+                  (f as any).totalParkingSlots ??
+                  (data as any)?.totalParkingSlots ??
+                  (data as any)?.parkingCount ??
+                  undefined
+                }
+              />
+              <CompletionRegistryViewContainer
+                completionDate={f.completionDateText}
+                registry={f.registry}
+                slopeGrade={f.slopeGrade}
+                structureGrade={f.structureGrade}
+                minRealMoveInCost={(f as any).minRealMoveInCost}
+              />
+              <AspectsViewContainer details={data!} />
+              <AreaSetsViewContainer
+                exclusiveArea={f.exclusiveArea}
+                realArea={f.realArea}
+                extraExclusiveAreas={f.extraExclusiveAreas}
+                extraRealAreas={f.extraRealAreas}
+                baseAreaTitle={f.baseAreaTitleView}
+                extraAreaTitles={f.extraAreaTitlesView}
+              />
+              <StructureLinesListContainer
+                lines={f.unitLines}
+                units={(f as any).units}
+              />
+              <OptionsBadgesContainer
+                options={f.options}
+                optionEtc={f.optionEtc}
+              />
+              <MemosContainer
+                publicMemo={f.publicMemo}
+                secretMemo={f.secretMemo}
+              />
+
+              {/* 👇 생성자/답사자/수정자 메타 정보 (메모 밑) */}
+              <MetaInfoContainer details={metaDetails} />
+
+              <div className="h-16 md:hidden" />
+            </div>
+          </div>
+
+          <div className="md:static">
+            <div
+              className={cn(
+                "fixed bottom-0 left-0 right-0 z-20 md:relative",
+                "bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70",
+                "border-t",
+                "px-4 py-3 md:px-5 md:py-3",
+                "flex items-center justify-between",
+                "shadow-[0_-4px_10px_-6px_rgba(0,0,0,0.15)] md:shadow-none"
+              )}
+            >
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleClickEdit}
+                  data-pvm-initial
+                  className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
+                  aria-label="수정"
+                  title="수정"
+                >
+                  <Pencil className="h-4 w-4" />
+                  수정
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onDisable}
+                  disabled={deleting || !data?.id}
+                  className={cn(
+                    "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
+                    deleting && "opacity-60 cursor-not-allowed"
+                  )}
+                  aria-label="삭제"
+                  title="삭제"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deleting ? "비활성화 중…" : "삭제"}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center gap-2 rounded-md border px-3 h-9 hover:bg-muted"
+                aria-label="닫기"
+                title="닫기"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <LoadingSkeleton onClose={onClose} headingId={headingId} />
+      )}
+    </div>
+  );
+
+  if (asInner) {
+    return panel;
   }
 
   return (
@@ -414,170 +612,7 @@ function ViewStage({
         aria-label="닫기"
         title="닫기"
       />
-      <div
-        className={cn(
-          "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
-          "bg-white shadow-xl overflow-hidden flex flex-col",
-          "w-screen h-screen max-w-none max-h-none rounded-none",
-          "md:w-[1100px] md:max-w-[95vw] md:max-h-[92vh] md:rounded-2xl"
-        )}
-        onMouseDown={stopBubble}
-        onPointerDown={stopBubble}
-        onKeyDownCapture={(e) => {
-          if (e.key === "Escape") e.stopPropagation();
-        }}
-      >
-        {hasData ? (
-          <>
-            <div className="sticky top-0 z-10 bg-white border-b">
-              <HeaderViewContainer
-                title={f.title}
-                parkingGrade={f.parkingGrade}
-                elevator={f.elevator}
-                pinKind={f.pinKind}
-                headingId={headingId}
-                descId={descId}
-                isNew={ageFlags.isNew}
-                isOld={ageFlags.isOld}
-                buildingAgeType={(data as any)?.buildingAgeType ?? undefined}
-                completionDate={
-                  (data as any)?.completionDate ??
-                  (f as any)?.completionDate ??
-                  null
-                }
-                newYearsThreshold={5}
-              />
-            </div>
-
-            <div
-              className={cn(
-                "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
-                "px-4 py-4 md:px-5 md:py-4",
-                "grid gap-4 md:gap-6",
-                "grid-cols-1 md:grid-cols-[300px_1fr]"
-              )}
-            >
-              <div className="space-y-4">
-                <DisplayImagesContainer
-                  cards={f.cardsHydrated}
-                  images={f.imagesProp}
-                  files={f.filesHydrated}
-                />
-              </div>
-
-              <div className="space-y-4 md:space-y-6">
-                <BasicInfoViewContainer
-                  address={f.address ?? ""}
-                  officePhone={f.officePhone ?? ""}
-                  officePhone2={f.officePhone2 ?? ""}
-                />
-                <NumbersViewContainer
-                  totalBuildings={f.totalBuildings}
-                  totalFloors={f.totalFloors}
-                  totalHouseholds={f.totalHouseholds}
-                  remainingHouseholds={f.remainingHouseholds}
-                />
-                <ParkingViewContainer
-                  parkingType={f.parkingType}
-                  totalParkingSlots={
-                    (f as any).totalParkingSlots ??
-                    (data as any)?.totalParkingSlots ??
-                    (data as any)?.parkingCount ??
-                    undefined
-                  }
-                />
-                <CompletionRegistryViewContainer
-                  completionDate={f.completionDateText}
-                  registry={f.registry}
-                  slopeGrade={f.slopeGrade}
-                  structureGrade={f.structureGrade}
-                  minRealMoveInCost={(f as any).minRealMoveInCost}
-                />
-                <AspectsViewContainer details={data!} />
-                <AreaSetsViewContainer
-                  exclusiveArea={f.exclusiveArea}
-                  realArea={f.realArea}
-                  extraExclusiveAreas={f.extraExclusiveAreas}
-                  extraRealAreas={f.extraRealAreas}
-                  baseAreaTitle={f.baseAreaTitleView}
-                  extraAreaTitles={f.extraAreaTitlesView}
-                />
-                <StructureLinesListContainer
-                  lines={f.unitLines}
-                  units={(f as any).units}
-                />
-                <OptionsBadgesContainer
-                  options={f.options}
-                  optionEtc={f.optionEtc}
-                />
-                <MemosContainer
-                  publicMemo={f.publicMemo}
-                  secretMemo={f.secretMemo}
-                />
-
-                {/* 👇 생성자/답사자/수정자 메타 정보 (메모 밑) */}
-                <MetaInfoContainer details={metaDetails} />
-
-                <div className="h-16 md:hidden" />
-              </div>
-            </div>
-
-            <div className="md:static">
-              <div
-                className={cn(
-                  "fixed bottom-0 left-0 right-0 z-20 md:relative",
-                  "bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/70",
-                  "border-t",
-                  "px-4 py-3 md:px-5 md:py-3",
-                  "flex items-center justify-between",
-                  "shadow-[0_-4px_10px_-6px_rgba(0,0,0,0.15)] md:shadow-none"
-                )}
-              >
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleClickEdit}
-                    data-pvm-initial
-                    className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
-                    aria-label="수정"
-                    title="수정"
-                  >
-                    <Pencil className="h-4 w-4" />
-                    수정
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={onDisable}
-                    disabled={deleting || !data?.id}
-                    className={cn(
-                      "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
-                      deleting && "opacity-60 cursor-not-allowed"
-                    )}
-                    aria-label="삭제"
-                    title="삭제"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {deleting ? "비활성화 중…" : "삭제"}
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-md border px-3 h-9 hover:bg-muted"
-                  aria-label="닫기"
-                  title="닫기"
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <LoadingSkeleton onClose={onClose} headingId={headingId} />
-        )}
-      </div>
+      {panel}
     </div>
   );
 }
@@ -587,13 +622,17 @@ function EditStage({
   initialData,
   onClose,
   onSubmit,
+  asInner,
 }: {
   initialData: PropertyViewDetails | any;
   onClose: () => void;
   onSubmit: (p: UpdatePayload & Partial<CreatePayload>) => void | Promise<void>;
+  asInner?: boolean;
 }) {
+  // asInner는 나중에 PropertyEditModalBody에서 또 쓸 수 있으면 같이 넘겨도 됨
   return (
     <PropertyEditModalBody
+      embedded // ✅ 카드 안에서 쓰는 모드
       initialData={initialData}
       onClose={onClose}
       onSubmit={onSubmit}

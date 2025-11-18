@@ -127,7 +127,12 @@ type BuildArgs = {
   aspects: AspectRowLite[];
   unitLines: UnitLine[]; // UI 내부 명칭
 
-  imageFolders: ImageItem[][];
+  /**
+   * 이미지 폴더
+   * - PhotoFolder[] ( { title, items } ) 형식
+   * - 또는 ImageItem[][] 형식 둘 다 허용
+   */
+  imageFolders: (ImageItem[] | { title?: string; items: ImageItem[] })[];
   fileItems: ImageItem[];
 
   pinKind: PinKind;
@@ -279,14 +284,50 @@ export function buildCreatePayload(args: BuildArgs) {
     extraAreaSets
   );
 
-  /* 3) 이미지 포맷 */
-  const imageFoldersRaw: ImageItem[][] = imageFolders.map((card) =>
-    card.map((i) => ({ ...i }))
+  /* 3) 이미지 포맷 - 폴더 메타 정규화 (title + items) */
+  type NormalizedFolder = {
+    title: string;
+    items: ImageItem[];
+  };
+
+  const normalizedFolders: NormalizedFolder[] = (imageFolders ?? []).map(
+    (folder: any): NormalizedFolder => {
+      // case 1: 순수 배열 (ImageItem[])
+      if (Array.isArray(folder)) {
+        return {
+          title: "",
+          items: (folder as ImageItem[]).map((i) => ({ ...i })),
+        };
+      }
+      // case 2: { title, items }
+      const title =
+        typeof folder?.title === "string" ? folder.title.trim() : "";
+      const itemsSrc: ImageItem[] = Array.isArray(folder?.items)
+        ? folder.items
+        : [];
+      return {
+        title,
+        items: itemsSrc.map((i) => ({ ...i })),
+      };
+    }
   );
+
+  // 🔹 카드 아이템만 뽑은 2차원 배열 (기존 로직 호환용)
+  const cardsOnly: ImageItem[][] = normalizedFolders.map((f) => f.items);
+
+  // 🔹 payload에 들어갈 raw 구조 (title + items)
+  const imageFoldersRaw: { title?: string; items: ImageItem[] }[] =
+    normalizedFolders.map((f) => ({
+      title: f.title,
+      items: f.items.map((i) => ({ ...i })),
+    }));
+
+  const imageFolderTitles: string[] = normalizedFolders.map((f) => f.title);
+
   const fileItemsRaw: ImageItem[] = fileItems.map((i) => ({ ...i }));
 
   const imageCardsUI: { url: string; name: string; caption?: string }[][] =
-    imageFolders.map((card) =>
+    cardsOnly.map((card) =>
       card
         .filter((it) => !!it.url)
         .map(({ url, name, caption }) => ({
@@ -296,7 +337,7 @@ export function buildCreatePayload(args: BuildArgs) {
         }))
     );
 
-  const imageFoldersStored: StoredMediaItem[][] = imageFolders.map((card) =>
+  const imageFoldersStored: StoredMediaItem[][] = cardsOnly.map((card) =>
     card.map(
       ({ idbKey: _idbKey, url: _url, name: _name, caption: _caption }) => ({
         ...(_idbKey ? { idbKey: _idbKey } : {}),
@@ -307,12 +348,12 @@ export function buildCreatePayload(args: BuildArgs) {
     )
   );
 
-  const imagesFlatStrings: string[] = imageFolders
+  const imagesFlatStrings: string[] = cardsOnly
     .flat()
     .map((f) => f.url)
     .filter(Boolean) as string[];
 
-  const imageCardCounts = imageFolders.map((card) => card.length);
+  const imageCardCounts = cardsOnly.map((card) => card.length);
 
   const verticalImagesStored: StoredMediaItem[] = fileItems.map(
     ({ idbKey: _idbKey, url: _url, name: _name, caption: _caption }) => ({
@@ -363,7 +404,10 @@ export function buildCreatePayload(args: BuildArgs) {
     areaSetTitles?: string[];
     areaGroups?: CreatePinAreaGroupDto[];
     pinKind?: PinKind;
-    imageFoldersRaw: ImageItem[][];
+
+    /** 🔹 이제 title + items 구조로 보냄 */
+    imageFoldersRaw: { title?: string; items: ImageItem[] }[];
+    imageFolderTitles?: string[];
     fileItemsRaw: ImageItem[];
     pinDraftId?: number | string | null;
     lat?: number;
@@ -482,6 +526,7 @@ export function buildCreatePayload(args: BuildArgs) {
     images: imagesFlatStrings,
     fileItems: verticalImagesUI, // UI 프리뷰용(세로)
     imageFoldersRaw,
+    imageFolderTitles,
     fileItemsRaw,
 
     /* 분류/제목 레거시 */

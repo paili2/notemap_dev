@@ -82,6 +82,11 @@ const toBoolUndef = (v: unknown): boolean | undefined => {
   return undefined;
 };
 
+/** ✅ asInner: true면 카드 안 내용만 렌더(딤/포털 없음) */
+type Props = Omit<PropertyCreateModalProps, "open"> & {
+  asInner?: boolean;
+};
+
 export default function PropertyCreateModalBody({
   onClose,
   onSubmit,
@@ -89,7 +94,8 @@ export default function PropertyCreateModalBody({
   initialLat,
   initialLng,
   pinDraftId,
-}: Omit<PropertyCreateModalProps, "open">) {
+  asInner,
+}: Props) {
   const f = useCreateForm({ initialAddress });
 
   const {
@@ -413,13 +419,31 @@ export default function PropertyCreateModalBody({
   const processedCardSetRef = useRef<Set<number>>(new Set());
   const processedVerticalRef = useRef<boolean>(false);
 
-  /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록 */
+  /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록
+   *  🔹 여기서도 폴더 제목 사용 (없으면 "카드 n")
+   */
   const persistOneCard = useCallback(
     async (pinId: string | number, folderIdx: number) => {
       if (processedCardSetRef.current.has(folderIdx)) return;
       processedCardSetRef.current.add(folderIdx);
 
-      const groupImages = imageFolders[folderIdx] ?? [];
+      const folderAny = (imageFolders as any[])[folderIdx];
+      const isFolderObject =
+        folderAny && typeof folderAny === "object" && "items" in folderAny;
+
+      const groupImages: ImageItem[] = isFolderObject
+        ? (folderAny.items as ImageItem[]) ?? []
+        : Array.isArray(folderAny)
+        ? (folderAny as ImageItem[])
+        : [];
+
+      if (!groupImages.length) return;
+
+      const titleFromFolder =
+        isFolderObject && typeof folderAny.title === "string"
+          ? folderAny.title.trim()
+          : "";
+
       try {
         const filePromises = groupImages.map((img, i) =>
           imageItemToFile(img, `card-${folderIdx + 1}-${i + 1}`)
@@ -435,7 +459,7 @@ export default function PropertyCreateModalBody({
 
         const group = await createPhotoGroup({
           pinId,
-          title: `카드 ${folderIdx + 1}`,
+          title: titleFromFolder || `카드 ${folderIdx + 1}`,
           sortOrder: folderIdx,
         });
 
@@ -474,7 +498,8 @@ export default function PropertyCreateModalBody({
         const group = await createPhotoGroup({
           pinId,
           title: "세로 파일",
-          sortOrder: imageFolders?.length ?? 0,
+          // 🔹 imageFolders는 배열이므로 length는 nullish가 아님 → ?? 0 제거
+          sortOrder: (imageFolders as any[]).length,
         });
 
         const sortOrders = urls.map((_, i) => i);
@@ -487,7 +512,7 @@ export default function PropertyCreateModalBody({
         console.warn("[persistVerticalFiles] failed", err);
       }
     },
-    [fileItems, imageFolders?.length, imageItemToFile]
+    [fileItems, imageFolders, imageItemToFile]
   );
 
   /* ── ParkingContainer 어댑터 ── */
@@ -521,9 +546,6 @@ export default function PropertyCreateModalBody({
         const n = Number(s);
         f.setTotalParkingSlots(Number.isFinite(n) ? n : null);
       },
-
-      // (옵션) 나중에 name → id 매핑 내려주고 싶으면 여기서 추가
-      // parkingTypeNameToId: { 병렬: 1, 직렬: 2, ... },
     }),
     [
       f.parkingType,
@@ -548,6 +570,29 @@ export default function PropertyCreateModalBody({
       if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
         alert("좌표가 유효하지 않습니다. (initialLat/initialLng 미전달)");
         return;
+      }
+
+      // 🔹 가로 카드 폴더 제목 검증 (이미지가 있는 폴더는 제목 필수)
+      {
+        const foldersAny = imageFolders as any[];
+        for (let idx = 0; idx < foldersAny.length; idx++) {
+          const folder = foldersAny[idx];
+          const isFolderObject =
+            folder && typeof folder === "object" && "items" in folder;
+          if (!isFolderObject) continue;
+
+          const items: ImageItem[] = Array.isArray(folder.items)
+            ? (folder.items as ImageItem[])
+            : [];
+          if (!items.length) continue;
+
+          const titleRaw =
+            typeof folder.title === "string" ? folder.title.trim() : "";
+          if (!titleRaw) {
+            alert(`가로 카드 ${idx + 1}의 폴더 이름을 입력해 주세요.`);
+            return;
+          }
+        }
       }
 
       // 전화번호 검증
@@ -596,18 +641,6 @@ export default function PropertyCreateModalBody({
 
       // 비어 있으면 오늘 날짜, 값 있으면 정규화한 값 사용
       const effectiveCompletionDate = completionDateNormalized || todayYmdKST();
-
-      const toStrictAreaSet = (s: any): StrictAreaSet => ({
-        title: String(s?.title ?? ""),
-        exMinM2: String(s?.exMinM2 ?? ""),
-        exMaxM2: String(s?.exMaxM2 ?? ""),
-        exMinPy: String(s?.exMinPy ?? ""),
-        exMaxPy: String(s?.exMaxPy ?? ""),
-        realMinM2: String(s?.realMinM2 ?? ""),
-        realMaxM2: String(s?.realMaxM2 ?? ""),
-        realMinPy: String(s?.realMinPy ?? ""),
-        realMaxPy: String(s?.realMaxPy ?? ""),
-      });
 
       const strictBase = toStrictAreaSet(f.baseAreaSet);
       const strictExtras = (
@@ -659,6 +692,7 @@ export default function PropertyCreateModalBody({
         aspects: f.aspects,
         unitLines: f.unitLines,
 
+        // 🔹 imageFolders는 PhotoFolder[] / ImageItem[][] 둘 다 허용
         imageFolders,
         fileItems,
 
@@ -667,7 +701,6 @@ export default function PropertyCreateModalBody({
         lng: lngNum,
       });
 
-      // ⬇️ 여기서 한 번만 선언 (중복 선언 제거)
       const reservationId = (f as any).reservationId as string | number | null;
       const explicitPinDraftId =
         pinDraftId != null
@@ -823,7 +856,8 @@ export default function PropertyCreateModalBody({
 
       // 2) 사진/파일 영속화
       try {
-        for (let i = 0; i < (imageFolders?.length ?? 0); i++) {
+        // 🔹 imageFolders는 배열이므로 ?? 0 없이 length만 사용
+        for (let i = 0; i < (imageFolders as any[]).length; i++) {
           await persistOneCard(pinId, i);
         }
         await persistVerticalFiles(pinId);
@@ -874,6 +908,12 @@ export default function PropertyCreateModalBody({
           payload,
         } as any)
       );
+
+      // ✅ 원래는 여기서 모달을 닫았는데,
+      // asInner 모드(단일 호스트 내부)는 카드만 교체해야 하므로 닫지 않는다.
+      if (!asInner) {
+        onClose?.();
+      }
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
       const msg =
@@ -898,6 +938,7 @@ export default function PropertyCreateModalBody({
     removeReservation,
     removeDraft,
     pinDraftId,
+    asInner,
   ]);
 
   const imagesProp = useMemo(
@@ -933,6 +974,53 @@ export default function PropertyCreateModalBody({
     ]
   );
 
+  // ✅ 카드 안 내용만 따로 분리
+  const content = (
+    <>
+      <HeaderContainer form={f} onClose={onClose} />
+
+      <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+        <ImagesContainer images={imagesProp} />
+
+        <div className="space-y-6">
+          <BasicInfoContainer form={f} />
+          <NumbersContainer form={f} />
+          {/* string|null 어댑터 */}
+          <ParkingContainer form={parkingForm} />
+          <CompletionRegistryContainer form={f} />
+          <AspectsContainer form={f} />
+          <AreaSetsContainer
+            form={{
+              baseAreaSet: toStrictAreaSet(f.baseAreaSet),
+              setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
+              extraAreaSets: (Array.isArray(f.extraAreaSets)
+                ? f.extraAreaSets
+                : []
+              ).map(toStrictAreaSet),
+              setExtraAreaSets: (arr: StrictAreaSet[]) =>
+                f.setExtraAreaSets(arr),
+            }}
+          />
+          <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
+          <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
+          <MemosContainer form={f} />
+        </div>
+      </div>
+
+      <FooterButtons
+        onClose={onClose}
+        onSave={save}
+        canSave={f.isSaveEnabled && !isSaving}
+      />
+    </>
+  );
+
+  // ✅ asInner 모드: 카드 프레임/딤 없이 내용만 반환
+  if (asInner) {
+    return content;
+  }
+
+  // ✅ 기존처럼 단독 모달로 사용할 때
   return (
     <div className="fixed inset-0 z-[100]">
       <div
@@ -941,41 +1029,7 @@ export default function PropertyCreateModalBody({
         aria-hidden
       />
       <div className="absolute left-1/2 top-1/2 w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col">
-        <HeaderContainer form={f} onClose={onClose} />
-
-        <div className="grid grid-cols-[300px_1fr] gap-6 px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          <ImagesContainer images={imagesProp} />
-
-          <div className="space-y-6">
-            <BasicInfoContainer form={f} />
-            <NumbersContainer form={f} />
-            {/* string|null 어댑터 */}
-            <ParkingContainer form={parkingForm} />
-            <CompletionRegistryContainer form={f} />
-            <AspectsContainer form={f} />
-            <AreaSetsContainer
-              form={{
-                baseAreaSet: toStrictAreaSet(f.baseAreaSet),
-                setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
-                extraAreaSets: (Array.isArray(f.extraAreaSets)
-                  ? f.extraAreaSets
-                  : []
-                ).map(toStrictAreaSet),
-                setExtraAreaSets: (arr: StrictAreaSet[]) =>
-                  f.setExtraAreaSets(arr),
-              }}
-            />
-            <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
-            <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
-            <MemosContainer form={f} />
-          </div>
-        </div>
-
-        <FooterButtons
-          onClose={onClose}
-          onSave={save}
-          canSave={f.isSaveEnabled && !isSaving}
-        />
+        {content}
       </div>
     </div>
   );
