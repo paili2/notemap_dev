@@ -17,12 +17,27 @@ type SeedOpts = {
   resetKey?: unknown;
 };
 
+/** 폴더 메타(제목) 관리용 타입 */
+type GroupMeta = {
+  id: string;
+  title?: string | null;
+};
+
 export function usePropertyImages(opts?: SeedOpts) {
-  // 카드형(좌)
+  // 카드형(좌) - 실제 이미지
   const [imageFolders, setImageFolders] = useState<UploaderImageItem[][]>([[]]);
   const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
 
-  /** 수정 모달용: 시드 주입 (기존 서버 이미지들은 file이 없을 수 있음) */
+  // ✅ 가로 폴더별 제목 상태
+  const [folderTitles, setFolderTitles] = useState<string[]>([]);
+
+  // ✅ 세로 폴더(우)의 제목
+  const [verticalFolderTitle, setVerticalFolderTitle] = useState<string>("");
+
+  // 세로형(우) - 실제 이미지
+  const [fileItems, setFileItems] = useState<UploaderImageItem[]>([]);
+
+  /** 수정/시드 주입 (기존 서버 이미지들은 file이 없을 수 있음) */
   useEffect(() => {
     if (opts?.seedFolders) {
       setImageFolders(
@@ -30,6 +45,14 @@ export function usePropertyImages(opts?: SeedOpts) {
           card.map((i) => ({ ...i } as UploaderImageItem))
         )
       );
+      // 시드 개수에 맞춰 제목 배열 길이만 맞춰둠(실제 제목은 후에 queueGroupTitle로 들어옴)
+      setFolderTitles((prev) => {
+        const next = [...prev];
+        if (next.length < opts.seedFolders!.length) {
+          while (next.length < opts.seedFolders!.length) next.push("");
+        }
+        return next;
+      });
     }
     if (opts?.seedFiles) {
       setFileItems(opts.seedFiles.map((i) => ({ ...i } as UploaderImageItem)));
@@ -85,7 +108,12 @@ export function usePropertyImages(opts?: SeedOpts) {
     e.target.value = ""; // 같은 파일 재선택 허용
   };
 
-  const addPhotoFolder = () => setImageFolders((prev) => [...prev, []]);
+  const addPhotoFolder = () => {
+    setImageFolders((prev) => [...prev, []]);
+    // ✅ 제목 배열도 같이 늘려줌
+    setFolderTitles((prev) => [...prev, ""]);
+  };
+
   const removePhotoFolder = (
     folderIdx: number,
     optsInner?: { keepAtLeastOne?: boolean }
@@ -108,6 +136,14 @@ export function usePropertyImages(opts?: SeedOpts) {
       if (next.length === 0 && keepAtLeastOne) next.push([]);
       return next;
     });
+
+    // ✅ 제목도 같이 제거
+    setFolderTitles((prev) => {
+      const next = [...prev];
+      next.splice(folderIdx, 1);
+      if (next.length === 0 && keepAtLeastOne) next.push("");
+      return next;
+    });
   };
 
   const onChangeImageCaption = (
@@ -125,9 +161,6 @@ export function usePropertyImages(opts?: SeedOpts) {
       )
     );
   };
-
-  // 세로형(우)
-  const [fileItems, setFileItems] = useState<UploaderImageItem[]>([]);
 
   const handleRemoveFileItem = (index: number) => {
     setFileItems((prev) => {
@@ -166,6 +199,53 @@ export function usePropertyImages(opts?: SeedOpts) {
     );
   };
 
+  // 🔹 폴더 메타(group) 계산
+  const groups: GroupMeta[] = [
+    // 가로 폴더들
+    ...imageFolders.map((_, idx) => ({
+      id: `folder-${idx}`,
+      title: folderTitles[idx] ?? "",
+    })),
+    // ✅ 세로 폴더 메타까지 포함 (id="__vertical__")
+    {
+      id: "__vertical__",
+      title: verticalFolderTitle || "",
+    },
+  ];
+
+  /**
+   * 🔹 제목 큐잉
+   * - 가로 폴더: id = "folder-{idx}"
+   * - 세로 폴더: id = "__vertical__"
+   */
+  const queueGroupTitle = (groupId: string | number, title: string) => {
+    const id = String(groupId);
+    const trimmed = title.trim();
+
+    // 세로 폴더 제목
+    if (id === "__vertical__") {
+      setVerticalFolderTitle(trimmed);
+      return;
+    }
+
+    const m = id.match(/^folder-(\d+)$/);
+    if (!m) return;
+    const idx = Number(m[1]);
+    if (!Number.isFinite(idx)) return;
+
+    setFolderTitles((prev) => {
+      const next = [...prev];
+      if (idx >= next.length) {
+        // 부족하면 중간도 채워줌
+        for (let i = next.length; i <= idx; i++) {
+          next[i] = "";
+        }
+      }
+      next[idx] = trimmed;
+      return next;
+    });
+  };
+
   // 언마운트 시 blob URL 정리
   useEffect(() => {
     return () => {
@@ -194,5 +274,12 @@ export function usePropertyImages(opts?: SeedOpts) {
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
+
+    // ✅ 폴더 제목용 메타 + 액션
+    groups,
+    queueGroupTitle,
+
+    // 필요하면 바깥에서 직접 세로 제목도 볼 수 있게
+    verticalFolderTitle,
   };
 }

@@ -111,6 +111,10 @@ export default function PropertyCreateModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
+
+    // ⬇️ 폴더 메타 (제목) 관리용
+    groups,
+    queueGroupTitle,
   } = usePropertyImages();
 
   /** ───── ref 콜백 안정화 + detach 처리 + 지연 등록 ───── */
@@ -419,6 +423,15 @@ export default function PropertyCreateModalBody({
   const processedCardSetRef = useRef<Set<number>>(new Set());
   const processedVerticalRef = useRef<boolean>(false);
 
+  /** 🔍 groups 에서 id 로 찾아오는 헬퍼 */
+  const findGroupById = useCallback(
+    (id: string) => {
+      if (!Array.isArray(groups)) return undefined;
+      return groups.find((g: any) => String(g?.id) === String(id));
+    },
+    [groups]
+  );
+
   /** 카드 하나: 업로드 → urls 있으면 그룹 생성 → /photos 등록 */
   const persistOneCard = useCallback(
     async (pinId: string | number, folderIdx: number) => {
@@ -437,10 +450,22 @@ export default function PropertyCreateModalBody({
 
       if (!groupImages.length) return;
 
+      // 🔹 id 기반으로 메타 찾기
+      const pseudoId = `folder-${folderIdx}`;
+      const groupMeta = findGroupById(pseudoId);
+
       const titleFromFolder =
-        isFolderObject && typeof folderAny.title === "string"
-          ? folderAny.title.trim()
+        isFolderObject && typeof (folderAny as any).title === "string"
+          ? String((folderAny as any).title).trim()
           : "";
+
+      const titleFromGroup =
+        groupMeta && typeof groupMeta.title === "string"
+          ? String(groupMeta.title).trim()
+          : "";
+
+      const effectiveTitle =
+        titleFromGroup || titleFromFolder || `카드 ${folderIdx + 1}`;
 
       try {
         const filePromises = groupImages.map((img, i) =>
@@ -457,8 +482,9 @@ export default function PropertyCreateModalBody({
 
         const group = await createPhotoGroup({
           pinId,
-          title: titleFromFolder || `카드 ${folderIdx + 1}`,
+          title: effectiveTitle,
           sortOrder: folderIdx,
+          isDocument: false,
         });
 
         const sortOrders = urls.map((_, i) => i);
@@ -471,7 +497,7 @@ export default function PropertyCreateModalBody({
         console.warn("[persistOneCard] failed at folder", folderIdx, err);
       }
     },
-    [imageFolders, imageItemToFile]
+    [imageFolders, imageItemToFile, findGroupById]
   );
 
   /** 세로 파일 처리 */
@@ -493,10 +519,20 @@ export default function PropertyCreateModalBody({
         const urls = await uploadPhotosAndGetUrls(files, { domain: "map" });
         if (!urls.length) return;
 
+        // 🔹 "__vertical__" id 로 메타 찾기
+        const verticalMeta = findGroupById("__vertical__");
+        const verticalTitleFromMeta =
+          verticalMeta && typeof verticalMeta.title === "string"
+            ? String(verticalMeta.title).trim()
+            : "";
+
+        const effectiveVerticalTitle = verticalTitleFromMeta || "세로 파일";
+
         const group = await createPhotoGroup({
           pinId,
-          title: "세로 파일",
+          title: effectiveVerticalTitle,
           sortOrder: (imageFolders as any[]).length,
+          isDocument: true,
         });
 
         const sortOrders = urls.map((_, i) => i);
@@ -509,7 +545,7 @@ export default function PropertyCreateModalBody({
         console.warn("[persistVerticalFiles] failed", err);
       }
     },
-    [fileItems, imageFolders, imageItemToFile]
+    [fileItems, imageFolders, imageItemToFile, findGroupById]
   );
 
   /* ── ParkingContainer 어댑터 ── */
@@ -583,9 +619,10 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // 🔹 가로 카드 폴더 제목 검증
+      // 🔹 가로 카드 폴더 제목 검증 (id 기반)
       {
         const foldersAny = imageFolders as any[];
+
         for (let idx = 0; idx < foldersAny.length; idx++) {
           const folder = foldersAny[idx];
           const isFolderObject =
@@ -597,9 +634,18 @@ export default function PropertyCreateModalBody({
             : [];
           if (!items.length) continue;
 
-          const titleRaw =
+          const titleFromFolder =
             typeof folder.title === "string" ? folder.title.trim() : "";
-          if (!titleRaw) {
+
+          const meta = findGroupById(`folder-${idx}`);
+          const titleFromGroup =
+            meta && typeof meta.title === "string"
+              ? String(meta.title).trim()
+              : "";
+
+          const effectiveTitle = titleFromFolder || titleFromGroup;
+
+          if (!effectiveTitle) {
             alert(`가로 카드 ${idx + 1}의 폴더 이름을 입력해 주세요.`);
             return;
           }
@@ -931,6 +977,7 @@ export default function PropertyCreateModalBody({
     f,
     imageFolders,
     fileItems,
+    groups,
     onSubmit,
     onClose,
     initialLat,
@@ -941,6 +988,7 @@ export default function PropertyCreateModalBody({
     removeDraft,
     pinDraftId,
     asInner,
+    findGroupById,
   ]);
 
   const imagesProp = useMemo(
@@ -959,6 +1007,8 @@ export default function PropertyCreateModalBody({
       handleRemoveFileItem: stable_handleRemoveFileItem,
       maxFiles: MAX_FILES,
       maxPerCard: MAX_PER_CARD,
+      groups,
+      queueGroupTitle,
     }),
     [
       imageFolders,
@@ -973,6 +1023,8 @@ export default function PropertyCreateModalBody({
       stable_onAddFiles,
       stable_onChangeFileItemCaption,
       stable_handleRemoveFileItem,
+      groups,
+      queueGroupTitle,
     ]
   );
 

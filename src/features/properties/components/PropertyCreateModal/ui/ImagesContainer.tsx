@@ -39,7 +39,7 @@ export default function ImagesContainer({
 
     /** ⬇️ 폴더 제목 편집용 (useEditImages에서 내려오는 값들; 없으면 기본제목 사용) */
     groups?: Array<{ id: string | number; title?: string | null }>;
-    queueGroupTitle?: (groupId: string, title: string) => void;
+    queueGroupTitle?: (groupId: string | number, title: string) => void;
 
     /** 세로 파일 조작 */
     onAddFiles: (files: FileList | null) => void;
@@ -76,6 +76,7 @@ export default function ImagesContainer({
     const gs = images.groups ?? [];
     return itemsByCard.map((items, idx) => {
       const g = gs[idx];
+      // 생성모달에서는 아직 서버 id가 없으므로, 없으면 folder-idx 가짜 id 사용
       const rawId = g?.id ?? `folder-${idx}`;
       const id = String(rawId);
       const title = (g?.title ?? "").trim() || `사진 폴더 ${idx + 1}`;
@@ -118,16 +119,23 @@ export default function ImagesContainer({
   /** 6) ref 래퍼 */
   const registerInputRef = images.registerImageInput;
 
-  /** 7) 가로 폴더 제목 변경 → groupId로 매핑 */
+  /** 7) 가로 폴더 제목 변경 → folder-idx 가짜 id로 큐잉 */
   const handleChangeFolderTitle = React.useCallback(
     (folderIdx: number, nextTitle: string) => {
-      const gs = images.groups ?? [];
-      const g = gs[folderIdx];
-      const rawId = g?.id ?? `folder-${folderIdx}`;
-      const groupId = String(rawId);
-      images.queueGroupTitle?.(groupId, nextTitle);
+      // 생성모달에서는 아직 실제 groupId가 없으니,
+      // 항상 folder-{idx} 키로 큐에 넣고, ensureFolderGroup 에서 이 키를 읽는다.
+      const pseudoId = `folder-${folderIdx}`;
+      images.queueGroupTitle?.(pseudoId, nextTitle);
     },
-    [images.groups, images.queueGroupTitle]
+    [images.queueGroupTitle]
+  );
+
+  /** 8) 세로 폴더 제목 변경 → "__vertical__" 가짜 id로 큐잉 */
+  const handleChangeVerticalFolderTitle = React.useCallback(
+    (nextTitle: string) => {
+      images.queueGroupTitle?.("__vertical__", nextTitle);
+    },
+    [images.queueGroupTitle]
   );
 
   return (
@@ -151,8 +159,9 @@ export default function ImagesContainer({
         onChangeFileItemCaption={images.onChangeFileItemCaption ?? (() => {})}
         onRemoveFileItem={images.handleRemoveFileItem}
         maxFiles={maxFiles}
-        /** ✅ 세로 폴더 제목 (생성모달은 로컬 상태만) */
+        /** ✅ 세로 폴더 제목 & 변경 핸들러 */
         verticalFolderTitle={verticalFolderTitle}
+        onChangeVerticalFolderTitle={handleChangeVerticalFolderTitle}
       />
     </div>
   );

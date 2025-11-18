@@ -551,7 +551,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           String(a.title ?? "").localeCompare(String(b.title ?? ""))
       );
 
-  // 🔥 가로 그룹: 첫 캡션 등에서 넘어온 preferredTitle 을 우선 사용
   const ensureFolderGroup = useCallback(
     async (
       pinId: IdLike,
@@ -564,18 +563,27 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       if (existing) return existing;
 
       const fallback = `사진 폴더 ${folderIdx + 1}`;
-      const title =
-        (preferredTitle ?? "").toString().trim().length > 0
-          ? (preferredTitle as string)
-          : fallback;
 
+      // 🔥 1순위: queueGroupTitle 에서 들어온 제목
+      const queued = getQueuedFolderTitle(folderIdx);
+      // 2순위: 캡션에서 온 preferredTitle
+      const fromPreferred =
+        (preferredTitle ?? "").toString().trim().length > 0
+          ? (preferredTitle as string).trim()
+          : null;
+
+      const title = queued ?? fromPreferred ?? fallback;
       const sortOrder = folderIdx;
+
       const group = await apiCreatePhotoGroup({
         pinId,
         title,
         sortOrder,
-        // 가로 폴더 → isDocument 기본 false (생략)
+        // 가로 폴더 → isDocument 기본 false
       });
+
+      // 가짜 키는 더 이상 필요 없으니 제거
+      consumeQueuedFolderTitle(folderIdx);
 
       setGroups((prev) => {
         const base = prev ?? [];
@@ -589,6 +597,32 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     []
   );
 
+  // 🔹 가짜 키("folder-0" 같은 것)로 큐에 쌓인 제목 읽기
+  const getQueuedFolderTitle = (folderIdx: number): string | null => {
+    const pseudoKey = `folder-${folderIdx}`;
+    const pending = pendingGroupMap.current.get(pseudoKey);
+    const t = pending?.title;
+    if (typeof t === "string" && t.trim().length > 0) return t.trim();
+    return null;
+  };
+
+  const consumeQueuedFolderTitle = (folderIdx: number) => {
+    const pseudoKey = `folder-${folderIdx}`;
+    pendingGroupMap.current.delete(pseudoKey);
+  };
+
+  // 🔹 세로 폴더용 가짜 키("__vertical__") 읽기
+  const getQueuedVerticalTitle = (): string | null => {
+    const pending = pendingGroupMap.current.get("__vertical__");
+    const t = pending?.title;
+    if (typeof t === "string" && t.trim().length > 0) return t.trim();
+    return null;
+  };
+
+  const consumeQueuedVerticalTitle = () => {
+    pendingGroupMap.current.delete("__vertical__");
+  };
+
   // ✅ 세로 파일폴더: isDocument === true 인 그룹 하나 보장
   const ensureVerticalGroup = useCallback(
     async (pinId: IdLike, preferredTitle?: string | null) => {
@@ -597,17 +631,23 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       if (vertical) return vertical;
 
       const fallback = "파일 폴더";
-      const title =
+
+      const queued = getQueuedVerticalTitle();
+      const fromPreferred =
         (preferredTitle ?? "").toString().trim().length > 0
-          ? (preferredTitle as string)
-          : fallback;
+          ? (preferredTitle as string).trim()
+          : null;
+
+      const title = queued ?? fromPreferred ?? fallback;
 
       const group = await apiCreatePhotoGroup({
         pinId,
-        title, // 화면에서 쓸 기본 이름
+        title,
         sortOrder: 9999,
-        isDocument: true, // 🔥 세로(파일) 폴더로 생성
+        isDocument: true,
       });
+
+      consumeQueuedVerticalTitle();
 
       setGroups((prev) => {
         const base = prev ?? [];
@@ -792,7 +832,17 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   /* 저장 시 모든 변경 커밋 */
   const commitImageChanges = useCallback(async (): Promise<boolean> => {
-    const groupChanges = Array.from(pendingGroupMap.current.values());
+    // 🔹 1) 그룹 변경 큐 가져오기 (raw)
+    const groupChangesRaw = Array.from(pendingGroupMap.current.values());
+
+    // 🔹 2) 실제 서버 id만 남기고, 가짜 id(folder-*, __vertical__)는 제외
+    const groupChanges = groupChangesRaw.filter((g) => {
+      const idStr = String(g.id);
+      if (idStr.startsWith("folder-")) return false; // 생성모달에서 쓰는 가짜 id
+      if (idStr === "__vertical__") return false; // 세로 폴더 가짜 id
+      return true;
+    });
+
     const photoChangesPending = Array.from(pendingPhotoMap.current.values());
     const deleteIds = Array.from(pendingDeleteSet.current.values());
 
@@ -825,6 +875,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       .map((img, idx) => ({ img, idx }))
       .filter(({ img }) => !getServerPhotoId(img));
 
+    // 🔹 3) 진짜 변경이 하나도 없으면 바로 종료
     if (
       groupChanges.length === 0 &&
       photoChangesPending.length === 0 &&
