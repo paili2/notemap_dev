@@ -105,7 +105,7 @@ export function useMapHomeState() {
   const [menuTargetId, setMenuTargetId] = useState<string | null>(null);
 
   // 1회 전체 맞춤
-  const [fitAllOnce, setFitAllOnce] = useState(true);
+  const [fitAllOnce, setFitAllOnce] = useState(false);
 
   // 생성 시 주소 프리필
   const [prefillAddress, setPrefillAddress] = useState<string | undefined>();
@@ -246,21 +246,6 @@ export function useMapHomeState() {
   );
 
   const lastViewport = lastViewportRef.current;
-
-  // 초기에 draftPin 복원
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_PIN_STORAGE_KEY);
-      if (raw) {
-        const v = JSON.parse(raw);
-        if (v && typeof v.lat === "number" && typeof v.lng === "number") {
-          restoredDraftPinRef.current = v;
-          setDraftPinSafe(v);
-        }
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // 유틸
   const resolveAddress = useResolveAddress(kakaoSDK);

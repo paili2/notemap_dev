@@ -232,11 +232,36 @@ const useKakaoMap = ({
                   cur.getLng() !== next.getLng()
                 ) {
                   map.setCenter(next);
+                  const safeLevel = 4;
+                  map.setLevel(safeLevel);
                 }
               },
               (err) => {
                 console.warn("[useKakaoMap] 현재 위치 가져오기 실패:", err);
-                // 실패 시에는 그냥 center/fitKoreaBounds 값 유지
+
+                // ❗위치 실패/거부 시 전국 한눈에 보기 강제
+                try {
+                  const kakao = kakaoRef.current;
+                  const map = mapRef.current;
+                  if (kakao && map) {
+                    const bounds = new kakao.maps.LatLngBounds(
+                      new kakao.maps.LatLng(
+                        KOREA_BOUNDS.sw.lat,
+                        KOREA_BOUNDS.sw.lng
+                      ),
+                      new kakao.maps.LatLng(
+                        KOREA_BOUNDS.ne.lat,
+                        KOREA_BOUNDS.ne.lng
+                      )
+                    );
+                    map.setBounds(bounds);
+                  }
+                } catch (e) {
+                  console.warn(
+                    "[useKakaoMap] fallback fitKoreaBounds 실패:",
+                    e
+                  );
+                }
               },
               {
                 enableHighAccuracy: false,
@@ -373,15 +398,6 @@ const useKakaoMap = ({
     });
     return () => cancelAnimationFrame(raf);
   }, [center.lat, center.lng, disableAutoPan, ready]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!ready || !map) return;
-    const desired = Math.min(level, maxLevelRef.current);
-    if (map.getLevel?.() !== desired) {
-      map.setLevel(desired);
-    }
-  }, [level, ready]);
 
   // ─────────────────────────────────────────────
   // 4) 유틸
