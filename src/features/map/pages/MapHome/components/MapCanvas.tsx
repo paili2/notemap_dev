@@ -81,7 +81,7 @@ export default function MapCanvas(props: {
   );
 
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0 notemap-map-root">
       <MapView
         appKey={appKey}
         center={{ lat: 37.5665, lng: 126.978 }}

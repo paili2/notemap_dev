@@ -91,3 +91,8 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.notemap-map-root .kakao-hitbox {
+  position: relative !important;
+  top: -20px !important;
+}
