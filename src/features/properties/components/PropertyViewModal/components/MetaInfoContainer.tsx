@@ -89,16 +89,17 @@ export default function MetaInfoContainer({ details }: Props) {
     <section className="mt-4 rounded-2xl border bg-slate-50 px-4 py-3">
       <h3 className="mb-2 text-xs font-semibold text-slate-900">기록 정보</h3>
 
-      <div className="grid grid-cols-3 items-center text-xs">
-        <div className="text-left">
+      {/* 모바일: 세로 1열 / sm 이상: 3열 가로 배치 */}
+      <div className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-3 sm:items-center sm:gap-2">
+        <div className="text-left sm:text-left">
           <MetaItem label="생성" name={creatorName} date={createdAt} />
         </div>
 
-        <div className="text-center">
+        <div className="text-left sm:text-center">
           <MetaItem label="답사" name={surveyorName} date={surveyedAt} />
         </div>
 
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <MetaItem
             label="마지막 수정"
             name={lastEditorName}

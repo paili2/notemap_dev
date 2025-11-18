@@ -210,38 +210,27 @@ export default function PinContextMenuContainer(props: Props) {
   const optimisticPlannedHere =
     !isNewClick && optimisticPlannedPosSet.has(posK);
 
-  /** 🔥 최종 reserved/planned 판정
-   *  - 예약 여부는 /scheduled 리스트만 신뢰
-   *  - 리스트에 없으면 무조건 reserved = false
-   *  - draft/meta 가 있으면 planned = true 로 보고 "답사지 예약" 버튼 노출
-   */
+  /** 🔥 최종 reserved/planned 판정 */
   let reserved = false;
   let planned = false;
 
   if (!isNewClick) {
     if (hasReservationAtPos) {
-      // ✅ 실제 예약 존재 → 무조건 예약 상태
       reserved = true;
       planned = false;
     } else {
-      // ✅ 예약 리스트에는 없음 → 예약 아님
       reserved = false;
 
-      // 1) 낙관적 planned
       if (optimisticPlannedHere) {
         planned = true;
       } else {
-        // 2) 메타/원본 draftState 기반
         const s = (resolvedDraftState ?? "").toUpperCase();
 
         if (metaAtPos?.source === "draft") {
-          // draft 자체가 있으면 항상 "답사예정"으로 취급
           planned = true;
         } else if (s && s !== "DELETED") {
-          // 서버가 어떤 draftState 를 들고 있어도, 예약이 없으면 "답사예정 있음"
           planned = true;
         } else if (isPlanPinFromParent) {
-          // 부모에서 내려준 힌트
           planned = true;
         }
       }
@@ -410,26 +399,12 @@ export default function PinContextMenuContainer(props: Props) {
         reservedDate: todayYmdKST(),
       });
 
-      // ✅ 2) 예약 리스트 동기화 (사이드바/라벨/컨텍스트메뉴 상태는 이거 하나만 믿음)
+      // ✅ 2) 예약 리스트 동기화
       try {
         await refetchScheduledReservations();
       } catch {}
 
-      // ⛔ 3) 여기서 더 이상 지도 핀 전체를 리프레시하지 않는다
-      //    - 화면 전체 깜빡임의 주범이었던 부분
-      // const box = getBoundsBox();
-      // if (refreshViewportPins && box) {
-      //   try {
-      //     await refreshViewportPins(box);
-      //   } catch (e) {
-      //     console.warn(
-      //       "[PinContextMenu] refreshViewportPins after reservation failed:",
-      //       e
-      //     );
-      //   }
-      // }
-
-      // ✅ 4) 컨텍스트메뉴는 닫기 (UX 상 이게 자연스러움)
+      // ✅ 3) 컨텍스트메뉴는 닫기
       onClose?.();
     } catch (e) {
       // eslint-disable-next-line no-console
@@ -556,9 +531,15 @@ export default function PinContextMenuContainer(props: Props) {
     draftStateForPanel,
   ]);
 
+  // 🔑 제목이 바뀔 때 CustomOverlay를 한 번 다시 만들도록 key에 포함
+  const overlayKey = React.useMemo(
+    () => `ctx:${version}:${posK}:${derivedPropertyTitle || ""}`,
+    [version, posK, derivedPropertyTitle]
+  );
+
   return (
     <CustomOverlay
-      key={`ctx:${version}:${posK}`}
+      key={overlayKey}
       kakao={kakao}
       map={map}
       position={position}
