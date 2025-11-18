@@ -404,34 +404,33 @@ export default function PinContextMenuContainer(props: Props) {
         return;
       }
 
+      // ✅ 1) 예약 생성
       await createSurveyReservation({
         pinDraftId: draftId,
         reservedDate: todayYmdKST(),
       });
 
+      // ✅ 2) 예약 리스트 동기화 (사이드바/라벨/컨텍스트메뉴 상태는 이거 하나만 믿음)
       try {
         await refetchScheduledReservations();
       } catch {}
 
-      const lat = position.getLat();
-      const lng = position.getLng();
+      // ⛔ 3) 여기서 더 이상 지도 핀 전체를 리프레시하지 않는다
+      //    - 화면 전체 깜빡임의 주범이었던 부분
+      // const box = getBoundsBox();
+      // if (refreshViewportPins && box) {
+      //   try {
+      //     await refreshViewportPins(box);
+      //   } catch (e) {
+      //     console.warn(
+      //       "[PinContextMenu] refreshViewportPins after reservation failed:",
+      //       e
+      //     );
+      //   }
+      // }
 
-      cleanupOverlaysAt(lat, lng);
-      bump();
+      // ✅ 4) 컨텍스트메뉴는 닫기 (UX 상 이게 자연스러움)
       onClose?.();
-
-      const box = getBoundsBox();
-      if (refreshViewportPins && box) {
-        try {
-          await refreshViewportPins(box);
-        } catch (e) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            "[PinContextMenu] refreshViewportPins after reservation failed:",
-            e
-          );
-        }
-      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error(e);
