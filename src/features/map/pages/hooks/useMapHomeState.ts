@@ -504,8 +504,22 @@ export function useMapHomeState() {
         });
         refetch();
       } catch {}
+
+      /** ⭐ 지도 드래그/줌 시작할 때 임시 검색핀 & 메뉴 제거 */
+      const clearDraftAndMenu = () => {
+        setDraftPinSafe(null);
+        setMenuOpen(false);
+        setMenuTargetId(null);
+        setMenuAnchor(null);
+        setMenuRoadAddr(null);
+        setMenuJibunAddr(null);
+        onChangeHideLabelForId(null);
+      };
+
+      kakao.maps.event.addListener(map, "dragstart", clearDraftAndMenu);
+      kakao.maps.event.addListener(map, "zoom_start", clearDraftAndMenu);
     },
-    [refetch, setBounds]
+    [refetch, setBounds, setDraftPinSafe, onChangeHideLabelForId]
   );
 
   // ViewModal 패치/삭제 핸들러
@@ -556,11 +570,11 @@ export function useMapHomeState() {
     setMenuJibunAddr(null);
     onChangeHideLabelForId(null);
 
-    if (!menuTargetId && draftPin) {
+    // draft 핀인 경우엔 같이 제거
+    if (draftPin) {
       setDraftPinSafe(null);
     }
   }, [
-    menuTargetId,
     draftPin,
     setDraftPinSafe,
     onChangeHideLabelForId,

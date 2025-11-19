@@ -545,6 +545,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
     } catch {}
   }, [kakaoSDK, mapInstance]);
 
+  const handleViewportChangeInternal = useCallback(
+    (v: any) => {
+      // 📍 검색용 임시 마커(source === "search") 전부 제거
+      setLocalDraftMarkers((prev) =>
+        prev.filter((m) => (m as any).source !== "search")
+      );
+      onViewportChange?.(v);
+    },
+    [onViewportChange]
+  );
+
   /* ===== 검색핸들러 ===== */
   const handleSubmitSearch = useCallback(
     (text: string) => {
@@ -804,7 +815,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onOpenMenu={onOpenMenu}
         onChangeHideLabelForId={onChangeHideLabelForId}
         onMapReady={handleMapReady}
-        onViewportChange={onViewportChange}
+        onViewportChange={handleViewportChangeInternal}
         isDistrictOn={isDistrictOn}
       />
 
