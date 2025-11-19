@@ -17,7 +17,6 @@ import {
   RADIUS_BY_KIND,
 } from "./constants";
 import { distM } from "./geometry";
-
 import { useThrottle } from "./throttle";
 import {
   searchKeywordAllPagesByBounds,
@@ -35,6 +34,23 @@ type UsePoiLayerOptions = {
   showAtOrBelowLevel?: number; // 호환 유지(미사용)
 };
 
+type OverlayInst = {
+  destroy: () => void;
+  update: (
+    p: Partial<{
+      lat: number;
+      lng: number;
+      zIndex: number;
+      kind: PoiKind;
+      size: number;
+      iconSize: number;
+    }>
+  ) => void;
+  show: () => void;
+  hide: () => void;
+  visible: boolean;
+};
+
 export function usePoiLayer({
   kakaoSDK,
   map,
@@ -44,25 +60,13 @@ export function usePoiLayer({
   const kakao =
     kakaoSDK ?? (typeof window !== "undefined" ? (window as any).kakao : null);
 
-  // key -> { destroy, update }
-  const overlaysRef = useRef<
-    Map<
-      string,
-      {
-        destroy: () => void;
-        update: (
-          p: Partial<{
-            lat: number;
-            lng: number;
-            zIndex: number;
-            kind: PoiKind;
-            size: number;
-            iconSize: number;
-          }>
-        ) => void;
-      }
-    >
-  >(new Map());
+  const overlaysRef = useRef<Map<string, OverlayInst>>(new Map());
+
+  // ✅ enabledKinds는 ref로 보관해서 예전 runSearch 호출도 항상 최신 값을 보게 하기
+  const enabledKindsRef = useRef<PoiKind[]>(enabledKinds);
+  useEffect(() => {
+    enabledKindsRef.current = enabledKinds;
+  }, [enabledKinds]);
 
   const getBoundsBox = useCallback(() => {
     if (!map || !kakao) return null;
@@ -116,7 +120,7 @@ export function usePoiLayer({
     async (opts?: { force?: boolean }) => {
       if (!map || !kakao) return;
 
-      // 1) 레벨 & 스케일바 게이트
+      const kinds = enabledKindsRef.current;
       const lv = map.getLevel();
       const levelPass = lv <= VISIBLE_MAX_LEVEL;
 
@@ -136,9 +140,22 @@ export function usePoiLayer({
         (minEdgeM / Math.max(1, minEdgePx)) * SCALEBAR_PX;
       const scalebarPass = currentScaleBarM <= DESIRED_SCALEBAR_M;
 
-      if (!levelPass || !scalebarPass || enabledKinds.length === 0) {
-        for (const [, inst] of overlaysRef.current) inst.destroy();
-        overlaysRef.current.clear();
+      const overlays = overlaysRef.current;
+
+      // 🔹 1) 토글 완전 OFF → 전부 숨기고 종료
+      if (!kinds.length) {
+        for (const [, inst] of overlays) {
+          if (inst.visible) {
+            inst.hide();
+            inst.visible = false;
+          }
+        }
+        return;
+      }
+
+      // 🔹 2) 너무 축소/확대된 상태면 "검색만 스킵"하고, 이미 그려진 건 유지
+      //     (여기서 숨기지 않음 → 경계 근처에서 깜빡임 방지)
+      if (!levelPass || !scalebarPass) {
         return;
       }
 
@@ -155,7 +172,6 @@ export function usePoiLayer({
       const boundsObj = getKakaoBounds();
       if (!boundsObj || !placesRef.current) return;
 
-      // 넓은 화면은 셀로 쪼개서 중심 가까운 순으로
       const shortEdgeM = getMinViewportEdgeMeters();
       const cells: any[] = gridCellsSortedByCenter(
         kakao,
@@ -163,17 +179,16 @@ export function usePoiLayer({
         shortEdgeM,
         map
       );
-      const nextKeys = new Set<string>();
+
       const lvNow = map.getLevel();
       const { size: initSize, iconSize: initIconSize } =
         calcPoiSizeByLevel(lvNow);
 
-      for (const kind of enabledKinds) {
+      for (const kind of kinds) {
         const code = KAKAO_CATEGORY[kind];
         const keyword = KAKAO_KEYWORD[kind];
         const perKindLimit = Math.min(maxResultsPerKind * 2, 200);
 
-        // 병렬 수집
         const chunks = await Promise.all(
           cells.map((cell) =>
             code
@@ -197,7 +212,6 @@ export function usePoiLayer({
         );
         const acc = chunks.flat();
 
-        // dedup
         const seenIds = new Set<string>();
         const dedup: any[] = [];
         for (const p of acc) {
@@ -207,7 +221,6 @@ export function usePoiLayer({
           dedup.push(p);
         }
 
-        // 가까운/먼 결과 섞기
         const center = map.getCenter();
         const cLat = center.getLat();
         const cLng = center.getLng();
@@ -219,37 +232,42 @@ export function usePoiLayer({
           const y = Number(p.y);
           const id = p.id ?? `${x},${y}`;
           const key = `${kind}:${id}`;
-          nextKeys.add(key);
 
-          const ex = overlaysRef.current.get(key);
+          const ex = overlays.get(key);
           if (ex) {
             ex.update({ lat: y, lng: x, zIndex: 3, kind });
+            if (!ex.visible) {
+              ex.show();
+              ex.visible = true;
+            }
           } else {
-            const { destroy, update } = createPoiOverlay(
+            const { destroy, update, show, hide } = createPoiOverlay(
               kakao,
               map,
               { id: key, kind, lat: y, lng: x, zIndex: 3 },
               { size: initSize, iconSize: initIconSize }
             );
-            overlaysRef.current.set(key, { destroy, update });
+            overlays.set(key, {
+              destroy,
+              update,
+              show,
+              hide,
+              visible: true,
+            });
           }
         }
       }
 
-      if (mySeq !== reqSeqRef.current) return;
-
-      // stale 제거
-      for (const [key, inst] of overlaysRef.current.entries()) {
-        if (!nextKeys.has(key)) {
-          inst.destroy();
-          overlaysRef.current.delete(key);
-        }
+      // 🔹 중간에 더 최신 검색이 들어오면, 이 검색 결과는 무시
+      //    (stale 결과가 기존 오버레이를 건들지 않게)
+      if (mySeq !== reqSeqRef.current) {
+        return;
       }
+      // ❗ stale 오버레이를 여기서 hide/destroy 하지 않음 → 깜빡임 최소화
     },
     [
       map,
       kakao,
-      enabledKinds,
       maxResultsPerKind,
       getMinViewportEdgeMeters,
       getBoundsBox,
@@ -272,7 +290,7 @@ export function usePoiLayer({
     };
   }, [map, kakao, throttled, runSearch]);
 
-  // 줌 레벨 변화: 크기 스케일 + 가시성 버킷 전환 대응
+  // 줌 레벨에 따라 크기만 조절 + 버킷 전환 시만 검색/숨김
   useEffect(() => {
     if (!map || !kakao) return;
 
@@ -280,23 +298,25 @@ export function usePoiLayer({
 
     const onZoomChanged = () => {
       const lv = map.getLevel();
-
-      // 1) 사이즈 즉시 갱신
       const { size, iconSize } = calcPoiSizeByLevel(lv);
-      for (const [, inst] of overlaysRef.current)
+      for (const [, inst] of overlaysRef.current) {
         inst.update({ size, iconSize });
+      }
 
-      // 2) 가시성 버킷 전환(>3 ↔ ≤3)
       const nowVisible = lv <= VISIBLE_MAX_LEVEL;
       if (nowVisible !== wasVisibleRef.current) {
         wasVisibleRef.current = nowVisible;
-        if (nowVisible) runSearch({ force: true });
-        else {
-          for (const [, inst] of overlaysRef.current) inst.destroy();
-          overlaysRef.current.clear();
+        if (nowVisible && enabledKindsRef.current.length > 0) {
+          runSearch({ force: true });
+        } else if (!nowVisible) {
+          // 너무 멀어지면 아이콘만 숨김
+          for (const [, inst] of overlaysRef.current) {
+            if (inst.visible) {
+              inst.hide();
+              inst.visible = false;
+            }
+          }
         }
-      } else if (nowVisible) {
-        throttled();
       }
     };
 
@@ -304,15 +324,22 @@ export function usePoiLayer({
     kakao.maps.event.addListener(map, "zoom_changed", onZoomChanged);
     return () =>
       kakao.maps.event.removeListener(map, "zoom_changed", onZoomChanged);
-  }, [map, kakao, throttled, runSearch]);
+  }, [map, kakao, runSearch]);
 
-  // 종류 변경 시 즉시 리프레시
+  // 종류 변경 시: 박스 초기화 + 강제 검색 (기존 오버레이는 유지)
   useEffect(() => {
-    for (const [, inst] of overlaysRef.current) inst.destroy();
-    overlaysRef.current.clear();
-    runSearch({ force: true });
+    lastBoxRef.current = null;
+    if (enabledKinds.length === 0) {
+      // 전부 끌 때는 완전히 정리
+      for (const [, inst] of overlaysRef.current) {
+        inst.destroy();
+      }
+      overlaysRef.current.clear();
+    } else {
+      runSearch({ force: true });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabledKinds.join(",")]);
+  }, [enabledKinds.join(","), runSearch]);
 
   return {
     count: overlaysRef.current.size,

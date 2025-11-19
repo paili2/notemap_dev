@@ -211,17 +211,28 @@ export function createPoiOverlay(
     if (needRender) render();
   };
 
-  return { overlay, update, destroy };
+  /** 보여주기 / 숨기기 (destroy 없이 재사용) */
+  const show = () => {
+    overlay.setMap(map);
+  };
+
+  const hide = () => {
+    overlay.setMap(null);
+  };
+
+  return { overlay, update, destroy, show, hide };
 }
 
-/** 여러 개를 관리하는 훅 (id 기준 diff) */
+/** 여러 개를 관리하는 훅 (id 기준 diff + 캐싱) */
 export function usePoiOverlays(params: {
   kakaoSDK: typeof window.kakao | null;
   map: kakao.maps.Map | null;
   pois: PoiPoint[];
+  /** 주변시설 토글 ON/OFF */
+  enabled: boolean;
   onClick?: (poiId: string) => void;
 }) {
-  const { kakaoSDK, map, pois } = params;
+  const { kakaoSDK, map, pois, enabled } = params;
 
   // ✅ onClick이 바뀌어도 오버레이를 재생성하지 않도록 ref로 고정
   const onClickRef = React.useRef(params.onClick);
@@ -229,52 +240,87 @@ export function usePoiOverlays(params: {
     onClickRef.current = params.onClick;
   }, [params.onClick]);
 
-  const overlaysRef = React.useRef<
-    Map<
-      string,
-      {
-        destroy: () => void;
-        update: (
-          p: Partial<PoiPoint> & { size?: number; iconSize?: number }
-        ) => void;
-      }
-    >
-  >(new Map());
+  type OverlayInst = {
+    destroy: () => void;
+    update: (
+      p: Partial<PoiPoint> & { size?: number; iconSize?: number }
+    ) => void;
+    show: () => void;
+    hide: () => void;
+    visible: boolean;
+  };
 
-  // upsert / remove
+  const overlaysRef = React.useRef<Map<string, OverlayInst>>(new Map());
+
+  // upsert / show / hide
   React.useEffect(() => {
     if (!kakaoSDK || !map) return;
 
     const overlays = overlaysRef.current;
+
+    // 🔹 1) 주변시설 토글이 꺼진 경우: 전부 숨기고 끝
+    if (!enabled) {
+      for (const [, inst] of overlays) {
+        if (inst.visible) {
+          inst.hide();
+          inst.visible = false;
+        }
+      }
+      return;
+    }
+
+    // 🔹 2) 토글은 켜져 있지만, 로딩 때문에 pois가 잠깐 빈 배열일 수 있음
+    //  → 이때는 "기존 것 유지"해서 깜빡임 방지
+    const isEmpty = pois.length === 0;
+
     const nextIds = new Set<string>(pois.map((p) => p.id));
 
-    // upsert
+    // upsert + show
     for (const p of pois) {
       const ex = overlays.get(p.id);
       if (ex) {
-        ex.update({ lat: p.lat, lng: p.lng, zIndex: p.zIndex, kind: p.kind });
-      } else {
-        const { destroy, update } = createPoiOverlay(kakaoSDK, map, p, {
-          onClick: (id) => onClickRef.current?.(id),
+        ex.update({
+          lat: p.lat,
+          lng: p.lng,
+          zIndex: p.zIndex,
+          kind: p.kind,
         });
-        overlays.set(p.id, { destroy, update });
+        if (!ex.visible) {
+          ex.show();
+          ex.visible = true;
+        }
+      } else {
+        const { destroy, update, show, hide } = createPoiOverlay(
+          kakaoSDK,
+          map,
+          p,
+          {
+            onClick: (id) => onClickRef.current?.(id),
+          }
+        );
+        overlays.set(p.id, { destroy, update, show, hide, visible: true });
       }
     }
 
-    // remove stale
-    for (const [id, inst] of overlays.entries()) {
-      if (!nextIds.has(id)) {
-        inst.destroy();
-        overlays.delete(id);
+    // stale 처리
+    // ✔ 로딩 중(pois.length === 0)에는 이전 것 유지 → 안 깜빡이게
+    if (!isEmpty) {
+      for (const [id, inst] of overlays.entries()) {
+        if (!nextIds.has(id) && inst.visible) {
+          inst.hide();
+          inst.visible = false;
+        }
       }
     }
 
     return () => {
-      // SDK/Map 교체 시 모두 정리
-      for (const [, inst] of overlays) inst.destroy();
+      // SDK/Map 교체 시에만 진짜 destroy
+      for (const [, inst] of overlays) {
+        inst.destroy();
+      }
       overlays.clear();
     };
-  }, [kakaoSDK, map, pois]); // ✅ onClick 제거
+  }, [kakaoSDK, map, enabled, pois]);
 
   // ✅ 줌 레벨에 따른 크기 자동 스케일링
   React.useEffect(() => {
