@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useMemo,
-  useCallback,
-  useEffect,
-  useState,
-  useRef, // ✅ 추가
-} from "react";
+import { useMemo, useCallback, useEffect, useState, useRef } from "react";
 import FooterButtons from "../sections/FooterButtons/FooterButtons";
 import type { PropertyEditModalProps } from "./types";
 import { useEditImages } from "./hooks/useEditImages";
@@ -37,6 +31,14 @@ import type { CompletionRegistryFormSlice } from "../../hooks/useEditForm/types"
 import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 import { BuildingType, Grade } from "../../types/property-domain";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/atoms/Dialog/Dialog";
 
 /** Parking 슬라이스 타입 */
 type ParkingFormSlice = {
@@ -883,9 +885,7 @@ function toPinPatch(
     const pickMeaningful = (arr: unknown): AreaGroupNorm[] =>
       Array.isArray(arr)
         ? (arr as any[])
-
             .map((g: any) => normGroup(g))
-
             .filter(
               (x: AreaGroupNorm) =>
                 x.title ||
@@ -1006,21 +1006,16 @@ function toPinPatch(
 
     const pickDirStringsFromInitial = (init: any): string[] => {
       const fromArr = (Array.isArray(init?.directions) ? init.directions : [])
-
         .map(
           (d: any) =>
             [d?.direction, d?.dir, d?.value, d?.name, d?.code]
               .map((x) => (typeof x === "string" ? x.trim() : ""))
-
               .find((x) => !!x) || ""
         )
-
         .filter(Boolean);
       if (fromArr.length) return fromArr;
       return [init?.aspect1, init?.aspect2, init?.aspect3]
-
         .map((v: any) => (typeof v === "string" ? v.trim() : ""))
-
         .filter(Boolean);
     };
 
@@ -1038,7 +1033,6 @@ function toPinPatch(
           const dir =
             [o?.dir, o?.value, o?.direction, o?.name, o?.code]
               .map((x) => (typeof x === "string" ? x.trim() : ""))
-
               .find((x) => !!x) || "";
           const ho = hoNum(o?.ho);
           return dir ? { ho, dir } : null;
@@ -1047,7 +1041,6 @@ function toPinPatch(
       if (!pairs.length) {
         const arr = [bo.aspect1, bo.aspect2, bo.aspect3]
           .map((v: any) => (typeof v === "string" ? v.trim() : ""))
-
           .filter(Boolean);
         pairs = arr.map((dir: string, idx: number) => ({ ho: idx + 1, dir }));
       }
@@ -1168,6 +1161,15 @@ export default function PropertyEditModalBody({
   embedded = false,
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const queryClient = useQueryClient();
+
+  // 🔔 공통 알림 모달 상태
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const showAlert = useCallback((msg: string) => {
+    setAlertMessage(msg);
+    setAlertOpen(true);
+  }, []);
 
   // initialData 평탄화
   const normalizedInitial = useMemo(() => {
@@ -1603,19 +1605,19 @@ export default function PropertyEditModalBody({
 
     if (!f.title.trim()) {
       console.groupEnd();
-      alert("이름(제목)을 입력하세요.");
+      showAlert("이름(제목)을 입력하세요.");
       return;
     }
 
     // ✅ 전화번호 형식 검증
     if (!isValidPhoneKR(f.officePhone)) {
       console.groupEnd();
-      alert("전화번호를 입력해주세요");
+      showAlert("전화번호를 입력해주세요");
       return;
     }
     if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
       console.groupEnd();
-      alert("전화번호를 입력해주세요");
+      showAlert("전화번호를 입력해주세요");
       return;
     }
 
@@ -1627,7 +1629,9 @@ export default function PropertyEditModalBody({
         if (normalized !== raw) f.setCompletionDate(normalized);
         if (!isValidIsoDateStrict(normalized)) {
           console.groupEnd();
-          alert("준공일은 YYYY-MM-DD 형식으로 입력해주세요. 예: 2024-04-14");
+          showAlert(
+            "준공일은 YYYY-MM-DD 형식으로 입력해주세요.\n예: 2024-04-14"
+          );
           return;
         }
       }
@@ -1638,7 +1642,7 @@ export default function PropertyEditModalBody({
       const msg = validateAreaRanges(f.baseAreaSet, f.extraAreaSets);
       if (msg) {
         console.groupEnd();
-        alert(msg);
+        showAlert(msg);
         return;
       }
     }
@@ -1648,7 +1652,7 @@ export default function PropertyEditModalBody({
       const msg = validateUnitPriceRanges(f.unitLines);
       if (msg) {
         console.groupEnd();
-        alert(msg);
+        showAlert(msg);
         return;
       }
     }
@@ -1753,7 +1757,7 @@ export default function PropertyEditModalBody({
     } catch (e: any) {
       console.error("[toPinPatch] 실패:", e);
       console.groupEnd();
-      alert(e?.message || "변경 사항 계산 중 오류가 발생했습니다.");
+      showAlert(e?.message || "변경 사항 계산 중 오류가 발생했습니다.");
       return;
     }
 
@@ -1763,7 +1767,7 @@ export default function PropertyEditModalBody({
     } catch (e: any) {
       console.error("[images.commit] 실패:", e);
       console.groupEnd();
-      alert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
+      showAlert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
       return;
     }
 
@@ -1783,7 +1787,7 @@ export default function PropertyEditModalBody({
       } catch (e: any) {
         console.error("[PATCH /pins/:id] 실패:", e);
         console.groupEnd();
-        alert(e?.message || "핀 수정 중 오류가 발생했습니다.");
+        showAlert(e?.message || "핀 수정 중 오류가 발생했습니다.");
         return;
       }
     } else {
@@ -1888,76 +1892,127 @@ export default function PropertyEditModalBody({
     buildingGradeTouched,
     hadAgeFlags,
     initialBuildingGrade,
+    showAlert,
   ]);
 
   /* embedded 레이아웃 */
   if (embedded) {
     return (
-      <div className="flex flex-col h-full">
-        <HeaderContainer form={headerForm as any} onClose={onClose} />
+      <>
+        <div className="flex flex-col h-full">
+          <HeaderContainer form={headerForm as any} onClose={onClose} />
 
-        {/* ✅ 스크롤 컨테이너에 ref 연결 */}
-        <div
-          ref={scrollRef}
-          className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
-        >
-          <ImagesContainer images={imagesProp} />
-          <div className="space-y-4 md:space-y-6 overflow-visible">
-            <BasicInfoContainer form={f} />
-            <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm as any} />}
-            <CompletionRegistryContainer form={completionRegistryForm} />
-            <AspectsContainer form={f} />
-            <AreaSetsContainer form={f} />
-            <StructureLinesContainer form={f} />
-            <OptionsContainer form={f} />
-            <MemosContainer form={f} />
-            <div className="h-16 md:hidden" />
+          {/* ✅ 스크롤 컨테이너에 ref 연결 */}
+          <div
+            ref={scrollRef}
+            className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          >
+            <ImagesContainer images={imagesProp} />
+            <div className="space-y-4 md:space-y-6 overflow-visible">
+              <BasicInfoContainer form={f} />
+              <NumbersContainer form={f} />
+              {mountParking && <ParkingContainer form={parkingForm as any} />}
+              <CompletionRegistryContainer form={completionRegistryForm} />
+              <AspectsContainer form={f} />
+              <AreaSetsContainer form={f} />
+              <StructureLinesContainer form={f} />
+              <OptionsContainer form={f} />
+              <MemosContainer form={f} />
+              <div className="h-16 md:hidden" />
+            </div>
           </div>
+
+          <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
         </div>
 
-        <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
-      </div>
+        {/* 공통 알림 모달 */}
+        <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>안내</DialogTitle>
+              <DialogDescription asChild>
+                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">
+                  {alertMessage}
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAlertOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+              >
+                확인
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   /* 기본 모달 레이아웃 */
   return (
-    <div className="fixed inset-0 z-[1000] isolate">
-      {/* 배경 딤 */}
-      <div
-        className="absolute inset-0 z-[1000] bg-black/40 pointer-events-auto"
-        onClick={onClose}
-        aria-hidden
-      />
-      {/* 모달 컨텐츠 */}
-      <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
-        <HeaderContainer form={headerForm as any} onClose={onClose} />
+    <>
+      <div className="fixed inset-0 z-[1000] isolate">
+        {/* 배경 딤 */}
+        <div
+          className="absolute inset-0 z-[1000] bg-black/40 pointer-events-auto"
+          onClick={onClose}
+          aria-hidden
+        />
+        {/* 모달 컨텐츠 */}
+        <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
+          <HeaderContainer form={headerForm as any} onClose={onClose} />
 
-        {/* 🔧 여기 레이아웃을 embedded 버전과 동일하게 수정 */}
-        <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
-          {/* 좌측: 이미지 */}
-          <div className="relative z-[1]">
-            <ImagesContainer images={imagesProp} />
+          {/* 🔧 여기 레이아웃을 embedded 버전과 동일하게 수정 */}
+          <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+            {/* 좌측: 이미지 */}
+            <div className="relative z-[1]">
+              <ImagesContainer images={imagesProp} />
+            </div>
+
+            {/* 우측: 폼 */}
+            <div className="relative z-[2] space-y-4 md:space-y-6">
+              <BasicInfoContainer form={f} />
+              <NumbersContainer form={f} />
+              {mountParking && <ParkingContainer form={parkingForm as any} />}
+              <CompletionRegistryContainer form={completionRegistryForm} />
+              <AspectsContainer form={f} />
+              <AreaSetsContainer form={f} />
+              <StructureLinesContainer form={f} />
+              <OptionsContainer form={f} />
+              <MemosContainer form={f} />
+              <div className="h-16 md:hidden" />
+            </div>
           </div>
 
-          {/* 우측: 폼 */}
-          <div className="relative z-[2] space-y-4 md:space-y-6">
-            <BasicInfoContainer form={f} />
-            <NumbersContainer form={f} />
-            {mountParking && <ParkingContainer form={parkingForm as any} />}
-            <CompletionRegistryContainer form={completionRegistryForm} />
-            <AspectsContainer form={f} />
-            <AreaSetsContainer form={f} />
-            <StructureLinesContainer form={f} />
-            <OptionsContainer form={f} />
-            <MemosContainer form={f} />
-            <div className="h-16 md:hidden" />
-          </div>
+          <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
         </div>
-
-        <FooterButtons onClose={onClose} onSave={save} canSave={canSaveNow} />
       </div>
-    </div>
+
+      {/* 공통 알림 모달 */}
+      <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>안내</DialogTitle>
+            <DialogDescription asChild>
+              <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">
+                {alertMessage}
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAlertOpen(false)}
+              className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+            >
+              확인
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

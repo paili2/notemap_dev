@@ -19,7 +19,7 @@ interface ExpandedMenuProps {
 
   // 지적편집도
   isDistrictOn: boolean;
-  onToggleDistrict: (next: boolean) => void;
+  onToggleDistrict: () => void;
 
   // (과거 콜백 호환—현재 이 컴포넌트에서는 사용하지 않음)
   onSubmenuClick: (submenu: "filter" | "edit") => void;
@@ -135,9 +135,10 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
           <div className="grid grid-cols-2 gap-2">
             <DistrictToggleButton
               pressed={isDistrictOn}
-              onPress={() => onToggleDistrict(!isDistrictOn)}
+              onPress={onToggleDistrict}
               showLabel
             />
+
             <RoadviewToggleButton
               pressed={roadviewVisible}
               onPress={onToggleRoadview}

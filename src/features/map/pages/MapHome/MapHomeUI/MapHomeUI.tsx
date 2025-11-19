@@ -668,6 +668,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
               const kwN = norm(query);
               const ranked = res
                 .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
+
                 .sort((a, b) => b.s - a.s);
               const best = ranked[0]?.d ?? res[0];
               setCenterWithMarker(
@@ -1000,6 +1001,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           if (open) setRightOpen(false);
         }}
         getBounds={getBoundsLLB}
+        getLevel={() => mapInstance?.getLevel?.()} // ✅ 현재 지도 레벨 전달
       />
 
       <FilterFab onOpen={() => setFilterSearchOpen(true)} />

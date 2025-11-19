@@ -1,15 +1,44 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import ToggleSidebar from "../../../view/top/ToggleSidebar/ToggleSidebar";
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 import Portal from "@/components/Portal";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { MapMenu, MapMenuKey } from "@/features/map/menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/atoms/Dialog/Dialog";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned"; // ← 실제 키로 교체
 }
+
+// 편의시설이 보이기 시작하는 축척(단위 m)
+const POI_VISIBLE_MIN_SCALE_M = 50;
+
+// 카카오맵 level → 대략적인 m 단위로 변환
+const getScaleMetersFromLevel = (level: number) => {
+  switch (level) {
+    case 1:
+      return 10;
+    case 2:
+      return 20;
+    case 3:
+      return 50;
+    case 4:
+      return 100;
+    case 5:
+      return 250;
+    default:
+      return 500;
+  }
+};
 
 export default function TopRightControls(props: {
   activeMenu: MapMenuKey;
@@ -25,6 +54,7 @@ export default function TopRightControls(props: {
   sidebarOpen: boolean;
   setSidebarOpen: (v: boolean) => void;
   getBounds: () => kakao.maps.LatLngBounds | undefined;
+  getLevel: () => number | undefined;
 }) {
   const stop = (e: any) => {
     e.stopPropagation?.();
@@ -70,66 +100,118 @@ export default function TopRightControls(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.activeMenu, reloadPlanned]);
 
-  // ─────────────────────────────────────────────────────────────
-  // 로드뷰가 열리면:
-  // - z-index를 낮춰서 로드뷰 오버레이 뒤로 보냄
-  // - pointer-events를 비활성화해서 클릭 차단
-  // - 시각적으로 희미하게(선택)
-  // 평소에는 높은 z-index 유지
-  // ─────────────────────────────────────────────────────────────
+  // 로드뷰가 열리면 z-index / pointer-events 조정
   const rootClass =
     "fixed top-3 right-3 " +
     (props.roadviewVisible
       ? "z-[10] pointer-events-none opacity-40"
-      : "z-[20] pointer-events-auto"); // 필요 시 숫자 조정
+      : "z-[20] pointer-events-auto");
+
+  // ✅ 편의시설 모달 상태
+  const [poiWarningOpen, setPoiWarningOpen] = useState(false);
+
+  // ✅ 편의시설 토글을 가로채서 축척 체크
+  const handleChangePoiKinds = useCallback(
+    (next: PoiKind[]) => {
+      // 모두 꺼져있다가 처음 켜는 상황에서만 체크
+      const turningOn = props.poiKinds.length === 0 && next.length > 0;
+
+      if (turningOn) {
+        const level = props.getLevel?.();
+        if (typeof level === "number") {
+          const scaleM = getScaleMetersFromLevel(level);
+
+          // 50m보다 축소(= 숫자 큼)면 모달만 띄우고 실제 토글은 막기
+          if (scaleM > POI_VISIBLE_MIN_SCALE_M) {
+            setPoiWarningOpen(true);
+            return;
+          }
+        }
+      }
+
+      props.onChangePoiKinds(next);
+    },
+    [props.poiKinds.length, props.getLevel, props.onChangePoiKinds]
+  );
 
   return (
-    <Portal>
-      <div
-        id="top-right-controls"
-        className={rootClass}
-        aria-hidden={props.roadviewVisible}
-      >
+    <>
+      {/* 오른쪽 상단 메뉴 영역 */}
+      <Portal>
         <div
-          className="relative flex items-center gap-2"
-          onPointerDown={stop}
-          onMouseDown={stop}
-          onTouchStart={stop}
+          id="top-right-controls"
+          className={rootClass}
+          aria-hidden={props.roadviewVisible}
         >
-          <div className="relative z-[2] shrink-0">
-            <MapMenu
-              active={props.activeMenu}
-              onChange={(next) => {
-                const resolved = next === props.activeMenu ? "all" : next;
-                if (isPlannedKey(resolved)) reloadPlanned();
-                props.onChangeFilter(resolved as MapMenuKey);
-              }}
-              isDistrictOn={props.isDistrictOn}
-              onToggleDistrict={props.setIsDistrictOn}
-              poiKinds={props.poiKinds}
-              onChangePoiKinds={props.onChangePoiKinds}
-              roadviewVisible={props.roadviewVisible}
-              onToggleRoadview={props.onToggleRoadview}
-              expanded={props.rightOpen}
-              onExpandChange={(expanded) => {
-                props.setRightOpen(expanded);
-                if (expanded && props.sidebarOpen) props.setSidebarOpen(false);
-              }}
-            />
-          </div>
+          <div
+            className="relative flex items-center gap-2"
+            onPointerDown={stop}
+            onMouseDown={stop}
+            onTouchStart={stop}
+          >
+            <div className="relative z-[2] shrink-0">
+              <MapMenu
+                active={props.activeMenu}
+                onChange={(next) => {
+                  const resolved = next === props.activeMenu ? "all" : next;
+                  if (isPlannedKey(resolved)) reloadPlanned();
+                  props.onChangeFilter(resolved as MapMenuKey);
+                }}
+                isDistrictOn={props.isDistrictOn}
+                onToggleDistrict={props.setIsDistrictOn}
+                poiKinds={props.poiKinds}
+                onChangePoiKinds={handleChangePoiKinds}
+                roadviewVisible={props.roadviewVisible}
+                onToggleRoadview={props.onToggleRoadview}
+                expanded={props.rightOpen}
+                onExpandChange={(expanded) => {
+                  props.setRightOpen(expanded);
+                  if (expanded && props.sidebarOpen)
+                    props.setSidebarOpen(false);
+                }}
+              />
+            </div>
 
-          <div className="relative z-[3] shrink-0">
-            <ToggleSidebar
-              overlay={false}
-              controlledOpen={props.sidebarOpen}
-              onChangeOpen={(open) => {
-                props.setSidebarOpen(open);
-                if (open) props.setRightOpen(false);
-              }}
-            />
+            <div className="relative z-[3] shrink-0">
+              <ToggleSidebar
+                overlay={false}
+                controlledOpen={props.sidebarOpen}
+                onChangeOpen={(open) => {
+                  props.setSidebarOpen(open);
+                  if (open) props.setRightOpen(false);
+                }}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </Portal>
+      </Portal>
+
+      {/* ✅ 편의시설 안내 모달 (Dialog 사용) */}
+      <Dialog open={poiWarningOpen} onOpenChange={setPoiWarningOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>편의시설 보기</DialogTitle>
+            <DialogDescription asChild>
+              <p className="mt-1 text-sm leading-relaxed">
+                편의시설(지하철, 학교, 편의점, 카페, 약국)은
+                <br />
+                지도 축척이 <b>50m 이상으로 확대</b>되었을 때만 표시됩니다.
+                <br /> <br />
+                지도를 조금 더 확대한 뒤 다시 시도해 주세요.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setPoiWarningOpen(false)}
+              className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+            >
+              확인
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

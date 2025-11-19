@@ -77,6 +77,9 @@ function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
   };
 }
 
+/** 지도 도구 모드 (지적/로드뷰 배타적 관리) */
+type MapToolMode = "none" | "district" | "roadview";
+
 export function useMapHomeState() {
   // 지도/SDK
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -136,8 +139,39 @@ export function useMapHomeState() {
   }, []);
 
   // 토글/필터
-  const [useDistrict, setUseDistrict] = useState<boolean>(false);
+  const [mapToolMode, setMapToolMode] = useState<MapToolMode>("none");
   const [useSidebar, setUseSidebar] = useState<boolean>(false);
+
+  /** 파생: 지적편집도 / 로드뷰 상태 */
+  const useDistrict = mapToolMode === "district";
+  const roadviewVisible = mapToolMode === "roadview";
+
+  /** 지적편집도 토글 (배타적) */
+  const toggleDistrict = useCallback(() => {
+    setMapToolMode((prev) => (prev === "district" ? "none" : "district"));
+  }, []);
+
+  /** 로드뷰 토글 (배타적) */
+  const toggleRoadview = useCallback(() => {
+    setMapToolMode((prev) => (prev === "roadview" ? "none" : "roadview"));
+  }, []);
+
+  /** 기존 setUseDistrict 인터페이스 호환용 */
+  const setUseDistrict = useCallback((next: boolean) => {
+    setMapToolMode((prev) => {
+      if (next) return "district";
+      // 끄는 경우, 현재 district일 때만 none으로
+      return prev === "district" ? "none" : prev;
+    });
+  }, []);
+
+  /** 필요 시 로드뷰도 직접 세트할 수 있게 */
+  const setRoadviewVisible = useCallback((next: boolean) => {
+    setMapToolMode((prev) => {
+      if (next) return "roadview";
+      return prev === "roadview" ? "none" : prev;
+    });
+  }, []);
 
   // POI
   const [poiKinds, setPoiKinds] = useState<PoiKind[]>([]);
@@ -827,8 +861,13 @@ export function useMapHomeState() {
     // toggles
     useSidebar,
     setUseSidebar,
+    mapToolMode,
     useDistrict,
     setUseDistrict,
+    roadviewVisible,
+    setRoadviewVisible,
+    toggleDistrict,
+    toggleRoadview,
 
     // POI
     poiKinds,
