@@ -62,7 +62,7 @@ export function usePoiLayer({
 
   const overlaysRef = useRef<Map<string, OverlayInst>>(new Map());
 
-  // ✅ enabledKinds는 ref로 보관해서 예전 runSearch 호출도 항상 최신 값을 보게 하기
+  // ✅ enabledKinds는 ref로 보관 (stale 콜백 방지)
   const enabledKindsRef = useRef<PoiKind[]>(enabledKinds);
   useEffect(() => {
     enabledKindsRef.current = enabledKinds;
@@ -153,8 +153,7 @@ export function usePoiLayer({
         return;
       }
 
-      // 🔹 2) 너무 축소/확대된 상태면 "검색만 스킵"하고, 이미 그려진 건 유지
-      //     (여기서 숨기지 않음 → 경계 근처에서 깜빡임 방지)
+      // 🔹 2) 너무 축소/확대면 검색만 스킵 (기존 오버레이는 유지)
       if (!levelPass || !scalebarPass) {
         return;
       }
@@ -258,12 +257,10 @@ export function usePoiLayer({
         }
       }
 
-      // 🔹 중간에 더 최신 검색이 들어오면, 이 검색 결과는 무시
-      //    (stale 결과가 기존 오버레이를 건들지 않게)
       if (mySeq !== reqSeqRef.current) {
         return;
       }
-      // ❗ stale 오버레이를 여기서 hide/destroy 하지 않음 → 깜빡임 최소화
+      // stale 오버레이는 여기서 손대지 않음 (깜빡임 방지)
     },
     [
       map,
@@ -290,7 +287,7 @@ export function usePoiLayer({
     };
   }, [map, kakao, throttled, runSearch]);
 
-  // 줌 레벨에 따라 크기만 조절 + 버킷 전환 시만 검색/숨김
+  // 줌 레벨에 따라 크기만 조절 + 버킷 전환시만 hide/show
   useEffect(() => {
     if (!map || !kakao) return;
 
@@ -309,7 +306,6 @@ export function usePoiLayer({
         if (nowVisible && enabledKindsRef.current.length > 0) {
           runSearch({ force: true });
         } else if (!nowVisible) {
-          // 너무 멀어지면 아이콘만 숨김
           for (const [, inst] of overlaysRef.current) {
             if (inst.visible) {
               inst.hide();
@@ -326,18 +322,38 @@ export function usePoiLayer({
       kakao.maps.event.removeListener(map, "zoom_changed", onZoomChanged);
   }, [map, kakao, runSearch]);
 
-  // 종류 변경 시: 박스 초기화 + 강제 검색 (기존 오버레이는 유지)
+  // ✅ 종류 변경 시: 빠진 kind 오버레이만 제거
+  const prevKindsRef = useRef<PoiKind[]>([]);
   useEffect(() => {
-    lastBoxRef.current = null;
-    if (enabledKinds.length === 0) {
-      // 전부 끌 때는 완전히 정리
-      for (const [, inst] of overlaysRef.current) {
+    const prev = prevKindsRef.current;
+    const next = enabledKinds;
+    const overlays = overlaysRef.current;
+
+    // 제거된 종류들
+    const removedKinds = prev.filter((k) => !next.includes(k));
+    if (removedKinds.length) {
+      for (const [key, inst] of overlays.entries()) {
+        if (removedKinds.some((kind) => key.startsWith(`${kind}:`))) {
+          inst.destroy();
+          overlays.delete(key);
+        }
+      }
+    }
+
+    prevKindsRef.current = next.slice();
+
+    // 모두 OFF면 나머지도 정리
+    if (next.length === 0) {
+      for (const [, inst] of overlays) {
         inst.destroy();
       }
-      overlaysRef.current.clear();
-    } else {
-      runSearch({ force: true });
+      overlays.clear();
+      return;
     }
+
+    // 박스 초기화 후, 새로운 조합 기준으로 검색만 한 번 갱신
+    lastBoxRef.current = null;
+    runSearch({ force: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabledKinds.join(","), runSearch]);
 
