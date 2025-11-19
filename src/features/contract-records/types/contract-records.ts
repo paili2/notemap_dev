@@ -36,6 +36,8 @@ export interface ContractImage {
 export interface SalesContractData {
   id?: string; // 백엔드에서 생성
   contractNumber?: string; // 백엔드에서 생성
+  /** 연동된 핀 ID (매물 ID) */
+  pinId?: number;
   customerInfo: PersonInfo;
   salesManager?: PersonInfo; // 선택적 필드로 변경 (사용하지 않음)
   salesPerson: PersonInfo;
@@ -44,7 +46,7 @@ export interface SalesContractData {
   contractImages: ContractImage[];
   totalCalculation: number;
   contractDate?: string; // 계약일 (자동 생성)
-  status?: "completed" | "pending" | "cancelled"; // 계약 상태
+  status?: "ongoing" | "rejected" | "cancelled" | "completed"; // 계약 상태
   createdAt?: string; // 생성일
   updatedAt?: string; // 수정일
 }

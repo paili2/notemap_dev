@@ -17,6 +17,7 @@ import {
   createNotice,
   CreateNoticeRequest,
 } from "@/features/admin/api/notices";
+import { AdminAuthGuard } from "@/components/auth-guard/AdminAuthGuard";
 
 const createNoticeSchema = z.object({
   title: z
@@ -73,7 +74,8 @@ export default function CreateNoticePage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-8">
+    <AdminAuthGuard>
+      <div className="mx-auto max-w-4xl p-6 space-y-8">
       {/* 헤더 */}
       <div className="flex items-center gap-4">
         <Link href="/admin/notices">
@@ -139,5 +141,6 @@ export default function CreateNoticePage() {
         </form>
       </div>
     </div>
+    </AdminAuthGuard>
   );
 }

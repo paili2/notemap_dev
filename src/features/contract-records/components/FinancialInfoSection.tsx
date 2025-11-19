@@ -22,11 +22,13 @@ import { formatCurrency } from "../utils/utils";
 interface FinancialInfoSectionProps {
   financialInfo: FinancialInfo;
   onFinancialInfoChange: (info: FinancialInfo) => void;
+  readOnly?: boolean;
 }
 
 export function FinancialInfoSection({
   financialInfo,
   onFinancialInfoChange,
+  readOnly = false,
 }: FinancialInfoSectionProps) {
   const handleInputChange = (
     field: keyof FinancialInfo,
@@ -79,6 +81,8 @@ export function FinancialInfoSection({
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
               <span className="text-xs text-muted-foreground">원</span>
             </div>
@@ -94,8 +98,9 @@ export function FinancialInfoSection({
                   vatStatus: value as "vat-included" | "vat-excluded",
                 })
               }
+              disabled={readOnly}
             >
-              <SelectTrigger className="h-7 text-xs min-w-24 w-auto">
+              <SelectTrigger className="h-7 text-xs min-w-24 w-auto" disabled={readOnly}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -122,6 +127,8 @@ export function FinancialInfoSection({
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
               <span className="text-xs text-muted-foreground">원</span>
             </div>
@@ -143,6 +150,8 @@ export function FinancialInfoSection({
                 onChange={(e) => handleRebateInputChange(e.target.value)}
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
               <span className="text-xs text-muted-foreground">R</span>
             </div>
@@ -153,8 +162,9 @@ export function FinancialInfoSection({
             <Select
               value={financialInfo.taxStatus}
               onValueChange={handleTaxStatusChange}
+              disabled={readOnly}
             >
-              <SelectTrigger className="h-7 text-xs min-w-20 w-auto">
+              <SelectTrigger className="h-7 text-xs min-w-20 w-auto" disabled={readOnly}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -183,6 +193,8 @@ export function FinancialInfoSection({
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
               <span className="text-xs text-muted-foreground">원</span>
             </div>
@@ -202,6 +214,8 @@ export function FinancialInfoSection({
                 }
                 className="h-7 text-xs min-w-32 w-auto"
                 placeholder="은행명 입력"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
             <div className="space-y-1">
@@ -216,6 +230,8 @@ export function FinancialInfoSection({
                 }
                 className="h-7 text-xs min-w-40 w-80"
                 placeholder="계좌번호 입력"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
           </div>
@@ -231,6 +247,8 @@ export function FinancialInfoSection({
             }
             className="min-h-20 text-xs resize-none"
             placeholder="지원 내용을 입력하세요"
+            readOnly={readOnly}
+            disabled={readOnly}
           />
         </div>
 
@@ -245,16 +263,17 @@ export function FinancialInfoSection({
                 : "리베이트"}{" "}
               - 지원금액 ={" "}
               {(() => {
-                const brokerageAndVat =
-                  financialInfo.brokerageFee + financialInfo.vat;
+                // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
+                const brokerageAndVat = Number(financialInfo.totalBrokerageFee) || 0;
                 const rebateAmount =
                   financialInfo.taxStatus === "taxable"
-                    ? financialInfo.totalRebate * 0.967 // 과세시 리베이트에만 3.3% 차감
-                    : financialInfo.totalRebate; // 비과세시 리베이트 그대로
+                    ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
+                    : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
+                const totalSupportAmount = Number(financialInfo.totalSupportAmount) || 0;
                 const finalTotal =
-                  brokerageAndVat +
-                  rebateAmount -
-                  financialInfo.totalSupportAmount;
+                  brokerageAndVat -
+                  totalSupportAmount +
+                  rebateAmount;
                 return formatCurrency(finalTotal);
               })()}
               원
@@ -271,16 +290,17 @@ export function FinancialInfoSection({
             <div className="text-sm font-medium mb-1">총 합계</div>
             <div className="text-lg font-bold text-primary">
               {(() => {
-                const brokerageAndVat =
-                  financialInfo.brokerageFee + financialInfo.vat;
+                // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
+                const brokerageAndVat = Number(financialInfo.totalBrokerageFee) || 0;
                 const rebateAmount =
                   financialInfo.taxStatus === "taxable"
-                    ? financialInfo.totalRebate * 0.967 // 과세시 리베이트에만 3.3% 차감
-                    : financialInfo.totalRebate; // 비과세시 리베이트 그대로
+                    ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
+                    : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
+                const totalSupportAmount = Number(financialInfo.totalSupportAmount) || 0;
                 const finalTotal =
-                  brokerageAndVat +
-                  rebateAmount -
-                  financialInfo.totalSupportAmount;
+                  brokerageAndVat -
+                  totalSupportAmount +
+                  rebateAmount;
                 return formatCurrency(finalTotal);
               })()}
               원

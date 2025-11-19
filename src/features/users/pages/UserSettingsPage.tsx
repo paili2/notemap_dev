@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { UserPlus } from "lucide-react";
+import { UserPlus, UserCog } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 
 import AccountsListPage from "@/features/users/components/_AccountsListPage";
 import { UnassignedEmployeesModal } from "@/features/unassigned-employees";
+import { AssignManagerModal } from "@/features/teams/components/AssignManagerModal";
 
 import type { RoleKey, UserRow } from "@/features/users/types";
 import type { TeamMemberDetail } from "@/features/teams";
@@ -14,6 +15,7 @@ import {
   useAssignTeamMember,
 } from "@/features/teams/hooks/useTeams";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface UserSettingsPageProps {
   teamId?: string;
@@ -25,6 +27,7 @@ export default function UserSettingsPage({
   members,
 }: UserSettingsPageProps) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const removeTeamMemberMutation = useRemoveTeamMember();
   const assignTeamMemberMutation = useAssignTeamMember();
 
@@ -45,6 +48,8 @@ export default function UserSettingsPage({
 
   const [users, setUsers] = useState<UserRow[]>(usersFromApi);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAssignManagerModalOpen, setIsAssignManagerModalOpen] =
+    useState(false);
 
   // members가 변경되면 users 상태 업데이트
   useEffect(() => {
@@ -72,6 +77,7 @@ export default function UserSettingsPage({
             title: "팀원 삭제 완료",
             description: "팀에서 해당 직원이 제거되었습니다.",
           });
+          queryClient.invalidateQueries({ queryKey: ["team", teamId] });
         } catch (error: any) {
           toast({
             title: "팀원 삭제 실패",
@@ -111,6 +117,7 @@ export default function UserSettingsPage({
 
       // 모달 닫기
       setIsModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["team", teamId] });
     } catch (error: any) {
       toast({
         title: "팀원 추가 실패",
@@ -120,9 +127,32 @@ export default function UserSettingsPage({
     }
   };
 
+  // 현재 팀장 찾기
+  const currentManager = members?.find(
+    (member) => member.teamRole === "manager"
+  );
+
+  const handleManagerAssigned = () => {
+    // 팀 상세 정보 새로고침
+    if (teamId) {
+      queryClient.invalidateQueries({ queryKey: ["team", teamId] });
+      queryClient.invalidateQueries({ queryKey: ["teams"] });
+    }
+  };
+
   return (
     <main className="mx-auto max-w-7xl p-6 space-y-8">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        {teamId && members && members.length > 0 && (
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={() => setIsAssignManagerModalOpen(true)}
+          >
+            <UserCog className="h-4 w-4" />
+            팀장 지정
+          </Button>
+        )}
         <Button className="gap-2" onClick={() => setIsModalOpen(true)}>
           <UserPlus className="h-4 w-4" />
           팀원 추가
@@ -130,11 +160,23 @@ export default function UserSettingsPage({
       </div>
 
       {teamId && (
-        <UnassignedEmployeesModal
-          open={isModalOpen}
-          onOpenChange={setIsModalOpen}
-          onAddToTeam={handleAddToTeam}
-        />
+        <>
+          <UnassignedEmployeesModal
+            open={isModalOpen}
+            onOpenChange={setIsModalOpen}
+            onAddToTeam={handleAddToTeam}
+          />
+          {members && (
+            <AssignManagerModal
+              open={isAssignManagerModalOpen}
+              onOpenChange={setIsAssignManagerModalOpen}
+              teamId={teamId}
+              members={members}
+              currentManagerId={currentManager?.accountId}
+              onSuccess={handleManagerAssigned}
+            />
+          )}
+        </>
       )}
 
       <div className="p-1 pb-8">

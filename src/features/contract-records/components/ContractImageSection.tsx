@@ -1,40 +1,68 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Plus, X, Image as ImageIcon } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Plus, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Card, CardContent, CardHeader } from "@/components/atoms/Card/Card";
+import { uploadOnePhoto } from "@/shared/api/photoUpload";
+import { useToast } from "@/hooks/use-toast";
 
 interface ImageItem {
   id: string;
   file: File;
   preview: string;
+  uploading?: boolean;
 }
 
 interface ContractImageSectionProps {
+  initialImages?: ImageItem[];
   onImagesChange?: (images: ImageItem[]) => void;
+  readOnly?: boolean;
 }
 
 export function ContractImageSection({
+  initialImages,
   onImagesChange,
+  readOnly = false,
 }: ContractImageSectionProps) {
-  const [images, setImages] = useState<ImageItem[]>([]);
+  const [images, setImages] = useState<ImageItem[]>(initialImages ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  // initialImages를 문자열로 변환하여 비교 (의존성 배열 최적화)
+  const initialImagesKey = useMemo(() => {
+    if (!initialImages) return "";
+    return JSON.stringify(initialImages.map((img) => ({ id: img.id, preview: img.preview })));
+  }, [initialImages]);
+
+  // 초기 이미지가 변경되면 업데이트
+  useEffect(() => {
+    console.log("ContractImageSection initialImages 변경:", initialImages, "key:", initialImagesKey);
+    // initialImages가 undefined가 아닐 때만 업데이트 (빈 배열도 허용)
+    if (initialImages !== undefined) {
+      setImages(initialImages);
+    }
+  }, [initialImagesKey, initialImages]);
 
   const handleAddImage = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
     const newImages: ImageItem[] = [];
 
+    // 먼저 임시 이미지 항목 생성 (업로드 중 표시용)
     Array.from(files).forEach((file) => {
       // 이미지 파일인지 확인
       if (!file.type.startsWith("image/")) {
-        alert("이미지 파일만 선택할 수 있습니다.");
+        toast({
+          title: "파일 형식 오류",
+          description: "이미지 파일만 선택할 수 있습니다.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -45,23 +73,67 @@ export function ContractImageSection({
         id,
         file,
         preview,
+        uploading: true,
       });
     });
 
-    const updatedImages = [...images, ...newImages];
-    setImages(updatedImages);
-    onImagesChange?.(updatedImages);
+    // 임시 이미지 추가 (업로드 중 표시)
+    const tempImages = [...images, ...newImages];
+    setImages(tempImages);
+    onImagesChange?.(tempImages);
 
     // 파일 입력 초기화
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+
+    // 각 파일을 업로드하고 URL로 교체
+    for (let i = 0; i < newImages.length; i++) {
+      const item = newImages[i];
+      try {
+        const meta = await uploadOnePhoto(item.file, { domain: "contracts" });
+        if (!meta?.url) {
+          throw new Error("업로드 응답에 URL이 없습니다.");
+        }
+
+        // 업로드된 URL로 교체
+        URL.revokeObjectURL(item.preview); // blob URL 정리
+        const updatedItem = {
+          ...item,
+          preview: meta.url,
+          uploading: false,
+        };
+
+        // 해당 항목 업데이트
+        const updatedImages = tempImages.map((img) =>
+          img.id === item.id ? updatedItem : img
+        );
+        setImages(updatedImages);
+        onImagesChange?.(updatedImages);
+      } catch (err: any) {
+        console.error("이미지 업로드 실패:", err);
+        toast({
+          title: "이미지 업로드 실패",
+          description: err?.message ?? "이미지 업로드 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+
+        // 실패한 항목 제거
+        const updatedImages = tempImages.filter((img) => img.id !== item.id);
+        setImages(updatedImages);
+        onImagesChange?.(updatedImages);
+        URL.revokeObjectURL(item.preview); // blob URL 정리
+      }
     }
   };
 
   const handleDeleteImage = (id: string) => {
     const imageToDelete = images.find((img) => img.id === id);
     if (imageToDelete) {
-      URL.revokeObjectURL(imageToDelete.preview);
+      // blob URL인 경우에만 revokeObjectURL 호출
+      if (imageToDelete.preview.startsWith("blob:")) {
+        URL.revokeObjectURL(imageToDelete.preview);
+      }
     }
 
     const updatedImages = images.filter((img) => img.id !== id);
@@ -76,14 +148,16 @@ export function ContractImageSection({
           <span className="font-semibold text-base text-gray-700 pb-4">
             계약 이미지
           </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleAddImage}
-            className="h-6 w-6 p-0 hover:bg-gray-100"
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleAddImage}
+              className="h-6 w-6 p-0 hover:bg-gray-100"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -110,22 +184,33 @@ export function ContractImageSection({
                   key={image.id}
                   className="relative group aspect-square bg-gray-100 rounded-md overflow-hidden"
                 >
-                  <img
-                    src={image.preview}
-                    alt={image.file.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteImage(image.id)}
-                    className="absolute top-1 right-1 h-5 w-5 p-0 bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate">
-                    {image.file.name}
-                  </div>
+                  {image.uploading ? (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                    </div>
+                  ) : (
+                    <img
+                      src={image.preview}
+                      alt={image.file.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                  {!readOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteImage(image.id)}
+                      disabled={image.uploading}
+                      className="absolute top-1 right-1 h-5 w-5 p-0 bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                  {!image.uploading && (
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white text-xs p-1 truncate">
+                      {image.file.name}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

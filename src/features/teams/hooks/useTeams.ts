@@ -5,9 +5,12 @@ import {
   createTeam,
   removeTeamMember,
   assignTeamMember,
+  replaceTeamManager,
   CreateTeamRequest,
   CreateTeamResponse,
   AssignTeamMemberRequest,
+  ReplaceManagerRequest,
+  ReplaceManagerResponse,
 } from "../api";
 
 export const teamKeys = {
@@ -77,6 +80,26 @@ export function useAssignTeamMember() {
       queryClient.invalidateQueries({ queryKey: teamKeys.details() });
       // 무소속 직원 목록도 새로고침
       queryClient.invalidateQueries({ queryKey: ["unassigned-employees"] });
+    },
+  });
+}
+
+// 팀장 교체 (Mutation)
+export function useReplaceTeamManager() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      teamId,
+      data,
+    }: {
+      teamId: string;
+      data: ReplaceManagerRequest;
+    }) => replaceTeamManager(teamId, data),
+    onSuccess: (response, variables) => {
+      // 팀장 교체 후 해당 팀 상세 정보와 팀 목록 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: teamKeys.detail(variables.teamId) });
+      queryClient.invalidateQueries({ queryKey: teamKeys.list() });
     },
   });
 }

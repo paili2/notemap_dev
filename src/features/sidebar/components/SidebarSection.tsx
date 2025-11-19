@@ -26,6 +26,7 @@ export function SidebarSection({
   onDeleteNestedItem,
   onDeleteSubItem,
   onReorderIds, // ✅ 추가된 콜백
+  onUpdateGroupTitle,
 }: SidebarSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const headerId = useId();
@@ -58,9 +59,10 @@ export function SidebarSection({
           }}
           onDeleteItem={onDeleteNestedItem ?? NOOP}
           onDeleteSubItem={onDeleteSubItem ?? NOOP}
+          onUpdateTitle={onUpdateGroupTitle}
         />
       )),
-    [nestedItems, onNestedItemsChange, onDeleteNestedItem, onDeleteSubItem]
+    [nestedItems, onNestedItemsChange, onDeleteNestedItem, onDeleteSubItem, onUpdateGroupTitle]
   );
 
   const flatNodes = useMemo(

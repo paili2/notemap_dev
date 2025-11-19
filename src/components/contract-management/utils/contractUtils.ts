@@ -2,23 +2,32 @@ import type { StatusConfigMap } from "../types";
 
 // 계약 상태별 설정
 export const statusConfigMap: StatusConfigMap = {
-  completed: {
-    label: "완료",
-    className: "bg-green-100 text-green-800",
+  ongoing: {
+    label: "계약중",
+    className: "bg-blue-100 text-blue-800",
   },
-  pending: {
-    label: "진행중",
-    className: "bg-yellow-100 text-yellow-800",
+  rejected: {
+    label: "부결",
+    className: "bg-orange-100 text-orange-800",
   },
   cancelled: {
-    label: "취소",
+    label: "해약",
     className: "bg-red-100 text-red-800",
+  },
+  completed: {
+    label: "계약완료",
+    className: "bg-green-100 text-green-800",
   },
 };
 
-// 금액 포맷팅 함수
+// 금액 포맷팅 함수 (반올림 없이 정확한 값 표시)
 export const formatCurrency = (amount: number): string => {
-  return `${amount.toLocaleString()}원`;
+  // 정수인지 확인
+  if (amount % 1 === 0) {
+    return `${amount.toLocaleString("ko-KR", { maximumFractionDigits: 0, useGrouping: true })}원`;
+  }
+  // 소수점이 있으면 모든 자릿수 표시 (반올림 방지)
+  return `${amount.toLocaleString("ko-KR", { maximumFractionDigits: 20, useGrouping: true })}원`;
 };
 
 // 날짜 포맷팅 함수
