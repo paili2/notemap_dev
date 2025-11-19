@@ -9,6 +9,7 @@ import { useSidebar } from "./SideBarProvider";
 import { SidebarSection } from "./components/SidebarSection";
 import { ContractRecordsButton } from "./components/ContractRecordsButton";
 import { AdminButton } from "./components/AdminButton";
+import { MyPageButton } from "./components/MyPageButton";
 
 import { useScheduledReservations } from "../survey-reservations/hooks/useScheduledReservations";
 import { useReorderReservations } from "../survey-reservations/hooks/useReorderReservations";
@@ -26,6 +27,7 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
     handleContractRecordsClick,
+    updateFavoriteGroupTitle,
   } = useSidebar();
 
   // 1) 훅 호출(조건문 밖)
@@ -98,10 +100,12 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
           onNestedItemsChange={setNestedFavorites}
           onDeleteNestedItem={handleDeleteNestedFavorite}
           onDeleteSubItem={handleDeleteSubFavorite}
+          onUpdateGroupTitle={updateFavoriteGroupTitle}
         />
 
         <ContractRecordsButton onClick={handleContractRecordsClick} />
-        <AdminButton />
+        <MyPageButton />
+        {profile?.role === "admin" && <AdminButton />}
 
         <div className="flex justify-between items-center p-2 border-t border-gray-200">
           <span className="text-base font-medium text-gray-700">

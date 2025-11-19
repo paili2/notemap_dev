@@ -6,28 +6,16 @@ import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 
-interface AdminPageHeaderProps {
+interface MyPageHeaderProps {
   className?: string;
 }
 
-export function AdminPageHeader({ className }: AdminPageHeaderProps) {
+export function MyPageHeader({ className }: MyPageHeaderProps) {
   const [activeMenu, setActiveMenu] = useState<string>("");
 
   const menuItems = [
-    {
-      key: "team-management",
-      label: "팀관리(관리자)",
-      href: "/admin/team-management",
-    },
-    { key: "account-create", label: "계정생성", href: "/admin/account-create" },
-    {
-      key: "team-favorites",
-      label: "팀즐겨찾기",
-      href: "/admin/team-favorites",
-    },
-    { key: "contracts", label: "계약관리", href: "/admin/contracts" },
-    { key: "performance", label: "실적확인", href: "/admin/performance" },
-    { key: "notices", label: "공지사항", href: "/admin/notices" },
+    { key: "profile", label: "프로필", href: "/my-page" },
+    { key: "my-team", label: "팀관리", href: "/my-page/my-team" },
   ];
 
   return (
@@ -48,7 +36,7 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
             <ArrowLeft className="h-5 w-5 text-gray-600" />
           </Button>
         </Link>
-        <Link href="/admin" className="flex items-center">
+        <Link href="/my-page" className="flex items-center">
           <Image
             src="/mainlogo.webp"
             alt="로고"
