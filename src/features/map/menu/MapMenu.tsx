@@ -72,11 +72,16 @@ export default function MapMenu(props: MapMenuProps) {
 
   const handleSubmenu = React.useCallback(
     (submenu: MapMenuSubmenu) => {
-      // 컨트롤드 모드에서도 서브메뉴는 내부 훅으로 관리(외부 노출 필요 없으면 이게 가장 단순)
+      // 서브메뉴는 내부 훅으로 관리
       handleSubmenuClick(submenu);
     },
     [handleSubmenuClick]
   );
+
+  // ✅ ExpandedMenu가 기대하는 () => void 시그니처에 맞게 래핑
+  const handleToggleDistrictClick = React.useCallback(() => {
+    onToggleDistrict?.(!isDistrictOn);
+  }, [onToggleDistrict, isDistrictOn]);
 
   return (
     <div className={cn("relative z-[210]", className)}>
@@ -110,7 +115,7 @@ export default function MapMenu(props: MapMenuProps) {
           onSubmenuClick={handleSubmenu}
           onMenuItemClick={handleMenuItemClick}
           isDistrictOn={isDistrictOn}
-          onToggleDistrict={onToggleDistrict}
+          onToggleDistrict={handleToggleDistrictClick} // 🔧 여기만 래핑해서 전달
           onToggle={api.close}
           poiKinds={poiKinds}
           onChangePoiKinds={onChangePoiKinds}

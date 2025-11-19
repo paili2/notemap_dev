@@ -88,8 +88,8 @@ export default function MapHomePage() {
 
   const onCreateFromMenu = useCallback(
     (pos: { lat: number; lng: number }) => {
-      // 1) 클릭한 위치를 draftPin으로 박제해서
-      //    센터 말고 "진짜 핀 좌표"가 생성 모달로 넘어가게 한다.
+      // 1) 클릭한 위치를 draftPin으로 저장해서
+      //    실제 클릭 좌표가 생성 모달로 넘어가게
       (s as any).setDraftPin?.(pos);
 
       // 2) 나머지 동작은 그대로
@@ -101,6 +101,24 @@ export default function MapHomePage() {
   const onChangeHideLabelForId = useCallback(
     (id?: string | null) => {
       s.onChangeHideLabelForId?.(id ?? null);
+    },
+    [s]
+  );
+
+  // ✅ MapHomeUI → useMapHomeState onOpenMenu 어댑터
+  const handleOpenMenu = useCallback(
+    (p: {
+      position: { lat: number; lng: number };
+      propertyId?: string | number | null;
+      propertyTitle?: string | null;
+      pin?: { kind: string; isFav?: boolean };
+    }) => {
+      const payloadForState = {
+        ...p,
+        // 내부 상태 쪽은 null 대신 undefined 쪽이 더 자연스러우면 변환
+        propertyId: p.propertyId ?? undefined,
+      };
+      (s as any).onOpenMenu?.(payloadForState);
     },
     [s]
   );
@@ -205,7 +223,7 @@ export default function MapHomePage() {
       menuJibunAddr: s.menuJibunAddr,
       menuTitle,
       onCloseMenu: s.closeMenu,
-      // 상세보기는 MapHomeUI 내부에서 처리하므로 onViewFromMenu 전달 ❌
+      // 상세보기는 MapHomeUI 내부에서 처리
       onCreateFromMenu,
       onPlanFromMenu: s.onPlanFromMenu,
 
@@ -232,7 +250,7 @@ export default function MapHomePage() {
 
       /* misc */
       hideLabelForId: s.hideLabelForId,
-      onOpenMenu: s.onOpenMenu,
+      onOpenMenu: handleOpenMenu, // ✅ 어댑터 사용
       onChangeHideLabelForId,
       onReserveFromMenu,
       createFromDraftId: s.createFromDraftId,
@@ -249,6 +267,7 @@ export default function MapHomePage() {
       onCreateFromMenu,
       onChangeHideLabelForId,
       onReserveFromMenu,
+      handleOpenMenu,
       menuTitle,
     ]
   );
