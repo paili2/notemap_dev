@@ -486,11 +486,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
     close,
   } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
 
+  // ✅ 지적편집도 상태는 여기서 선언 (로드뷰 토글보다 위)
+  const [isDistrictOn, setIsDistrictOnState] = useState(false);
+
   const toggleRoadview = useCallback(() => {
     if (roadviewVisible) {
+      // ✅ 로드뷰가 켜져 있으면 끄기만
       close();
       return;
     }
+
     const anchor =
       selectedPos ??
       menuAnchor ??
@@ -502,10 +507,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
           }
         : null);
 
+    // ✅ 먼저 로드뷰를 연다
     if (anchor) {
       openAt(anchor, { face: anchor });
     } else {
       openAtCenter();
+    }
+
+    // ✅ 그리고 바로 지적편집도를 끈다 (시각적으로는 거의 동시에 꺼짐)
+    if (isDistrictOn) {
+      setIsDistrictOnState(false);
     }
   }, [
     roadviewVisible,
@@ -516,6 +527,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuAnchor,
     draftPin,
     mapInstance,
+    isDistrictOn,
   ]);
 
   const [didInit, setDidInit] = useState(false);
@@ -536,7 +548,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
-  const [isDistrictOn, setIsDistrictOn] = useState(false);
+
+  const handleSetDistrictOn = useCallback(
+    (next: boolean) => {
+      setIsDistrictOnState(next);
+
+      // ✅ 지적편집도 켜질 때 로드뷰가 켜져 있으면 끄기
+      if (next && roadviewVisible) {
+        close();
+      }
+    },
+    [roadviewVisible, close]
+  );
 
   const { siteReservations } = useSidebarCtx();
 
@@ -668,7 +691,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
               const kwN = norm(query);
               const ranked = res
                 .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
-
                 .sort((a, b) => b.s - a.s);
               const best = ranked[0]?.d ?? res[0];
               setCenterWithMarker(
@@ -985,7 +1007,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           (onChangeFilter as any)(resolved);
         }}
         isDistrictOn={isDistrictOn}
-        setIsDistrictOn={setIsDistrictOn}
+        setIsDistrictOn={handleSetDistrictOn}
         poiKinds={poiKinds}
         onChangePoiKinds={onChangePoiKinds}
         roadviewVisible={roadviewVisible}
@@ -1001,7 +1023,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           if (open) setRightOpen(false);
         }}
         getBounds={getBoundsLLB}
-        getLevel={() => mapInstance?.getLevel?.()} // ✅ 현재 지도 레벨 전달
+        getLevel={() => mapInstance?.getLevel?.()}
       />
 
       <FilterFab onOpen={() => setFilterSearchOpen(true)} />
