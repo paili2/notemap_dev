@@ -455,6 +455,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     serverDrafts: effectiveServerDrafts,
     menuOpen,
     menuAnchor,
+    filterKey: filter,
   });
 
   usePlannedDrafts({ filter, getBounds: getBoundsRaw });

@@ -29,7 +29,7 @@ export type MergedMarker = {
   id: string | number;
   lat: number;
   lng: number;
-  name?: string; // ✅ 추가: 라벨 표기를 위한 이름
+  name?: string;
   title?: string;
   /** 출처 (실매물 or 임시핀) */
   source: "point" | "draft";
@@ -41,11 +41,10 @@ export function useMergedMarkers(params: {
   localMarkers: MapMarker[];
   serverPoints?: Array<{
     id: string | number;
-    name?: string | null; // ✅ 추가
+    name?: string | null;
     title?: string | null;
     lat: number;
     lng: number;
-    /** ✅ 서버가 내려주는 뱃지 (예: "R3", "R4_TERRACE", "SURVEY_SCHEDULED" 등) */
     badge?: string | null;
   }>;
   serverDrafts?: Array<{
@@ -54,27 +53,47 @@ export function useMergedMarkers(params: {
     lat: number;
     lng: number;
     draftState?: "BEFORE" | "SCHEDULED";
-    /** (선택) 드래프트에도 배지가 있을 수 있으면 포함 */
     badge?: string | null;
   }>;
   menuOpen: boolean;
   menuAnchor?: { lat: number; lng: number } | null;
+  /** 🔹 MapMenu 필터 키 (예: "all" | "plannedOnly") */
+  filterKey?: string;
 }) {
-  const { localMarkers, serverPoints, serverDrafts, menuOpen, menuAnchor } =
-    params;
+  const {
+    localMarkers,
+    serverPoints,
+    serverDrafts,
+    menuOpen,
+    menuAnchor,
+    filterKey,
+  } = params;
+
+  // 답사예정 탭 (plannedOnly) 인지 여부
+  const isPlannedOnlyMode = filterKey === "plannedOnly";
 
   // 1) 판정용 메타 배열 (id/좌표/출처/상태)
   const mergedMeta: MergedMarker[] = useMemo(() => {
-    const normals: MergedMarker[] = (serverPoints ?? []).map((p) => ({
+    // plannedOnly 모드에서는 실매물 포인트는 아예 사용하지 않음
+    const effectivePoints = isPlannedOnlyMode ? [] : serverPoints ?? [];
+
+    // 임시핀: plannedOnly 모드일 때는 draftState === "BEFORE" 만 남긴다
+    const effectiveDrafts = (serverDrafts ?? []).filter((d) => {
+      if (!isPlannedOnlyMode) return true;
+      const state = d.draftState;
+      return state === "BEFORE";
+    });
+
+    const normals: MergedMarker[] = effectivePoints.map((p) => ({
       id: p.id,
-      name: p.name ?? p.title ?? "", // ✅ name 우선
+      name: p.name ?? p.title ?? "",
       title: p.title ?? "",
       lat: p.lat,
       lng: p.lng,
       source: "point",
     }));
 
-    const drafts: MergedMarker[] = (serverDrafts ?? []).map((d) => ({
+    const drafts: MergedMarker[] = effectiveDrafts.map((d) => ({
       id: d.id,
       title: d.title ?? "답사예정",
       lat: d.lat,
@@ -84,33 +103,38 @@ export function useMergedMarkers(params: {
     }));
 
     return [...normals, ...drafts];
-  }, [serverPoints, serverDrafts]);
+  }, [serverPoints, serverDrafts, isPlannedOnlyMode]);
 
   // 2) 실제 지도에 뿌릴 마커 배열 (아이콘/타입 포함)
   const serverViewMarkers: MapMarker[] = useMemo(() => {
-    const normals: MapMarker[] = (serverPoints ?? []).map((p) => {
-      // ✅ 서버 badge -> 내부 PinKind 매핑
+    const effectivePoints = isPlannedOnlyMode ? [] : serverPoints ?? [];
+
+    const effectiveDrafts = (serverDrafts ?? []).filter((d) => {
+      if (!isPlannedOnlyMode) return true;
+      const state = d.draftState;
+      return state === "BEFORE";
+    });
+
+    const normals: MapMarker[] = effectivePoints.map((p) => {
       const kindFromBadge = mapBadgeToPinKind(p.badge);
       const kind: PinKind = (kindFromBadge ?? "1room") as PinKind;
 
       return {
         id: String(p.id),
-        // ✅ 라벨용 이름을 반드시 포함
-        name: p.name ?? p.title ?? "", // ← 핵심
+        name: p.name ?? p.title ?? "",
         title: p.title ?? "",
         position: { lat: p.lat, lng: p.lng },
         kind,
       };
     });
 
-    const drafts: MapMarker[] = (serverDrafts ?? []).map((d) => {
-      // 드래프트에도 배지가 있다면 반영, 없으면 기본적으로 question
+    const drafts: MapMarker[] = effectiveDrafts.map((d) => {
       const kindFromBadge = mapBadgeToPinKind(d.badge);
       const fallback: PinKind = "question";
       const kind: PinKind = (kindFromBadge ?? fallback) as PinKind;
 
       return {
-        id: `__visit__${String(d.id)}`, // 임시핀은 __visit__ 접두사로 구분
+        id: `__visit__${String(d.id)}`,
         title: d.title ?? "답사예정",
         position: { lat: d.lat, lng: d.lng },
         kind,
@@ -118,7 +142,7 @@ export function useMergedMarkers(params: {
     });
 
     return [...normals, ...drafts];
-  }, [serverPoints, serverDrafts]);
+  }, [serverPoints, serverDrafts, isPlannedOnlyMode]);
 
   // 3) 로컬 마커와 서버 마커 병합
   const mergedMarkers: MapMarker[] = useMemo(() => {
@@ -146,10 +170,8 @@ export function useMergedMarkers(params: {
   const mergedWithTempDraft: MapMarker[] = useMemo(() => {
     if (!(menuOpen && menuAnchor)) return mergedMarkers;
 
-    // ⛔️ 같은 좌표(posKey) 이미 존재하면 __draft__ 추가하지 않음
     const targetKey = posKey(menuAnchor.lat, menuAnchor.lng);
 
-    // (A) posKey 매칭
     const hasSamePosKey = mergedMarkers.some((m) => {
       const p: any = (m as any).position ?? m;
       const lat = typeof p.getLat === "function" ? p.getLat() : p.lat;
@@ -159,7 +181,6 @@ export function useMergedMarkers(params: {
 
     if (hasSamePosKey) return mergedMarkers;
 
-    // (B) 안전장치: question 아이콘/visit 임시핀과도 좌표 겹치면 추가 금지
     const EPS = 1e-5;
     const overlapWithDraft = mergedMarkers.some((m) => {
       const id = String(m.id ?? "");
@@ -175,7 +196,6 @@ export function useMergedMarkers(params: {
 
     if (overlapWithDraft) return mergedMarkers;
 
-    // (C) 그 외의 경우에만 임시 draft 마커 추가
     return [
       ...mergedMarkers,
       {

@@ -12,7 +12,7 @@ import { CreatePayload } from "@/features/properties/types/property-dto";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 import { PoiKind } from "../../shared/overlays/poiOverlays";
 
-/* ⬇️ 추가: 라벨 숨김/복원 유틸 */
+/* ⬇️ 라벨 숨김/복원 유틸 */
 import {
   hideLabelsAround,
   showLabelsAround,
@@ -476,7 +476,7 @@ export function useMapHomeState() {
       setDraftPinSafe,
       onChangeHideLabelForId,
       setRawMenuAnchor,
-      mapInstance, // ⬅️ 의존성 포함
+      mapInstance,
     ]
   );
 
@@ -564,8 +564,8 @@ export function useMapHomeState() {
     draftPin,
     setDraftPinSafe,
     onChangeHideLabelForId,
-    mapInstance, // ⬅️ 의존성 포함
-    menuAnchor, // ⬅️ 의존성 포함
+    mapInstance,
+    menuAnchor,
   ]);
 
   const openViewFromMenu = useCallback(
@@ -602,9 +602,30 @@ export function useMapHomeState() {
     [closeMenu, draftPin, setDraftPinSafe]
   );
 
-  // 마커 목록
+  // ⭐ 마커 목록 (필터 반영)
   const markers = useMemo(() => {
-    const pointMarkers = (points ?? []).map((p) => ({
+    // 0) drafts 배열에서 숨긴 것 제외
+    const visibleDraftsRaw = (drafts ?? []).filter(
+      (d: any) => !hiddenDraftIds.has(String(d.id))
+    );
+
+    // 1) 필터 모드 판별
+    //    plannedOnly = 답사예정 탭 (답사 전 드래프트만 보고 싶을 때)
+    const isPlannedOnlyMode = filter === "plannedOnly";
+
+    // 2) 매물핀: plannedOnly 모드에서는 안 보이게
+    const visiblePoints = isPlannedOnlyMode ? [] : points ?? [];
+
+    // 3) 임시핀: plannedOnly 모드일 때는 draftState === "BEFORE" 만 남기기
+    const visibleDrafts = visibleDraftsRaw.filter((d: any) => {
+      if (!isPlannedOnlyMode) return true; // 평소에는 전부 사용
+
+      const state = d.draftState as "BEFORE" | "SCHEDULED" | undefined;
+      return state === "BEFORE"; // ⇐ 답사 전 드래프트만
+    });
+
+    // 4) 매물핀 마커 변환
+    const pointMarkers = visiblePoints.map((p: any) => ({
       id: String(p.id),
       position: { lat: p.lat, lng: p.lng },
       kind: "1room" as const,
@@ -612,15 +633,15 @@ export function useMapHomeState() {
       isFav: false,
     }));
 
-    const draftMarkers = (drafts ?? [])
-      .filter((d) => !hiddenDraftIds.has(String(d.id)))
-      .map((d) => ({
-        id: `__visit__${d.id}`,
-        position: { lat: d.lat, lng: d.lng },
-        kind: "question" as const,
-        isFav: false,
-      }));
+    // 5) 임시핀 마커 변환 (__visit__ 접두사)
+    const draftMarkers = visibleDrafts.map((d: any) => ({
+      id: `__visit__${d.id}`,
+      position: { lat: d.lat, lng: d.lng },
+      kind: "question" as const,
+      isFav: false,
+    }));
 
+    // 6) 화면에서 선택한 임시 draftPin (메뉴 열릴 때 생기는 말풍선용)
     const draftPinMarker = draftPin
       ? [
           {
@@ -633,7 +654,7 @@ export function useMapHomeState() {
       : [];
 
     return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
-  }, [points, drafts, draftPin, hiddenDraftIds]);
+  }, [points, drafts, draftPin, hiddenDraftIds, filter]);
 
   // Create/Edit Host 브리지
   const createHostHandlers = useMemo(
@@ -643,7 +664,7 @@ export function useMapHomeState() {
         setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setMenuOpen(false);
-        setCreateFromDraftId(null); // ✅ 같이 초기화
+        setCreateFromDraftId(null);
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
       selectAndOpenView: (id: string | number) => {
@@ -656,7 +677,7 @@ export function useMapHomeState() {
         setDraftPinSafe(null);
         setPrefillAddress(undefined);
         setCreateOpen(false);
-        setCreateFromDraftId(null); // ✅ 여기도
+        setCreateFromDraftId(null);
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
@@ -707,17 +728,15 @@ export function useMapHomeState() {
     [sendViewportQuery]
   );
 
-  // ✅✅ 핵심 수정: selectedViewItem에 id/propertyId와 editInitial(view 래퍼) 포함
+  // selectedViewItem (ViewModal용)
   const selectedViewItem = useMemo(() => {
     if (!selected) return null;
     const id = String(selected.id);
     const view = toViewDetails(toViewSourceFromPropertyItem(selected)) as any;
 
-    // id가 누락되는 경우가 많아 명시적으로 보강
     if (!view.id) view.id = id;
     if (!view.propertyId) view.propertyId = id;
 
-    // PropertyViewModal에서 data.editInitial를 우선 사용하도록 제공
     const withEditInitial = {
       ...view,
       editInitial: { view: { ...view } },
@@ -797,7 +816,7 @@ export function useMapHomeState() {
     useDistrict,
     setUseDistrict,
 
-    // ⭐ POI
+    // POI
     poiKinds,
     setPoiKinds,
     onChangePoiKinds,
@@ -843,7 +862,7 @@ export function useMapHomeState() {
     // view handlers
     onSaveViewPatch,
     onDeleteFromView,
-    selectedViewItem, // ← editInitial 포함
+    selectedViewItem,
 
     // host bridges
     createHostHandlers,
