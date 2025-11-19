@@ -6,6 +6,8 @@ import {
   X,
   Eye,
   Briefcase,
+  Image as ImageIcon,
+  FileText,
 } from "lucide-react";
 import {
   Avatar,

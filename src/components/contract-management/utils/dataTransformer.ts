@@ -5,7 +5,7 @@ import type { ContractData } from "../types";
 export const transformSalesContractToContract = (
   salesData: SalesContractData,
   id?: string,
-  status: "completed" | "pending" | "cancelled" = "completed"
+  status: "completed" | "ongoing" | "rejected" | "cancelled" = "completed"
 ): ContractData => {
   // 필수 데이터 검증
   if (!salesData.customerInfo?.name || !salesData.salesPerson?.name) {

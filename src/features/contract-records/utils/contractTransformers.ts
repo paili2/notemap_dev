@@ -98,8 +98,8 @@ export function transformContractResponseToSalesContract(
         a.assigneeName ||
         a.account?.name ||
         (a.role === "company" ? "회사" : a.accountId ? `직원 #${a.accountId}` : ""),
-      // accountId 우선순위: assignee의 accountId -> account.id -> account.credential_id
-      accountId: a.accountId ?? a.account?.id ?? a.account?.credential_id ?? undefined,
+      // accountId 우선순위: assignee의 accountId -> account.id
+      accountId: a.accountId ?? a.account?.id ?? undefined,
       type: a.role === "company" ? ("company" as const) : ("employee" as const),
       percentage: Number(a.sharePercent) || 0, // 문자열을 숫자로 변환
       isDirectInput: a.isManual,
