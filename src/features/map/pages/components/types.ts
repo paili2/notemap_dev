@@ -117,7 +117,8 @@ export type MapHomeUIProps = {
 
   onOpenMenu: (p: {
     position: { lat: number; lng: number };
-    propertyId: "__draft__" | string | number;
+    // 🔽 검색핀에서 null / 생략 가능하도록 수정
+    propertyId?: "__draft__" | string | number | null;
     propertyTitle?: string | null;
     pin?: { kind: string; isFav?: boolean };
   }) => void;

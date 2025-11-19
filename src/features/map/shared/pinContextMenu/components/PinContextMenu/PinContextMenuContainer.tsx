@@ -18,6 +18,7 @@ import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedM
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
+import { togglePinDisabled } from "@/shared/api/pins"; // ✅ 추가
 
 /** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 function posKey(lat: number, lng: number) {
@@ -86,6 +87,8 @@ type Props = PinContextMenuProps & {
     lng: number;
     address?: string | null;
   }) => void;
+  /** ✅ 매물 삭제 후 부모에서 리스트/지도 갱신이 필요하면 사용 */
+  onDeleteProperty?: (id: string | null) => void | Promise<void>;
 };
 
 export default function PinContextMenuContainer(props: Props) {
@@ -110,6 +113,7 @@ export default function PinContextMenuContainer(props: Props) {
     mergedMeta,
     refreshViewportPins,
     upsertDraftMarker,
+    onDeleteProperty,
   } = props;
 
   const version = useReservationVersion((s) => s.version);
@@ -500,6 +504,39 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [propertyTitle, pin, metaAtPos]);
 
+  /** ✅ 매물 삭제 여부 상태 */
+  const [deleting, setDeleting] = React.useState(false);
+
+  const canDelete = React.useMemo(
+    () => !!propertyIdClean && listed && !isSearchDraft,
+    [propertyIdClean, listed, isSearchDraft]
+  );
+
+  const handleDelete = React.useCallback(async () => {
+    if (!propertyIdClean || deleting) return;
+    if (!confirm("정말 삭제(비활성화)할까요?")) return;
+
+    try {
+      setDeleting(true);
+      // ✅ PropertyViewModal에서 쓰는 것과 동일한 요청
+      await togglePinDisabled(String(propertyIdClean), true);
+
+      // 부모 쪽에서 리스트/지도 갱신이 필요하면
+      await onDeleteProperty?.(propertyIdClean);
+
+      // 컨텍스트 메뉴 닫기
+      onClose?.();
+    } catch (err: any) {
+      const msg =
+        err?.message ||
+        err?.responseData?.message ||
+        "비활성화 요청에 실패했습니다.";
+      alert(msg);
+    } finally {
+      setDeleting(false);
+    }
+  }, [propertyIdClean, deleting, onDeleteProperty, onClose]);
+
   React.useEffect(() => {
     // 상태 디버그용
     // eslint-disable-next-line no-console
@@ -568,6 +605,9 @@ export default function PinContextMenuContainer(props: Props) {
               onAddFav={onAddFav}
               favActive={favActive}
               position={position}
+              /** 🔥 즐겨찾기 옆 매물삭제 버튼용 */
+              canDelete={canDelete}
+              onDelete={handleDelete}
             />
             <div
               aria-hidden="true"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { FilterSearch } from "../../../shared/filterSearch";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
@@ -37,6 +37,9 @@ import {
 import { MapMenuKey } from "@/features/map/menu";
 import { usePinsFromViewport } from "@/features/map/shared/hooks/usePinsFromViewport";
 import { useRoadview } from "@/features/map/shared/hooks/useRoadview";
+
+/* 검색 위치와 현재 뷰 중앙 거리 계산용 */
+import { distM } from "@/features/map/shared/hooks/poi/geometry";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -238,6 +241,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [viewOpenLocal, setViewOpenLocal] = useState(false);
   const [viewDataLocal, setViewDataLocal] =
     useState<PropertyViewDetails | null>(null);
+
+  // 🔐 마지막 검색 기준 중심(지도의 center)을 기억해서, 멀리 이동했을 때만 검색핀 제거
+  const lastSearchCenterRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const handleViewFromMenuLocal = useCallback(async (pinId: string) => {
     setViewOpenLocal(true);
@@ -547,10 +553,27 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const handleViewportChangeInternal = useCallback(
     (v: any) => {
-      // 📍 검색용 임시 마커(source === "search") 전부 제거
-      setLocalDraftMarkers((prev) =>
-        prev.filter((m) => (m as any).source !== "search")
-      );
+      // 🔹 현재 뷰포트 중심과 마지막 검색 중심의 거리가 멀어졌을 때만 검색 임시핀 제거
+      if (lastSearchCenterRef.current) {
+        const centerLat = (v.leftTop.lat + v.rightBottom.lat) / 2;
+        const centerLng = (v.leftTop.lng + v.rightBottom.lng) / 2;
+
+        const d = distM(
+          centerLat,
+          centerLng,
+          lastSearchCenterRef.current.lat,
+          lastSearchCenterRef.current.lng
+        );
+
+        const THRESHOLD_M = 300; // 300m 이상 벗어나면 검색핀 제거
+        if (d > THRESHOLD_M) {
+          setLocalDraftMarkers((prev) =>
+            prev.filter((m) => (m as any).source !== "search")
+          );
+          lastSearchCenterRef.current = null;
+        }
+      }
+
       onViewportChange?.(v);
     },
     [onViewportChange]
@@ -569,13 +592,52 @@ export function MapHomeUI(props: MapHomeUIProps) {
         mapInstance.setLevel(3);
       };
 
+      const setCenterWithMarker = (
+        lat: number,
+        lng: number,
+        label?: string | null
+      ) => {
+        // 🔹 마지막 검색 기준 중심 저장
+        lastSearchCenterRef.current = { lat, lng };
+
+        // 🔹 지도 중심 이동
+        setCenterOnly(lat, lng);
+
+        // 🔹 검색용 임시핀(id 고정) 업서트
+        const id = "__search__";
+
+        upsertDraftMarker({
+          id,
+          lat,
+          lng,
+          address: label ?? query,
+          source: "search",
+          kind: "question",
+        });
+
+        // 🔹 이 위치 기준 컨텍스트 메뉴 열기
+        onOpenMenu?.({
+          position: { lat, lng },
+          propertyTitle: label ?? query ?? "선택 위치",
+          pin: { kind: "question", isFav: false },
+        });
+
+        // 🔹 (선택) 이 핀 라벨은 숨겨두기
+        onChangeHideLabelForId?.(id);
+      };
+
       const looksLikeAddress =
         /(\d|\b동\b|\b구\b|\b로\b|\b길\b|\b번지\b|\b리\b)/.test(query);
       if (looksLikeAddress) {
         const geocoder = new kakaoSDK.maps.services.Geocoder();
         geocoder.addressSearch(query, (res: any[], status: string) => {
           if (status !== kakaoSDK.maps.services.Status.OK || !res?.[0]) return;
-          setCenterOnly(+res[0].y, +res[0].x);
+          const item = res[0];
+          const label =
+            item.road_address?.address_name ??
+            item.address?.address_name ??
+            query;
+          setCenterWithMarker(+item.y, +item.x, label);
         });
         return;
       }
@@ -608,12 +670,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
                 .sort((a, b) => b.s - a.s);
               const best = ranked[0]?.d ?? res[0];
-              setCenterOnly(Number(best.y), Number(best.x));
+              setCenterWithMarker(
+                Number(best.y),
+                Number(best.x),
+                best.place_name
+              );
               return;
             }
 
             const best = pickBestPlace(res, query, biasCenter);
-            setCenterOnly(Number(best.y), Number(best.x));
+            setCenterWithMarker(
+              Number(best.y),
+              Number(best.x),
+              best.place_name
+            );
           },
           biasOpt
         );
@@ -661,7 +731,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
               let acc: any[] = [];
               const run = (i = 0) => {
                 if (i >= queries.length) {
-                  if (!acc.length) return setCenterOnly(sLat, sLng);
+                  if (!acc.length)
+                    return setCenterWithMarker(sLat, sLng, st.place_name);
                   const best = pickBestExitStrict(
                     acc,
                     stationName,
@@ -671,8 +742,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
                   const MAX_EXIT_DIST = 300;
                   const dist = Number(best?.distance ?? Infinity);
                   if (!isNaN(dist) && dist > MAX_EXIT_DIST)
-                    return setCenterOnly(sLat, sLng);
-                  return setCenterOnly(Number(best.y), Number(best.x));
+                    return setCenterWithMarker(sLat, sLng, st.place_name);
+                  return setCenterWithMarker(
+                    Number(best.y),
+                    Number(best.x),
+                    best.place_name
+                  );
                 }
                 placesSvc2.keywordSearch(
                   queries[i],
@@ -715,10 +790,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
                   const MAX_EXIT_DIST = 300;
                   const dist = Number(bestExit?.distance ?? Infinity);
                   if (!isNaN(dist) && dist > MAX_EXIT_DIST)
-                    return setCenterOnly(sLat, sLng);
-                  return setCenterOnly(+bestExit.y, +bestExit.x);
+                    return setCenterWithMarker(sLat, sLng, st.place_name);
+                  return setCenterWithMarker(
+                    +bestExit.y,
+                    +bestExit.x,
+                    bestExit.place_name
+                  );
                 }
-                return setCenterOnly(sLat, sLng);
+                return setCenterWithMarker(sLat, sLng, st.place_name);
               },
               { location: stationLL, radius: 600 }
             );
@@ -746,7 +825,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
         { rect: koreaRect }
       );
     },
-    [kakaoSDK, mapInstance, onSubmitSearch]
+    [
+      kakaoSDK,
+      mapInstance,
+      onSubmitSearch,
+      upsertDraftMarker,
+      onOpenMenu,
+      onChangeHideLabelForId,
+    ]
   );
 
   const handleDeleteFromView = useCallback(async () => {
@@ -796,6 +882,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
   useEffect(() => {
     if (selectedViewItem) setViewOpenLocal(true);
   }, [selectedViewItem]);
+
+  /* 🔍 메뉴가 닫힐 때 검색 임시핀(__search__) 제거 */
+  useEffect(() => {
+    if (!menuOpen) {
+      // 검색으로 생성된 임시핀만 제거 (source === "search")
+      setLocalDraftMarkers((prev) =>
+        prev.filter((m) => (m as any).source !== "search")
+      );
+
+      // 검색핀 때문에 숨겨둔 라벨 풀어주기
+      if (hideLabelForId === "__search__") {
+        onChangeHideLabelForId?.(undefined);
+      }
+
+      // 검색 기준 중심도 초기화
+      lastSearchCenterRef.current = null;
+    }
+  }, [menuOpen, hideLabelForId, onChangeHideLabelForId]);
 
   return (
     <div className="fixed inset-0">

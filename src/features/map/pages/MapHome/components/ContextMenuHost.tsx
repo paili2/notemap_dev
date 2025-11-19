@@ -174,6 +174,7 @@ export default function ContextMenuHost(props: {
     sw: { lat: number; lng: number };
     ne: { lat: number; lng: number };
   }) => Promise<void> | void;
+  onDeleteProperty?: (id: string | null) => void;
 }) {
   const {
     open,
@@ -196,6 +197,7 @@ export default function ContextMenuHost(props: {
     mergedMeta,
     upsertDraftMarker,
     refreshViewportPins,
+    onDeleteProperty,
   } = props;
 
   const sr = useScheduledReservations();
@@ -583,6 +585,7 @@ export default function ContextMenuHost(props: {
       }
       upsertDraftMarker={upsertDraftMarker}
       refreshViewportPins={refreshViewportPins}
+      onDeleteProperty={onDeleteProperty}
     />
   );
 }

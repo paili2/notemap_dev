@@ -82,6 +82,10 @@ export default function ContextMenuPanel({
   onReserve,
   /** ✅ 컨테이너에서 내려주는 현재 좌표 */
   position,
+
+  /** ✅ 새로 추가: 매물 삭제 가능 여부 & 핸들러 */
+  canDelete,
+  onDelete,
 }: ContextMenuPanelProps) {
   const headingId = useId();
   const descId = useId();
@@ -339,6 +343,19 @@ export default function ContextMenuPanel({
               <Plus aria-hidden="true" />
             </Button>
           )}
+
+          {canDelete && (
+            <Button
+              type="button"
+              onClick={onDelete}
+              aria-label="매물삭제"
+              variant="destructive"
+              size="sm"
+            >
+              삭제
+            </Button>
+          )}
+
           <Button
             type="button"
             onClick={onClose}

@@ -122,6 +122,9 @@ export type ContextMenuPanelProps = {
    * - 필요 없으면 생략 가능
    */
   mapContainer?: HTMLElement | null;
+
+  canDelete?: boolean;
+  onDelete?: () => void;
 };
 
 /* ---------------------------------- */
