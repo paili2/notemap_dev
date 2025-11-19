@@ -263,16 +263,41 @@ export function useRebuildScene(args: Args) {
       ({ m, key, order, isDraft, isPlan, isAddressOnly, posKey }) => {
         const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
 
+        // 🔹 name이 주소랑 같은 경우는 라벨 후보에서 제외하기 위한 전처리
+        const nameCandidate = (() => {
+          const n = (m as any).name;
+          const addr = (m as any).address ?? (m as any).addressLine;
+          if (
+            typeof n === "string" &&
+            n.trim().length > 0 &&
+            (!addr || n.trim() !== String(addr).trim()) // 🔴 주소와 같은 텍스트면 버림
+          ) {
+            return n;
+          }
+          return undefined;
+        })();
+
         // 라벨 표기 텍스트
         const displayName =
           firstNonEmpty(
-            m.name,
-            (m as any).point?.name,
-            (m as any).data?.name,
+            // 1순위: 매물명 계열
             (m as any).property?.name,
             (m as any).property?.title,
-            m.title
+            (m as any).data?.propertyName,
+            (m as any).propertyName,
+
+            // 2순위: title / 기타 name 계열
+            m.title,
+            (m as any).point?.name,
+            (m as any).data?.name,
+
+            // 3순위: 주소와 다를 때만 name 사용
+            nameCandidate,
+
+            // 4순위: 그래도 없으면 id로 fallback
+            String(m.id ?? "")
           ) || "";
+
         const planText = `${m.regionLabel ?? ""} 답사예정`.trim();
 
         // ── 마커 ─────────────────────────────────────────────

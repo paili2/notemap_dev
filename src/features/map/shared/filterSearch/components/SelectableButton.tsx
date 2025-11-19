@@ -11,7 +11,7 @@ export const SelectableButton = ({
     size="sm"
     className={`text-xs border px-2 py-1 h-7 ${
       isSelected
-        ? "bg-gray-900 text-white hover:bg-gray-800 border-gray-900"
+        ? "bg-blue-600 text-white hover:bg-blue-500 border-blue-600 hover:border-blue-500"
         : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
     }`}
     onClick={onClick}

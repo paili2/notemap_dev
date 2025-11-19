@@ -93,7 +93,7 @@ export function useMergedMarkers(params: {
 
     const normals: MergedMarker[] = effectivePoints.map((p) => ({
       id: p.id,
-      name: p.name ?? p.title ?? "",
+      name: p.title ?? p.name ?? "",
       title: p.title ?? "",
       lat: p.lat,
       lng: p.lng,
@@ -137,9 +137,11 @@ export function useMergedMarkers(params: {
       const kindFromBadge = mapBadgeToPinKind(p.badge);
       const kind: PinKind = (kindFromBadge ?? "1room") as PinKind;
 
+      const labelName = p.title ?? p.name ?? "";
+
       return {
         id: String(p.id),
-        name: p.name ?? p.title ?? "",
+        name: labelName,
         title: p.title ?? "",
         position: { lat: p.lat, lng: p.lng },
         kind,

@@ -17,7 +17,7 @@ export const FilterActions = ({ onReset, onApply }: FilterActionsProps) => (
       </Button>
       <Button
         onClick={onApply}
-        className="flex-1 bg-gray-900 text-white text-xs h-8"
+        className="flex-1 bg-blue-600 text-white text-xs h-8"
       >
         필터 적용 검색하기
       </Button>
