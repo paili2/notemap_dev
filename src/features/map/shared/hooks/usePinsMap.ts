@@ -20,6 +20,13 @@ function debounce<T extends (...a: any[]) => void>(fn: T, ms = 250) {
 /** 프론트 전용 확장 타입: 로컬 임시 드래프트에 title을 보관 */
 type DraftWithTitle = PinsMapDraft & { title?: string };
 
+type Filters = {
+  isOld?: boolean;
+  isNew?: boolean;
+  favoriteOnly?: boolean;
+  draftState?: "before" | "scheduled" | "all";
+};
+
 export function usePinsMap() {
   const [bounds, setBounds] = useState<Bounds | null>(null);
   const [points, setPoints] = useState<PinsMapPoint[]>([]);
@@ -30,6 +37,9 @@ export function usePinsMap() {
 
   /** ✅ 클라이언트 낙관적 임시 드래프트(등록 직후 즉시 표시용) */
   const [localDrafts, setLocalDrafts] = useState<DraftWithTitle[]>([]);
+
+  /** ✅ 현재 뷰포트에 적용 중인 필터 상태 */
+  const [filters, setFilters] = useState<Filters>({});
 
   /** 서버 drafts + 로컬 임시 drafts 병합(서버 우선) */
   const draftsMerged = useMemo<DraftWithTitle[]>(() => {
@@ -48,21 +58,23 @@ export function usePinsMap() {
 
   /** 서버에서 뷰포트 핀 로드 */
   const load = useCallback(
-    async (filters?: {
-      isOld?: boolean;
-      isNew?: boolean;
-      favoriteOnly?: boolean;
-      draftState?: "before" | "scheduled" | "all";
-    }) => {
+    async (overrideFilters?: Filters) => {
       if (!bounds) return;
+
+      const finalFilters: Filters = {
+        ...filters,
+        ...(overrideFilters ?? {}),
+      };
+
       abortRef.current?.abort();
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       setLoading(true);
       setError(null);
+
       try {
         const data = await fetchPinsInBounds(
-          { ...bounds, ...filters },
+          { ...bounds, ...finalFilters },
           ctrl.signal
         );
         setPoints(Array.isArray(data.points) ? data.points : []);
@@ -75,12 +87,15 @@ export function usePinsMap() {
         setLoading(false);
       }
     },
-    [bounds]
+    [bounds, filters]
   );
 
   // 디바운스된 setter: 카카오맵 idle 이벤트에서 호출
   const setBoundsDebounced = useMemo(
-    () => debounce((b: Bounds) => setBounds(b), 150),
+    () =>
+      debounce((b: Bounds) => {
+        setBounds(b);
+      }, 150),
     []
   );
 
@@ -127,17 +142,17 @@ export function usePinsMap() {
   /** ✅ 로컬 임시 드래프트 초기화(옵션) */
   const clearLocalDrafts = useCallback(() => setLocalDrafts([]), []);
 
-  /** ✅ 현재 bounds 기준 강제 재패치(뷰포트 갱신 트리거) */
+  /** ✅ 현재 bounds + 필터 기준 강제 재패치(뷰포트 갱신 트리거) */
   const refreshViewportPins = useCallback(
-    async (filters?: {
-      isOld?: boolean;
-      isNew?: boolean;
-      favoriteOnly?: boolean;
-      draftState?: "before" | "scheduled" | "all";
-    }) => {
-      await load(filters);
+    async (overrideFilters?: Filters) => {
+      const next: Filters = {
+        ...filters,
+        ...(overrideFilters ?? {}),
+      };
+      setFilters(next);
+      await load(next);
     },
-    [load]
+    [filters, load]
   );
 
   useEffect(() => {
@@ -152,8 +167,8 @@ export function usePinsMap() {
     loading,
     error,
     setBounds: setBoundsDebounced, // 지도 이벤트에서 호출
-    refetch: load, // 수동 재패치
-    refreshViewportPins, // 뷰포트 재패치 헬퍼
+    refetch: load, // 수동 재패치 (현재 filters 유지)
+    refreshViewportPins, // 뷰포트 재패치 + 필터 갱신
     upsertDraftMarker, // 등록 직후 임시 마커 주입
     replaceTempByRealId, // 임시 → 실제 id 치환
     clearLocalDrafts, // 로컬 임시 정리

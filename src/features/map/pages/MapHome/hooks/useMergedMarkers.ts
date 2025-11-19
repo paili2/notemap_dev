@@ -57,7 +57,7 @@ export function useMergedMarkers(params: {
   }>;
   menuOpen: boolean;
   menuAnchor?: { lat: number; lng: number } | null;
-  /** 🔹 MapMenu 필터 키 (예: "all" | "plannedOnly") */
+  /** 🔹 MapMenu 필터 키 (예: "all" | "new" | "old" | "plannedOnly" | "planned") */
   filterKey?: string;
 }) {
   const {
@@ -69,20 +69,27 @@ export function useMergedMarkers(params: {
     filterKey,
   } = params;
 
-  // 답사예정 탭 (plannedOnly) 인지 여부
-  const isPlannedOnlyMode = filterKey === "plannedOnly";
+  const isBeforeMode = filterKey === "plannedOnly";
+  const isPlannedMode = filterKey === "planned";
+
+  /** 🔸 신축/구옥 필터일 때는 draft(답사예정핀) 자체를 숨김 */
+  const hideDraftsForAgeFilter = filterKey === "new" || filterKey === "old";
 
   // 1) 판정용 메타 배열 (id/좌표/출처/상태)
   const mergedMeta: MergedMarker[] = useMemo(() => {
-    // plannedOnly 모드에서는 실매물 포인트는 아예 사용하지 않음
-    const effectivePoints = isPlannedOnlyMode ? [] : serverPoints ?? [];
+    // before/planned 모드에서는 실매물 포인트는 아예 사용하지 않음
+    const effectivePoints =
+      isBeforeMode || isPlannedMode ? [] : serverPoints ?? [];
 
-    // 임시핀: plannedOnly 모드일 때는 draftState === "BEFORE" 만 남긴다
-    const effectiveDrafts = (serverDrafts ?? []).filter((d) => {
-      if (!isPlannedOnlyMode) return true;
-      const state = d.draftState;
-      return state === "BEFORE";
-    });
+    const effectiveDrafts =
+      hideDraftsForAgeFilter || !serverDrafts
+        ? []
+        : (serverDrafts ?? []).filter((d) => {
+            const state = d.draftState as "BEFORE" | "SCHEDULED" | undefined;
+            if (isBeforeMode) return state === "BEFORE";
+            if (isPlannedMode) return state === "SCHEDULED";
+            return true;
+          });
 
     const normals: MergedMarker[] = effectivePoints.map((p) => ({
       id: p.id,
@@ -103,17 +110,28 @@ export function useMergedMarkers(params: {
     }));
 
     return [...normals, ...drafts];
-  }, [serverPoints, serverDrafts, isPlannedOnlyMode]);
+  }, [
+    serverPoints,
+    serverDrafts,
+    isBeforeMode,
+    isPlannedMode,
+    hideDraftsForAgeFilter,
+  ]);
 
   // 2) 실제 지도에 뿌릴 마커 배열 (아이콘/타입 포함)
   const serverViewMarkers: MapMarker[] = useMemo(() => {
-    const effectivePoints = isPlannedOnlyMode ? [] : serverPoints ?? [];
+    const effectivePoints =
+      isBeforeMode || isPlannedMode ? [] : serverPoints ?? [];
 
-    const effectiveDrafts = (serverDrafts ?? []).filter((d) => {
-      if (!isPlannedOnlyMode) return true;
-      const state = d.draftState;
-      return state === "BEFORE";
-    });
+    const effectiveDrafts =
+      hideDraftsForAgeFilter || !serverDrafts
+        ? []
+        : (serverDrafts ?? []).filter((d) => {
+            const state = d.draftState as "BEFORE" | "SCHEDULED" | undefined;
+            if (isBeforeMode) return state === "BEFORE";
+            if (isPlannedMode) return state === "SCHEDULED";
+            return true;
+          });
 
     const normals: MapMarker[] = effectivePoints.map((p) => {
       const kindFromBadge = mapBadgeToPinKind(p.badge);
@@ -142,7 +160,13 @@ export function useMergedMarkers(params: {
     });
 
     return [...normals, ...drafts];
-  }, [serverPoints, serverDrafts, isPlannedOnlyMode]);
+  }, [
+    serverPoints,
+    serverDrafts,
+    isBeforeMode,
+    isPlannedMode,
+    hideDraftsForAgeFilter,
+  ]);
 
   // 3) 로컬 마커와 서버 마커 병합
   const mergedMarkers: MapMarker[] = useMemo(() => {

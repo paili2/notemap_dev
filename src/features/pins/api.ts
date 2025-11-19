@@ -13,10 +13,12 @@ export async function fetchPinsByBBox(params: {
   swLng: number;
   neLat: number;
   neLng: number;
-  draftState?: "before" | "scheduled" | "all"; // ← 선택
+  draftState?: "before" | "scheduled" | "all";
+  isNew?: boolean;
+  isOld?: boolean;
+  favoriteOnly?: boolean;
 }) {
-  // ❗ 좌표는 절대 자르지 않고 원본 정밀도로 그대로 전송
-  // (NaN 가드만 수행)
+  // 🛡 NaN 방어 — 좌표는 절대 자르지 않음
   const toNum = (v: number) => {
     const n = Number(v);
     if (!Number.isFinite(n)) {
@@ -32,16 +34,18 @@ export async function fetchPinsByBBox(params: {
     neLng: toNum(params.neLng),
   };
 
-  if (params.draftState) {
-    // 서버가 대문자 요구 시: params.draftState.toUpperCase()
-    safe.draftState = params.draftState;
-  }
+  // 🔥 서버에서 받는 필터들 추가
+  if (params.draftState) safe.draftState = params.draftState;
+  if (typeof params.isNew === "boolean") safe.isNew = params.isNew;
+  if (typeof params.isOld === "boolean") safe.isOld = params.isOld;
+  if (typeof params.favoriteOnly === "boolean")
+    safe.favoriteOnly = params.favoriteOnly;
 
   const ac = new AbortController();
   const res = await getPinsMapOnce(safe, ac.signal);
   const data = res.data;
 
-  // 응답 좌표도 정밀도 유지: 숫자 캐스팅만 (자르지 않음)
+  // 응답 좌표도 정밀도 유지
   data.data.points = (data.data.points ?? []).map((p: any) => ({
     ...p,
     lat: Number(p.lat),

@@ -8,6 +8,8 @@ type UsePinsOpts = {
   map?: kakao.maps.Map | null;
   debounceMs?: number;
   draftState?: "before" | "scheduled" | "all";
+  isNew?: boolean;
+  isOld?: boolean;
 };
 
 /** 🔹 그룹핑/매칭 전용 키 (표시·클러스터 용)
@@ -70,6 +72,8 @@ export function usePinsFromViewport({
   map,
   debounceMs = 250,
   draftState,
+  isNew,
+  isOld,
 }: UsePinsOpts) {
   const [loading, setLoading] = useState(false);
   const [points, setPoints] = useState<PinPoint[]>([]);
@@ -90,6 +94,9 @@ export function usePinsFromViewport({
         neLat: b.getNorthEast().getLat(),
         neLng: b.getNorthEast().getLng(),
         draftState,
+        // 🔹 신축/구옥 필터 함께 전송
+        ...(typeof isNew === "boolean" ? { isNew } : {}),
+        ...(typeof isOld === "boolean" ? { isOld } : {}),
       });
 
       // 서버 응답 요약 로그 (좌표는 굳이 찍지 않음)
@@ -98,8 +105,10 @@ export function usePinsFromViewport({
           id: p.id,
           name: p.name,
           addressLine: p.addressLine,
+          isNew: (p as any).isNew,
+          isOld: (p as any).isOld,
         })),
-        ["id", "name", "addressLine"]
+        ["id", "name", "addressLine", "isNew", "isOld"]
       );
 
       setPoints(res.data.points ?? []);
@@ -109,7 +118,7 @@ export function usePinsFromViewport({
     } finally {
       setLoading(false);
     }
-  }, [map, draftState]);
+  }, [map, draftState, isNew, isOld]);
 
   useEffect(() => {
     if (!map) return;

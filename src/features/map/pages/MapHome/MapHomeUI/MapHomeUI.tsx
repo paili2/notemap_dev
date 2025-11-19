@@ -409,6 +409,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [filter]);
 
+  // 🔹 사이드바 필터를 /pins/map isNew / isOld 쿼리로 매핑
+  const isNewFlag = useMemo(
+    () => (filter === "new" ? true : undefined),
+    [filter]
+  );
+  const isOldFlag = useMemo(
+    () => (filter === "old" ? true : undefined),
+    [filter]
+  );
+
   const {
     points: serverPoints,
     drafts: serverDrafts,
@@ -418,6 +428,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     map: mapInstance,
     debounceMs: 300,
     draftState: draftStateForQuery,
+    isNew: isNewFlag,
+    isOld: isOldFlag,
   });
 
   const normServerPoints = useMemo(
