@@ -107,14 +107,39 @@ export function transformContractResponseToSalesContract(
       finalAllowance: Number(a.finalAmount) || 0, // 문자열을 숫자로 변환
     })) ?? [];
 
+  // 접근 가능한 URL인지 확인 (s3:// 형태는 브라우저에서 접근 불가)
+  const isAccessibleUrl = (url?: string | null): boolean => {
+    if (!url) return false;
+    return url.startsWith('http://') || url.startsWith('https://');
+  };
+
+  // URL을 접근 가능한 형태로 변환 (s3:// -> undefined)
+  const getAccessibleUrl = (url?: string | null): string | undefined => {
+    if (!url) return undefined;
+    // s3:// 형태는 브라우저에서 접근 불가
+    if (url.startsWith('s3://')) {
+      console.warn('⚠️ 계약 이미지 s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:', url);
+      return undefined; // 프리사인 URL 생성 API 필요
+    }
+    return url;
+  };
+
   const contractImages =
-    opts?.files?.map((f) => ({
-      id: String(f.id),
-      // 서버에서 이미 업로드된 이미지이므로 url을 그대로 preview로 사용
-      preview: f.url,
-      // 기존 타입 호환을 위해 빈 File 객체 사용 (UI에서는 preview만 사용)
-      file: new File([], f.filename || "contract-image"),
-    })) ?? [];
+    opts?.files
+      ?.map((f) => {
+        const accessibleUrl = getAccessibleUrl(f.url);
+        if (!accessibleUrl) {
+          console.warn('⚠️ 계약 이미지 URL이 접근 불가능합니다. id:', f.id, 'url:', f.url);
+        }
+        return {
+          id: String(f.id),
+          // 접근 가능한 URL만 preview로 사용
+          preview: accessibleUrl || '',
+          // 기존 타입 호환을 위해 빈 File 객체 사용 (UI에서는 preview만 사용)
+          file: new File([], f.filename || "contract-image"),
+        };
+      })
+      .filter((img) => img.preview) ?? []; // 접근 불가능한 URL 필터링
   
   console.log("transformContractResponseToSalesContract - files:", opts?.files);
   console.log("transformContractResponseToSalesContract - contractImages:", contractImages);

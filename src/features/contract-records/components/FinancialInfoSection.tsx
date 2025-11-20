@@ -103,7 +103,7 @@ export function FinancialInfoSection({
               <SelectTrigger className="h-7 text-xs min-w-24 w-auto" disabled={readOnly}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="!z-[2200]">
                 <SelectItem value="vat-included" className="text-xs">
                   부가세
                 </SelectItem>
@@ -167,7 +167,7 @@ export function FinancialInfoSection({
               <SelectTrigger className="h-7 text-xs min-w-20 w-auto" disabled={readOnly}>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="!z-[2200]">
                 <SelectItem value="taxable" className="text-xs">
                   과세
                 </SelectItem>

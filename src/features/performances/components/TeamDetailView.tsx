@@ -61,7 +61,7 @@ export function TeamDetailView({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <CardTitle className="text-xl font-bold">
               {selectedTeamDetail} 직원별 실적
             </CardTitle>
@@ -90,7 +90,8 @@ export function TeamDetailView({
           {/* 직원별 상세 목록 */}
           <div className="mt-6">
             <h4 className="text-lg font-semibold mb-4">직원별 상세 정보</h4>
-            <Table
+            <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <Table
               data={selectedTeamMembers.map((member, index) => ({
                 ...member,
                 id: `${member.employeeName}-${index}`,
@@ -126,7 +127,8 @@ export function TeamDetailView({
                   align: "center",
                 },
               ]}
-            />
+              />
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,62 +1,100 @@
 import { Card, CardContent } from "@/components/atoms/Card/Card";
-import { TrendingUp, DollarSign, Users } from "lucide-react";
+import { DollarSign, TrendingUp, Users, FileText } from "lucide-react";
+import { formatCurrency } from "@/components/contract-management/utils/contractUtils";
 
 interface StatsCardsProps {
   totalContracts: number;
-  totalAllowance: number;
+  totalAllowance: number; // 총매출
   totalEmployees: number;
+  totalSupport?: number; // 지원금 (옵션)
 }
 
 export function StatsCards({
   totalContracts,
   totalAllowance,
   totalEmployees,
+  totalSupport = 0,
 }: StatsCardsProps) {
+  // 순수익 = 총매출 - 지원금
+  const netProfit = totalAllowance - totalSupport;
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">총 계약 건수</p>
-              <p className="text-2xl font-bold">{totalContracts}건</p>
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-gray-900">회사 총매출</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* 총매출 */}
+        <Card className="border-gray-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">총매출</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatCurrency(totalAllowance)}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
-            <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">총 최종수당</p>
-              <p className="text-2xl font-bold">
-                {(totalAllowance / 10000).toLocaleString()}만원
-              </p>
+        {/* 순수익 */}
+        <Card className="border-gray-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">순수익</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(netProfit)}
+                </p>
+                {totalSupport > 0 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    (총매출 - 지원금)
+                  </p>
+                )}
+              </div>
+              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <TrendingUp className="h-6 w-6 text-green-600" />
+              </div>
             </div>
-            <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card className="border-gray-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">총 직원 수</p>
-              <div className="text-2xl font-bold">{totalEmployees}명</div>
+        {/* 총 계약 건수 */}
+        <Card className="border-gray-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">총 계약 건수</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {totalContracts.toLocaleString()}건
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                <FileText className="h-6 w-6 text-purple-600" />
+              </div>
             </div>
-            <div className="h-12 w-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Users className="h-6 w-6 text-purple-600" />
+          </CardContent>
+        </Card>
+
+        {/* 총 인원수 */}
+        <Card className="border-gray-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">총 인원수</p>
+                <div className="text-2xl font-bold text-gray-900">
+                  {totalEmployees}명
+                </div>
+              </div>
+              <div className="h-12 w-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                <Users className="h-6 w-6 text-orange-600" />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -267,7 +267,7 @@ export function StaffAllocationSection({
                           {staff.name || "사원 선택"}
                         </SelectValue>
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="!z-[2200]">
                         {teamMembers.map((employee) => (
                           <SelectItem key={employee.accountId} value={employee.accountId}>
                             {employee.name || "이름 없음"}
@@ -320,7 +320,7 @@ export function StaffAllocationSection({
                           <SelectTrigger className="h-5 text-xs border-gray-300" disabled={readOnly}>
                             <SelectValue placeholder="%" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="!z-[2200]">
                             {getAvailablePercentages(staff.id).map(
                               (percentage) => (
                                 <SelectItem

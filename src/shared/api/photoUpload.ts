@@ -148,7 +148,7 @@ export async function uploadPhotos(
   const domain: UploadDomain = ensureDomain(opts?.domain);
   if (all.length === 0) return [];
 
-  // ⛳ 중복 호출 디듀프: 동일 세트면 기존 Promise 재사용
+  //  중복 호출 디듀프: 동일 세트면 기존 Promise 재사용
   const key = filesSignature(domain, all);
   const existed = inflight.get(key);
   if (existed) {

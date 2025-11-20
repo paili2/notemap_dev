@@ -95,12 +95,6 @@ export default function TeamManagementPage() {
                   <span>팀장: {team.teamLeaderName}</span>
                 </div>
               )}
-
-              {team.description && (
-                <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">설명:</span> {team.description}
-                </div>
-              )}
             </div>
 
             <Link

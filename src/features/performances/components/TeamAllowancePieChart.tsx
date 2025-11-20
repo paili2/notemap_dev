@@ -4,12 +4,21 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/atoms/Card/Card";
-import { PieChart, Pie, Cell } from "recharts";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  LabelList,
+  Cell,
+} from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { PIE_COLORS } from "../utils/chartConfig";
 
 interface TeamStat {
   team: string;
@@ -43,6 +52,16 @@ export function TeamAllowancePieChart({
   chartConfig,
   pieColors,
 }: TeamAllowancePieChartProps) {
+  // 총합 계산
+  const total = teamStats.reduce((sum, stat) => sum + stat.totalAllowance, 0);
+  
+  // 비율과 색상 추가
+  const dataWithPercentage = teamStats.map((stat, index) => ({
+    ...stat,
+    percentage: total > 0 ? ((stat.totalAllowance / total) * 100).toFixed(1) : 0,
+    color: pieColors[index % pieColors.length],
+  }));
+
   return (
     <Card className="border-gray-200">
       <CardHeader className="pb-4">
@@ -52,35 +71,73 @@ export function TeamAllowancePieChart({
         <p className="text-sm text-muted-foreground">각 팀의 수당 비중</p>
       </CardHeader>
       <CardContent className="pl-2">
-        <ChartContainer config={chartConfig} className="h-[300px]">
-          <PieChart>
-            <Pie
-              data={teamStats}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ team, percent }) =>
-                `${team} ${(percent * 100).toFixed(1)}%`
-              }
-              outerRadius={80}
-              dataKey="totalAllowance"
+        <div className="overflow-x-auto">
+          <ChartContainer 
+            config={chartConfig} 
+            className="h-[400px] min-w-[400px]"
+            style={{ width: `${Math.max(400, teamStats.length * 120)}px` }}
+          >
+            <BarChart
+              data={dataWithPercentage}
+              layout="vertical"
+              margin={{ top: 20, right: 30, left: 80, bottom: 5 }}
+              width={Math.max(400, teamStats.length * 120)}
+              height={400}
             >
-              {teamStats.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={pieColors[index % pieColors.length]}
+              <CartesianGrid
+                strokeDasharray="3 3"
+                className="stroke-muted"
+                horizontal={false}
+              />
+              <XAxis
+                type="number"
+                domain={[0, 100]}
+                className="text-xs"
+                tick={{ fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value: number) => `${value}%`}
+              />
+              <YAxis
+                type="category"
+                dataKey="team"
+                className="text-xs"
+                tick={{ fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                width={70}
+              />
+              <ChartTooltip
+                content={<ChartTooltipContent />}
+                formatter={(value: number, name: string, props: any) => [
+                  `${props.payload.percentage}% (${(value / 10000).toLocaleString()}만원)`,
+                  "비율",
+                ]}
+              />
+              <Bar
+                dataKey="percentage"
+                fill="hsl(var(--primary))"
+                radius={[0, 4, 4, 0]}
+                maxBarSize={60}
+              >
+                {dataWithPercentage.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+                <LabelList
+                  dataKey="percentage"
+                  position="right"
+                  offset={10}
+                  formatter={(value: number) => `${value}%`}
+                  style={{
+                    fontSize: "12px",
+                    fill: "hsl(var(--foreground))",
+                    fontWeight: 500,
+                  }}
                 />
-              ))}
-            </Pie>
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              formatter={(value: number) => [
-                `${(value / 10000).toLocaleString()}만원`,
-                "총 수당",
-              ]}
-            />
-          </PieChart>
-        </ChartContainer>
+              </Bar>
+            </BarChart>
+          </ChartContainer>
+        </div>
       </CardContent>
     </Card>
   );
