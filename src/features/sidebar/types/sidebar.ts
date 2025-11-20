@@ -39,6 +39,7 @@ export interface SidebarSectionProps {
   onNestedItemsChange?: (items: FavorateListItem[]) => void;
   onDeleteNestedItem?: (id: string) => void;
   onDeleteSubItem?: (parentId: string, subId: string) => void;
+  onUpdateGroupTitle?: (groupId: string, newTitle: string) => Promise<void>;
 }
 
 export interface ToggleSidebarProps {

@@ -27,6 +27,7 @@ interface StaffAllocationSectionProps {
   totalCalculation: number;
   totalRebate: number;
   teamMembers?: Array<{ accountId: string; name: string | null }>;
+  readOnly?: boolean;
 }
 
 export function StaffAllocationSection({
@@ -35,6 +36,7 @@ export function StaffAllocationSection({
   totalCalculation,
   totalRebate,
   teamMembers = [],
+  readOnly = false,
 }: StaffAllocationSectionProps) {
   // 총 퍼센티지 계산
   const getTotalPercentage = () => {
@@ -180,6 +182,7 @@ export function StaffAllocationSection({
             size="sm"
             onClick={addStaff}
             className="h-6 px-2 text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+            disabled={readOnly}
           >
             <Plus className="h-3 w-3 mr-1" />
             담당자 추가
@@ -223,7 +226,7 @@ export function StaffAllocationSection({
                 </h4>
                 {staff.type === "employee" &&
                   staffAllocations.filter((s) => s.type === "employee").length >
-                    1 && (
+                    1 && !readOnly && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -253,18 +256,16 @@ export function StaffAllocationSection({
                     />
                   ) : (
                     <Select
-                      value={
-                        staff.name
-                          ? teamMembers.find((emp) => emp.name === staff.name)
-                              ?.accountId || ""
-                          : ""
-                      }
+                      value={staff.accountId || ""}
                       onValueChange={(value) =>
                         handleEmployeeSelect(staff.id, value)
                       }
+                      disabled={readOnly}
                     >
-                      <SelectTrigger className="h-5 text-xs border-gray-300">
-                        <SelectValue placeholder="사원 선택" />
+                      <SelectTrigger className="h-5 text-xs border-gray-300" disabled={readOnly}>
+                        <SelectValue placeholder="사원 선택">
+                          {staff.name || "사원 선택"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {teamMembers.map((employee) => (
@@ -301,6 +302,8 @@ export function StaffAllocationSection({
                             }
                             className="h-5 text-xs pr-4 border-blue-300 focus:border-blue-500"
                             placeholder="0"
+                            readOnly={readOnly}
+                            disabled={readOnly}
                           />
                           <span className="absolute right-1 top-1/2 transform -translate-y-1/2 text-xs text-blue-600">
                             %
@@ -312,8 +315,9 @@ export function StaffAllocationSection({
                           onValueChange={(value) =>
                             handleStaffPercentageChange(staff.id, Number(value))
                           }
+                          disabled={readOnly}
                         >
-                          <SelectTrigger className="h-5 text-xs border-gray-300">
+                          <SelectTrigger className="h-5 text-xs border-gray-300" disabled={readOnly}>
                             <SelectValue placeholder="%" />
                           </SelectTrigger>
                           <SelectContent>
@@ -337,6 +341,7 @@ export function StaffAllocationSection({
                       size="sm"
                       onClick={() => toggleDirectInput(staff.id)}
                       className="h-5 px-1 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      disabled={readOnly}
                     >
                       {staff.isDirectInput ? "선택" : "직접"}
                     </Button>

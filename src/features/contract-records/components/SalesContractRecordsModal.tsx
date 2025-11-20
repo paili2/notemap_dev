@@ -18,7 +18,11 @@ import type {
 import { formatCurrency, calculateVAT } from "../utils/utils";
 import { StaffAllocationSection } from "./StaffAllocationSection";
 import { ContractImageSection } from "./ContractImageSection";
-import { createContract } from "../api/contracts";
+import {
+  createContract,
+  updateContract,
+  deleteContract,
+} from "../api/contracts";
 import { transformSalesContractToCreateRequest } from "../utils/contractTransformers";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
@@ -77,6 +81,7 @@ export function SalesContractRecordsModal({
     initialData || defaultData
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(!initialData); // 초기 데이터가 없으면 편집 모드 (신규 생성)
   const { toast } = useToast();
 
   // 프로필 정보 가져오기
@@ -140,6 +145,10 @@ export function SalesContractRecordsModal({
   useEffect(() => {
     if (initialData) {
       setData(initialData);
+      setIsEditMode(false); // 초기 데이터가 있으면 읽기 전용 모드
+    } else {
+      setData(defaultData);
+      setIsEditMode(true); // 초기 데이터가 없으면 편집 모드 (신규 생성)
     }
   }, [initialData]);
 
@@ -191,10 +200,17 @@ export function SalesContractRecordsModal({
     };
 
     // 총 계산 자동 업데이트
+    // 계산 공식과 동일하게 맞춤:
+    // (중개보수금합계) + (과세시 리베이트 × 0.967, 비과세시 그대로) - 지원금액
+    const brokerageAndVat = Number(totalBrokerageFee) || 0;
+    const rebateAmount =
+      updatedFinancialInfo.taxStatus === "taxable"
+        ? Number(updatedFinancialInfo.totalRebate) * 0.967
+        : Number(updatedFinancialInfo.totalRebate) || 0;
+    const totalSupportAmount =
+      Number(updatedFinancialInfo.totalSupportAmount) || 0;
     const totalCalculation =
-      totalBrokerageFee +
-      financialInfo.totalRebate -
-      financialInfo.totalSupportAmount;
+      brokerageAndVat - totalSupportAmount + rebateAmount;
 
     handleDataChange({
       ...data,
@@ -213,7 +229,66 @@ export function SalesContractRecordsModal({
     handleDataChange({ ...data, contractImages });
   };
 
-  // 저장 핸들러
+  // 수정 모드로 전환
+  const handleEdit = () => {
+    setIsEditMode(true);
+  };
+
+  // 취소 핸들러 (편집 모드에서 읽기 전용으로 되돌림)
+  const handleCancel = () => {
+    if (initialData) {
+      setData(initialData); // 원래 데이터로 복원
+      setIsEditMode(false); // 읽기 전용 모드로 전환
+    } else {
+      onClose(); // 신규 생성 중이면 모달 닫기
+    }
+  };
+
+  // 삭제 핸들러
+  const handleDelete = async () => {
+    if (!data.id) {
+      toast({
+        title: "삭제 불가",
+        description: "계약 ID가 없습니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!confirm("정말 이 계약을 삭제하시겠습니까?")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const contractId = Number(data.id);
+      await deleteContract(contractId);
+
+      toast({
+        title: "계약 삭제 완료",
+        description: "계약이 성공적으로 삭제되었습니다.",
+      });
+
+      // 목록 새로고침을 위한 콜백 호출
+      if (onDataChange) {
+        onDataChange({ ...data }); // 삭제된 계약 정보 전달
+      }
+
+      onClose();
+    } catch (error: any) {
+      console.error("계약 삭제 실패:", error);
+      toast({
+        title: "계약 삭제 실패",
+        description:
+          error?.response?.data?.message || "계약 삭제 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 저장 핸들러 (생성 또는 수정)
   const handleSave = async () => {
     // 필수 데이터 검증
     if (!data.customerInfo.name.trim()) {
@@ -260,38 +335,63 @@ export function SalesContractRecordsModal({
         throw new Error("필수 필드의 데이터 타입이 올바르지 않습니다.");
       }
 
-      // 백엔드 API 호출
-      const result = await createContract(requestData);
-      console.log("API 응답:", result);
-
-      // 계약 데이터에 메타데이터 추가
+      let contractData: SalesContractData;
       const now = new Date();
-      const contractData = {
-        ...data,
-        id: result.id.toString(),
-        contractNumber: `CONTRACT-${result.id}`,
-        contractDate: data.contractDate || now.toISOString().split("T")[0],
-        status: data.status || "completed",
-        createdAt: data.createdAt || now.toISOString(),
-        updatedAt: now.toISOString(),
-      };
 
-      toast({
-        title: "계약 생성 완료",
-        description: `계약 #${result.id}이 성공적으로 생성되었습니다.`,
-      });
+      if (data.id) {
+        // 수정 모드
+        const contractId = Number(data.id);
+        const result = await updateContract(contractId, requestData);
+        console.log("계약 수정 API 응답:", result);
+
+        contractData = {
+          ...data,
+          contractDate: data.contractDate || now.toISOString().split("T")[0],
+          updatedAt: now.toISOString(),
+        };
+
+        toast({
+          title: "계약 수정 완료",
+          description: "계약이 성공적으로 수정되었습니다.",
+        });
+
+        setIsEditMode(false); // 수정 후 읽기 전용 모드로 전환
+      } else {
+        // 생성 모드
+        const result = await createContract(requestData);
+        console.log("계약 생성 API 응답:", result);
+
+        contractData = {
+          ...data,
+          id: result.id.toString(),
+          contractNumber: `CONTRACT-${result.id}`,
+          contractDate: data.contractDate || now.toISOString().split("T")[0],
+          status: data.status || "ongoing",
+          createdAt: data.createdAt || now.toISOString(),
+          updatedAt: now.toISOString(),
+        };
+
+        toast({
+          title: "계약 생성 완료",
+          description: `계약 #${result.id}이 성공적으로 생성되었습니다.`,
+        });
+
+        onClose(); // 생성 후 모달 닫기
+      }
 
       // 계약관리 리스트 업데이트를 위한 콜백
       if (onDataChange) {
         onDataChange(contractData);
       }
-
-      onClose();
     } catch (error: any) {
-      console.error("계약 생성 실패:", error);
+      console.error("계약 저장 실패:", error);
       toast({
-        title: "계약 생성 실패",
-        description: "계약 생성 중 오류가 발생했습니다. 다시 시도해주세요.",
+        title: data.id ? "계약 수정 실패" : "계약 생성 실패",
+        description:
+          error?.response?.data?.message ||
+          (data.id
+            ? "계약 수정 중 오류가 발생했습니다."
+            : "계약 생성 중 오류가 발생했습니다."),
         variant: "destructive",
       });
     } finally {
@@ -318,12 +418,14 @@ export function SalesContractRecordsModal({
               salesPerson={data.salesPerson}
               onCustomerInfoChange={handleCustomerInfoChange}
               onSalesPersonChange={handleSalesPersonChange}
+              readOnly={!isEditMode}
             />
 
             {/* 재무 정보 */}
             <FinancialInfoSection
               financialInfo={data.financialInfo}
               onFinancialInfoChange={handleFinancialInfoChange}
+              readOnly={!isEditMode}
             />
 
             {/* 담당자 분배 */}
@@ -333,10 +435,15 @@ export function SalesContractRecordsModal({
               totalCalculation={data.totalCalculation}
               totalRebate={data.financialInfo.totalRebate}
               teamMembers={myTeamMembers || []}
+              readOnly={!isEditMode}
             />
 
             {/* 계약 이미지 */}
-            <ContractImageSection onImagesChange={handleContractImagesChange} />
+            <ContractImageSection
+              initialImages={data.contractImages}
+              onImagesChange={handleContractImagesChange}
+              readOnly={!isEditMode}
+            />
           </div>
         </div>
 
@@ -344,20 +451,55 @@ export function SalesContractRecordsModal({
         <div className="flex-shrink-0 border-t p-4">
           <Separator className="mb-3" />
           <div className="flex justify-end space-x-2">
-            <Button
-              onClick={onClose}
-              className="h-7 text-xs"
-              disabled={isLoading}
-            >
-              닫기
-            </Button>
-            <Button
-              onClick={handleSave}
-              className="h-7 text-xs"
-              disabled={isLoading}
-            >
-              {isLoading ? "저장 중..." : "저장"}
-            </Button>
+            {isEditMode ? (
+              <>
+                <Button
+                  onClick={handleCancel}
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={isLoading}
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  className="h-7 text-xs"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "저장 중..." : "저장"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  onClick={onClose}
+                  variant="outline"
+                  className="h-7 text-xs"
+                  disabled={isLoading}
+                >
+                  닫기
+                </Button>
+                {data.id && (
+                  <>
+                    <Button
+                      onClick={handleEdit}
+                      className="h-7 text-xs"
+                      disabled={isLoading}
+                    >
+                      수정
+                    </Button>
+                    <Button
+                      onClick={handleDelete}
+                      variant="destructive"
+                      className="h-7 text-xs"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? "삭제 중..." : "삭제"}
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

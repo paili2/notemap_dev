@@ -9,6 +9,7 @@ import type {
   PendingReservation,
 } from "../types/sidebar";
 import { createPinDraft } from "@/shared/api/pins";
+import { getPinRaw } from "@/shared/api/getPin";
 import {
   getFavoriteGroups,
   upsertFavoriteItem,
@@ -98,13 +99,36 @@ export function useSidebarState() {
       setFavoritesLoading(true);
       const groups = await getFavoriteGroups(true); // 아이템 포함해서 로드
 
+      // 모든 pinId 수집
+      const allPinIds = new Set<string>();
+      groups.forEach((group) => {
+        (group.items || []).forEach((item) => {
+          allPinIds.add(item.pinId);
+        });
+      });
+
+      // 병렬로 핀 정보 가져오기
+      const pinInfoMap = new Map<string, string>();
+      await Promise.all(
+        Array.from(allPinIds).map(async (pinId) => {
+          try {
+            const pin = await getPinRaw(pinId);
+            const pinName = pin.name || pin.badge || `Pin ${pinId}`;
+            pinInfoMap.set(pinId, pinName);
+          } catch (error) {
+            console.error(`핀 ${pinId} 정보 가져오기 실패:`, error);
+            pinInfoMap.set(pinId, `Pin ${pinId}`);
+          }
+        })
+      );
+
       // 백엔드 데이터를 프론트엔드 형식으로 변환
       const convertedGroups: FavorateListItem[] = groups.map((group) => ({
         id: group.id,
         title: group.title,
         subItems: (group.items || []).map((item) => ({
           id: item.itemId,
-          title: `Pin ${item.pinId}`, // 실제로는 핀 정보를 가져와야 함
+          title: pinInfoMap.get(item.pinId) || `Pin ${item.pinId}`,
         })),
       }));
 
@@ -422,6 +446,33 @@ export function useSidebarState() {
     setNestedFavorites((prev) => prev.filter((g) => g.title !== groupId));
   }, []);
 
+  const updateFavoriteGroupTitle = useCallback(
+    async (groupId: string, newTitle: string) => {
+      try {
+        const updated = await updateGroupTitle(groupId, { title: newTitle });
+
+        // 성공 시 로컬 상태 업데이트
+        setNestedFavorites((prev) =>
+          prev.map((g) => (g.id === groupId ? { ...g, title: updated.title } : g))
+        );
+
+        toast({
+          title: "그룹 이름 수정 완료",
+          description: `그룹 이름이 "${updated.title}"으로 변경되었습니다.`,
+        });
+      } catch (error: any) {
+        console.error("그룹 이름 수정 실패:", error);
+        toast({
+          title: "그룹 이름 수정 실패",
+          description: error?.response?.data?.message || error?.message || "그룹 이름 수정 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [toast]
+  );
+
   const handleDeleteSubFavorite = useCallback(
     async (parentId: string, subId: string) => {
       try {
@@ -497,6 +548,7 @@ export function useSidebarState() {
     addFavoriteToGroup,
     createGroupAndAdd,
     deleteFavoriteGroup,
+    updateFavoriteGroupTitle,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
 

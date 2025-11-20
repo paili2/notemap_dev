@@ -10,7 +10,9 @@ export interface ContractData extends TableData {
   salesPersonSalary: number;
   totalCalculation: number;
   contractDate: string;
-  status: "completed" | "pending" | "cancelled";
+  status: "ongoing" | "rejected" | "cancelled" | "completed";
+  /** 백엔드 계약 ID (연동용) */
+  backendContractId?: string | number;
 }
 
 // 계약 상태 타입

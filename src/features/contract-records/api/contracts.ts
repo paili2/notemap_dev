@@ -1,23 +1,10 @@
 import { api } from "@/shared/api/api";
 
-// 백엔드 API 응답 타입
 export type ContractResponse = {
-  id: number;
+  id: string | number;
   pinId: number | null;
   customerName: string | null;
   customerPhone: string | null;
-  salesperson?: {
-    id: string;
-    name: string | null;
-    phone: string | null;
-  } | null;
-  salespersonId: string | null;
-  createdBy?: {
-    id: string;
-    name: string | null;
-    phone: string | null;
-  } | null;
-  createdById: string | null;
   brokerageFee: number;
   vat: number;
   brokerageTotal: number;
@@ -29,6 +16,12 @@ export type ContractResponse = {
   contractDate: string;
   status: "ongoing" | "done" | "canceled";
   createdAt: string;
+  salesperson?: {
+    id: string;
+    name: string | null;
+    // phone은 목록 응답에는 없을 수 있어서 선택으로 둠
+    phone?: string | null;
+  } | null;
 };
 
 export type ContractListResponse = {

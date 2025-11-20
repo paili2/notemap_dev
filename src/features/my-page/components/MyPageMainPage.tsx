@@ -7,21 +7,12 @@ import {
   CardTitle,
 } from "@/components/atoms/Card/Card";
 import { Button } from "@/components/atoms/Button/Button";
-import {
-  Users,
-  FileText,
-  Bell,
-  BarChart3,
-  TrendingUp,
-  Activity,
-  Heart,
-  UserPlus,
-} from "lucide-react";
+import { User, Users } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "@/features/users/api/account";
 
-export function AdminMainPage() {
+export function MyPageMainPage() {
   // 프로필 정보 가져오기
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -30,51 +21,19 @@ export function AdminMainPage() {
   });
 
   const quickActions = [
-    ...(profile?.role === "admin"
-      ? [
-          {
-            title: "팀 관리(관리자)",
-            description: "전체 팀 목록 및 관리",
-            href: "/admin/team-management",
-            icon: Users,
-            color: "bg-blue-500",
-          },
-        ]
-      : []),
     {
-      title: "계정 생성",
-      description: "새로운 계정 생성",
-      href: "/admin/account-create",
-      icon: UserPlus,
-      color: "bg-cyan-500",
+      title: "프로필",
+      description: "내 정보 조회 및 수정",
+      href: "/my-page/profile",
+      icon: User,
+      color: "bg-blue-500",
     },
     {
-      title: "팀즐겨찾기",
-      description: "즐겨찾기한 팀원 관리",
-      href: "/admin/team-favorites",
-      icon: Heart,
-      color: "bg-pink-500",
-    },
-    {
-      title: "계약 관리",
-      description: "계약서 및 거래 관리",
-      href: "/admin/contracts",
-      icon: FileText,
-      color: "bg-green-500",
-    },
-    {
-      title: "실적 확인",
-      description: "팀원별 영업 실적 조회",
-      href: "/admin/performance",
-      icon: TrendingUp,
-      color: "bg-orange-500",
-    },
-    {
-      title: "공지사항",
-      description: "사이트 공지사항 관리",
-      href: "/admin/notices",
-      icon: Bell,
-      color: "bg-purple-500",
+      title: "팀 관리",
+      description: "팀원 정보 조회 및 관리",
+      href: "/my-page/my-team",
+      icon: Users,
+      color: "bg-indigo-500",
     },
   ];
 
@@ -82,9 +41,7 @@ export function AdminMainPage() {
     <div className="mx-auto max-w-7xl p-6 space-y-8 bg-gray-50">
       <main className="mt-6 p-6">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-16">
-            관리자 페이지
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-16">마이페이지</h1>
         </div>
 
         <div className="mb-8">

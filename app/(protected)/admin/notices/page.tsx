@@ -1,7 +1,14 @@
+"use client";
+
 import { NoticesPage } from "@/features/admin/pages/NoticesPage";
+import { AdminAuthGuard } from "@/components/auth-guard/AdminAuthGuard";
 
 const NoticesPageRoute = () => {
-  return <NoticesPage />;
+  return (
+    <AdminAuthGuard>
+      <NoticesPage />
+    </AdminAuthGuard>
+  );
 };
 
 export default NoticesPageRoute;

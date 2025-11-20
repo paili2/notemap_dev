@@ -15,6 +15,7 @@ interface PersonalInfoSectionProps {
   salesPerson: PersonInfo;
   onCustomerInfoChange: (info: PersonInfo) => void;
   onSalesPersonChange: (info: PersonInfo) => void;
+  readOnly?: boolean;
 }
 
 export function PersonalInfoSection({
@@ -22,6 +23,7 @@ export function PersonalInfoSection({
   salesPerson,
   onCustomerInfoChange,
   onSalesPersonChange,
+  readOnly = false,
 }: PersonalInfoSectionProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -50,6 +52,8 @@ export function PersonalInfoSection({
                 }
                 className="h-7 text-xs"
                 placeholder="고객명 입력"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
             <div className="col-span-2 space-y-1">
@@ -70,6 +74,8 @@ export function PersonalInfoSection({
                 }
                 className="h-7 text-xs"
                 placeholder="연락처 입력"
+                readOnly={readOnly}
+                disabled={readOnly}
               />
             </div>
           </div>

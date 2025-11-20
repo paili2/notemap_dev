@@ -108,11 +108,14 @@ export type ReorderItemsRequest = {
   }>;
 };
 
-export async function reorderItems(data: ReorderItemsRequest): Promise<void> {
+export async function reorderItems(
+  groupId: string,
+  data: ReorderItemsRequest
+): Promise<void> {
   try {
-    console.log("즐겨찾기 아이템 순서 변경:", data);
+    console.log("즐겨찾기 아이템 순서 변경:", { groupId, data });
     const response = await api.patch<{ message: string }>(
-      "/item/reorder",
+      `/favorite-groups/${groupId}/items/reorder`,
       data
     );
     console.log("즐겨찾기 아이템 순서 변경 응답:", response.data);

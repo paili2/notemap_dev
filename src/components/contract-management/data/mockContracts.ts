@@ -22,7 +22,7 @@ export const mockContracts: ContractData[] = [
     salesPersonSalary: 1200000,
     totalCalculation: 12000000,
     contractDate: "2024-01-19",
-    status: "pending",
+    status: "ongoing",
   },
   {
     id: "3",
@@ -55,7 +55,7 @@ export const mockContracts: ContractData[] = [
     salesPersonSalary: 2200000,
     totalCalculation: 22000000,
     contractDate: "2024-01-16",
-    status: "pending",
+    status: "ongoing",
   },
   {
     id: "6",
@@ -88,7 +88,7 @@ export const mockContracts: ContractData[] = [
     salesPersonSalary: 1100000,
     totalCalculation: 11000000,
     contractDate: "2024-01-13",
-    status: "pending",
+    status: "ongoing",
   },
   {
     id: "9",

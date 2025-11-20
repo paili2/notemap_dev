@@ -121,3 +121,38 @@ export async function assignTeamMember(
     throw error;
   }
 }
+
+export type ReplaceManagerRequest = {
+  newCredentialId: string;
+};
+
+export type ReplaceManagerResponse = {
+  teamId: string;
+  prevManager: {
+    memberId: string;
+    newRole?: string;
+    unchanged?: boolean;
+  } | null;
+  newManager: {
+    memberId: string;
+    newRole: string;
+    unchanged?: boolean;
+  };
+};
+
+// 팀장 교체 API
+export async function replaceTeamManager(
+  teamId: string,
+  data: ReplaceManagerRequest
+): Promise<ReplaceManagerResponse> {
+  try {
+    const response = await api.post<{
+      message: string;
+      data: ReplaceManagerResponse;
+    }>(`/dashboard/accounts/teams/${teamId}/replace-manager`, data);
+    return response.data.data;
+  } catch (error: any) {
+    console.error("팀장 교체 API 호출 실패:", error);
+    throw error;
+  }
+}
