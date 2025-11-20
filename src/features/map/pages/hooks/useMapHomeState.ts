@@ -117,6 +117,9 @@ export function useMapHomeState() {
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
 
+  // ✅ 매물등록용 좌표 캡쳐
+  const [createPos, setCreatePos] = useState<LatLng | null>(null);
+
   // 좌표 세터(정규화만)
   const setRawMenuAnchor = useCallback((ll: LatLng | any) => {
     const p = normalizeLL(ll);
@@ -626,10 +629,18 @@ export function useMapHomeState() {
   );
 
   const openCreateFromMenu = useCallback(() => {
+    // ✅ 메뉴가 닫히기 전에 현재 위치 캡쳐
+    const anchor: LatLng | null =
+      menuAnchor ??
+      draftPin ??
+      (selected ? normalizeLL((selected as any).position) : null);
+
+    setCreatePos(anchor);
+
     closeMenu();
     setPrefillAddress(menuRoadAddr ?? menuJibunAddr ?? undefined);
     setCreateOpen(true);
-  }, [menuRoadAddr, menuJibunAddr, closeMenu]);
+  }, [menuAnchor, draftPin, selected, menuRoadAddr, menuJibunAddr, closeMenu]);
 
   // alias들
   const onCloseMenu = closeMenu;
@@ -713,6 +724,7 @@ export function useMapHomeState() {
         setPrefillAddress(undefined);
         setMenuOpen(false);
         setCreateFromDraftId(null);
+        setCreatePos(null); // ✅ 생성 좌표 초기화
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
       selectAndOpenView: (id: string | number) => {
@@ -726,6 +738,7 @@ export function useMapHomeState() {
         setPrefillAddress(undefined);
         setCreateOpen(false);
         setCreateFromDraftId(null);
+        setCreatePos(null); // ✅ 생성 좌표 초기화
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
@@ -734,7 +747,7 @@ export function useMapHomeState() {
         refetch();
       },
     }),
-    [hideDraft, refetch, setDraftPinSafe]
+    [hideDraft, refetch, setDraftPinSafe, setCreatePos]
   );
 
   const editHostHandlers = useMemo(
@@ -752,7 +765,8 @@ export function useMapHomeState() {
     setPrefillAddress(undefined);
     setMenuOpen(false);
     setCreateFromDraftId(null);
-  }, [setDraftPinSafe]);
+    setCreatePos(null); // ✅ 생성 좌표 초기화
+  }, [setDraftPinSafe, setCreatePos]);
 
   // POI 변경 즉시 반영
   useEffect(() => {
@@ -794,11 +808,13 @@ export function useMapHomeState() {
   }, [selected]);
 
   const selectedPos = useMemo<LatLng | null>(() => {
+    // ✅ 매물등록을 눌렀을 때 캡쳐한 좌표가 있으면 최우선 사용
+    if (createPos) return createPos;
     if (menuAnchor) return menuAnchor;
     if (draftPin) return draftPin;
     if (selected) return normalizeLL((selected as any).position);
     return null;
-  }, [menuAnchor, draftPin, selected]);
+  }, [createPos, menuAnchor, draftPin, selected]);
 
   const closeView = useCallback(() => setViewOpen(false), []);
   const closeEdit = useCallback(() => setEditOpen(false), []);
