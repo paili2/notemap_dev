@@ -36,46 +36,55 @@ export default function HeaderSection(
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
 
-  /** ───────── 신축/구옥 어댑터 ─────────
-   * UI 컴포넌트는 "" | "new" | "old" 를 주고받을 수 있는데
-   * 폼 상태는 "new" | "old" 만 쓰도록 강제합니다.
-   */
-  const buildingGrade: "new" | "old" = _buildingGrade === "old" ? "old" : "new"; // ← 기본값은 항상 "new"
-
+  /** ───────── 신축/구옥 어댑터 ───────── */
+  const buildingGrade: "new" | "old" = _buildingGrade === "old" ? "old" : "new";
   const setBuildingGrade =
     typeof _setBuildingGrade === "function" ? _setBuildingGrade : () => {};
 
-  // UI로는 "" 도 올 수 있으니 안전 매핑
   const uiValue: "" | "new" | "old" = buildingGrade;
   const handleUiChange = (v: "" | "new" | "old" | null) => {
-    // 미선택 상태 없이 운용: ""/null 이 와도 "new" 로 고정
     setBuildingGrade(v === "old" ? "old" : "new");
   };
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
-      <div className="grid grid-cols-1 md:grid-cols-[auto_auto_auto_1fr_auto] items-center gap-3 px-4 py-4 min-w-0">
+      <div
+        className={cn(
+          // 모바일: flex-row + wrap
+          "flex flex-wrap items-center gap-3 px-4 py-4 min-w-0",
+          // 데스크탑: 기존 grid 레이아웃 유지
+          "md:grid md:grid-cols-[auto_auto_auto_1fr_auto]"
+        )}
+      >
         {/* 1) 신축/구옥 */}
-        <div className="order-1 md:order-1">
+        <div className="order-1 md:order-1 flex-shrink-0">
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
         </div>
 
         {/* 2) 핀선택 */}
-        <div className="order-2 md:order-2">
+        <div className="order-2 md:order-2 flex-shrink-0">
           <PinTypeSelect
             value={pinKind ?? null}
             onChange={(v) => setPinKind(v)}
-            className="h-9 w-[160px] md:w-[190px]"
+            className="h-9 w-[140px] md:w-[190px]"
             placeholder="핀선택"
           />
         </div>
 
-        {/* 3) 매물평점 */}
-        <div className="order-3 md:order-3 flex items-center gap-2 min-w-[150px]">
+        {/* 3) 엘리베이터 → 모바일에선 1줄의 세 번째, PC에선 맨 오른쪽 */}
+        <div className="order-3 md:order-5 flex items-center gap-2 ml-auto md:ml-0 justify-self-end">
+          <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
+            엘리베이터
+          </span>
+          <ElevatorSegment value={elevator} onChange={setElevator} />
+        </div>
+
+        {/* 4) 매물평점 → 모바일에선 두 번째 줄 전체 폭, PC에선 기존 위치 */}
+        <div className="order-4 md:order-3 flex items-center gap-2 min-w-[150px] w-full md:w-auto">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물평점
           </span>
-          <div className="w-[120px] md:w-[200px] leading-none">
+          <div className="w-[140px] md:w-[200px] leading-none">
             <div className="flex items-center">
               <StarsRating
                 value={gradeNum}
@@ -106,8 +115,8 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 4) 매물명 */}
-        <div className="order-4 md:order-4 flex items-center gap-2 min-w-0">
+        {/* 5) 매물명 → 모바일에선 두 번째 줄 아래 전체 폭 */}
+        <div className="order-5 md:order-4 flex items-center gap-2 min-w-0 w-full">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물명
           </span>
@@ -124,14 +133,6 @@ export default function HeaderSection(
               )}
             />
           </div>
-        </div>
-
-        {/* 5) 엘리베이터 */}
-        <div className="order-5 md:order-5 justify-self-end flex items-center gap-2">
-          <span className="text-[16px] md:text-[18px] font-semibold text-gray-800">
-            엘리베이터
-          </span>
-          <ElevatorSegment value={elevator} onChange={setElevator} />
         </div>
       </div>
     </header>

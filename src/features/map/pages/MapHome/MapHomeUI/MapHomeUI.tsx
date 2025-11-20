@@ -70,7 +70,7 @@ function pickBestStation(data: any[], stationName: string) {
 function extractExitNo(name: string): number | null {
   const n1 = name.match(/(\d+)\s*번\s*출구/);
   const n2 = name.match(/(\d+)\s*번출구/);
-  const n3 = name.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
+  const n3 = name.match(/[①②③④⑤⑥⑦⑩]/);
   if (n1) return Number(n1[1]);
   if (n2) return Number(n2[1]);
   if (n3) return "①②③④⑤⑥⑦⑧⑨⑩".indexOf(n3[0]) + 1;
@@ -549,6 +549,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
+  // 🔁 오른쪽 토글과 필터검색, 사이드바 상호 배타 제어
   const handleSetDistrictOn = useCallback(
     (next: boolean) => {
       setIsDistrictOnState(next);
@@ -560,6 +561,25 @@ export function MapHomeUI(props: MapHomeUIProps) {
     },
     [roadviewVisible, close]
   );
+
+  const handleSetRightOpen = useCallback(
+    (expanded: boolean) => {
+      setRightOpen(expanded);
+      if (expanded) {
+        // 오른쪽 토글이 열릴 때 필터검색 닫기 + 사이드바 닫기
+        setFilterSearchOpen(false);
+        if (useSidebar) setUseSidebar(false);
+      }
+    },
+    [useSidebar, setUseSidebar]
+  );
+
+  const handleOpenFilterSearch = useCallback(() => {
+    // 필터검색을 열 때 오른쪽 토글, 사이드바 둘 다 닫기
+    setFilterSearchOpen(true);
+    setRightOpen(false);
+    setUseSidebar(false);
+  }, [setUseSidebar]);
 
   const { siteReservations } = useSidebarCtx();
 
@@ -1013,23 +1033,33 @@ export function MapHomeUI(props: MapHomeUIProps) {
         roadviewVisible={roadviewVisible}
         onToggleRoadview={toggleRoadview}
         rightOpen={rightOpen}
-        setRightOpen={(expanded) => {
-          setRightOpen(expanded);
-          if (expanded && useSidebar) setUseSidebar(false);
-        }}
+        setRightOpen={handleSetRightOpen}
         sidebarOpen={useSidebar}
         setSidebarOpen={(open) => {
           setUseSidebar(open);
-          if (open) setRightOpen(false);
+          if (open) {
+            // 사이드바 열릴 때 오른쪽 토글/필터검색 둘 다 닫기
+            setRightOpen(false);
+            setFilterSearchOpen(false);
+          }
         }}
         getBounds={getBoundsLLB}
         getLevel={() => mapInstance?.getLevel?.()}
       />
 
-      <FilterFab onOpen={() => setFilterSearchOpen(true)} />
+      <FilterFab onOpen={handleOpenFilterSearch} />
+
       <Sidebar
         isSidebarOn={useSidebar}
-        onToggleSidebar={() => setUseSidebar(!useSidebar)}
+        onToggleSidebar={() => {
+          const next = !useSidebar;
+          setUseSidebar(next);
+          if (next) {
+            // 사이드바가 열리는 순간 다른 두 개 닫기
+            setRightOpen(false);
+            setFilterSearchOpen(false);
+          }
+        }}
       />
 
       <FilterSearch
