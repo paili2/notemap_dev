@@ -182,11 +182,19 @@ export default function ProfilePage() {
       try {
         const domain = uploadDomainMap[field] ?? "etc";
         const meta = await uploadOnePhoto(file, { domain });
-        if (!meta?.url) {
-          throw new Error("업로드 응답에 URL이 없습니다.");
+        console.log(`=== ${field} 업로드 완료 ===`);
+        console.log("meta 전체:", meta);
+        console.log("meta.url:", meta?.url);
+        console.log("meta.key:", meta?.key);
+        console.log("meta.storageKey:", meta?.storageKey);
+        
+        // URL이 없는 경우 key를 사용하거나 에러
+        const urlToUse = meta?.url || meta?.key || null;
+        if (!urlToUse) {
+          throw new Error("업로드 응답에 URL 또는 key가 없습니다.");
         }
 
-        form.setValue(field, meta.url, { shouldValidate: true });
+        form.setValue(field, urlToUse, { shouldValidate: true });
         setUploadErrors((prev) => ({ ...prev, [field]: undefined }));
       } catch (err: any) {
         const serverMessage =
@@ -217,6 +225,23 @@ export default function ProfilePage() {
   /** 프리뷰 유틸 */
   const isImageUrl = (url?: string) =>
     !!url && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url.split("?")[0] || "");
+  
+  /** 접근 가능한 URL인지 확인 (s3:// 형태는 브라우저에서 접근 불가) */
+  const isAccessibleUrl = (url?: string) => {
+    if (!url) return false;
+    return url.startsWith('http://') || url.startsWith('https://');
+  };
+  
+  /** URL을 접근 가능한 형태로 변환 (s3:// -> key만 반환 또는 에러) */
+  const getAccessibleUrl = (url?: string) => {
+    if (!url) return undefined;
+    // s3:// 형태는 브라우저에서 접근 불가
+    if (url.startsWith('s3://')) {
+      console.warn('⚠️ s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:', url);
+      return undefined; // 프리사인 URL 생성 API 필요
+    }
+    return url;
+  };
 
   const onSubmit = async (values: ProfileFormValues) => {
     const payload: UpdateMyProfileRequest = {
@@ -237,6 +262,15 @@ export default function ProfilePage() {
   };
 
   const photoUrl = form.watch("profileUrl");
+  const accessiblePhotoUrl = getAccessibleUrl(photoUrl);
+  
+  // 디버깅: 프로필 이미지 URL 확인
+  useEffect(() => {
+    console.log("=== 프로필 이미지 URL 상태 ===");
+    console.log("photoUrl (원본):", photoUrl);
+    console.log("accessiblePhotoUrl:", accessiblePhotoUrl);
+    console.log("isAccessibleUrl(photoUrl):", isAccessibleUrl(photoUrl));
+  }, [photoUrl, accessiblePhotoUrl]);
 
   if (isProfileLoading) {
     return (
@@ -291,8 +325,15 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-4">
                         <Avatar className="h-20 w-20 ring-2 ring-border">
                           <AvatarImage
-                            src={photoUrl || undefined}
+                            src={accessiblePhotoUrl || undefined}
                             alt="프로필 사진"
+                            onError={(e) => {
+                              console.error("프로필 이미지 로드 실패:", accessiblePhotoUrl);
+                              console.error("에러 이벤트:", e);
+                            }}
+                            onLoad={() => {
+                              console.log("프로필 이미지 로드 성공:", accessiblePhotoUrl);
+                            }}
                           />
                           <AvatarFallback className="text-xl font-semibold">
                             {form.watch("name")?.[0]?.toUpperCase() || "U"}
@@ -460,61 +501,84 @@ export default function ProfilePage() {
                     name={field}
                     render={({ field: formField }) => (
                       <FormItem>
-                        <FormLabel>{uploadFieldLabels[field]}</FormLabel>
+                        <div className="flex items-center gap-2">
+                          <FormLabel className="mb-0">{uploadFieldLabels[field]}</FormLabel>
+                          <label
+                            htmlFor={`upload-${field}`}
+                            className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+                          >
+                            {uploading === field ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4" />
+                            )}
+                            {url ? "변경" : "업로드"}
+                          </label>
+                          <input
+                            id={`upload-${field}`}
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            className="hidden"
+                            onChange={handleFileChange(field)}
+                            disabled={uploading === field}
+                          />
+                        </div>
                         <FormControl>
                           <div className="space-y-2">
-                            <div className="flex gap-2">
-                              <label
-                                htmlFor={`upload-${field}`}
-                                className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-                              >
-                                {uploading === field ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Plus className="h-4 w-4" />
-                                )}
-                                {url ? "변경" : "업로드"}
-                              </label>
-                              <input
-                                id={`upload-${field}`}
-                                type="file"
-                                accept=".pdf,.jpg,.jpeg,.png"
-                                className="hidden"
-                                onChange={handleFileChange(field)}
-                                disabled={uploading === field}
-                              />
-                              {url && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => clearFile(field)}
-                                  disabled={uploading === field}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
                             {url && (
                               <div className="text-sm text-muted-foreground">
-                                {isImageUrl(url) ? (
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline"
-                                  >
-                                    이미지 미리보기
-                                  </a>
+                                {isAccessibleUrl(url) ? (
+                                  isImageUrl(url) ? (
+                                    <div className="flex items-start gap-2">
+                                      <div>
+                                        <img
+                                          src={url}
+                                          alt={uploadFieldLabels[field]}
+                                          className="max-w-xs max-h-48 rounded border object-contain"
+                                          onError={(e) => {
+                                            console.error(`이미지 미리보기 로드 실패 [${field}]:`, url);
+                                          }}
+                                          onLoad={() => {
+                                            console.log(`이미지 미리보기 로드 성공 [${field}]:`, url);
+                                          }}
+                                        />
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => clearFile(field)}
+                                        disabled={uploading === field}
+                                        className="shrink-0"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:underline"
+                                      >
+                                        파일 보기
+                                      </a>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => clearFile(field)}
+                                        disabled={uploading === field}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )
                                 ) : (
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline"
-                                  >
-                                    파일 보기
-                                  </a>
+                                  <div className="text-yellow-600 text-xs">
+                                    ⚠️ 이미지 URL이 접근 불가능한 형태입니다 (s3:// 등)
+                                  </div>
                                 )}
                               </div>
                             )}
