@@ -1,4 +1,5 @@
-import { PinSearchParams } from "@/features/pins/types/pin-search";
+import type { ReactNode } from "react";
+import type { PinSearchParams } from "@/features/pins/types/pin-search";
 
 export interface FilterState {
   rooms: string[];
@@ -20,8 +21,8 @@ export interface FilterSearchProps {
 }
 
 export interface FilterSectionProps {
-  title: string;
-  children: React.ReactNode;
+  title: ReactNode; // string -> ReactNode 로 변경
+  children: ReactNode;
 }
 
 export interface SelectableButtonProps {

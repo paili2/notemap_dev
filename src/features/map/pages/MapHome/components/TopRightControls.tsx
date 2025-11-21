@@ -105,8 +105,8 @@ export default function TopRightControls(props: {
   const rootClass =
     "fixed top-3 right-3 " +
     (props.roadviewVisible
-      ? "z-[10] pointer-events-none opacity-40"
-      : "z-[20] pointer-events-auto");
+      ? "z-[5] pointer-events-none opacity-40"
+      : "z-[10] pointer-events-auto");
 
   // ✅ 편의시설 모달 상태
   const [poiWarningOpen, setPoiWarningOpen] = useState(false);
