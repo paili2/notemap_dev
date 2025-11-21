@@ -159,6 +159,33 @@ function pickBestPlace(
   return data[0];
 }
 
+/* 🔍 검색 결과에 핀을 찍을지 판정 */
+function shouldCreateSearchPin(item: any, keyword: string) {
+  // 1) 카테고리 있는 애들(지하철역, 편의시설 등)은 신뢰하고 핀 생성
+  if (item.category_group_code) return true;
+
+  const addr =
+    item.road_address_name ||
+    item.address_name ||
+    item.address?.address_name ||
+    "";
+  const name = item.place_name || addr || keyword;
+
+  // 2) "대한민국", "○○시청/구청/도청" 같은 큰 단위는 핀 없이 이동만
+  const bigRegionPattern = /(대한민국|청사|도청|시청|구청)$/;
+  if (bigRegionPattern.test(name) || bigRegionPattern.test(addr)) {
+    return false;
+  }
+
+  // 3) "○○시" 단독(동/읍/면/리 없이)만 검색된 경우도 핀 없이 이동만
+  if (/^(.*(시|군|구))$/.test(name) && !/(동|읍|면|리)/.test(name)) {
+    return false;
+  }
+
+  // 4) 나머지(아파트, 상가, 동 단위, 반포자이 등)는 핀 허용
+  return true;
+}
+
 /* ------------------------------------------------------------ */
 /*                    🔧 EDIT 주입 보장 유틸                     */
 /* ------------------------------------------------------------ */
@@ -680,7 +707,15 @@ export function MapHomeUI(props: MapHomeUIProps) {
             item.road_address?.address_name ??
             item.address?.address_name ??
             query;
-          setCenterWithMarker(+item.y, +item.x, label);
+
+          const lat = +item.y;
+          const lng = +item.x;
+
+          if (shouldCreateSearchPin(item, query)) {
+            setCenterWithMarker(lat, lng, label);
+          } else {
+            setCenterOnly(lat, lng);
+          }
         });
         return;
       }
@@ -713,20 +748,28 @@ export function MapHomeUI(props: MapHomeUIProps) {
                 .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
                 .sort((a, b) => b.s - a.s);
               const best = ranked[0]?.d ?? res[0];
-              setCenterWithMarker(
-                Number(best.y),
-                Number(best.x),
-                best.place_name
-              );
+
+              const lat = Number(best.y);
+              const lng = Number(best.x);
+
+              if (shouldCreateSearchPin(best, query)) {
+                setCenterWithMarker(lat, lng, best.place_name);
+              } else {
+                setCenterOnly(lat, lng);
+              }
               return;
             }
 
             const best = pickBestPlace(res, query, biasCenter);
-            setCenterWithMarker(
-              Number(best.y),
-              Number(best.x),
-              best.place_name
-            );
+
+            const lat = Number(best.y);
+            const lng = Number(best.x);
+
+            if (shouldCreateSearchPin(best, query)) {
+              setCenterWithMarker(lat, lng, best.place_name);
+            } else {
+              setCenterOnly(lat, lng);
+            }
           },
           biasOpt
         );
