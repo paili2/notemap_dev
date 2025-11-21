@@ -18,6 +18,7 @@ import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
 
 import type { PinKind } from "@/features/pins/types";
+import { useEffect } from "react";
 
 /** next/image src 타입 보조 */
 type IconSrc = string | StaticImageData;
@@ -68,9 +69,19 @@ export default function PinTypeSelect({
   className?: string;
   placeholder?: string;
 }) {
+  /** ✅ 폼에서 값이 비어 있으면 최초에 무조건 'question'(답사예정)으로 보정 */
+  const effectiveValue: PinKind | null = (value ?? "question") as PinKind;
+
+  // 폼 state 쪽도 동기화(처음 한 번만)
+  useEffect(() => {
+    if (value == null) {
+      onChange("question");
+    }
+  }, [value, onChange]);
+
   return (
     <SafeSelect
-      value={value ?? null}
+      value={effectiveValue} // 값이 항상 존재하므로 placeholder는 안 보임
       onChange={(v) => {
         if (v == null) return; // placeholder 선택 → 무시
         if (isPinKind(v)) onChange(v); // 타입 안전 전달

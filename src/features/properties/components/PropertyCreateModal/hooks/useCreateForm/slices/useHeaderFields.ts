@@ -9,7 +9,9 @@ export function useHeaderFields() {
     "" | "1" | "2" | "3" | "4" | "5"
   >(""); // ⭐ 별점은 문자열만
   const [elevator, setElevator] = useState<"O" | "X">("O");
-  const [pinKind, setPinKind] = useState<PinKind>("1room");
+
+  // ✅ 기본 핀 종류를 "답사예정(question)"으로 설정
+  const [pinKind, setPinKind] = useState<PinKind>("question");
 
   // (옵션) 배지
   const [badge, setBadge] = useState<string | null>(null);

@@ -35,6 +35,7 @@ import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import type { UnitLine } from "@/features/properties/types/property-domain";
+import type { PinKind } from "@/features/pins/types";
 
 /* ───────────── 미디어 영속화 단계 API ───────────── */
 import { createPhotoGroup } from "@/shared/api/photoGroups";
@@ -82,6 +83,13 @@ const toBoolUndef = (v: unknown): boolean | undefined => {
   return undefined;
 };
 
+/** ✅ 실제 답사예정 핀 kind 값: PinKind 중 "question" 을 사용 */
+const VISIT_PLAN_PIN_KIND: PinKind = "question";
+
+/** pinKind 값이 '답사예정핀'인지 판별 */
+const isVisitPlanPinKind = (pinKind: any): boolean =>
+  String(pinKind) === VISIT_PLAN_PIN_KIND;
+
 /** ✅ asInner: true면 카드 안 내용만 렌더(딤/포털 없음) */
 type Props = Omit<PropertyCreateModalProps, "open"> & {
   asInner?: boolean;
@@ -97,6 +105,21 @@ export default function PropertyCreateModalBody({
   asInner,
 }: Props) {
   const f = useCreateForm({ initialAddress });
+
+  // ✅ 최초 마운트 시 핀 종류를 "답사예정(question)" 으로 강제 설정
+  const didInitPinKindRef = useRef(false);
+  useEffect(() => {
+    if (didInitPinKindRef.current) return;
+
+    const setPinKind = (f as any).setPinKind as
+      | ((kind: PinKind) => void)
+      | undefined;
+
+    if (typeof setPinKind === "function") {
+      setPinKind(VISIT_PLAN_PIN_KIND);
+      didInitPinKindRef.current = true;
+    }
+  }, [f]);
 
   const {
     imageFolders,
@@ -652,7 +675,7 @@ export default function PropertyCreateModalBody({
         }
       }
 
-      // 전화번호 검증
+      // 전화번호 검증 (메인 필수)
       if (!isValidPhoneKR(f.officePhone)) {
         alert("전화번호를 입력해주세요");
         return;
@@ -862,19 +885,19 @@ export default function PropertyCreateModalBody({
           const s = String(f.remainingHouseholds ?? "").trim();
           if (!s) return null;
           const n = Number(s);
-          return Number.isFinite(n) ? n : null;
+          return Number.isFinite(n) ? Math.trunc(n) : null;
         })(),
         registrationTypeId: ((): number | null => {
           const s = String((f as any).registrationTypeId ?? "").trim();
           if (!s) return null;
           const n = Number(s);
-          return Number.isFinite(n) ? n : null;
+          return Number.isFinite(n) ? Math.trunc(n) : null;
         })(),
         parkingTypeId: ((): number | null => {
           const s = String((f as any).parkingTypeId ?? "").trim();
           if (!s) return null;
           const n = Number(s);
-          return Number.isFinite(n) ? n : null;
+          return Number.isFinite(n) ? Math.trunc(n) : null;
         })(),
         slopeGrade: f.slopeGrade ?? null,
         structureGrade: f.structureGrade ?? null,
@@ -1028,6 +1051,16 @@ export default function PropertyCreateModalBody({
     ]
   );
 
+  /* ====== 답사예정 핀일 때 저장 가능 조건 (매물명 + 분양사무실 전화번호만) ====== */
+  const isVisitPlanPin = isVisitPlanPinKind((f as any).pinKind);
+  const mainTitle = (f.title ?? "").trim();
+  const mainOfficePhone = (f.officePhone ?? "").trim();
+  const minimalForVisitPlan = !!mainTitle && isValidPhoneKR(mainOfficePhone);
+
+  const canSave = isVisitPlanPin
+    ? minimalForVisitPlan && !isSaving
+    : f.isSaveEnabled && !isSaving;
+
   /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
@@ -1071,11 +1104,7 @@ export default function PropertyCreateModalBody({
         </div>
       </div>
 
-      <FooterButtons
-        onClose={onClose}
-        onSave={save}
-        canSave={f.isSaveEnabled && !isSaving}
-      />
+      <FooterButtons onClose={onClose} onSave={save} canSave={canSave} />
     </>
   );
 

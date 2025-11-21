@@ -50,9 +50,7 @@ export default function HeaderSection(
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div
         className={cn(
-          // 모바일: flex-row + wrap
           "flex flex-wrap items-center gap-3 px-4 py-4 min-w-0",
-          // 데스크탑: 기존 grid 레이아웃 유지
           "md:grid md:grid-cols-[auto_auto_auto_1fr_auto]"
         )}
       >
@@ -71,7 +69,7 @@ export default function HeaderSection(
           />
         </div>
 
-        {/* 3) 엘리베이터 → 모바일에선 1줄의 세 번째, PC에선 맨 오른쪽 */}
+        {/* 3) 엘리베이터 */}
         <div className="order-3 md:order-5 flex items-center gap-2 ml-auto md:ml-0 justify-self-end">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             엘리베이터
@@ -79,7 +77,7 @@ export default function HeaderSection(
           <ElevatorSegment value={elevator} onChange={setElevator} />
         </div>
 
-        {/* 4) 매물평점 → 모바일에선 두 번째 줄 전체 폭, PC에선 기존 위치 */}
+        {/* 4) 매물평점 */}
         <div className="order-4 md:order-3 flex items-center gap-2 min-w-[150px] w-full md:w-auto">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물평점
@@ -115,7 +113,7 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 5) 매물명 → 모바일에선 두 번째 줄 아래 전체 폭 */}
+        {/* 5) 매물명 */}
         <div className="order-5 md:order-4 flex items-center gap-2 min-w-0 w-full">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물명
