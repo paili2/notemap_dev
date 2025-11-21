@@ -13,6 +13,7 @@ import type { MapViewProps } from "./types";
 import usePoiLayer from "../shared/hooks/poi/usePoiLayer";
 import { PoiKind } from "../shared/overlays/poiOverlays";
 import { PoiLayerToggle } from "./top/components/PoiLayerToggle";
+import { toast } from "@/hooks/use-toast";
 
 type Props = MapViewProps;
 
@@ -60,7 +61,6 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     center,
     level,
     fitKoreaBounds: true,
-    maxLevel: 11,
     viewportDebounceMs: 500,
     onMapReady,
     onViewportChange, // 그대로 전달 (훅이 디바운스 처리)
@@ -119,6 +119,23 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   // 마커 클릭 핸들러
   const handleMarkerClick = useCallback(
     (id: string) => {
+      // 🔹 500m(레벨 6) 이상에서는 메뉴 막고 토스트 + 확대만
+      const level = map?.getLevel?.() ?? 0;
+      if (level >= 6) {
+        toast({
+          title: "조금 더 확대해 주세요",
+          description: "250m까지 확대하면 매물 메뉴를 사용할 수 있어요.",
+        });
+
+        try {
+          // 250m(레벨 5)로 확대
+          map?.setLevel?.(5, { animate: true });
+        } catch {}
+
+        return;
+      }
+
+      // ===== 여기부터는 기존 코드 유지 =====
       // 1) 드래프트 핀
       if (id === "__draft__") {
         const draft = markers.find((m) => String(m.id) === "__draft__");
@@ -159,10 +176,18 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         });
       }
 
-      // 기존 상위 알림도 유지 (필요 시 제거 가능)
       onMarkerClick?.(id);
     },
-    [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu, pinKind]
+    [
+      markers,
+      onDraftPinClick,
+      onMarkerClick,
+      map,
+      kakao,
+      onOpenMenu,
+      pinKind,
+      toast,
+    ]
   );
 
   // 클러스터러 + 라벨
@@ -172,6 +197,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     defaultPinKind: pinKind,
     fitToMarkers,
     hideLabelForId,
+    enableDebug: true,
   });
 
   return (

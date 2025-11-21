@@ -113,6 +113,9 @@ export function mountClusterMode(
     draftMk.setZIndex(SELECTED_Z + 100);
   }
 
+  // 여기서는 더 이상 clusterclick 훅을 걸지 않는다.
+  // → 클러스터 클릭 시 카카오 기본 동작(줌인)만 수행.
+
   mkList.forEach((mk) => mk.setMap?.(null));
   refs.clustererRef.current?.redraw?.();
 }

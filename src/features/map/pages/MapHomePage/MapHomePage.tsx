@@ -14,6 +14,9 @@ import { useReserveFromMenu, eqId } from "./hooks/useReserveFromMenu";
 
 import { createPinDraft } from "@/shared/api/pins";
 import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
+import { useToast } from "@/hooks/use-toast";
+
+const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -27,6 +30,7 @@ export default function MapHomePage() {
   }
 
   const s = useMapHomeState();
+  const { toast } = useToast();
 
   const {
     nestedFavorites,
@@ -105,7 +109,7 @@ export default function MapHomePage() {
     [s]
   );
 
-  // ✅ MapHomeUI → useMapHomeState onOpenMenu 어댑터
+  // ✅ MapHomeUI → useMapHomeState onOpenMenu 어댑터 + 줌 레벨 가드
   const handleOpenMenu = useCallback(
     (p: {
       position: { lat: number; lng: number };
@@ -113,6 +117,18 @@ export default function MapHomePage() {
       propertyTitle?: string | null;
       pin?: { kind: string; isFav?: boolean };
     }) => {
+      const level = s?.mapInstance?.getLevel?.();
+
+      // 500m(레벨 6) 이상에서는 메뉴 막고 토스트만
+      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
+        toast({
+          title: "조금 더 확대해 주세요",
+          description:
+            "핀 메뉴는 지도 250m(5단계) 이하에서만 사용할 수 있어요.",
+        });
+        return;
+      }
+
       const payloadForState = {
         ...p,
         // 내부 상태 쪽은 null 대신 undefined 쪽이 더 자연스러우면 변환
@@ -120,7 +136,7 @@ export default function MapHomePage() {
       };
       (s as any).onOpenMenu?.(payloadForState);
     },
-    [s]
+    [s, toast]
   );
 
   // ===== payload → draftId 어댑터 =====
@@ -250,7 +266,7 @@ export default function MapHomePage() {
 
       /* misc */
       hideLabelForId: s.hideLabelForId,
-      onOpenMenu: handleOpenMenu, // ✅ 어댑터 사용
+      onOpenMenu: handleOpenMenu, // ✅ 여기서 줌 레벨 가드
       onChangeHideLabelForId,
       onReserveFromMenu,
       createFromDraftId: s.createFromDraftId,

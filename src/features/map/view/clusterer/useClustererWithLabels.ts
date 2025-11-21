@@ -23,7 +23,7 @@ export function useClustererWithLabels(
   markers: readonly MapMarker[],
   {
     labelMaxLevel = 5,
-    clusterMinLevel = 6,
+    clusterMinLevel = 6, // 500m부터 클러스터
     onMarkerClick,
     fitToMarkers = false,
     labelGapPx = LABEL.GAP_PX,
@@ -109,15 +109,51 @@ export function useClustererWithLabels(
   usePreloadIcons(isReady, markers, defaultPinKind as PinKind, realMarkersKey);
   useInitClusterer(isReady, kakao, map, clustererRef, clusterMinLevel);
 
-  // 클러스터 클릭 확대 동작은 기본 유지
+  // 🔧 클러스터 기본 클릭-줌은 끄고, 우리가 직접 처리
   useEffect(() => {
     if (!isReady || !clustererRef.current) return;
     try {
       if (typeof clustererRef.current.setDisableClickZoom === "function") {
-        clustererRef.current.setDisableClickZoom(false);
+        clustererRef.current.setDisableClickZoom(true);
       }
     } catch {}
   }, [isReady, realMarkersKey]);
+
+  // 🔧 clusterclick → 250m로 확대만 수행 (토스트 제거)
+  useEffect(() => {
+    if (!isReady || !kakao || !map || !clustererRef.current) return;
+
+    const clusterer = clustererRef.current;
+    const ev = kakao.maps.event;
+    if (!ev) return;
+
+    const handler = (cluster: any) => {
+      const level = map.getLevel?.() ?? 0;
+
+      // 500m(레벨 6 이상)에서만 확대 처리
+      if (level >= clusterMinLevel) {
+        try {
+          const center = cluster?.getCenter?.();
+          if (center) map.panTo(center);
+        } catch {}
+
+        try {
+          // 250m(레벨 5)로 줌인
+          map.setLevel(safeLabelMax, { animate: true });
+        } catch {}
+
+        return;
+      }
+    };
+
+    ev.addListener(clusterer, "clusterclick", handler);
+
+    return () => {
+      try {
+        ev.removeListener(clusterer, "clusterclick", handler);
+      } catch {}
+    };
+  }, [isReady, kakao, map, clusterMinLevel, safeLabelMax, realMarkersKey]);
 
   useRebuildScene({
     isReady,

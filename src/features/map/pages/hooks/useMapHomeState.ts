@@ -24,6 +24,9 @@ import {
   useResolveAddress,
 } from "../../shared/hooks/useKakaoTools";
 import { useRunSearch } from "../../shared/hooks/useRunSearch";
+import { useToast } from "@/hooks/use-toast";
+
+const PIN_MENU_MAX_LEVEL = 5;
 
 const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 
@@ -77,6 +80,11 @@ function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
   };
 }
 
+type OpenMenuOpts = {
+  roadAddress?: string | null;
+  jibunAddress?: string | null;
+};
+
 /** 지도 도구 모드 (지적/로드뷰 배타적 관리) */
 type MapToolMode = "none" | "district" | "roadview";
 
@@ -84,6 +92,8 @@ export function useMapHomeState() {
   // 지도/SDK
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
+
+  const { toast } = useToast();
 
   // 라벨 숨김
   const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
@@ -292,8 +302,18 @@ export function useMapHomeState() {
     async (
       position: LatLng,
       propertyId: "__draft__" | string,
-      opts?: { roadAddress?: string | null; jibunAddress?: string | null }
+      opts?: OpenMenuOpts
     ) => {
+      const level = mapInstance?.getLevel?.();
+      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
+        toast({
+          title: "지도를 더 확대해 주세요",
+          description:
+            "핀을 선택하거나 위치를 지정하려면 지도를 250m 수준까지 확대해 주세요.",
+        });
+        return; // 메뉴/임시핀 생성 X
+      }
+
       const p = normalizeLL(position);
       const isDraft = propertyId === "__draft__";
       const sid = String(propertyId);
@@ -337,6 +357,7 @@ export function useMapHomeState() {
       });
     },
     [
+      toast,
       resolveAddress,
       panToWithOffset,
       setDraftPinSafe,
@@ -477,44 +498,25 @@ export function useMapHomeState() {
   // 마커 클릭
   const handleMarkerClick = useCallback(
     async (id: string | number) => {
+      // ✅ 먼저 줌 레벨 체크 (여기까지 들어오기만 하면 토스트는 무조건 한 번 뜸)
+      const level = mapInstance?.getLevel?.();
+      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
+        toast({
+          title: "지도를 더 확대해 주세요",
+          description:
+            "핀을 선택하려면 지도를 250m 수준까지 확대한 뒤 다시 눌러 주세요.",
+        });
+        return;
+      }
+
       const sid = String(id);
       const item = items.find((p) => p.id === sid);
       if (!item) return;
 
       const pos = normalizeLL(item.position);
-
-      setSelectedId(sid);
-      setMenuTargetId(sid);
-      setDraftPinSafe(null);
-      setFitAllOnce(false);
-      setRawMenuAnchor(pos);
-      onChangeHideLabelForId(sid);
-
-      setCreateFromDraftId(null);
-
-      // ✅ 클릭 경로에서도 즉시 숨김(안전)
-      try {
-        if (mapInstance) hideLabelsAround(mapInstance, pos.lat, pos.lng, 40);
-      } catch {}
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setMenuOpen(true));
-      });
-
-      panToWithOffset(pos, 180);
-      const { road, jibun } = await resolveAddress(pos);
-      setMenuRoadAddr(road ?? null);
-      setMenuJibunAddr(jibun ?? null);
+      await openMenuAt(pos, sid);
     },
-    [
-      items,
-      resolveAddress,
-      panToWithOffset,
-      setDraftPinSafe,
-      onChangeHideLabelForId,
-      setRawMenuAnchor,
-      mapInstance,
-    ]
+    [items, mapInstance, toast, openMenuAt]
   );
 
   // 지도 준비
