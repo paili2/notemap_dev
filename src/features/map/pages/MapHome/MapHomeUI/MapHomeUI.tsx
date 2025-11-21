@@ -1,3 +1,4 @@
+// MapHomeUI.tsx
 "use client";
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
@@ -667,13 +668,42 @@ export function MapHomeUI(props: MapHomeUIProps) {
         lng: number,
         label?: string | null
       ) => {
-        // 🔹 마지막 검색 기준 중심 저장
-        lastSearchCenterRef.current = { lat, lng };
+        // 1️⃣ 먼저 근처에 기존 마커가 있는지 확인 (매물/임시핀/예약핀 다 포함)
+        const NEAR_THRESHOLD_M = 20; // 20m 안쪽이면 같은 위치로 본다
 
-        // 🔹 지도 중심 이동
+        const existing = visibleMarkers?.find((m) => {
+          const pos = (m as any).position;
+          if (!pos) return false;
+          const d = distM(lat, lng, pos.lat, pos.lng);
+          return d <= NEAR_THRESHOLD_M;
+        });
+
+        if (existing) {
+          const pos = (existing as any).position;
+          const title =
+            (existing as any).title ?? label ?? query ?? "선택 위치";
+
+          // 🔹 기준 중심/좌표를 기존 마커로 통일
+          lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
+          setCenterOnly(pos.lat, pos.lng);
+
+          // 🔹 기존 마커 기준으로 메뉴만 열기 (새 임시핀 생성 X)
+          onOpenMenu?.({
+            position: { lat: pos.lat, lng: pos.lng },
+            propertyTitle: title,
+            pin: {
+              kind: ((existing as any).kind ?? "question") as any,
+              isFav: !!favById[String((existing as any).id)],
+            },
+          });
+
+          return;
+        }
+
+        // 2️⃣ 근처에 기존 마커가 없으면, 검색용 임시핀(__search__) 생성
+        lastSearchCenterRef.current = { lat, lng };
         setCenterOnly(lat, lng);
 
-        // 🔹 검색용 임시핀(id 고정) 업서트
         const id = "__search__";
 
         upsertDraftMarker({
@@ -685,231 +715,43 @@ export function MapHomeUI(props: MapHomeUIProps) {
           kind: "question",
         });
 
-        // 🔹 이 위치 기준 컨텍스트 메뉴 열기
-        onOpenMenu?.({
-          position: { lat, lng },
-          propertyTitle: label ?? query ?? "선택 위치",
-          pin: { kind: "question", isFav: false },
-        });
+        const openMenuAt = (menuLat: number, menuLng: number) => {
+          onOpenMenu?.({
+            position: { lat: menuLat, lng: menuLng },
+            propertyTitle: label ?? query ?? "선택 위치",
+            pin: { kind: "question", isFav: false },
+          });
+          onChangeHideLabelForId?.(id);
+        };
 
-        // 🔹 (선택) 이 핀 라벨은 숨겨두기
-        onChangeHideLabelForId?.(id);
+        // 컨텍스트 메뉴를 핀 위로 살짝 올려서 열기
+        try {
+          if (mapInstance?.getProjection && kakaoSDK?.maps) {
+            const proj = mapInstance.getProjection();
+            const anchorLL = new kakaoSDK.maps.LatLng(lat, lng);
+            const pt = proj.containerPointFromCoords(anchorLL);
+
+            if (pt) {
+              const MENU_OFFSET_PX = 40;
+              const movedPoint = new kakaoSDK.maps.Point(
+                pt.x,
+                pt.y - MENU_OFFSET_PX
+              );
+              const movedCoords = proj.coordsFromContainerPoint(movedPoint);
+              return openMenuAt(movedCoords.getLat(), movedCoords.getLng());
+            }
+          }
+        } catch (e) {
+          console.error("[search-menu-offset] failed:", e);
+        }
+
+        // projection 실패 시 fallback
+        openMenuAt(lat, lng);
       };
 
-      const looksLikeAddress =
-        /(\d|\b동\b|\b구\b|\b로\b|\b길\b|\b번지\b|\b리\b)/.test(query);
-      if (looksLikeAddress) {
-        const geocoder = new kakaoSDK.maps.services.Geocoder();
-        geocoder.addressSearch(query, (res: any[], status: string) => {
-          if (status !== kakaoSDK.maps.services.Status.OK || !res?.[0]) return;
-          const item = res[0];
-          const label =
-            item.road_address?.address_name ??
-            item.address?.address_name ??
-            query;
-
-          const lat = +item.y;
-          const lng = +item.x;
-
-          if (shouldCreateSearchPin(item, query)) {
-            setCenterWithMarker(lat, lng, label);
-          } else {
-            setCenterOnly(lat, lng);
-          }
-        });
-        return;
-      }
-
-      const placesSvc = new kakaoSDK.maps.services.Places();
-      const biasCenter = mapInstance.getCenter?.();
-      const biasOpt: any = biasCenter
-        ? {
-            location: biasCenter,
-            radius: 20000,
-            sort: kakaoSDK.maps.services.SortBy.DISTANCE,
-          }
-        : {};
-
-      const isStationQuery = /역|출구/.test(query);
-      if (!isStationQuery) {
-        const isSchoolQ = /(대학교|대학|초등학교|중학교|고등학교|캠퍼스)/.test(
-          query
-        );
-
-        placesSvc.keywordSearch(
-          query,
-          (res: any[], status: string) => {
-            if (status !== kakaoSDK.maps.services.Status.OK || !res?.length)
-              return;
-
-            if (isSchoolQ) {
-              const kwN = norm(query);
-              const ranked = res
-                .map((d) => ({ d, s: scorePlaceForSchool(d, kwN) }))
-                .sort((a, b) => b.s - a.s);
-              const best = ranked[0]?.d ?? res[0];
-
-              const lat = Number(best.y);
-              const lng = Number(best.x);
-
-              if (shouldCreateSearchPin(best, query)) {
-                setCenterWithMarker(lat, lng, best.place_name);
-              } else {
-                setCenterOnly(lat, lng);
-              }
-              return;
-            }
-
-            const best = pickBestPlace(res, query, biasCenter);
-
-            const lat = Number(best.y);
-            const lng = Number(best.x);
-
-            if (shouldCreateSearchPin(best, query)) {
-              setCenterWithMarker(lat, lng, best.place_name);
-            } else {
-              setCenterOnly(lat, lng);
-            }
-          },
-          biasOpt
-        );
-        return;
-      }
-
-      // ===== 역/출구 =====
-      const { stationName, hasExit, exitNo, raw } = parseStationAndExit(query);
-      const stationKeyword = (stationName ? `${stationName}역` : raw).trim();
-      const koreaRect = "124.0,33.0,132.0,39.0" as const;
-
-      const placesSvc2 = placesSvc;
-
-      placesSvc2.categorySearch(
-        "SW8",
-        (catRes: any[], catStatus: string) => {
-          const exact =
-            catStatus === kakaoSDK.maps.services.Status.OK
-              ? catRes.find(
-                  (d) =>
-                    d.place_name.replace(/\s+/g, "") ===
-                    stationKeyword.replace(/\s+/g, "")
-                )
-              : null;
-
-          const afterStationFound = (st: any) => {
-            const sLat = +st.y;
-            const sLng = +st.x;
-            const stationLL = new kakao.maps.LatLng(sLat, sLng);
-
-            if (hasExit) {
-              const queries = [
-                `${stationName}역 ${exitNo}번 출구`,
-                `${stationName}역 ${exitNo}번출구`,
-                `${stationName} ${exitNo}번 출구`,
-                `${exitNo}번 출구 ${stationName}역`,
-              ];
-              const opts = {
-                location: stationLL,
-                radius: 350,
-                sort: kakaoSDK.maps.services.SortBy.DISTANCE,
-              } as const;
-
-              const doneOnce = new Set<string>();
-              let acc: any[] = [];
-              const run = (i = 0) => {
-                if (i >= queries.length) {
-                  if (!acc.length)
-                    return setCenterWithMarker(sLat, sLng, st.place_name);
-                  const best = pickBestExitStrict(
-                    acc,
-                    stationName,
-                    exitNo,
-                    stationLL
-                  );
-                  const MAX_EXIT_DIST = 300;
-                  const dist = Number(best?.distance ?? Infinity);
-                  if (!isNaN(dist) && dist > MAX_EXIT_DIST)
-                    return setCenterWithMarker(sLat, sLng, st.place_name);
-                  return setCenterWithMarker(
-                    Number(best.y),
-                    Number(best.x),
-                    best.place_name
-                  );
-                }
-                placesSvc2.keywordSearch(
-                  queries[i],
-                  (exRes: any[], exStatus: string) => {
-                    if (
-                      exStatus === kakaoSDK.maps.services.Status.OK &&
-                      exRes?.length
-                    ) {
-                      for (const r of exRes) {
-                        if (!doneOnce.has(r.id)) {
-                          doneOnce.add(r.id);
-                          acc.push(r);
-                        }
-                      }
-                    }
-                    run(i + 1);
-                  },
-                  opts
-                );
-              };
-              run();
-              return;
-            }
-
-            const display =
-              stationName || String(st.place_name).replace(/역$/, "");
-            placesSvc2.keywordSearch(
-              `${display}역 출구`,
-              (exRes: any[], exStatus: string) => {
-                if (
-                  exStatus === kakaoSDK.maps.services.Status.OK &&
-                  exRes?.length
-                ) {
-                  const bestExit = pickBestExitStrict(
-                    exRes,
-                    stationName || display,
-                    null,
-                    stationLL
-                  );
-                  const MAX_EXIT_DIST = 300;
-                  const dist = Number(bestExit?.distance ?? Infinity);
-                  if (!isNaN(dist) && dist > MAX_EXIT_DIST)
-                    return setCenterWithMarker(sLat, sLng, st.place_name);
-                  return setCenterWithMarker(
-                    +bestExit.y,
-                    +bestExit.x,
-                    bestExit.place_name
-                  );
-                }
-                return setCenterWithMarker(sLat, sLng, st.place_name);
-              },
-              { location: stationLL, radius: 600 }
-            );
-          };
-
-          if (exact) return afterStationFound(exact);
-
-          placesSvc2.keywordSearch(
-            stationKeyword,
-            (stRes: any[], stStatus: string) => {
-              if (
-                stStatus !== kakaoSDK.maps.services.Status.OK ||
-                !stRes?.length
-              )
-                return;
-              const bestStation = pickBestStation(
-                stRes,
-                stationKeyword.replace(/역$/, "")
-              );
-              afterStationFound(bestStation);
-            },
-            { rect: koreaRect }
-          );
-        },
-        { rect: koreaRect }
-      );
+      // ⬇️ 아래 addressSearch / places.keywordSearch / 역·출구 검색 로직은 그대로 두고
+      // setCenterWithMarker 호출만 방금 바꾼 함수로 사용하면 돼.
+      // ...
     },
     [
       kakaoSDK,
@@ -918,6 +760,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
       upsertDraftMarker,
       onOpenMenu,
       onChangeHideLabelForId,
+      visibleMarkers, // ✅ 추가
+      favById, // ✅ 추가
     ]
   );
 

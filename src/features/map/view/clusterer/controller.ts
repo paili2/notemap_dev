@@ -6,7 +6,7 @@ export function mountClusterMode(
   refs: RefsBag,
   selId: string | null
 ) {
-  const { map } = deps;
+  const { kakao, map } = deps; // ⬅️ kakao도 같이 사용
   const entries = Object.entries(refs.markerObjsRef.current) as [string, any][];
   const mkList = entries.map(([, mk]) => mk);
 
@@ -83,7 +83,7 @@ export function mountClusterMode(
     });
   }
 
-  // ↓↓↓ 기존 코드 그대로 유지
+  // ↓↓↓ 기존 코드 + 클러스터 재구성
   Object.values(refs.labelOvRef.current).forEach((ov: any) => ov.setMap(null));
   Object.values(refs.hitboxOvRef.current).forEach((ov: any) => ov.setMap(null));
   refs.clustererRef.current?.clear?.();
@@ -113,9 +113,39 @@ export function mountClusterMode(
     draftMk.setZIndex(SELECTED_Z + 100);
   }
 
-  // 여기서는 더 이상 clusterclick 훅을 걸지 않는다.
-  // → 클러스터 클릭 시 카카오 기본 동작(줌인)만 수행.
+  // 🔹 클러스터 클릭 → 대표 마커를 골라서 onMarkerClickRef로 전달
+  if (
+    refs.clustererRef.current &&
+    !(refs.clustererRef.current as any).__clusterClickInstalled
+  ) {
+    (refs.clustererRef.current as any).__clusterClickInstalled = true;
 
+    kakao.maps.event.addListener(
+      refs.clustererRef.current,
+      "clusterclick",
+      (cluster: any) => {
+        const markers: any[] = cluster.getMarkers?.() ?? [];
+        if (!markers.length) return;
+
+        // 1) 클러스터 안의 첫 번째 마커를 대표로 사용
+        const mk = markers[0];
+
+        // 2) markerObjsRef에서 같은 객체를 찾아 id 역추적
+        const entry =
+          Object.entries(refs.markerObjsRef.current).find(
+            ([, v]) => v === mk
+          ) ?? null;
+        if (!entry) return;
+
+        const [id] = entry;
+
+        // 3) 기존 마커 클릭과 똑같이 타게 함
+        refs.onMarkerClickRef.current?.(String(id));
+      }
+    );
+  }
+
+  // 개별 마커는 클러스터러에서만 관리
   mkList.forEach((mk) => mk.setMap?.(null));
   refs.clustererRef.current?.redraw?.();
 }
@@ -200,6 +230,7 @@ export function applyMode(
   }
 
   if (level >= clusterMinLevel) {
+    // 🔹 클러스터 모드 진입 시 kakao도 함께 전달
     mountClusterMode({ kakao, map }, refs, selectedKey);
     return;
   }

@@ -83,6 +83,8 @@ function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {
 type OpenMenuOpts = {
   roadAddress?: string | null;
   jibunAddress?: string | null;
+  /** 줌 레벨 상관 없이 강제로 메뉴 열기 */
+  forceOpen?: boolean;
 };
 
 /** 지도 도구 모드 (지적/로드뷰 배타적 관리) */
@@ -298,6 +300,7 @@ export function useMapHomeState() {
   const resolveAddress = useResolveAddress(kakaoSDK);
   const panToWithOffset = usePanToWithOffset(kakaoSDK, mapInstance);
 
+  /** 메뉴를 여는 공통 로직 (줌 체크 + 상태 세팅 + 주소 역 geocode) */
   const openMenuAt = useCallback(
     async (
       position: LatLng,
@@ -305,7 +308,21 @@ export function useMapHomeState() {
       opts?: OpenMenuOpts
     ) => {
       const level = mapInstance?.getLevel?.();
-      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
+
+      console.log("[openMenuAt] 호출", {
+        position,
+        propertyId,
+        opts,
+        level,
+      });
+
+      // 🔐 기본 경로: 너무 축소되어 있으면 토스트만 띄우고 종료
+      //   ↳ marker 클릭에서 "강제 오픈"할 때는 forceOpen=true 로 우회
+      if (
+        !opts?.forceOpen &&
+        typeof level === "number" &&
+        level > PIN_MENU_MAX_LEVEL
+      ) {
         toast({
           title: "지도를 더 확대해 주세요",
           description:
@@ -336,7 +353,6 @@ export function useMapHomeState() {
 
       setRawMenuAnchor(p);
 
-      // 이하 그대로
       try {
         if (mapInstance) hideLabelsAround(mapInstance, p.lat, p.lng, 40);
       } catch {}
@@ -365,6 +381,49 @@ export function useMapHomeState() {
       setRawMenuAnchor,
       mapInstance,
     ]
+  );
+
+  /** 핀 클릭 시: 줌 맞추고 → 메뉴 오픈 (이벤트 최소화 버전) */
+  const focusAndOpenAt = useCallback(
+    async (pos: LatLng, propertyId: "__draft__" | string) => {
+      const map = mapInstance;
+
+      const targetLevel = PIN_MENU_MAX_LEVEL; // 5
+      const p = normalizeLL(pos);
+
+      console.log("[focusAndOpenAt] 호출 ▶", {
+        pos: p,
+        propertyId,
+        hasMap: !!map,
+      });
+
+      // 지도 아직 없으면 바로 메뉴만 연다
+      if (!map) {
+        console.log("[focusAndOpenAt] map 없음 → 바로 메뉴 오픈(force)");
+        await openMenuAt(p, propertyId, { forceOpen: true });
+        return;
+      }
+
+      const currentLevel = map.getLevel?.();
+      console.log("[focusAndOpenAt] 현재 레벨:", currentLevel);
+
+      // 너무 축소되어 있으면 한 번만 확대
+      if (typeof currentLevel === "number" && currentLevel > targetLevel) {
+        console.log(
+          "[focusAndOpenAt] setLevel 실행",
+          "currentLevel:",
+          currentLevel,
+          "→ targetLevel:",
+          targetLevel
+        );
+        map.setLevel(targetLevel, { animate: true });
+      }
+
+      // 확대 중이든 아니든, 바로 메뉴 열기 (줌 제한 무시)
+      console.log("[focusAndOpenAt] openMenuAt(forceOpen) 호출");
+      await openMenuAt(p, propertyId, { forceOpen: true });
+    },
+    [mapInstance, openMenuAt]
   );
 
   const geocodeAddress = useCallback(
@@ -447,13 +506,18 @@ export function useMapHomeState() {
   const handleSearchSubmit = useCallback(
     async (kw?: string) => {
       const keyword = kw ?? q;
+
+      // 1) 내부 runSearch 먼저 (기존 그대로)
       await runSearch(keyword);
+
+      // 2) 카카오 지오코딩 결과 좌표 기준으로
+      //    "자동 확대 + 메뉴 오픈" 처리
       const pos = await geocodeAddress(keyword);
       if (pos) {
-        await openMenuAt(pos, "__draft__");
+        await focusAndOpenAt(pos, "__draft__");
       }
     },
-    [q, runSearch, geocodeAddress, openMenuAt]
+    [q, runSearch, geocodeAddress, focusAndOpenAt]
   );
 
   const onSubmitSearch = useCallback(
@@ -495,28 +559,39 @@ export function useMapHomeState() {
     );
   }, [draftPin, kakaoSDK, mapInstance, panToWithOffset]);
 
-  // 마커 클릭
+  // 마커 클릭 (매물핀 / __visit__ / __draft__ 모두 지원)
   const handleMarkerClick = useCallback(
     async (id: string | number) => {
-      // ✅ 먼저 줌 레벨 체크 (여기까지 들어오기만 하면 토스트는 무조건 한 번 뜸)
-      const level = mapInstance?.getLevel?.();
-      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
-        toast({
-          title: "지도를 더 확대해 주세요",
-          description:
-            "핀을 선택하려면 지도를 250m 수준까지 확대한 뒤 다시 눌러 주세요.",
-        });
+      const sid = String(id);
+
+      // 1) 매물 핀 (points -> items 매칭)
+      const item = items.find((p) => String(p.id) === sid);
+      if (item) {
+        const pos = normalizeLL(item.position);
+        await focusAndOpenAt(pos, sid);
         return;
       }
 
-      const sid = String(id);
-      const item = items.find((p) => p.id === sid);
-      if (!item) return;
+      // 2) 서버에서 내려온 답사 예정 임시핀 (__visit__123)
+      if (sid.startsWith("__visit__")) {
+        const rawId = sid.replace("__visit__", "");
+        const draft = (drafts ?? []).find((d: any) => String(d.id) === rawId);
+        if (draft) {
+          const pos = { lat: draft.lat, lng: draft.lng };
+          await focusAndOpenAt(pos, "__draft__");
+          return;
+        }
+      }
 
-      const pos = normalizeLL(item.position);
-      await openMenuAt(pos, sid);
+      // 3) 화면에 떠 있는 검색/클릭용 draftPin (__draft__)
+      if (sid === "__draft__" && draftPin) {
+        await focusAndOpenAt(draftPin, "__draft__");
+        return;
+      }
+
+      // 4) 그래도 못 찾으면 아무 것도 하지 않음
     },
-    [items, mapInstance, toast, openMenuAt]
+    [items, drafts, draftPin, focusAndOpenAt]
   );
 
   // 지도 준비
@@ -556,7 +631,6 @@ export function useMapHomeState() {
       };
 
       kakao.maps.event.addListener(map, "dragstart", clearDraftAndMenu);
-      kakao.maps.event.addListener(map, "zoom_start", clearDraftAndMenu);
     },
     [refetch, setBounds, setDraftPinSafe, onChangeHideLabelForId]
   );
@@ -832,12 +906,14 @@ export function useMapHomeState() {
       propertyTitle?: string | null;
       pin?: { kind?: string; isFav?: boolean };
     }) => {
-      openMenuAt(
-        normalizeLL(p.position),
-        (p.propertyId ?? "__draft__") as "__draft__" | string
-      );
+      const pos = normalizeLL(p.position);
+      const id = (p.propertyId ?? "__draft__") as "__draft__" | string;
+
+      // ✅ 지도 아무 곳 클릭해서 메뉴 여는 경우도
+      //    무조건 "자동 확대 + 메뉴 오픈" 경로로 통일
+      focusAndOpenAt(pos, id);
     },
-    [openMenuAt]
+    [focusAndOpenAt]
   );
 
   const onMarkerClick = handleMarkerClick;

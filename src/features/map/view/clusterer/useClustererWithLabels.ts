@@ -109,51 +109,18 @@ export function useClustererWithLabels(
   usePreloadIcons(isReady, markers, defaultPinKind as PinKind, realMarkersKey);
   useInitClusterer(isReady, kakao, map, clustererRef, clusterMinLevel);
 
-  // 🔧 클러스터 기본 클릭-줌은 끄고, 우리가 직접 처리
+  // 🔧 클러스터 기본 클릭-줌은 **끄지 않는다** (카카오 기본 동작 사용)
   useEffect(() => {
     if (!isReady || !clustererRef.current) return;
     try {
       if (typeof clustererRef.current.setDisableClickZoom === "function") {
-        clustererRef.current.setDisableClickZoom(true);
+        clustererRef.current.setDisableClickZoom(false);
       }
     } catch {}
   }, [isReady, realMarkersKey]);
 
-  // 🔧 clusterclick → 250m로 확대만 수행 (토스트 제거)
-  useEffect(() => {
-    if (!isReady || !kakao || !map || !clustererRef.current) return;
-
-    const clusterer = clustererRef.current;
-    const ev = kakao.maps.event;
-    if (!ev) return;
-
-    const handler = (cluster: any) => {
-      const level = map.getLevel?.() ?? 0;
-
-      // 500m(레벨 6 이상)에서만 확대 처리
-      if (level >= clusterMinLevel) {
-        try {
-          const center = cluster?.getCenter?.();
-          if (center) map.panTo(center);
-        } catch {}
-
-        try {
-          // 250m(레벨 5)로 줌인
-          map.setLevel(safeLabelMax, { animate: true });
-        } catch {}
-
-        return;
-      }
-    };
-
-    ev.addListener(clusterer, "clusterclick", handler);
-
-    return () => {
-      try {
-        ev.removeListener(clusterer, "clusterclick", handler);
-      } catch {}
-    };
-  }, [isReady, kakao, map, clusterMinLevel, safeLabelMax, realMarkersKey]);
+  // ❌ 커스텀 clusterclick 핸들러는 제거
+  //   - 카카오 기본 clusterclick: 클러스터 중심으로 줌인 → 그대로 사용
 
   useRebuildScene({
     isReady,
