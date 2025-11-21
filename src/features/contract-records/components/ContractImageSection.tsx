@@ -188,12 +188,30 @@ export function ContractImageSection({
                     <div className="w-full h-full flex items-center justify-center bg-gray-200">
                       <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                     </div>
-                  ) : (
+                  ) : image.preview && (image.preview.startsWith('http://') || image.preview.startsWith('https://')) ? (
                     <img
                       src={image.preview}
                       alt={image.file.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error("계약 이미지 로드 실패:", image.preview, "id:", image.id);
+                        console.error("에러 이벤트:", e);
+                      }}
+                      onLoad={() => {
+                        console.log("계약 이미지 로드 성공:", image.preview, "id:", image.id);
+                      }}
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200 text-gray-500 text-xs text-center p-2">
+                      {image.preview ? (
+                        <div>
+                          <p>이미지 접근 불가</p>
+                          <p className="text-[10px] opacity-75 truncate">{image.preview}</p>
+                        </div>
+                      ) : (
+                        <p>이미지 없음</p>
+                      )}
+                    </div>
                   )}
                   {!readOnly && (
                     <Button

@@ -42,13 +42,28 @@ export function EmployeeAllowanceChart({
   selectedTeamMembers,
   chartConfig,
 }: EmployeeChartsProps) {
+  const chartWidth = Math.max(400, selectedTeamMembers.length * 60);
+  const needsRotation = selectedTeamMembers.length > 5;
+
   return (
     <div>
       <h4 className="text-lg font-semibold mb-4">직원별 최종수당</h4>
-      <ChartContainer config={chartConfig} className="h-[250px]">
+      <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <ChartContainer 
+          config={chartConfig} 
+          className="h-[250px] min-w-[400px]"
+          style={{ width: `${chartWidth}px` }}
+        >
         <BarChart
           data={selectedTeamMembers}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          margin={{ 
+            top: 20, 
+            right: 30, 
+            left: 20, 
+            bottom: needsRotation ? 60 : 5 
+          }}
+          width={chartWidth}
+          height={250}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -61,6 +76,9 @@ export function EmployeeAllowanceChart({
             tick={{ fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
             axisLine={false}
+            angle={needsRotation ? -45 : 0}
+            textAnchor={needsRotation ? "end" : "middle"}
+            height={needsRotation ? 60 : 30}
           />
           <YAxis
             className="text-xs"
@@ -91,6 +109,7 @@ export function EmployeeAllowanceChart({
           </Bar>
         </BarChart>
       </ChartContainer>
+      </div>
     </div>
   );
 }
@@ -99,13 +118,28 @@ export function EmployeeContractChart({
   selectedTeamMembers,
   chartConfig,
 }: EmployeeChartsProps) {
+  const chartWidth = Math.max(400, selectedTeamMembers.length * 60);
+  const needsRotation = selectedTeamMembers.length > 5;
+
   return (
     <div>
       <h4 className="text-lg font-semibold mb-4">직원별 계약 건수</h4>
-      <ChartContainer config={chartConfig} className="h-[250px]">
+      <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <ChartContainer 
+          config={chartConfig} 
+          className="h-[250px] min-w-[400px]"
+          style={{ width: `${chartWidth}px` }}
+        >
         <BarChart
           data={selectedTeamMembers}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          margin={{ 
+            top: 20, 
+            right: 30, 
+            left: 20, 
+            bottom: needsRotation ? 60 : 5 
+          }}
+          width={chartWidth}
+          height={250}
         >
           <CartesianGrid
             strokeDasharray="3 3"
@@ -118,6 +152,9 @@ export function EmployeeContractChart({
             tick={{ fill: "hsl(var(--muted-foreground))" }}
             tickLine={false}
             axisLine={false}
+            angle={needsRotation ? -45 : 0}
+            textAnchor={needsRotation ? "end" : "middle"}
+            height={needsRotation ? 60 : 30}
           />
           <YAxis
             className="text-xs"
@@ -145,6 +182,7 @@ export function EmployeeContractChart({
           </Bar>
         </BarChart>
       </ChartContainer>
+      </div>
     </div>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type { PerformanceData } from "../types/PerformanceData";
 import { mockPerformanceData } from "../data/data";
 import { StatsCards } from "./StatsCards";
 import { TeamStatsCards } from "./TeamStatsCards";
 import { TeamAllowanceBarChart } from "./TeamAllowanceBarChart";
-import { TeamAllowancePieChart } from "./TeamAllowancePieChart";
 import { TeamDetailView } from "./TeamDetailView";
 import {
   calculateTeamStats,
@@ -14,7 +13,7 @@ import {
   getTeamMembers,
   generateYearOptions,
 } from "../utils/performanceUtils";
-import { CHART_CONFIG, PIE_COLORS } from "../utils/chartConfig";
+import { CHART_CONFIG } from "../utils/chartConfig";
 
 export function Performance() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -23,6 +22,7 @@ export function Performance() {
   const [selectedTeamDetail, setSelectedTeamDetail] = useState<string | null>(
     null
   );
+  const teamDetailRef = useRef<HTMLDivElement>(null);
 
   // 연도 옵션 생성
   const yearOptions = generateYearOptions(currentYear);
@@ -43,34 +43,42 @@ export function Performance() {
     return calculateOverallStats(mockPerformanceData);
   }, [mockPerformanceData]);
 
+  // 팀 선택 시 해당 섹션으로 스크롤
+  useEffect(() => {
+    if (selectedTeamDetail && teamDetailRef.current) {
+      setTimeout(() => {
+        teamDetailRef.current?.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "start" 
+        });
+      }, 100);
+    }
+  }, [selectedTeamDetail]);
+
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-6 bg-gray-50">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">실적 확인</h1>
-        <p className="text-gray-600 mt-1">영업자 계약기록 기반 실적 분석</p>
+        <p className="text-gray-600 mt-1">계약기록 기반 실적 분석</p>
       </div>
 
-      {/* 전체 통계 카드 */}
+      {/* 1. 회사 총매출 */}
       <StatsCards
         totalContracts={totalContracts}
         totalAllowance={totalAllowance}
         totalEmployees={totalEmployees}
       />
 
-      {/* 팀별 실적 그래프 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 2. 팀 실적 - 그래프 */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold text-gray-900">팀 실적</h2>
         <TeamAllowanceBarChart
           teamStats={teamStats}
           chartConfig={CHART_CONFIG}
         />
-        <TeamAllowancePieChart
-          teamStats={teamStats}
-          chartConfig={CHART_CONFIG}
-          pieColors={PIE_COLORS}
-        />
       </div>
 
-      {/* 팀별 상세 통계 카드 */}
+      {/* 3. 팀별 총 금액, 건수, 순수익 카드 */}
       <TeamStatsCards
         teamStats={teamStats}
         selectedTeamDetail={selectedTeamDetail}
@@ -78,17 +86,19 @@ export function Performance() {
       />
 
       {/* 선택된 팀의 직원별 상세 정보 */}
-      <TeamDetailView
-        selectedTeamDetail={selectedTeamDetail}
-        selectedTeamMembers={selectedTeamMembers}
-        selectedPeriod={selectedPeriod}
-        selectedYear={selectedYear}
-        yearOptions={yearOptions}
-        chartConfig={CHART_CONFIG}
-        onPeriodChange={setSelectedPeriod}
-        onYearChange={setSelectedYear}
-        onClose={() => setSelectedTeamDetail(null)}
-      />
+      <div ref={teamDetailRef} className="scroll-mt-6">
+        <TeamDetailView
+          selectedTeamDetail={selectedTeamDetail}
+          selectedTeamMembers={selectedTeamMembers}
+          selectedPeriod={selectedPeriod}
+          selectedYear={selectedYear}
+          yearOptions={yearOptions}
+          chartConfig={CHART_CONFIG}
+          onPeriodChange={setSelectedPeriod}
+          onYearChange={setSelectedYear}
+          onClose={() => setSelectedTeamDetail(null)}
+        />
+      </div>
     </div>
   );
 }

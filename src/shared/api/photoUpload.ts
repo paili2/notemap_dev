@@ -148,7 +148,7 @@ export async function uploadPhotos(
   const domain: UploadDomain = ensureDomain(opts?.domain);
   if (all.length === 0) return [];
 
-  // ⛳ 중복 호출 디듀프: 동일 세트면 기존 Promise 재사용
+  //  중복 호출 디듀프: 동일 세트면 기존 Promise 재사용
   const key = filesSignature(domain, all);
   const existed = inflight.get(key);
   if (existed) {
@@ -191,15 +191,57 @@ export async function uploadPhotos(
           }
         );
 
+        // 업로드 응답 전체 로깅 (디버깅용)
+        console.log("=== 업로드 API 응답 ===");
+        console.log("전체 응답:", JSON.stringify(data, null, 2));
+        console.log("data.data:", data?.data);
+        console.log("data.data 객체의 모든 키:", Object.keys(data?.data || {}));
+        console.log("data.data.urls:", data?.data?.urls);
+        console.log("data.data.keys:", data?.data?.keys);
+        // 다른 가능한 URL 필드 확인
+        if (data?.data) {
+          Object.entries(data.data).forEach(([key, value]) => {
+            if (
+              typeof value === "string" &&
+              (value.startsWith("http") || value.startsWith("s3://"))
+            ) {
+              console.log(`발견된 URL 필드 [${key}]:`, value);
+            } else if (
+              Array.isArray(value) &&
+              value.length > 0 &&
+              typeof value[0] === "string" &&
+              (value[0].startsWith("http") || value[0].startsWith("s3://"))
+            ) {
+              console.log(`발견된 URL 배열 필드 [${key}]:`, value);
+            }
+          });
+        }
+
         const ok = data?.data;
         const urls: string[] = Array.isArray(ok?.urls) ? ok!.urls : [];
         const keysArr: string[] = Array.isArray(ok?.keys) ? ok!.keys : [];
 
         // ✅ keys 길이 불일치/부재를 안전 처리
+        // s3:// 형태의 URL은 브라우저에서 접근 불가하므로 필터링
         urls.forEach((u, idx) => {
           const k = keysArr[idx]; // 없으면 undefined
+          console.log(`파일 ${idx}: url="${u}", key="${k}"`);
+
+          // s3:// 형태의 URL인 경우, key를 사용해서 접근 가능한 URL 생성 시도
+          // 또는 백엔드가 제공하는 다른 접근 가능한 URL 필드 확인 필요
+          let accessibleUrl = u;
+
+          // s3:// 형태의 URL이면 key를 사용 (나중에 프리사인 URL 생성 필요할 수 있음)
+          if (u.startsWith("s3://") && k) {
+            console.warn(
+              `⚠️ s3:// 형태의 URL 감지. key="${k}"를 사용하거나 프리사인 URL이 필요합니다.`
+            );
+            // 일단 key를 저장하지만, 실제로는 백엔드에서 접근 가능한 URL을 제공해야 함
+            accessibleUrl = k; // 임시: key 저장 (백엔드에서 프리사인 URL 생성 API 필요)
+          }
+
           metas.push({
-            url: u,
+            url: accessibleUrl,
             key: k,
             fileKey: k,
             storageKey: k,
