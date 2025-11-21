@@ -428,10 +428,22 @@ export function useMapHomeState() {
 
   const geocodeAddress = useCallback(
     async (q: string): Promise<LatLng | null> => {
-      if (!kakaoSDK?.maps?.services || !q?.trim()) return null;
+      const keyword = q?.trim();
+      if (!keyword) return null;
+
+      // ⚠️ services 아직 준비 전이면 → 현재 지도 중심 좌표라도 반환해서
+      // 최소한 메뉴/임시핀 로직은 동작하게 해 줌
+      if (!kakaoSDK?.maps?.services) {
+        const center = mapInstance?.getCenter?.();
+        if (center) {
+          return { lat: center.getLat(), lng: center.getLng() };
+        }
+        return null;
+      }
+
       const geocoder = new kakaoSDK.maps.services.Geocoder();
       return await new Promise<LatLng | null>((resolve) => {
-        geocoder.addressSearch(q.trim(), (result: any[], status: string) => {
+        geocoder.addressSearch(keyword, (result: any[], status: string) => {
           if (status !== kakaoSDK.maps.services.Status.OK || !result?.length) {
             resolve(null);
             return;
@@ -441,7 +453,7 @@ export function useMapHomeState() {
         });
       });
     },
-    [kakaoSDK]
+    [kakaoSDK, mapInstance]
   );
 
   const openMenuForExistingPin = useCallback(

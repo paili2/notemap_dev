@@ -26,6 +26,7 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { togglePinDisabled } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 import MetaInfoContainer from "./components/MetaInfoContainer";
+import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -321,6 +322,10 @@ function ViewStage({
     return resolved;
   }, [data, f]);
 
+  // 🔁 전역 메모 보기 모드 (K&N / R)
+  const memoViewMode = useMemoViewMode((s) => s.mode); // "public" | "secret"
+  const isPublicMemoMode = memoViewMode === "public";
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -522,9 +527,11 @@ function ViewStage({
                 options={f.options}
                 optionEtc={f.optionEtc}
               />
+
+              {/* 🔁 전역 토글 상태에 따라 한 종류의 메모만 전달 */}
               <MemosContainer
-                publicMemo={f.publicMemo}
-                secretMemo={f.secretMemo}
+                publicMemo={isPublicMemoMode ? f.publicMemo : undefined}
+                secretMemo={!isPublicMemoMode ? f.secretMemo : undefined}
               />
 
               {/* 👇 생성자/답사자/수정자 메타 정보 (메모 밑) */}

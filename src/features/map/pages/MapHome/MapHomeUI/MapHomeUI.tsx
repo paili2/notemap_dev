@@ -656,6 +656,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const query = text.trim();
       if (!query || !kakaoSDK || !mapInstance) return;
 
+      // 상위 상태/검색 로직 호출 (핀 검색 + geocode + 메뉴)
       onSubmitSearch?.(query);
 
       const setCenterOnly = (lat: number, lng: number) => {
@@ -715,43 +716,129 @@ export function MapHomeUI(props: MapHomeUIProps) {
           kind: "question",
         });
 
-        const openMenuAt = (menuLat: number, menuLng: number) => {
-          onOpenMenu?.({
-            position: { lat: menuLat, lng: menuLng },
-            propertyTitle: label ?? query ?? "선택 위치",
-            pin: { kind: "question", isFav: false },
-          });
-          onChangeHideLabelForId?.(id);
-        };
-
-        // 컨텍스트 메뉴를 핀 위로 살짝 올려서 열기
-        try {
-          if (mapInstance?.getProjection && kakaoSDK?.maps) {
-            const proj = mapInstance.getProjection();
-            const anchorLL = new kakaoSDK.maps.LatLng(lat, lng);
-            const pt = proj.containerPointFromCoords(anchorLL);
-
-            if (pt) {
-              const MENU_OFFSET_PX = 40;
-              const movedPoint = new kakaoSDK.maps.Point(
-                pt.x,
-                pt.y - MENU_OFFSET_PX
-              );
-              const movedCoords = proj.coordsFromContainerPoint(movedPoint);
-              return openMenuAt(movedCoords.getLat(), movedCoords.getLng());
-            }
-          }
-        } catch (e) {
-          console.error("[search-menu-offset] failed:", e);
-        }
-
-        // projection 실패 시 fallback
-        openMenuAt(lat, lng);
+        // ⛔️ 더 이상 projection으로 좌표를 위로 올리지 않고
+        //     핀 좌표 그대로 메뉴를 띄운다 (CSS에서 살짝 올려서 보이게 처리)
+        onOpenMenu?.({
+          position: { lat, lng },
+          propertyTitle: label ?? query ?? "선택 위치",
+          pin: { kind: "question", isFav: false },
+        });
+        onChangeHideLabelForId?.(id);
       };
 
-      // ⬇️ 아래 addressSearch / places.keywordSearch / 역·출구 검색 로직은 그대로 두고
-      // setCenterWithMarker 호출만 방금 바꾼 함수로 사용하면 돼.
-      // ...
+      const places = new kakaoSDK.maps.services.Places();
+      const geocoder = new kakaoSDK.maps.services.Geocoder();
+      const Status = kakaoSDK.maps.services.Status;
+      const centerLL = mapInstance.getCenter?.();
+
+      const doAddressFallback = () => {
+        geocoder.addressSearch(query, (addrRes: any[], addrStatus: string) => {
+          if (addrStatus !== Status.OK || !addrRes?.length) return;
+          const { x, y, road_address, address } = addrRes[0] ?? {};
+          const lat = Number(y);
+          const lng = Number(x);
+          const label =
+            road_address?.address_name ||
+            address?.address_name ||
+            query ||
+            null;
+          setCenterWithMarker(lat, lng, label);
+        });
+      };
+
+      const { stationName, exitNo, hasExit } = parseStationAndExit(query);
+
+      places.keywordSearch(
+        query,
+        (data: any[], status: string) => {
+          if (status !== Status.OK || !data?.length) {
+            doAddressFallback();
+            return;
+          }
+
+          // 🚇 "신사역 3번 출구" 같이 출구까지 명시된 경우
+          if (hasExit && stationName) {
+            const station = pickBestStation(data, stationName);
+            if (!station) {
+              doAddressFallback();
+              return;
+            }
+
+            const stationLL = new kakaoSDK.maps.LatLng(
+              Number(station.y),
+              Number(station.x)
+            );
+
+            places.keywordSearch(
+              `${station.place_name} 출구`,
+              (exitData: any[], exitStatus: string) => {
+                if (exitStatus !== Status.OK || !exitData?.length) {
+                  const lat = stationLL.getLat();
+                  const lng = stationLL.getLng();
+                  if (shouldCreateSearchPin(station, query)) {
+                    setCenterWithMarker(lat, lng, station.place_name);
+                  } else {
+                    setCenterOnly(lat, lng);
+                  }
+                  return;
+                }
+
+                const picked =
+                  pickBestExitStrict(
+                    exitData,
+                    stationName,
+                    exitNo ?? null,
+                    stationLL
+                  ) ?? station;
+
+                const lat = Number(picked.y);
+                const lng = Number(picked.x);
+                const label = picked.place_name ?? query;
+
+                if (shouldCreateSearchPin(picked, query)) {
+                  setCenterWithMarker(lat, lng, label);
+                } else {
+                  setCenterOnly(lat, lng);
+                }
+              },
+              {
+                location: stationLL,
+                radius: 600,
+              }
+            );
+            return;
+          }
+
+          // 일반 역/장소 검색
+          let target: any;
+          if (stationName) {
+            target = pickBestStation(data, stationName);
+          } else {
+            target = pickBestPlace(data, query, centerLL ?? undefined);
+          }
+
+          if (!target) {
+            doAddressFallback();
+            return;
+          }
+
+          const lat = Number(target.y);
+          const lng = Number(target.x);
+          const label = target.place_name ?? query;
+
+          if (shouldCreateSearchPin(target, query)) {
+            setCenterWithMarker(lat, lng, label);
+          } else {
+            setCenterOnly(lat, lng);
+          }
+        },
+        centerLL
+          ? {
+              location: centerLL,
+              radius: 3000,
+            }
+          : undefined
+      );
     },
     [
       kakaoSDK,
@@ -760,8 +847,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
       upsertDraftMarker,
       onOpenMenu,
       onChangeHideLabelForId,
-      visibleMarkers, // ✅ 추가
-      favById, // ✅ 추가
+      visibleMarkers,
+      favById,
     ]
   );
 

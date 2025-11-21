@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/atoms/Dialog/Dialog";
+import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned"; // ← 실제 키로 교체
@@ -134,6 +135,9 @@ export default function TopRightControls(props: {
     [props.poiKinds.length, props.getLevel, props.onChangePoiKinds]
   );
 
+  // ✅ 전역 메모 보기 모드 (K&N / R)
+  const { mode: memoMode, setMode: setMemoMode } = useMemoViewMode();
+
   return (
     <>
       {/* 오른쪽 상단 메뉴 영역 */}
@@ -149,6 +153,35 @@ export default function TopRightControls(props: {
             onMouseDown={stop}
             onTouchStart={stop}
           >
+            {/* 🟡 전역 메모 보기 토글 (K&N / R) */}
+            <div className="relative z-[2] shrink-0">
+              <div className="inline-flex rounded-md border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setMemoMode("public")}
+                  className={`px-3 h-8 text-sm ${
+                    memoMode === "public"
+                      ? "bg-amber-500 text-white"
+                      : "bg-white text-gray-700"
+                  }`}
+                >
+                  K&N
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMemoMode("secret")}
+                  className={`px-3 h-8 text-sm border-l ${
+                    memoMode === "secret"
+                      ? "bg-rose-600 text-white"
+                      : "bg-white text-gray-700"
+                  }`}
+                >
+                  R
+                </button>
+              </div>
+            </div>
+
+            {/* 🔵 지도 메뉴 (등록/답사/임시핀 등 필터) - 가운데 */}
             <div className="relative z-[2] shrink-0">
               <MapMenu
                 active={props.activeMenu}
@@ -172,6 +205,7 @@ export default function TopRightControls(props: {
               />
             </div>
 
+            {/* 🟢 사이드바 토글 버튼 - 오른쪽 */}
             <div className="relative z-[3] shrink-0">
               <ToggleSidebar
                 overlay={false}
