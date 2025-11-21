@@ -26,8 +26,10 @@ export function useCreateForm({ initialAddress }: Args) {
   const units = useUnitLines();
   const opts = useOptionsMemos();
 
-  // 저장 가능 여부 (parkingGrade 포함해 전달)
-  const { isSaveEnabled } = useCreateValidation({
+  // ─────────────────────────────────────────────────────────
+  // ① 기본 저장 가능 여부 (전체 검증용)
+  // ─────────────────────────────────────────────────────────
+  const { isSaveEnabled: rawIsSaveEnabled } = useCreateValidation({
     ...header.state, // ⬅ title, parkingGrade, (isNew/isOld가 들어온다면 함께 전달)
     ...basic.state,
     ...nums.state,
@@ -56,8 +58,6 @@ export function useCreateForm({ initialAddress }: Args) {
 
   // ─────────────────────────────────────────────────────────
   // ✅ 신축/구옥 기본값 보정: 기본 "신축=true, 구옥=false"
-  //    - 헤더 슬라이스에 isNew/isOld 또는 is_new/is_old 중 아무거나 들어와도 대응
-  //    - 둘 다 undefined 이거나 둘 다 false면 신축으로 강제 세팅
   // ─────────────────────────────────────────────────────────
   const noop = (() => {}) as any;
   const setIsNew =
@@ -108,6 +108,23 @@ export function useCreateForm({ initialAddress }: Args) {
     setIsNew(false);
     setIsOld(true);
   }, [setIsNew, setIsOld]);
+
+  // ─────────────────────────────────────────────────────────
+  // ✅ 답사예정 핀일 때: 저장 가능 조건 완화
+  //    - pinKind === "question" 이고
+  //    - title + officePhone 둘 다 채워졌으면 isSaveEnabled = true
+  // ─────────────────────────────────────────────────────────
+  const isVisitPlanPin =
+    String((header.state as any)?.pinKind ?? "") === "question";
+  const mainTitle = String((header.state as any)?.title ?? "").trim();
+  const mainOfficePhone = String(
+    (basic.state as any)?.officePhone ?? ""
+  ).trim();
+
+  const minimalForVisitPlan =
+    isVisitPlanPin && !!mainTitle && !!mainOfficePhone;
+
+  const isSaveEnabled = isVisitPlanPin ? minimalForVisitPlan : rawIsSaveEnabled;
 
   return useMemo(() => {
     const noopLocal = (() => {}) as any;
@@ -164,6 +181,7 @@ export function useCreateForm({ initialAddress }: Args) {
       selectNew,
       selectOld,
 
+      // ✅ 최종 저장 가능 여부 (답사예정이면 완화된 조건 적용)
       isSaveEnabled,
     };
   }, [
@@ -176,10 +194,10 @@ export function useCreateForm({ initialAddress }: Args) {
     areas,
     units,
     opts,
-    isSaveEnabled,
     areaSetsCombined,
     areaGroups,
     selectNew,
     selectOld,
+    isSaveEnabled,
   ]);
 }

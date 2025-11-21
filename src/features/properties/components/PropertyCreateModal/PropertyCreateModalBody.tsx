@@ -1055,7 +1055,9 @@ export default function PropertyCreateModalBody({
   const isVisitPlanPin = isVisitPlanPinKind((f as any).pinKind);
   const mainTitle = (f.title ?? "").trim();
   const mainOfficePhone = (f.officePhone ?? "").trim();
-  const minimalForVisitPlan = !!mainTitle && isValidPhoneKR(mainOfficePhone);
+
+  // ✅ 버튼 활성화는 "비어있지 않음"만 체크
+  const minimalForVisitPlan = !!mainTitle && !!mainOfficePhone;
 
   const canSave = isVisitPlanPin
     ? minimalForVisitPlan && !isSaving
