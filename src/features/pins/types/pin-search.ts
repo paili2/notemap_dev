@@ -25,6 +25,10 @@ export type PinDraftLite = {
   lng: number;
   addressLine: string;
   draftState: "BEFORE" | "SCHEDULED";
+
+  title?: string | null; // 매물명/메모 등
+  name?: string | null; // 혹시 name으로 오는 경우 대비
+  badge?: string | null; // LOFT, TERRACE 같은 배지
 };
 
 export type PinSearchResult = {

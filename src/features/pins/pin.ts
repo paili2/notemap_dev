@@ -48,6 +48,7 @@ export type PinDetail = {
   contactSubLabel?: string | null;
   contactSubPhone?: string | null;
 
+  name?: string | null; // 매물명 (검색/라벨용)
   badge?: string | null;
 
   options?: PinOption | null;

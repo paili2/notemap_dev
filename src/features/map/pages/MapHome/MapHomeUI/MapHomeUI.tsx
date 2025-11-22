@@ -1,4 +1,3 @@
-// MapHomeUI.tsx
 "use client";
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
@@ -319,24 +318,36 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const toServerPointsFromPins = useCallback(
     (pins: NonNullable<PinSearchResult["pins"]>) =>
-      pins.map((p) => ({
-        id: String(p.id),
-        title: p.addressLine ?? undefined,
-        lat: p.lat,
-        lng: p.lng,
-      })),
+      pins.map((p) => {
+        const displayName = (p.name ?? "").trim(); // ← 매물명
+
+        return {
+          id: String(p.id),
+          name: displayName, // ✅ 라벨에서 우선 사용
+          title: displayName, // ✅ 혹시 모를 fallback
+          lat: p.lat,
+          lng: p.lng,
+          badge: p.badge ?? null, // ✅ 뱃지도 있으면 같이 넘겨주기
+        };
+      }),
     []
   );
 
   const toServerDraftsFromDrafts = useCallback(
     (drafts: NonNullable<PinSearchResult["drafts"]>) =>
-      drafts.map((d) => ({
-        id: `__draft__${d.id}`,
-        title: d.addressLine ?? undefined,
-        lat: d.lat,
-        lng: d.lng,
-        draftState: (d as any).draftState,
-      })),
+      drafts.map((d) => {
+        const label = (d.title ?? "답사예정").trim();
+
+        return {
+          id: d.id, // 여기서는 굳이 __draft__ 안 붙여도 돼
+          name: label,
+          title: label,
+          lat: d.lat,
+          lng: d.lng,
+          draftState: (d as any).draftState,
+          badge: d.badge ?? null,
+        };
+      }),
     []
   );
 

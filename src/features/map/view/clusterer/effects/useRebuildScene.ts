@@ -270,14 +270,13 @@ export function useRebuildScene(args: Args) {
           if (
             typeof n === "string" &&
             n.trim().length > 0 &&
-            (!addr || n.trim() !== String(addr).trim()) // 🔴 주소와 같은 텍스트면 버림
+            (!addr || n.trim() !== String(addr).trim())
           ) {
-            return n;
+            return n; // 주소와 다른 진짜 이름만 허용
           }
           return undefined;
         })();
 
-        // 라벨 표기 텍스트
         const displayName =
           firstNonEmpty(
             // 1순위: 매물명 계열
@@ -286,15 +285,17 @@ export function useRebuildScene(args: Args) {
             (m as any).data?.propertyName,
             (m as any).propertyName,
 
-            // 2순위: title / 기타 name 계열
-            m.title,
+            // 2순위: MapMarker.name (주소랑 다를 때만)
+            nameCandidate,
+
+            // 3순위: 기타 name 계열
             (m as any).point?.name,
             (m as any).data?.name,
 
-            // 3순위: 주소와 다를 때만 name 사용
-            nameCandidate,
+            // 4순위: 그 다음에야 title(주소 등)
+            m.title,
 
-            // 4순위: 그래도 없으면 id로 fallback
+            // 5순위: 그래도 없으면 id
             String(m.id ?? "")
           ) || "";
 
