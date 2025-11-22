@@ -505,7 +505,12 @@ export function useMapHomeState() {
     mapInstance,
     items,
     onMatchedPin: (p: PropertyItem) => openMenuForExistingPin(p),
-    onNoMatch: (coords: LatLng) => openMenuAt(coords, "__draft__"),
+
+    onNoMatch: (coords: LatLng) => {
+      // 검색 결과 핀이 없을 때도 자동 확대 + 강제 메뉴 오픈
+      return focusAndOpenAt(coords, "__draft__");
+    },
+
     panToWithOffset,
     poiKinds,
   } as any);

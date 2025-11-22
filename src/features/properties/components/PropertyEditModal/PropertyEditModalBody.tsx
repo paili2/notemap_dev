@@ -1400,13 +1400,20 @@ export default function PropertyEditModalBody({
     );
     _setBuildingGrade(initialBuildingGrade);
     setBuildingGradeTouched(false);
-  }, [initialBuildingGrade]);
+    // ❗ useEditForm 쪽 state 도 같이 맞춰줌
+    f.setBuildingGrade(initialBuildingGrade);
+  }, [initialBuildingGrade, f.setBuildingGrade]);
 
-  const setBuildingGrade = useCallback((v: "new" | "old") => {
-    console.log("[Header] buildingGrade selected:", v);
-    _setBuildingGrade(v);
-    setBuildingGradeTouched(true);
-  }, []);
+  const setBuildingGrade = useCallback(
+    (v: "new" | "old") => {
+      console.log("[Header] buildingGrade selected:", v);
+      _setBuildingGrade(v);
+      setBuildingGradeTouched(true);
+      // useEditForm 내부 state 동기화
+      f.setBuildingGrade(v);
+    },
+    [f.setBuildingGrade]
+  );
 
   const headerForm = useMemo(
     () => ({
@@ -1466,7 +1473,7 @@ export default function PropertyEditModalBody({
   const setParkingTypeProxy = useCallback(
     (v: string | null) => {
       console.log("[Parking] type change:", v);
-      f.setParkingType(v ?? "");
+      f.setParkingType(v);
     },
     [f.setParkingType]
   );
@@ -1491,7 +1498,7 @@ export default function PropertyEditModalBody({
       parkingTypeId: f.parkingTypeId,
       setParkingTypeId: setParkingTypeIdProxy,
 
-      parkingType: f.parkingType || null,
+      parkingType: f.parkingType,
       setParkingType: setParkingTypeProxy,
 
       totalParkingSlots: (() => {
@@ -1522,12 +1529,27 @@ export default function PropertyEditModalBody({
         f.setCompletionDate(v);
       },
 
-      // 최저 실입
+      // ✅ 최저 실입 (타입에서 minRealMoveInCost로 요구)
+      minRealMoveInCost: f.salePrice,
+      setMinRealMoveInCost: (v: string | number | null) => {
+        const s = v == null ? "" : String(v);
+        console.log("[Completion] minRealMoveInCost change:", v, "→", s);
+        f.setSalePrice(s);
+      },
+
+      // (기존 필드도 유지해두면 다른 곳에서 쓸 수 있음)
       salePrice: f.salePrice,
       setSalePrice: (v: string | number | null) => {
         const s = v == null ? "" : String(v);
         console.log("[Completion] salePrice change:", v, "→", s);
         f.setSalePrice(s);
+      },
+
+      // ✅ 엘리베이터 (CompletionRegistry 섹션에서 같이 쓰도록)
+      elevator: f.elevator,
+      setElevator: (v: any) => {
+        console.log("[Completion] elevator change:", v);
+        f.setElevator(v);
       },
 
       // 경사도
@@ -1558,6 +1580,8 @@ export default function PropertyEditModalBody({
       f.setCompletionDate,
       f.salePrice,
       f.setSalePrice,
+      f.elevator,
+      f.setElevator,
       f.slopeGrade,
       f.setSlopeGrade,
       f.structureGrade,
@@ -1965,8 +1989,11 @@ export default function PropertyEditModalBody({
         <div className="absolute left-1/2 top-1/2 z-[1001] w-[1100px] max-w-[95vw] max-h-[92vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
           <HeaderContainer form={headerForm as any} onClose={onClose} />
 
-          {/* 🔧 여기 레이아웃을 embedded 버전과 동일하게 수정 */}
-          <div className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain">
+          {/* 🔧 embedded 버전과 동일하게 + ref 연결 */}
+          <div
+            ref={scrollRef}
+            className="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-4 md:gap-6 px-4 md:px-5 py-4 flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain"
+          >
             {/* 좌측: 이미지 */}
             <div className="relative z-[1]">
               <ImagesContainer images={imagesProp} />

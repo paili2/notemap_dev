@@ -47,6 +47,8 @@ interface CompletionRegistryViewProps {
   structureGrade?: Grade;
   /** ✅ 최저 실입 (정수, 만원 단위) */
   minRealMoveInCost?: number | null;
+  /** ✅ 엘리베이터 O/X */
+  elevator?: string | null;
 }
 
 export default function CompletionRegistryView({
@@ -55,18 +57,22 @@ export default function CompletionRegistryView({
   slopeGrade,
   structureGrade,
   minRealMoveInCost,
+  elevator,
 }: CompletionRegistryViewProps) {
   const ymd = toYmd(completionDate);
 
   return (
     <div className="space-y-4">
-      {/* 경사도 / 구조 */}
-      <div className="grid grid-cols-2 items-center">
+      {/* 경사도 / 구조 / 엘리베이터 */}
+      <div className="grid grid-cols-3 items-center">
         <Field label="경사도" align="center">
           <Pill text={slopeGrade ?? "-"} />
         </Field>
         <Field label="구조" align="center">
           <Pill text={structureGrade ?? "-"} />
+        </Field>
+        <Field label="엘리베이터" align="center">
+          <Pill text={show(elevator)} />
         </Field>
       </div>
 

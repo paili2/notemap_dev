@@ -67,10 +67,13 @@ export type CompletionRegistryFormSlice = {
   completionDate: string;
   setCompletionDate: (v: string) => void;
 
-  /** 표시는 계속 필요할 수 있어 string/number/null 허용 */
+  /** 레거시 최저실입(예전 필드) – 그대로 유지 */
   salePrice: string | number | null;
-  /** ⬅️ setter도 동일 합집합으로 */
   setSalePrice: (v: string | number | null) => void;
+
+  /** ✅ 신규: 최저 실입(정수, 만원 단위) */
+  minRealMoveInCost: number | string | null;
+  setMinRealMoveInCost: (v: number | string | null) => void;
 
   slopeGrade?: Grade;
   setSlopeGrade: (v?: Grade) => void;
@@ -78,9 +81,13 @@ export type CompletionRegistryFormSlice = {
   structureGrade?: Grade;
   setStructureGrade: (v?: Grade) => void;
 
-  /** 서버 enum */
+  /** 서버 enum (건물유형) */
   buildingType: BuildingType | null;
   setBuildingType: (v: BuildingType | null) => void;
+
+  /** ✅ 엘리베이터 O/X ("O" | "X" | null 정도로 사용) */
+  elevator: "O" | "X" | null;
+  setElevator: (v: "O" | "X" | null) => void;
 };
 
 export type MemoFormSlice = {
@@ -135,7 +142,6 @@ export type StructureLinesFormSlice = {
 export type EditFormAPI = AreaSetsFormSlice &
   AspectsFormSlice &
   BasicInfoFormSlice &
-  CompletionRegistryFormSlice &
   MemoFormSlice &
   NumbersFormSlice &
   OptionsFormSlice &

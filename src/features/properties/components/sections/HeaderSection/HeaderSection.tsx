@@ -3,7 +3,6 @@
 import * as React from "react";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
-import ElevatorSegment from "./components/ElevatorSegment";
 import PinTypeSelect from "./components/PinTypeSelect";
 import BuildingGradeSegment from "./components/BuildingGradeSegment";
 import { Button } from "@/components/atoms/Button/Button";
@@ -17,6 +16,9 @@ export default function HeaderSection(
     /** 내부 상태는 "new" | "old" 만 사용 */
     buildingGrade?: BuildingGrade;
     setBuildingGrade?: (v: BuildingGrade) => void;
+    /** 헤더에서 입력받는 리베이트(만원 단위) */
+    rebate?: string | number | null;
+    setRebate?: (v: string | number | null) => void;
   }
 ) {
   const {
@@ -24,13 +26,13 @@ export default function HeaderSection(
     setTitle,
     parkingGrade,
     setParkingGrade,
-    elevator,
-    setElevator,
     placeholderHint,
     pinKind,
     setPinKind,
     buildingGrade: _buildingGrade,
     setBuildingGrade: _setBuildingGrade,
+    rebate,
+    setRebate,
   } = props;
 
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
@@ -46,21 +48,43 @@ export default function HeaderSection(
     setBuildingGrade(v === "old" ? "old" : "new");
   };
 
+  /** ───────── 리베이트 입력 ───────── */
+  const handleChangeRebate = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!setRebate) return;
+    const raw = e.currentTarget.value;
+
+    const cleaned = raw.replace(/,/g, "");
+    if (cleaned === "") {
+      setRebate(null);
+      return;
+    }
+
+    const n = Number(cleaned);
+    if (Number.isNaN(n)) {
+      setRebate(raw);
+    } else {
+      setRebate(n);
+    }
+  };
+
+  const rebateDisplay =
+    typeof rebate === "number" ? rebate.toString() : asControlled(rebate);
+
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div
         className={cn(
-          "flex flex-wrap items-center gap-3 px-4 py-4 min-w-0",
-          "md:grid md:grid-cols-[auto_auto_auto_1fr_auto]"
+          // 🔹 전체를 flex로만 두고 gap을 통일
+          "flex flex-wrap items-center gap-6 px-4 py-4 min-w-0"
         )}
       >
         {/* 1) 신축/구옥 */}
-        <div className="order-1 md:order-1 flex-shrink-0">
+        <div className="order-1 flex-shrink-0">
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
         </div>
 
         {/* 2) 핀선택 */}
-        <div className="order-2 md:order-2 flex-shrink-0">
+        <div className="order-2 flex-shrink-0">
           <PinTypeSelect
             value={pinKind ?? null}
             onChange={(v) => setPinKind(v)}
@@ -69,16 +93,8 @@ export default function HeaderSection(
           />
         </div>
 
-        {/* 3) 엘리베이터 */}
-        <div className="order-3 md:order-5 flex items-center gap-2 ml-auto md:ml-0 justify-self-end">
-          <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
-            엘리베이터
-          </span>
-          <ElevatorSegment value={elevator} onChange={setElevator} />
-        </div>
-
-        {/* 4) 매물평점 */}
-        <div className="order-4 md:order-3 flex items-center gap-2 min-w-[150px] w-full md:w-auto">
+        {/* 3) 매물평점 */}
+        <div className="order-3 flex items-center gap-2 min-w-[150px]">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물평점
           </span>
@@ -113,12 +129,12 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 5) 매물명 */}
-        <div className="order-5 md:order-4 flex items-center gap-2 min-w-0 w-full">
+        {/* 4) 매물명 */}
+        <div className="order-4 flex items-center gap-2 min-w-0">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물명
           </span>
-          <div className="flex-1 min-w-0 sm:min-w-[200px]">
+          <div className="w-[180px] sm:w-[220px]">
             <input
               value={asControlled(title)}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
@@ -126,11 +142,28 @@ export default function HeaderSection(
               }
               placeholder={placeholder}
               className={cn(
-                "w-full h-10 rounded-md border px-3 text-sm",
+                "h-10 w-full rounded-md border px-3 text-sm",
                 "outline-none focus:ring-2 focus:ring-blue-200"
               )}
             />
           </div>
+        </div>
+
+        {/* 5) 리베이트 R표시 */}
+        <div className="order-5 flex items-center gap-3">
+          <span className="text-[20px] md:text-[22px] font-extrabold text-red-500 leading-none">
+            R
+          </span>
+          <input
+            value={rebateDisplay}
+            onChange={handleChangeRebate}
+            placeholder="10"
+            className={cn(
+              "w-16 h-9 rounded-md border px-2 text-sm text-right",
+              "outline-none focus:ring-2 focus:ring-red-200",
+              "text-red-500 font-semibold"
+            )}
+          />
         </div>
       </div>
     </header>

@@ -1,5 +1,3 @@
-// src/shared/api/utils/query.ts
-
 export function buildSearchQuery(params: Record<string, unknown>): string {
   const sp = new URLSearchParams();
 

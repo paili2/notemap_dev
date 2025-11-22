@@ -24,6 +24,14 @@ export type CRContainerForm = {
   /** 등기(서버 enum): registryOne 대신 buildingType 사용 */
   buildingType?: BuildingType | null;
   setBuildingType?: (v: BuildingType | null) => void;
+
+  /** ✅ 신규: 최저 실입(정수, 만원 단위) */
+  minRealMoveInCost?: number | string | null;
+  setMinRealMoveInCost?: (v: number | string | null) => void;
+
+  /** ✅ 엘리베이터 O/X */
+  elevator?: string | null;
+  setElevator?: (v: string | null) => void;
 };
 
 /** YYYY-MM-DD 로 잘라서 반환(없으면 빈 문자열) */
@@ -51,6 +59,15 @@ export default function CompletionRegistryContainer({
     v: BuildingType | null
   ) => void;
 
+  const minRealMoveInCost = (form as any).minRealMoveInCost ?? null;
+  const setMinRealMoveInCost = ((form as any).setMinRealMoveInCost ??
+    (() => {})) as (v: number | string | null) => void;
+
+  const elevator = (form as any).elevator ?? null;
+  const setElevator = ((form as any).setElevator ?? (() => {})) as (
+    v: string | null
+  ) => void;
+
   // 표기/입력용 값 정규화
   const normalizedCompletionDate = toYmd(form.completionDate);
   const normalizedSalePrice = toStr(form.salePrice);
@@ -63,9 +80,12 @@ export default function CompletionRegistryContainer({
       // 준공일
       completionDate={normalizedCompletionDate}
       setCompletionDate={setCompletionDateSafe}
-      // 가격
+      // 가격 (레거시)
       salePrice={normalizedSalePrice}
       setSalePrice={form.setSalePrice}
+      // ✅ 최저 실입(신규)
+      minRealMoveInCost={minRealMoveInCost}
+      setMinRealMoveInCost={setMinRealMoveInCost}
       // 등급
       slopeGrade={form.slopeGrade}
       setSlopeGrade={form.setSlopeGrade}
@@ -74,6 +94,9 @@ export default function CompletionRegistryContainer({
       // 건물유형
       buildingType={buildingType}
       setBuildingType={setBuildingType}
+      // ✅ 엘리베이터
+      elevator={elevator}
+      setElevator={setElevator}
     />
   );
 }

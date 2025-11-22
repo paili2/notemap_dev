@@ -104,6 +104,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   });
   const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
 
+  /** ✅ 엘리베이터: "O" | "X" (기본값 "O") */
   const [elevator, setElevator] = useState<"O" | "X">("O");
 
   const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
@@ -304,7 +305,20 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setBaseAreaSet(normalized.baseArea);
     setExtraAreaSets(normalized.extraAreas);
 
-    setElevator(normalized.elevator);
+    /** 🔵 엘리베이터: 서버 값 → "O" | "X" 로 안전 정규화 */
+    {
+      const raw =
+        (normalized as any).elevator ?? (normalized as any).hasElevator;
+      let next: "O" | "X" = "O";
+      if (raw === "O" || raw === "X") {
+        next = raw;
+      } else if (raw === true) {
+        next = "O";
+      } else if (raw === false) {
+        next = "X";
+      }
+      setElevator(next);
+    }
 
     const normGrade =
       (normalized as any)?.building?.grade ??

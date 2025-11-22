@@ -12,6 +12,8 @@ type Props = {
   structureGrade?: any;
   /** ✅ 최저 실입(정수 금액) */
   minRealMoveInCost?: number | null;
+  /** ✅ 엘리베이터 O/X */
+  elevator?: string | null;
 };
 
 export default function CompletionRegistryViewContainer({
@@ -20,6 +22,7 @@ export default function CompletionRegistryViewContainer({
   slopeGrade,
   structureGrade,
   minRealMoveInCost,
+  elevator,
 }: Props) {
   const completionText =
     completionDate != null && String(completionDate).trim() !== ""
@@ -33,6 +36,7 @@ export default function CompletionRegistryViewContainer({
       slopeGrade={slopeGrade}
       structureGrade={structureGrade}
       minRealMoveInCost={minRealMoveInCost}
+      elevator={elevator}
     />
   );
 }
