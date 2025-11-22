@@ -383,47 +383,37 @@ export function useMapHomeState() {
     ]
   );
 
-  /** 핀 클릭 시: 줌 맞추고 → 메뉴 오픈 (이벤트 최소화 버전) */
   const focusAndOpenAt = useCallback(
     async (pos: LatLng, propertyId: "__draft__" | string) => {
       const map = mapInstance;
-
-      const targetLevel = PIN_MENU_MAX_LEVEL; // 5
+      const targetLevel = PIN_MENU_MAX_LEVEL;
       const p = normalizeLL(pos);
 
-      console.log("[focusAndOpenAt] 호출 ▶", {
-        pos: p,
-        propertyId,
-        hasMap: !!map,
-      });
-
-      // 지도 아직 없으면 바로 메뉴만 연다
       if (!map) {
-        console.log("[focusAndOpenAt] map 없음 → 바로 메뉴 오픈(force)");
         await openMenuAt(p, propertyId, { forceOpen: true });
         return;
       }
 
       const currentLevel = map.getLevel?.();
-      console.log("[focusAndOpenAt] 현재 레벨:", currentLevel);
+      const needsZoom =
+        typeof currentLevel === "number" && currentLevel > targetLevel;
 
-      // 너무 축소되어 있으면 한 번만 확대
-      if (typeof currentLevel === "number" && currentLevel > targetLevel) {
-        console.log(
-          "[focusAndOpenAt] setLevel 실행",
-          "currentLevel:",
-          currentLevel,
-          "→ targetLevel:",
-          targetLevel
-        );
+      if (needsZoom) {
         map.setLevel(targetLevel, { animate: true });
+
+        // 📌 줌 애니메이션이 끝나는 순간까지 기다림
+        await new Promise<void>((resolve) => {
+          const listener = kakaoSDK.maps.event.addListener(map, "idle", () => {
+            kakaoSDK.maps.event.removeListener(listener);
+            resolve();
+          });
+        });
       }
 
-      // 확대 중이든 아니든, 바로 메뉴 열기 (줌 제한 무시)
-      console.log("[focusAndOpenAt] openMenuAt(forceOpen) 호출");
+      // 이제 안전하게 메뉴 오픈
       await openMenuAt(p, propertyId, { forceOpen: true });
     },
-    [mapInstance, openMenuAt]
+    [mapInstance, kakaoSDK, openMenuAt]
   );
 
   const geocodeAddress = useCallback(

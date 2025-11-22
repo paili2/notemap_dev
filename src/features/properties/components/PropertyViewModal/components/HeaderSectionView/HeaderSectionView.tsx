@@ -138,7 +138,7 @@ export default function HeaderSectionView({
 
         {/* 평점 */}
         <span className="hidden md:flex shrink-0 text-[20px] font-semibold text-gray-800">
-          평점
+          매물평점
         </span>
         <div className="shrink-0 w-[120px] md:w-[200px] leading-none">
           <StarsRating value={rating} className="hidden md:flex" />
