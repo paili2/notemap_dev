@@ -6,7 +6,8 @@ export interface FilterState {
   deposit: string;
   areaMin: string;
   areaMax: string;
-  buildingType: string;
+  /** ✅ 여러 등기 선택 */
+  buildingTypes: string[];
   elevator: string;
   priceMin: string;
   priceMax: string;
@@ -21,7 +22,7 @@ export interface FilterSearchProps {
 }
 
 export interface FilterSectionProps {
-  title: ReactNode; // string -> ReactNode 로 변경
+  title: ReactNode;
   children: ReactNode;
 }
 

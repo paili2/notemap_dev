@@ -13,6 +13,7 @@ import fourRoom from "@/../public/pins/4room-pin.svg";
 import fourRoomTerrace from "@/../public/pins/4room-terrace-pin.svg";
 import completed from "@/../public/pins/completed-pin.svg";
 import duplex from "@/../public/pins/duplex-pin.svg";
+import duplexTerrace from "@/../public/pins/duplex-terrace-pin.svg";
 import oldhouse from "@/../public/pins/oldhouse-pin.svg";
 import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
@@ -34,6 +35,7 @@ export const PIN_OPTIONS = [
   { value: "4room", label: "4룸", icon: fourRoom },
   { value: "4room-terrace", label: "4룸 (테라스)", icon: fourRoomTerrace },
   { value: "duplex", label: "복층", icon: duplex },
+  { value: "duplex-terrace", label: "복층 (테라스)", icon: duplexTerrace },
   { value: "townhouse", label: "타운하우스", icon: townhouse },
   // { value: "oldhouse", label: "구옥", icon: oldhouse },
   { value: "question", label: "답사예정", icon: question },

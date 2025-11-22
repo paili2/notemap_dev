@@ -20,6 +20,7 @@ import { FilterActions } from "./FilterActions";
 // ⬇️ /pins/search 타입 불러오기
 import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import Portal from "@/components/Portal";
+import { BuildingType } from "@/features/properties/types/property-domain";
 
 // ⬇️ 기존 FilterSearchProps를 확장 (타입 파일을 지금 당장 안 고쳐도 되게)
 type Props = FilterSearchProps & {
@@ -36,52 +37,89 @@ const toM2 = (s: string) => {
     : undefined;
 };
 
+/**
+ * FilterState(UI 상태) → PinSearchParams(백엔드 쿼리)
+ */
 function buildPinSearchParams(ui: FilterState): PinSearchParams {
   const params: PinSearchParams = {};
 
   // 1) 방 개수
-  const rooms = ui.rooms.map((r) => Number(r)).filter((n) => !isNaN(n));
-  if (rooms.length) params.rooms = rooms;
+  //  - "1룸~1.5룸" → 1
+  //  - "2룸~2.5룸" → 2
+  //  - "3룸" → 3
+  //  - "4룸" → 4
+  //  - "복층", "타운하우스", "테라스" 등 숫자 없는 라벨은 rooms에서 제외
+  const rooms: number[] = (ui.rooms ?? [])
+    .map((label) => {
+      const m = label.match(/\d+/); // 첫 번째 숫자만 사용
+      return m ? Number(m[0]) : NaN;
+    })
+    .filter((n, idx, arr) => !Number.isNaN(n) && arr.indexOf(n) === idx); // NaN 제거 + 중복 제거
 
-  // 2) 매매가 (문자열 → 숫자)
-  const priceMin = Number(ui.priceMin);
-  const priceMax = Number(ui.priceMax);
-  if (!isNaN(priceMin) && priceMin > 0) params.salePriceMin = priceMin;
-  if (!isNaN(priceMax) && priceMax > 0) params.salePriceMax = priceMax;
-
-  // 3) 면적(평 → ㎡)
-  const areaMin = Number(ui.areaMin);
-  const areaMax = Number(ui.areaMax);
-  if (!isNaN(areaMin) && areaMin > 0) {
-    params.areaMinM2 = Math.round(areaMin * 3.305785);
-  }
-  if (!isNaN(areaMax) && areaMax > 0) {
-    params.areaMaxM2 = Math.round(areaMax * 3.305785);
+  if (rooms.length) {
+    params.rooms = rooms;
   }
 
-  // 4) 엘리베이터
+  // 2) 복층 / 테라스
+  if (ui.rooms?.includes("복층")) {
+    params.hasLoft = true;
+  }
+  if (ui.rooms?.includes("테라스")) {
+    params.hasTerrace = true;
+  }
+  // 타운하우스는 일단 쿼리 안 보냄 (필요하면 나중에 매핑)
+
+  // 3) 실입주금 → minRealMoveInCost(원)
+  const depositAmount = Number(convertPriceToWon(ui.deposit));
+  if (Number.isFinite(depositAmount) && depositAmount > 0) {
+    params.minRealMoveInCost = depositAmount;
+  }
+
+  // 4) 매매가 (문자열 → 숫자)
+  const priceMin = Number(ui.priceMin.replaceAll(",", ""));
+  const priceMax = Number(ui.priceMax.replaceAll(",", ""));
+  if (!Number.isNaN(priceMin) && priceMin > 0) {
+    params.salePriceMin = priceMin;
+  }
+  if (!Number.isNaN(priceMax) && priceMax > 0) {
+    params.salePriceMax = priceMax;
+  }
+
+  // 5) 면적(평 → ㎡)
+  const areaMin = Number(ui.areaMin.replaceAll(",", ""));
+  const areaMax = Number(ui.areaMax.replaceAll(",", ""));
+  if (!Number.isNaN(areaMin) && areaMin > 0) {
+    params.areaMinM2 = Math.round(areaMin * PYEONG_TO_M2);
+  }
+  if (!Number.isNaN(areaMax) && areaMax > 0) {
+    params.areaMaxM2 = Math.round(areaMax * PYEONG_TO_M2);
+  }
+
+  // 6) 엘리베이터
   const elev =
     ui.elevator === "있음" ? true : ui.elevator === "없음" ? false : undefined;
   if (elev !== undefined) {
     params.hasElevator = elev;
   }
 
-  // 5) 건물 유형(등기)
-  if (ui.buildingType && ui.buildingType !== "전체") {
-    const allowed: PinSearchParams["buildingType"][] = [
-      "APT",
-      "OP",
-      "주택",
-      "도생",
-      "근생",
-    ];
+  // 7) 건물 유형(등기) - 여러 개 선택 → buildingTypes[]
+  if (ui.buildingTypes && ui.buildingTypes.length > 0) {
+    const map: Record<string, BuildingType> = {
+      주택: "주택",
+      APT: "APT",
+      OP: "OP",
+      "도/생": "도생",
+      "근/생": "근생",
+    };
 
-    if (allowed.includes(ui.buildingType as any)) {
-      params.buildingType = ui.buildingType as PinSearchParams["buildingType"];
+    const mapped = ui.buildingTypes
+      .map((label) => map[label])
+      .filter((v): v is BuildingType => !!v);
+
+    if (mapped.length) {
+      params.buildingTypes = Array.from(new Set(mapped));
     }
   }
-
-  // 6) 실입주금(필요하면 나중에 추가)
 
   return params;
 }
@@ -92,7 +130,9 @@ export default function FilterSearch({
   onApply,
   initial,
 }: Props) {
-  const [filters, setFilters] = useState<FilterState>(initialFilterState);
+  const [filters, setFilters] = useState<FilterState>(
+    initialFilterState as FilterState
+  );
 
   // 모달 열릴 때 초기값 복구(옵션)
   useEffect(() => {
@@ -102,11 +142,12 @@ export default function FilterSearch({
   }, [isOpen, initial]);
 
   const toggleSelection = (category: keyof FilterState, value: string) => {
-    if (category === "rooms") {
-      const currentArray = filters[category] as string[];
+    if (category === "rooms" || category === "buildingTypes") {
+      const currentArray = (filters[category] as string[]) ?? [];
       const newArray = currentArray.includes(value)
         ? currentArray.filter((item) => item !== value)
         : [...currentArray, value];
+
       setFilters((prev) => ({ ...prev, [category]: newArray }));
     } else {
       setFilters((prev) => ({ ...prev, [category]: value }));
@@ -114,7 +155,7 @@ export default function FilterSearch({
   };
 
   const resetFilters = () => {
-    setFilters(initialFilterState);
+    setFilters(initialFilterState as FilterState);
   };
 
   const applyFilters = () => {
@@ -180,7 +221,7 @@ export default function FilterSearch({
           </Button>
         </div>
 
-        {/* Content (모바일 전체 화면에서 스크롤 되도록 flex-1 + overflow-y-auto) */}
+        {/* Content */}
         <div
           className="flex-1 p-3 space-y-6 overflow-y-auto"
           style={{ contain: "layout" }}
@@ -214,7 +255,7 @@ export default function FilterSearch({
                 setFilters((prev) => ({ ...prev, deposit: value }))
               }
               placeholder="금액 입력"
-              showKoreanCurrency={false} // 타이틀 옆에서 표시하므로 내부 표시 X
+              showKoreanCurrency={false}
             />
           </FilterSection>
 
@@ -240,7 +281,7 @@ export default function FilterSearch({
                     setFilters((prev) => ({ ...prev, areaMin: value }))
                   }
                   placeholder="최소 면적(평)"
-                  showConvertedM2={false} // 👈 인풋 아래 ㎡ 숨김
+                  showConvertedM2={false}
                 />
               </div>
               <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
@@ -253,7 +294,7 @@ export default function FilterSearch({
                     setFilters((prev) => ({ ...prev, areaMax: value }))
                   }
                   placeholder="최대 면적(평)"
-                  showConvertedM2={false} // 👈 인풋 아래 ㎡ 숨김
+                  showConvertedM2={false}
                 />
               </div>
             </div>
@@ -266,8 +307,8 @@ export default function FilterSearch({
                 <SelectableButton
                   key={building}
                   label={building}
-                  isSelected={filters.buildingType === building}
-                  onClick={() => toggleSelection("buildingType", building)}
+                  isSelected={filters.buildingTypes.includes(building)}
+                  onClick={() => toggleSelection("buildingTypes", building)}
                 />
               ))}
             </div>
@@ -329,7 +370,7 @@ export default function FilterSearch({
           </FilterSection>
         </div>
 
-        {/* Bottom Actions (항상 하단 고정) */}
+        {/* Bottom Actions */}
         <FilterActions onReset={resetFilters} onApply={applyFilters} />
       </div>
     </Portal>

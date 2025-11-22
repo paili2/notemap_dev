@@ -13,11 +13,12 @@ export const FILTER_OPTIONS = {
 } as const;
 
 export const initialFilterState = {
-  rooms: [],
+  rooms: [] as string[],
   deposit: "",
   areaMin: "",
   areaMax: "",
-  buildingType: "",
+  /** ✅ 여러 개 선택용 */
+  buildingTypes: [] as string[],
   elevator: "",
   priceMin: "",
   priceMax: "",
