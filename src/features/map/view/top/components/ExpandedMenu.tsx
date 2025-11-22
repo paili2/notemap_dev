@@ -6,7 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { Train, Coffee, Store, Pill, School } from "lucide-react";
 
 import type { MapMenuKey } from "./types/types";
-import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+import { PoiKind, POI_LABEL } from "@/features/map/shared/overlays/poiOverlays";
 
 // top 모듈에 있는 로드뷰 토글 (기존 default export 유지)
 import DistrictToggleButton from "../../../components/controls/DistrictToggleButton";
@@ -35,29 +35,50 @@ interface ExpandedMenuProps {
   onToggleRoadview: () => void;
 }
 
-/** 학교 포함 표시 순서 (컴포넌트 외부 상수로 고정) */
-const POI_ORDER: readonly PoiKind[] = [
-  "subway",
-  "school",
+/* ───────── POI 카테고리 정의 ───────── */
+
+const POI_CATEGORY_KEYS = [
+  "transport",
   "convenience",
-  "cafe",
-  "pharmacy",
+  "medical",
+  "public",
+  "leisure",
 ] as const;
 
-const POI_ICON: Record<PoiKind, LucideIcon> = {
+type PoiCategoryKey = (typeof POI_CATEGORY_KEYS)[number];
+
+const POI_CATEGORY_LABEL: Record<PoiCategoryKey, string> = {
+  transport: "교통",
+  convenience: "편의",
+  medical: "의료",
+  public: "공공",
+  leisure: "여가",
+};
+
+/**
+ * poiOverlays.tsx 에서 PoiKind를 다음처럼 확장했다고 가정:
+ *
+ *  "subway" | "ktx" | "convenience" | "mart" | "cafe" |
+ *  "pharmacy" | "hospital" | "school" | "police" | "fireStation" | "park"
+ */
+const POI_CATEGORY_ITEMS: Record<PoiCategoryKey, PoiKind[]> = {
+  transport: ["subway", "ktx"],
+  convenience: ["convenience", "mart"],
+  medical: ["pharmacy", "hospital"],
+  public: ["school", "police", "fireStation"],
+  leisure: ["cafe", "park"],
+};
+
+/* ───────── 메뉴용 아이콘 (있는 것만 사용) ───────── */
+
+const POI_MENU_ICON: Partial<Record<PoiKind, LucideIcon>> = {
   subway: Train,
   school: School,
   convenience: Store,
+  mart: Store,
   cafe: Coffee,
   pharmacy: Pill,
-};
-
-const POI_LABEL: Record<PoiKind, string> = {
-  subway: "지하철",
-  school: "학교",
-  convenience: "편의점",
-  cafe: "카페",
-  pharmacy: "약국",
+  hospital: Pill,
 };
 
 export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
@@ -68,13 +89,16 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
     onSubmenuClick,
     onMenuItemClick,
     onToggleDistrict,
-    // onToggle (사용 안함—호환 유지)
     poiKinds,
     onChangePoiKinds,
     roadviewVisible,
     onToggleRoadview,
   }) {
-    // 주변시설 토글 핸들러 메모이제이션
+    // ✅ 주변시설 카테고리 탭 상태
+    const [activePoiCategory, setActivePoiCategory] =
+      React.useState<PoiCategoryKey>("transport");
+
+    // ✅ POI 토글 핸들러
     const toggleKind = React.useCallback(
       (k: PoiKind) => {
         const has = poiKinds.includes(k);
@@ -84,37 +108,70 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
       [poiKinds, onChangePoiKinds]
     );
 
-    // 렌더될 POI 버튼 목록 메모이제이션
+    const currentKinds = POI_CATEGORY_ITEMS[activePoiCategory];
+
+    // ✅ 현재 카테고리에 해당하는 버튼 목록
     const poiButtons = React.useMemo(
       () =>
-        POI_ORDER.map((k) => {
-          const Icon = POI_ICON[k];
+        currentKinds.map((k) => {
+          const Icon = POI_MENU_ICON[k];
           const isActive = poiKinds.includes(k);
+
           return (
             <button
               key={k}
               type="button"
               onClick={() => toggleKind(k)}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 h-16 rounded-lg text-xs border transition",
+                "flex flex-col items-center justify-center gap-1 h-16 rounded-lg text-[11px] border transition",
                 isActive
                   ? "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
                   : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
               )}
               aria-pressed={isActive}
-              title={POI_LABEL[k]}
+              title={POI_LABEL[k] ?? ""}
             >
-              <Icon className="w-5 h-5" aria-hidden />
-              <span>{POI_LABEL[k]}</span>
+              {Icon && <Icon className="w-5 h-5" aria-hidden />}
+              <span>{POI_LABEL[k] ?? k}</span>
             </button>
           );
         }),
-      [poiKinds, toggleKind]
+      [currentKinds, poiKinds, toggleKind]
+    );
+
+    // ✅ 카테고리 탭 렌더
+    const categoryTabs = React.useMemo(
+      () =>
+        POI_CATEGORY_KEYS.map((key) => {
+          const isActive = activePoiCategory === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActivePoiCategory(key)}
+              className={cn(
+                "px-2 py-1 rounded-full text-xs font-medium border transition",
+                isActive
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              )}
+            >
+              {POI_CATEGORY_LABEL[key]}
+            </button>
+          );
+        }),
+      [activePoiCategory]
     );
 
     return (
       <div
-        className="fixed top-16 right-16 z-[20] w-56 rounded-lg border border-gray-400 bg-white p-1 shadow-xl pointer-events-auto"
+        className={cn(
+          "fixed z-[220]",
+          "right-4 top-[65px]", // 답사지 패널이랑 세로 위치 맞추기
+          "w-[318px] max-w-[calc(100vw-2rem)]", // ⬅️ 가로 폭: 사이드바랑 동일하게
+          "rounded-md border border-gray-200 bg-white p-2 shadow-xl",
+          "pointer-events-auto"
+        )}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="region"
@@ -152,6 +209,11 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
           <div className="mb-2 text-xs font-semibold text-gray-600">
             주변시설
           </div>
+
+          {/* 카테고리 탭 */}
+          <div className="mb-2 flex flex-wrap gap-1">{categoryTabs}</div>
+
+          {/* 현재 카테고리의 POI 토글들 */}
           <div className="grid grid-cols-3 gap-2">{poiButtons}</div>
         </div>
       </div>

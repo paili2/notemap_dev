@@ -6,7 +6,18 @@ import type { LucideIcon, LucideProps } from "lucide-react";
 import { Train, Coffee, Store, Pill, School } from "lucide-react";
 
 /** POI 종류 */
-export type PoiKind = "convenience" | "cafe" | "pharmacy" | "subway" | "school";
+export type PoiKind =
+  | "convenience" // 편의점
+  | "mart" // 마트
+  | "cafe" // 카페
+  | "pharmacy" // 약국
+  | "hospital" // 병원
+  | "subway" // 지하철역
+  | "ktx" // KTX/기차역
+  | "school" // 학교
+  | "police" // 경찰서
+  | "fireStation" // 소방서
+  | "park"; // 공원
 
 /** POI 한 점 */
 type PoiPoint = {
@@ -17,31 +28,49 @@ type PoiPoint = {
   zIndex?: number;
 };
 
-/** 버튼/토글 등에 쓰는 라벨 */
+/** 버튼/토글 등에 쓰는 라벨 (메뉴에서 import 해 사용) */
 export const POI_LABEL: Record<PoiKind, string> = {
   convenience: "편의점",
+  mart: "마트",
   cafe: "카페",
   pharmacy: "약국",
+  hospital: "병원",
   subway: "지하철역",
+  ktx: "KTX/기차역",
   school: "학교",
+  police: "경찰서",
+  fireStation: "소방서",
+  park: "공원",
 };
 
-/** Kakao Places 카테고리 코드 매핑 (학교: SC4) */
+/** Kakao Places 카테고리 코드 매핑 (대략적인 값) */
 export const KAKAO_CATEGORY: Partial<Record<PoiKind, string>> = {
-  convenience: "CS2",
-  cafe: "CE7",
-  pharmacy: "PM9",
-  subway: "SW8",
-  school: "SC4",
+  convenience: "CS2", // 편의점
+  mart: "MT1", // 대형마트
+  cafe: "CE7", // 카페
+  pharmacy: "PM9", // 약국
+  hospital: "HP8", // 병원
+  subway: "SW8", // 지하철역
+  ktx: "SW8", // 철도역도 같이 사용
+  school: "SC4", // 학교
+  police: "PO3", // 공공기관 (경찰/소방 등)
+  fireStation: "PO3",
+  park: "PK6", // 공원
 };
 
 /** 키워드(필요 시 사용) */
 export const KAKAO_KEYWORD: Record<PoiKind, string | string[] | undefined> = {
   convenience: undefined,
+  mart: undefined,
   cafe: undefined,
   pharmacy: undefined,
+  hospital: undefined,
   subway: undefined,
+  ktx: ["KTX", "기차역"],
   school: undefined,
+  police: "경찰서",
+  fireStation: "소방서",
+  park: "공원",
 };
 
 /** (마커 API용) 아이콘 스펙 */
@@ -65,27 +94,43 @@ function svgDot(bg: string, size = 28) {
 /** (마커 API용) POI별 아이콘 프리셋 — 필요 시 사용 */
 export const POI_ICON: Record<PoiKind, PoiIconSpec> = {
   convenience: { url: svgDot("#10b981"), size: [28, 28], offset: [14, 14] },
+  mart: { url: svgDot("#059669"), size: [28, 28], offset: [14, 14] },
   cafe: { url: svgDot("#f59e0b"), size: [28, 28], offset: [14, 14] },
   pharmacy: { url: svgDot("#ef4444"), size: [28, 28], offset: [14, 14] },
+  hospital: { url: svgDot("#dc2626"), size: [28, 28], offset: [14, 14] },
   subway: { url: svgDot("#3b82f6"), size: [28, 28], offset: [14, 14] },
-  school: { url: svgDot("#8b5cf6"), size: [28, 28], offset: [14, 14] }, // 보라
+  ktx: { url: svgDot("#1d4ed8"), size: [28, 28], offset: [14, 14] },
+  school: { url: svgDot("#8b5cf6"), size: [28, 28], offset: [14, 14] },
+  police: { url: svgDot("#0f766e"), size: [28, 28], offset: [14, 14] },
+  fireStation: { url: svgDot("#ea580c"), size: [28, 28], offset: [14, 14] },
+  park: { url: svgDot("#16a34a"), size: [28, 28], offset: [14, 14] },
 };
 
 /** (오버레이용) 배경색 & 아이콘 매핑 */
 const POI_BG: Record<PoiKind, string> = {
   convenience: "#10b981",
+  mart: "#059669",
   cafe: "#f59e0b",
   pharmacy: "#ef4444",
+  hospital: "#dc2626",
   subway: "#3b82f6",
+  ktx: "#1d4ed8",
   school: "#8b5cf6",
+  police: "#0f766e",
+  fireStation: "#ea580c",
+  park: "#16a34a",
 };
 
-const POI_ICON_COMP: Record<PoiKind, LucideIcon> = {
+const POI_ICON_COMP: Partial<Record<PoiKind, LucideIcon>> = {
   convenience: Store,
+  mart: Store,
   cafe: Coffee,
   pharmacy: Pill,
+  hospital: Pill,
   subway: Train,
+  ktx: Train,
   school: School,
+  // police, fireStation, park 는 일단 기본 동그라미만 사용 (아이콘 없음)
 };
 
 /** 줌 레벨(작을수록 확대)에 따른 크기 계산 */
@@ -132,11 +177,22 @@ function PoiBubble({
         cursor: onClick ? "pointer" : "default",
       }}
     >
-      <Icon
-        size={iconSize as LucideProps["size"]}
-        strokeWidth={2.25}
-        color="#fff"
-      />
+      {Icon ? (
+        <Icon
+          size={iconSize as LucideProps["size"]}
+          strokeWidth={2.25}
+          color="#fff"
+        />
+      ) : (
+        <span
+          style={{
+            width: iconSize,
+            height: iconSize,
+            borderRadius: "9999px",
+            border: "2px solid rgba(255,255,255,0.9)",
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -303,7 +359,6 @@ export function usePoiOverlays(params: {
     }
 
     // stale 처리
-    // ✔ 로딩 중(pois.length === 0)에는 이전 것 유지 → 안 깜빡이게
     if (!isEmpty) {
       for (const [id, inst] of overlays.entries()) {
         if (!nextIds.has(id) && inst.visible) {
