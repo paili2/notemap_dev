@@ -173,7 +173,7 @@ export function createPoiOverlay(
     position: new kakaoSDK.maps.LatLng(poi.lat, poi.lng),
     content: el,
     xAnchor: 0.5,
-    yAnchor: 0.5,
+    yAnchor: 1.0,
     zIndex: poi.zIndex ?? 3,
   });
   overlay.setMap(map);

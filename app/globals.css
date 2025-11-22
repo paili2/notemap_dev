@@ -92,7 +92,19 @@ body {
   }
 }
 
-.notemap-map-root .kakao-hitbox {
-  position: relative !important;
-  top: -20px !important;
+/* 카카오 CustomOverlay 기본 컨테이너 */
+.notemap-map-root [data-overlay-container="true"] {
+  pointer-events: none !important; /* 클릭 방지 */
+  z-index: auto !important; /* 핀 위로 올라오지 않게 */
+}
+
+/* label은 클릭 방지 */
+.kakao-label,
+.kakao-label * {
+  pointer-events: none !important;
+}
+
+/* hitbox만 클릭 허용 + 핀과 동일 레벨로 */
+.kakao-hitbox {
+  pointer-events: auto !important;
 }

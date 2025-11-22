@@ -43,6 +43,7 @@ export function registerLabel(
 ) {
   entries.add({ el, lat, lng, map });
   el.dataset.mapLabel = "1";
+  el.style.pointerEvents = "none";
 
   // 이미 존재하는 억제영역에 들어오면 즉시 숨김 (map 지정/미지정 모두 체크)
   for (const z of activeZones) {

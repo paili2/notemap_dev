@@ -103,9 +103,14 @@ export function createHitboxOverlay(
 ) {
   const hitEl = document.createElement("div");
   hitEl.className = "kakao-hitbox";
+
   applyHitboxStyles(hitEl as HTMLDivElement, hitboxSizePx);
 
-  // 이벤트 위임
+  // 클릭 받게
+  hitEl.style.pointerEvents = "auto";
+
+  // ❌ 삭제: hitEl.style.zIndex = "0";
+
   hitEl.addEventListener("click", (e) => {
     e.stopPropagation();
     e.preventDefault();
@@ -116,8 +121,8 @@ export function createHitboxOverlay(
     position: pos,
     content: hitEl,
     xAnchor: 0.5,
-    yAnchor: 0.5,
-    zIndex: HITBOX.Z_INDEX,
+    yAnchor: 1.0,
+    zIndex: HITBOX.Z_INDEX, // ✅ 여기 추가 (이게 핵심)
     clickable: true,
   });
 }

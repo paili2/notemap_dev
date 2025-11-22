@@ -17,6 +17,8 @@ type Args = {
   disableAutoPan?: boolean;
   /** idle 콜백 디바운스(ms). 기본 120ms */
   viewportDebounceMs?: number;
+  /** 지도 위에 로드뷰 도로 라인을 표시할지 여부 (기본 false) */
+  showRoadviewOverlay?: boolean;
   onMapReady?: (args: { kakao: any; map: any }) => void;
   onViewportChange?: (query: {
     leftTop: LatLng;
@@ -120,6 +122,7 @@ const useKakaoMap = ({
   maxLevel = 11,
   disableAutoPan = false,
   viewportDebounceMs = DEFAULT_VIEWPORT_DEBOUNCE,
+  showRoadviewOverlay = false,
   onMapReady,
   onViewportChange,
 }: Args) => {
@@ -139,6 +142,9 @@ const useKakaoMap = ({
 
   // 검색 마커 1개 유지
   const lastSearchMarkerRef = useRef<any>(null);
+
+  // 로드뷰 도로 오버레이
+  const roadviewOverlayRef = useRef<any>(null);
 
   // 리스너/타이머
   const zoomListenerRef = useRef<((...a: any[]) => void) | null>(null);
@@ -216,6 +222,20 @@ const useKakaoMap = ({
             const lv = map.getLevel();
             maxLevelRef.current = lv;
             map.setMaxLevel(lv);
+          }
+
+          // 로드뷰 도로 오버레이 인스턴스만 생성 (초기엔 꺼둔다)
+          try {
+            if (!roadviewOverlayRef.current && kakao?.maps?.RoadviewOverlay) {
+              roadviewOverlayRef.current = new kakao.maps.RoadviewOverlay();
+            }
+            if (roadviewOverlayRef.current) {
+              roadviewOverlayRef.current.setMap(
+                showRoadviewOverlay ? map : null
+              );
+            }
+          } catch (e) {
+            console.warn("[RoadviewOverlay] init failed:", e);
           }
 
           // ✅ 최초 로드시 현재 위치로 지도 중심 이동 (옵션 켰을 때만)
@@ -311,6 +331,14 @@ const useKakaoMap = ({
         lastSearchMarkerRef.current = null;
       }
 
+      // 로드뷰 도로 오버레이 제거
+      try {
+        if (roadviewOverlayRef.current) {
+          roadviewOverlayRef.current.setMap(null);
+          roadviewOverlayRef.current = null;
+        }
+      } catch {}
+
       // https 패치 옵저버 해제
       try {
         (map as any)?.__detachHttpsPatch__?.();
@@ -322,6 +350,21 @@ const useKakaoMap = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 최초 1회
+
+  // ─────────────────────────────────────────────
+  // 로드뷰 도로 오버레이 on/off 토글
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    const rv = roadviewOverlayRef.current;
+    if (!ready || !map || !rv) return;
+
+    try {
+      rv.setMap(showRoadviewOverlay ? map : null);
+    } catch (e) {
+      console.warn("[RoadviewOverlay] toggle failed:", e);
+    }
+  }, [ready, showRoadviewOverlay]);
 
   // ─────────────────────────────────────────────
   // 2) 이벤트 리스너 등록 (1회)

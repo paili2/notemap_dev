@@ -577,6 +577,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
+  // 🔵 로드뷰 도로(파란 라인) on/off 상태
+  const [roadviewRoadOn, setRoadviewRoadOn] = useState(false);
+
   // 🔁 오른쪽 토글과 필터검색, 사이드바 상호 배타 제어
   const handleSetDistrictOn = useCallback(
     (next: boolean) => {
@@ -938,6 +941,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onMapReady={handleMapReady}
         onViewportChange={handleViewportChangeInternal}
         isDistrictOn={isDistrictOn}
+        showRoadviewOverlay={roadviewRoadOn}
       />
 
       <ContextMenuHost
@@ -1019,6 +1023,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
         }}
         getBounds={getBoundsLLB}
         getLevel={() => mapInstance?.getLevel?.()}
+        // 🔵 로드뷰 도로 버튼용 상태/토글 전달
+        roadviewRoadOn={roadviewRoadOn}
+        onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
       />
 
       <FilterFab onOpen={handleOpenFilterSearch} />

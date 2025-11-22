@@ -56,6 +56,10 @@ export default function TopRightControls(props: {
   setSidebarOpen: (v: boolean) => void;
   getBounds: () => kakao.maps.LatLngBounds | undefined;
   getLevel: () => number | undefined;
+
+  /** 🔵 로드뷰 도로(파란 라인) 토글 상태 & 핸들러 */
+  roadviewRoadOn: boolean;
+  onToggleRoadviewRoad: () => void;
 }) {
   const stop = (e: any) => {
     e.stopPropagation?.();
@@ -153,6 +157,19 @@ export default function TopRightControls(props: {
             onMouseDown={stop}
             onTouchStart={stop}
           >
+            {/* 🔵 로드뷰 도로(파란 라인) 토글 버튼 - 제일 왼쪽 */}
+            <button
+              type="button"
+              onClick={props.onToggleRoadviewRoad}
+              className={`h-8 px-3 text-xs rounded-md border shadow-sm ${
+                props.roadviewRoadOn
+                  ? "bg-blue-600 text-white border-blue-600"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              로드뷰도로
+            </button>
+
             {/* 🟡 전역 메모 보기 토글 (K&N / R) */}
             <div className="relative z-[2] shrink-0">
               <div className="inline-flex rounded-md border overflow-hidden">

@@ -15,7 +15,7 @@ export const LABEL = {
 
 export const HITBOX = {
   DIAMETER_PX: 48,
-  Z_INDEX: 9999,
+  Z_INDEX: 20000,
 } as const;
 
 export const Z = {
