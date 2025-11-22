@@ -13,7 +13,6 @@ import type { MapViewProps } from "./types";
 import usePoiLayer from "../shared/hooks/poi/usePoiLayer";
 import { PoiKind } from "../shared/overlays/poiOverlays";
 import { PoiLayerToggle } from "./top/components/PoiLayerToggle";
-import { toast } from "@/hooks/use-toast";
 
 type Props = MapViewProps;
 
@@ -31,6 +30,8 @@ export type MapViewHandle = {
   ) => void;
   panTo: (p: { lat: number; lng: number }) => void;
 };
+
+const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 
 const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   {
@@ -119,24 +120,9 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   // 마커 클릭 핸들러
   const handleMarkerClick = useCallback(
     (id: string) => {
-      // 🔹 500m(레벨 6) 이상에서는 메뉴 막고 토스트 + 확대만
       const level = map?.getLevel?.() ?? 0;
-      if (level >= 6) {
-        toast({
-          title: "조금 더 확대해 주세요",
-          description: "250m까지 확대하면 매물 메뉴를 사용할 수 있어요.",
-        });
 
-        try {
-          // 250m(레벨 5)로 확대
-          map?.setLevel?.(5, { animate: true });
-        } catch {}
-
-        return;
-      }
-
-      // ===== 여기부터는 기존 코드 유지 =====
-      // 1) 드래프트 핀
+      // 1) 드래프트 핀은 기존 동작 유지
       if (id === "__draft__") {
         const draft = markers.find((m) => String(m.id) === "__draft__");
         if (draft && onDraftPinClick) {
@@ -148,10 +134,23 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         return;
       }
 
-      // 2) 답사예정 핀 → 자동 예약 금지, 메뉴만 오픈
-      if (String(id).startsWith("__visit__")) {
-        const m = markers.find((x) => String(x.id) === String(id));
-        if (m && onOpenMenu) {
+      const isVisit = String(id).startsWith("__visit__");
+      const m = markers.find((x) => String(x.id) === String(id));
+      if (!m) return;
+
+      // 2) 너무 멀리서 클릭한 경우 → 먼저 250m(레벨 5)로 "점프" 줌
+      if (level > PIN_MENU_MAX_LEVEL && map) {
+        try {
+          // 애니메이션 없이 바로 레벨 변경 → 클릭 한 번에 "쑥" 들어온 느낌
+          map.setLevel(PIN_MENU_MAX_LEVEL);
+        } catch {
+          /* noop */
+        }
+      }
+
+      // 3) 답사예정 핀 (__visit__) → 자동 예약 금지, 메뉴만 오픈
+      if (isVisit) {
+        if (onOpenMenu) {
           onOpenMenu({
             position: m.position,
             propertyId: String(m.id),
@@ -162,9 +161,8 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         return;
       }
 
-      // 3) 일반 핀 → 컨텍스트 메뉴 열기 + 상위 콜백 알림
-      const m = markers.find((x) => String(x.id) === String(id));
-      if (m && onOpenMenu) {
+      // 4) 일반 매물 핀 → 컨텍스트 메뉴 열기 + 상위 콜백 알림
+      if (onOpenMenu) {
         onOpenMenu({
           position: m.position,
           propertyId: String(m.id),
@@ -178,16 +176,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
 
       onMarkerClick?.(id);
     },
-    [
-      markers,
-      onDraftPinClick,
-      onMarkerClick,
-      map,
-      kakao,
-      onOpenMenu,
-      pinKind,
-      toast,
-    ]
+    [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu, pinKind]
   );
 
   // 클러스터러 + 라벨

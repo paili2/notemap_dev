@@ -150,25 +150,13 @@ export default function MapHomePage() {
       propertyTitle?: string | null;
       pin?: { kind: string; isFav?: boolean };
     }) => {
-      const level = s?.mapInstance?.getLevel?.();
-
-      // 500m(레벨 6) 이상에서는 메뉴 막고 토스트만
-      if (typeof level === "number" && level > PIN_MENU_MAX_LEVEL) {
-        toast({
-          title: "조금 더 확대해 주세요",
-          description:
-            "핀 메뉴는 지도 250m(5단계) 이하에서만 사용할 수 있어요.",
-        });
-        return;
-      }
-
       const payloadForState = {
         ...p,
         propertyId: p.propertyId ?? undefined,
       };
       (s as any).onOpenMenu?.(payloadForState);
     },
-    [s, toast]
+    [s]
   );
 
   // ===== payload → draftId 어댑터 =====
