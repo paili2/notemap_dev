@@ -591,6 +591,40 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // 🔵 로드뷰 도로(파란 라인) on/off 상태
   const [roadviewRoadOn, setRoadviewRoadOn] = useState(false);
 
+  // 🔵 토글 영역 refs (오른쪽 패널 / 필터 영역 / 사이드바)
+  const rightAreaRef = useRef<HTMLDivElement | null>(null);
+  const filterAreaRef = useRef<HTMLDivElement | null>(null);
+  const sidebarAreaRef = useRef<HTMLDivElement | null>(null);
+
+  // 🔵 바깥 클릭 시 세 토글 모두 닫기
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!rightOpen && !filterSearchOpen && !useSidebar) return;
+
+      const target = event.target as Node | null;
+      if (!target) return;
+
+      if (
+        rightAreaRef.current?.contains(target) ||
+        filterAreaRef.current?.contains(target) ||
+        sidebarAreaRef.current?.contains(target)
+      ) {
+        // 토글 영역 안쪽 클릭이면 유지
+        return;
+      }
+
+      // 그 외(지도, 다른 UI 등)를 클릭하면 세 토글 모두 닫기
+      setRightOpen(false);
+      setFilterSearchOpen(false);
+      setUseSidebar(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [rightOpen, filterSearchOpen, useSidebar, setUseSidebar]);
+
   // 🔁 오른쪽 토글과 필터검색, 사이드바 상호 배타 제어
   const handleSetDistrictOn = useCallback(
     (next: boolean) => {
@@ -1009,57 +1043,66 @@ export function MapHomeUI(props: MapHomeUIProps) {
         </div>
       </div>
 
-      <TopRightControls
-        activeMenu={activeMenu}
-        onChangeFilter={(next) => {
-          const resolved = next === activeMenu ? "all" : next;
-          (onChangeFilter as any)(resolved);
-        }}
-        isDistrictOn={isDistrictOn}
-        setIsDistrictOn={handleSetDistrictOn}
-        poiKinds={poiKinds}
-        onChangePoiKinds={onChangePoiKinds}
-        roadviewVisible={roadviewVisible}
-        onToggleRoadview={toggleRoadview}
-        rightOpen={rightOpen}
-        setRightOpen={handleSetRightOpen}
-        sidebarOpen={useSidebar}
-        setSidebarOpen={(open) => {
-          setUseSidebar(open);
-          if (open) {
-            // 사이드바 열릴 때 오른쪽 토글/필터검색 둘 다 닫기
-            setRightOpen(false);
-            setFilterSearchOpen(false);
-          }
-        }}
-        getBounds={getBoundsLLB}
-        getLevel={() => mapInstance?.getLevel?.()}
-        // 🔵 로드뷰 도로 버튼용 상태/토글 전달
-        roadviewRoadOn={roadviewRoadOn}
-        onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
-      />
+      {/* 오른쪽 상단 컨트롤 + 패널 영역 */}
+      <div ref={rightAreaRef}>
+        <TopRightControls
+          activeMenu={activeMenu}
+          onChangeFilter={(next) => {
+            const resolved = next === activeMenu ? "all" : next;
+            (onChangeFilter as any)(resolved);
+          }}
+          isDistrictOn={isDistrictOn}
+          setIsDistrictOn={handleSetDistrictOn}
+          poiKinds={poiKinds}
+          onChangePoiKinds={onChangePoiKinds}
+          roadviewVisible={roadviewVisible}
+          onToggleRoadview={toggleRoadview}
+          rightOpen={rightOpen}
+          setRightOpen={handleSetRightOpen}
+          sidebarOpen={useSidebar}
+          setSidebarOpen={(open) => {
+            setUseSidebar(open);
+            if (open) {
+              // 사이드바 열릴 때 오른쪽 토글/필터검색 둘 다 닫기
+              setRightOpen(false);
+              setFilterSearchOpen(false);
+            }
+          }}
+          getBounds={getBoundsLLB}
+          getLevel={() => mapInstance?.getLevel?.()}
+          // 🔵 로드뷰 도로 버튼용 상태/토글 전달
+          roadviewRoadOn={roadviewRoadOn}
+          onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
+        />
+      </div>
 
-      <FilterFab onOpen={handleOpenFilterSearch} />
+      {/* 필터 플로팅 버튼 + 필터 검색 패널 영역 */}
+      <div ref={filterAreaRef}>
+        <FilterFab onOpen={handleOpenFilterSearch} />
 
-      <Sidebar
-        isSidebarOn={useSidebar}
-        onToggleSidebar={() => {
-          const next = !useSidebar;
-          setUseSidebar(next);
-          if (next) {
-            // 사이드바가 열리는 순간 다른 두 개 닫기
-            setRightOpen(false);
-            setFilterSearchOpen(false);
-          }
-        }}
-      />
+        <FilterSearch
+          isOpen={filterSearchOpen}
+          onClose={() => setFilterSearchOpen(false)}
+          onApply={handleApplyFilters}
+          onClear={clearSearch}
+        />
+      </div>
 
-      <FilterSearch
-        isOpen={filterSearchOpen}
-        onClose={() => setFilterSearchOpen(false)}
-        onApply={handleApplyFilters}
-        onClear={clearSearch}
-      />
+      {/* 사이드바 영역 */}
+      <div ref={sidebarAreaRef}>
+        <Sidebar
+          isSidebarOn={useSidebar}
+          onToggleSidebar={() => {
+            const next = !useSidebar;
+            setUseSidebar(next);
+            if (next) {
+              // 사이드바가 열리는 순간 다른 두 개 닫기
+              setRightOpen(false);
+              setFilterSearchOpen(false);
+            }
+          }}
+        />
+      </div>
 
       <ModalsHost
         /* ✅ 모달 열림 여부는 로컬 뷰 상태 + 상위에서 내려온 createOpen */

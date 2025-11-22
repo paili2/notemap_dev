@@ -17,18 +17,15 @@ import { PriceInput } from "./PriceInput";
 import { AreaInput } from "./AreaInput";
 import { FilterActions } from "./FilterActions";
 
-// ⬇️ /pins/search 타입 불러오기
 import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import Portal from "@/components/Portal";
 import { BuildingType } from "@/features/properties/types/property-domain";
 
-// ⬇️ 기존 FilterSearchProps를 확장 (타입 파일을 지금 당장 안 고쳐도 되게)
 type Props = FilterSearchProps & {
-  onApply?: (params: PinSearchParams) => void; // ✅ 상위로 검색 파라미터 전달
-  initial?: Partial<FilterState>; // ✅ 이전 값 복구 (옵션)
+  onApply?: (params: PinSearchParams) => void;
+  initial?: Partial<FilterState>;
 };
 
-// 평 → ㎡
 const PYEONG_TO_M2 = 3.305785;
 const toM2 = (s: string) => {
   const n = Number((s ?? "").replaceAll(",", "").trim());
@@ -37,24 +34,16 @@ const toM2 = (s: string) => {
     : undefined;
 };
 
-/**
- * FilterState(UI 상태) → PinSearchParams(백엔드 쿼리)
- */
 function buildPinSearchParams(ui: FilterState): PinSearchParams {
   const params: PinSearchParams = {};
 
   // 1) 방 개수
-  //  - "1룸~1.5룸" → 1
-  //  - "2룸~2.5룸" → 2
-  //  - "3룸" → 3
-  //  - "4룸" → 4
-  //  - "복층", "타운하우스", "테라스" 등 숫자 없는 라벨은 rooms에서 제외
   const rooms: number[] = (ui.rooms ?? [])
     .map((label) => {
-      const m = label.match(/\d+/); // 첫 번째 숫자만 사용
+      const m = label.match(/\d+/);
       return m ? Number(m[0]) : NaN;
     })
-    .filter((n, idx, arr) => !Number.isNaN(n) && arr.indexOf(n) === idx); // NaN 제거 + 중복 제거
+    .filter((n, idx, arr) => !Number.isNaN(n) && arr.indexOf(n) === idx);
 
   if (rooms.length) {
     params.rooms = rooms;
@@ -67,15 +56,14 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
   if (ui.rooms?.includes("테라스")) {
     params.hasTerrace = true;
   }
-  // 타운하우스는 일단 쿼리 안 보냄 (필요하면 나중에 매핑)
 
-  // 3) 실입주금 → minRealMoveInCost(원)
-  const depositAmount = Number(convertPriceToWon(ui.deposit));
-  if (Number.isFinite(depositAmount) && depositAmount > 0) {
-    params.minRealMoveInCost = depositAmount;
-  }
+  // ⛔ 실입주금은 아직 서버에서 안 받으니까 주석/삭제
+  // const depositAmount = Number(convertPriceToWon(ui.deposit));
+  // if (Number.isFinite(depositAmount) && depositAmount > 0) {
+  //   (params as any).minRealMoveInCost = depositAmount;
+  // }
 
-  // 4) 매매가 (문자열 → 숫자)
+  // 3) 매매가
   const priceMin = Number(ui.priceMin.replaceAll(",", ""));
   const priceMax = Number(ui.priceMax.replaceAll(",", ""));
   if (!Number.isNaN(priceMin) && priceMin > 0) {
@@ -85,7 +73,7 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
     params.salePriceMax = priceMax;
   }
 
-  // 5) 면적(평 → ㎡)
+  // 4) 면적
   const areaMin = Number(ui.areaMin.replaceAll(",", ""));
   const areaMax = Number(ui.areaMax.replaceAll(",", ""));
   if (!Number.isNaN(areaMin) && areaMin > 0) {
@@ -95,14 +83,14 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
     params.areaMaxM2 = Math.round(areaMax * PYEONG_TO_M2);
   }
 
-  // 6) 엘리베이터
+  // 5) 엘리베이터
   const elev =
     ui.elevator === "있음" ? true : ui.elevator === "없음" ? false : undefined;
   if (elev !== undefined) {
     params.hasElevator = elev;
   }
 
-  // 7) 건물 유형(등기) - 여러 개 선택 → buildingTypes[]
+  // 6) 건물유형
   if (ui.buildingTypes && ui.buildingTypes.length > 0) {
     const map: Record<string, BuildingType> = {
       주택: "주택",
@@ -117,7 +105,7 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
       .filter((v): v is BuildingType => !!v);
 
     if (mapped.length) {
-      params.buildingTypes = Array.from(new Set(mapped));
+      (params as any).buildingTypes = Array.from(new Set(mapped));
     }
   }
 
@@ -134,12 +122,17 @@ export default function FilterSearch({
     initialFilterState as FilterState
   );
 
-  // 모달 열릴 때 초기값 복구(옵션)
+  // 🔹 모달이 열릴 때만 initial 반영 (isOpen만 의존)
   useEffect(() => {
-    if (isOpen && initial) {
+    if (!isOpen) return;
+
+    if (initial) {
       setFilters((prev) => ({ ...prev, ...initial }));
+    } else {
+      setFilters(initialFilterState as FilterState);
     }
-  }, [isOpen, initial]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const toggleSelection = (category: keyof FilterState, value: string) => {
     if (category === "rooms" || category === "buildingTypes") {
@@ -159,29 +152,24 @@ export default function FilterSearch({
   };
 
   const applyFilters = () => {
-    const params = buildPinSearchParams(filters); // ✅ 변환
-    onApply?.(params); // ✅ 상위로 전달
-    onClose(); // 닫기
+    const params = buildPinSearchParams(filters);
+    onApply?.(params);
+    onClose();
   };
 
   if (!isOpen) return null;
 
-  // ----- 타이틀 옆에 보여줄 요약 값들 -----
-
-  // 실입주금
   const depositWon = convertPriceToWon(filters.deposit);
   const depositLabel =
     filters.deposit && filters.deposit !== "0"
       ? formatKoreanCurrency(depositWon)
       : "0원";
 
-  // 면적 (㎡)
   const areaMinM2 = toM2(filters.areaMin);
   const areaMaxM2 = toM2(filters.areaMax);
   const areaMinLabel = `${formatNumberWithCommas(String(areaMinM2 ?? 0))}㎡`;
   const areaMaxLabel = `${formatNumberWithCommas(String(areaMaxM2 ?? 0))}㎡`;
 
-  // 매매가
   const priceMinWon = convertPriceToWon(filters.priceMin);
   const priceMaxWon = convertPriceToWon(filters.priceMax);
   const priceMinLabel =
@@ -195,183 +183,190 @@ export default function FilterSearch({
 
   return (
     <Portal>
+      {/* 🔹 오버레이(검은 배경) 없이 패널만 띄우는 래퍼 */}
       <div
         className="
-        fixed inset-0 z-[9999] flex flex-col
-        w-screen h-screen bg-white overflow-hidden
-        sm:inset-auto sm:bottom-4 sm:left-4 sm:h-auto
-        sm:w-96 sm:max-w-[calc(100vw-2rem)] sm:min-w-[384px]
-        sm:rounded-lg sm:border sm:border-gray-200
-        sm:shadow-xl
-      "
-        style={{
-          contain: "layout style",
-        }}
+          fixed inset-x-0 bottom-0 z-[9998]
+          flex justify-center sm:justify-start sm:items-end
+          pointer-events-none
+        "
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-gray-200">
-          <h1 className="text-base font-semibold text-gray-900">필터 검색</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-            onClick={onClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Content */}
+        {/* 🔹 실제 필터 카드 */}
         <div
-          className="flex-1 p-3 space-y-6 overflow-y-auto"
-          style={{ contain: "layout" }}
+          className="
+            pointer-events-auto
+            mt-0 w-screen h-screen flex flex-col bg-white overflow-hidden
+            sm:mt-0 sm:mb-4 sm:ml-4
+            sm:h-auto sm:w-96 sm:max-w-[calc(100vw-2rem)] sm:min-w-[384px]
+            sm:rounded-lg sm:border sm:border-gray-200 sm:shadow-xl
+          "
+          style={{ contain: "layout style" }}
         >
-          {/* 방 */}
-          <FilterSection title="방">
-            <div className="flex flex-wrap gap-2">
-              {FILTER_OPTIONS.rooms.map((room) => (
-                <SelectableButton
-                  key={room}
-                  label={room}
-                  isSelected={filters.rooms.includes(room)}
-                  onClick={() => toggleSelection("rooms", room)}
-                />
-              ))}
-            </div>
-          </FilterSection>
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b border-gray-200">
+            <h1 className="text-base font-semibold text-gray-900">필터 검색</h1>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
 
-          {/* 실입주금 */}
-          <FilterSection
-            title={
-              <div className="flex items-center justify-between gap-2">
-                <span>실입주금</span>
-                <span className="text-xs text-gray-700">{depositLabel}</span>
-              </div>
-            }
+          {/* Content */}
+          <div
+            className="flex-1 p-3 space-y-6 overflow-y-auto"
+            style={{ contain: "layout" }}
           >
-            <PriceInput
-              value={filters.deposit}
-              onChange={(value) =>
-                setFilters((prev) => ({ ...prev, deposit: value }))
+            {/* 방 */}
+            <FilterSection title="방">
+              <div className="flex flex-wrap gap-2">
+                {FILTER_OPTIONS.rooms.map((room) => (
+                  <SelectableButton
+                    key={room}
+                    label={room}
+                    isSelected={filters.rooms.includes(room)}
+                    onClick={() => toggleSelection("rooms", room)}
+                  />
+                ))}
+              </div>
+            </FilterSection>
+
+            {/* 실입주금 */}
+            <FilterSection
+              title={
+                <div className="flex items-center justify-between gap-2">
+                  <span>실입주금</span>
+                  <span className="text-xs text-gray-700">{depositLabel}</span>
+                </div>
               }
-              placeholder="금액 입력"
-              showKoreanCurrency={false}
-            />
-          </FilterSection>
-
-          {/* 면적 */}
-          <FilterSection
-            title={
-              <div className="flex items-center justify-between gap-2">
-                <span>면적</span>
-                <span className="text-xs text-gray-700">
-                  {areaMinLabel} ~ {areaMaxLabel}
-                </span>
-              </div>
-            }
-          >
-            <div
-              className="flex items-start gap-2"
-              style={{ contain: "layout" }}
             >
-              <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
-                <AreaInput
-                  value={filters.areaMin}
-                  onChange={(value) =>
-                    setFilters((prev) => ({ ...prev, areaMin: value }))
-                  }
-                  placeholder="최소 면적(평)"
-                  showConvertedM2={false}
-                />
-              </div>
-              <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
-                ~
-              </span>
-              <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
-                <AreaInput
-                  value={filters.areaMax}
-                  onChange={(value) =>
-                    setFilters((prev) => ({ ...prev, areaMax: value }))
-                  }
-                  placeholder="최대 면적(평)"
-                  showConvertedM2={false}
-                />
-              </div>
-            </div>
-          </FilterSection>
+              <PriceInput
+                value={filters.deposit}
+                onChange={(value) =>
+                  setFilters((prev) => ({ ...prev, deposit: value }))
+                }
+                placeholder="금액 입력"
+                showKoreanCurrency={false}
+              />
+            </FilterSection>
 
-          {/* 등기(건물 유형) */}
-          <FilterSection title="등기">
-            <div className="flex flex-wrap gap-2">
-              {FILTER_OPTIONS.buildingType.map((building) => (
-                <SelectableButton
-                  key={building}
-                  label={building}
-                  isSelected={filters.buildingTypes.includes(building)}
-                  onClick={() => toggleSelection("buildingTypes", building)}
-                />
-              ))}
-            </div>
-          </FilterSection>
-
-          {/* 엘리베이터 */}
-          <FilterSection title="엘리베이터">
-            <div className="flex gap-2">
-              {FILTER_OPTIONS.elevator.map((elevator) => (
-                <SelectableButton
-                  key={elevator}
-                  label={elevator}
-                  isSelected={filters.elevator === elevator}
-                  onClick={() => toggleSelection("elevator", elevator)}
-                />
-              ))}
-            </div>
-          </FilterSection>
-
-          {/* 매매가 */}
-          <FilterSection
-            title={
-              <div className="flex items-center justify-between gap-2">
-                <span>매매가</span>
-                <span className="text-xs text-gray-700">
-                  {priceMinLabel} ~ {priceMaxLabel}
-                </span>
-              </div>
-            }
-          >
-            <div
-              className="flex items-start gap-2"
-              style={{ contain: "layout" }}
+            {/* 면적 */}
+            <FilterSection
+              title={
+                <div className="flex items-center justify-between gap-2">
+                  <span>면적</span>
+                  <span className="text-xs text-gray-700">
+                    {areaMinLabel} ~ {areaMaxLabel}
+                  </span>
+                </div>
+              }
             >
-              <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
-                <PriceInput
-                  value={filters.priceMin}
-                  onChange={(value) =>
-                    setFilters((prev) => ({ ...prev, priceMin: value }))
-                  }
-                  placeholder="최소 금액"
-                  showKoreanCurrency={false}
-                />
+              <div
+                className="flex items-start gap-2"
+                style={{ contain: "layout" }}
+              >
+                <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
+                  <AreaInput
+                    value={filters.areaMin}
+                    onChange={(value) =>
+                      setFilters((prev) => ({ ...prev, areaMin: value }))
+                    }
+                    placeholder="최소 면적(평)"
+                    showConvertedM2={false}
+                  />
+                </div>
+                <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
+                  ~
+                </span>
+                <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
+                  <AreaInput
+                    value={filters.areaMax}
+                    onChange={(value) =>
+                      setFilters((prev) => ({ ...prev, areaMax: value }))
+                    }
+                    placeholder="최대 면적(평)"
+                    showConvertedM2={false}
+                  />
+                </div>
               </div>
-              <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
-                ~
-              </span>
-              <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
-                <PriceInput
-                  value={filters.priceMax}
-                  onChange={(value) =>
-                    setFilters((prev) => ({ ...prev, priceMax: value }))
-                  }
-                  placeholder="최대 금액"
-                  showKoreanCurrency={false}
-                />
+            </FilterSection>
+
+            {/* 등기(건물 유형) */}
+            <FilterSection title="등기">
+              <div className="flex flex-wrap gap-2">
+                {FILTER_OPTIONS.buildingType.map((building) => (
+                  <SelectableButton
+                    key={building}
+                    label={building}
+                    isSelected={filters.buildingTypes.includes(building)}
+                    onClick={() => toggleSelection("buildingTypes", building)}
+                  />
+                ))}
               </div>
-            </div>
-          </FilterSection>
+            </FilterSection>
+
+            {/* 엘리베이터 */}
+            <FilterSection title="엘리베이터">
+              <div className="flex gap-2">
+                {FILTER_OPTIONS.elevator.map((elevator) => (
+                  <SelectableButton
+                    key={elevator}
+                    label={elevator}
+                    isSelected={filters.elevator === elevator}
+                    onClick={() => toggleSelection("elevator", elevator)}
+                  />
+                ))}
+              </div>
+            </FilterSection>
+
+            {/* 매매가 */}
+            <FilterSection
+              title={
+                <div className="flex items-center justify-between gap-2">
+                  <span>매매가</span>
+                  <span className="text-xs text-gray-700">
+                    {priceMinLabel} ~ {priceMaxLabel}
+                  </span>
+                </div>
+              }
+            >
+              <div
+                className="flex items-start gap-2"
+                style={{ contain: "layout" }}
+              >
+                <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
+                  <PriceInput
+                    value={filters.priceMin}
+                    onChange={(value) =>
+                      setFilters((prev) => ({ ...prev, priceMin: value }))
+                    }
+                    placeholder="최소 금액"
+                    showKoreanCurrency={false}
+                  />
+                </div>
+                <span className="text-gray-500 text-xs px-1 mt-2 flex-shrink-0">
+                  ~
+                </span>
+                <div className="flex-1 min-w-0" style={{ minWidth: "120px" }}>
+                  <PriceInput
+                    value={filters.priceMax}
+                    onChange={(value) =>
+                      setFilters((prev) => ({ ...prev, priceMax: value }))
+                    }
+                    placeholder="최대 금액"
+                    showKoreanCurrency={false}
+                  />
+                </div>
+              </div>
+            </FilterSection>
+          </div>
+
+          {/* Bottom Actions */}
+          <FilterActions onReset={resetFilters} onApply={applyFilters} />
         </div>
-
-        {/* Bottom Actions */}
-        <FilterActions onReset={resetFilters} onApply={applyFilters} />
       </div>
     </Portal>
   );
