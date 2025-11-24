@@ -1,25 +1,25 @@
-import { PinKind } from "@/features/pins/types";
-import { BuildingGrade } from "@/features/properties/types/building-grade";
+import type { PinKind } from "@/features/pins/types";
 
 export type HeaderSectionProps = {
+  /** 매물명 */
   title: string;
   setTitle: (v: string) => void;
 
-  /** '1'~'5' 또는 '' */
+  /** 매물평점: '1' ~ '5' 또는 '' */
   parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
   setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
 
+  /** 엘리베이터: HeaderSection 기준에서는 null 없이 "O" | "X" */
   elevator: "O" | "X";
   setElevator: (v: "O" | "X") => void;
 
-  /** ✅ nullable: 핀 선택 전(placeholder) 상태를 표현 */
+  /** ✅ nullable: 핀 선택 전(placeholder) 상태 표현 */
   pinKind: PinKind | null;
   setPinKind: (v: PinKind) => void;
 
-  /** ✅ 신축/구옥 토글 (미선택 null) */
-  buildingGrade: BuildingGrade;
-  setBuildingGrade?: (v: BuildingGrade) => void;
-
+  /** 닫기 버튼 핸들러 */
   onClose: () => void;
+
+  /** 매물명 placeholder 힌트 */
   placeholderHint?: string;
 };

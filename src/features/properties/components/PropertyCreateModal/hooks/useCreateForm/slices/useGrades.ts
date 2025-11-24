@@ -13,6 +13,10 @@ export function useGrades() {
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
 
+  // 🔹 신축 / 구옥: 기본은 "무선택" → null
+  const [isNew, setIsNew] = useState<boolean | null>(null);
+  const [isOld, setIsOld] = useState<boolean | null>(null);
+
   const state = useMemo(
     () => ({
       completionDate,
@@ -20,8 +24,18 @@ export function useGrades() {
       registryOne,
       slopeGrade,
       structureGrade,
+      isNew,
+      isOld,
     }),
-    [completionDate, salePrice, registryOne, slopeGrade, structureGrade]
+    [
+      completionDate,
+      salePrice,
+      registryOne,
+      slopeGrade,
+      structureGrade,
+      isNew,
+      isOld,
+    ]
   );
 
   const actions = useMemo(
@@ -31,6 +45,8 @@ export function useGrades() {
       setRegistryOne,
       setSlopeGrade,
       setStructureGrade,
+      setIsNew,
+      setIsOld,
     }),
     []
   );

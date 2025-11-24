@@ -5,6 +5,7 @@ import type {
   BuildingType,
   Grade,
 } from "@/features/properties/types/property-domain";
+import type { Dispatch, SetStateAction } from "react";
 
 /** ✅ 섹션 전용 폼 슬라이스 — 고유 이름 사용 */
 export type CRContainerForm = {
@@ -29,9 +30,9 @@ export type CRContainerForm = {
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
 
-  /** ✅ 엘리베이터 O/X */
-  elevator?: string | null;
-  setElevator?: (v: string | null) => void;
+  /** ✅ 엘리베이터 O/X/null (초기 미선택 허용) */
+  elevator: "O" | "X" | null;
+  setElevator: Dispatch<SetStateAction<"O" | "X" | null>>;
 };
 
 /** YYYY-MM-DD 로 잘라서 반환(없으면 빈 문자열) */
@@ -53,7 +54,7 @@ export default function CompletionRegistryContainer({
 }: {
   form: CRContainerForm;
 }) {
-  // 안전 폴백
+  // 안전 폴백 (buildingType 관련은 optional 그대로 유지)
   const buildingType = (form as any).buildingType ?? null;
   const setBuildingType = ((form as any).setBuildingType ?? (() => {})) as (
     v: BuildingType | null
@@ -63,10 +64,9 @@ export default function CompletionRegistryContainer({
   const setMinRealMoveInCost = ((form as any).setMinRealMoveInCost ??
     (() => {})) as (v: number | string | null) => void;
 
-  const elevator = (form as any).elevator ?? null;
-  const setElevator = ((form as any).setElevator ?? (() => {})) as (
-    v: string | null
-  ) => void;
+  // ✅ 엘리베이터는 타입을 정확히 맞춰서 그대로 사용
+  const elevator = form.elevator;
+  const setElevator = form.setElevator;
 
   // 표기/입력용 값 정규화
   const normalizedCompletionDate = toYmd(form.completionDate);

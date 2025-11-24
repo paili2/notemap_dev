@@ -13,9 +13,9 @@ import { BuildingGrade } from "@/features/properties/types/building-grade";
 
 export default function HeaderSection(
   props: HeaderSectionProps & {
-    /** 내부 상태는 "new" | "old" 만 사용 */
-    buildingGrade?: BuildingGrade;
-    setBuildingGrade?: (v: BuildingGrade) => void;
+    /** 신축/구옥: "new" | "old" | null (null = 미선택) */
+    buildingGrade?: BuildingGrade | null;
+    setBuildingGrade?: (v: BuildingGrade | null) => void;
     /** 헤더에서 입력받는 리베이트(만원 단위) */
     rebate?: string | number | null;
     setRebate?: (v: string | number | null) => void;
@@ -38,14 +38,31 @@ export default function HeaderSection(
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
 
-  /** ───────── 신축/구옥 어댑터 ───────── */
-  const buildingGrade: "new" | "old" = _buildingGrade === "old" ? "old" : "new";
-  const setBuildingGrade =
-    typeof _setBuildingGrade === "function" ? _setBuildingGrade : () => {};
+  /** ───────── 신축/구옥 어댑터 ─────────
+   *  - 내부 상태: BuildingGrade | null
+   *  - UI 컴포넌트: "" | "new" | "old"
+   */
+  const buildingGrade: BuildingGrade | null =
+    _buildingGrade === "new" || _buildingGrade === "old"
+      ? _buildingGrade
+      : null;
 
-  const uiValue: "" | "new" | "old" = buildingGrade;
-  const handleUiChange = (v: "" | "new" | "old" | null) => {
-    setBuildingGrade(v === "old" ? "old" : "new");
+  const setBuildingGrade =
+    typeof _setBuildingGrade === "function"
+      ? _setBuildingGrade
+      : (_: BuildingGrade | null) => {};
+
+  // ✅ UI 값: null → "" 로 내려서 "미선택" 상태 표현
+  const uiValue: "" | "new" | "old" =
+    buildingGrade === "new" ? "new" : buildingGrade === "old" ? "old" : "";
+
+  const handleUiChange = (v: "" | "new" | "old") => {
+    if (!v) {
+      // 미선택
+      setBuildingGrade(null);
+    } else {
+      setBuildingGrade(v);
+    }
   };
 
   /** ───────── 리베이트 입력 ───────── */

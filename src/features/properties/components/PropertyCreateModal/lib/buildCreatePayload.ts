@@ -103,7 +103,7 @@ type BuildArgs = {
   baseAreaSet: LooseAreaSet | StrictAreaSet;
   extraAreaSets: Array<LooseAreaSet | StrictAreaSet>;
 
-  elevator: "O" | "X";
+  elevator?: "O" | "X" | null;
   registryOne?: Registry;
   slopeGrade?: Grade;
   structureGrade?: Grade;
@@ -486,7 +486,8 @@ export function buildCreatePayload(args: BuildArgs) {
       ? { parkingGrade: parkingGrade as StarStr }
       : {}),
 
-    elevator,
+    // 엘리베이터: 선택한 경우에만 전송 (O/X), 미선택(null/undefined)은 키 자체 제거
+    ...(elevator ? { elevator } : {}),
 
     // ✅ 단지 숫자들
     ...(toNum(totalBuildings) !== undefined

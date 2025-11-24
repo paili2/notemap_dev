@@ -8,7 +8,9 @@ export function useHeaderFields() {
   const [parkingGrade, setParkingGrade] = useState<
     "" | "1" | "2" | "3" | "4" | "5"
   >(""); // ⭐ 별점은 문자열만
-  const [elevator, setElevator] = useState<"O" | "X">("O");
+
+  // 🔹 엘리베이터: 기본값 없이 null
+  const [elevator, setElevator] = useState<"O" | "X" | null>(null);
 
   // ✅ 기본 핀 종류를 "답사예정(question)"으로 설정
   const [pinKind, setPinKind] = useState<PinKind>("question");

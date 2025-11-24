@@ -76,7 +76,7 @@ export default function CompletionRegistrySection({
   /** 신규 필드(선택): 최저 실입 정수 금액 */
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
-  /** 엘리베이터 O / X (없을 때는 기본값 "O") */
+  /** 엘리베이터: O / X / null(미선택) */
   elevator?: "O" | "X" | null;
   setElevator?: (v: "O" | "X" | null) => void;
 }) {
@@ -123,9 +123,6 @@ export default function CompletionRegistrySection({
     [setStructureGrade]
   );
 
-  // 엘리베이터 값 기본값(O) 처리
-  const elevatorValue: "O" | "X" = elevator ?? "O";
-
   return (
     <div className="space-y-4">
       {/* 1행: 경사도 / 구조 / 엘리베이터 */}
@@ -150,7 +147,7 @@ export default function CompletionRegistrySection({
 
         <Field label="엘리베이터" align="center">
           <ElevatorSegment
-            value={elevatorValue}
+            value={elevator ?? null} // 🔹 기본값 강제 없이 그대로 전달
             onChange={(next) => {
               if (setElevator) setElevator(next);
             }}

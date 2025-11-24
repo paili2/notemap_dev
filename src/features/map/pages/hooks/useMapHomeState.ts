@@ -399,15 +399,25 @@ export function useMapHomeState() {
         typeof currentLevel === "number" && currentLevel > targetLevel;
 
       if (needsZoom) {
-        map.setLevel(targetLevel, { animate: true });
+        // event 객체 안전하게 꺼내기
+        const event = kakaoSDK?.maps?.event;
 
-        // 📌 줌 애니메이션이 끝나는 순간까지 기다림
-        await new Promise<void>((resolve) => {
-          const listener = kakaoSDK.maps.event.addListener(map, "idle", () => {
-            kakaoSDK.maps.event.removeListener(listener);
-            resolve();
+        // event가 없으면 그냥 레벨만 바꾸고 넘어감
+        if (!event) {
+          map.setLevel(targetLevel, { animate: true });
+        } else {
+          map.setLevel(targetLevel, { animate: true });
+
+          // 📌 줌 애니메이션이 끝나는 순간까지 기다림
+          await new Promise<void>((resolve) => {
+            const handler = () => {
+              // 등록했던 handler로 제거해야 함
+              event.removeListener(map, "idle", handler);
+              resolve();
+            };
+            event.addListener(map, "idle", handler);
           });
-        });
+        }
       }
 
       // 이제 안전하게 메뉴 오픈

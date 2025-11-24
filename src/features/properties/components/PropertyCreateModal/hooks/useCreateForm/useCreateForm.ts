@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback } from "react";
 import { useHeaderFields } from "./slices/useHeaderFields";
 import { useBasicInfo } from "./slices/useBasicInfo";
 import { useNumbers } from "./slices/useNumbers";
@@ -57,46 +57,17 @@ export function useCreateForm({ initialAddress }: Args) {
   );
 
   // ─────────────────────────────────────────────────────────
-  // ✅ 신축/구옥 기본값 보정: 기본 "신축=true, 구옥=false"
+  // ✅ 신축/구옥 토글 액션 얻기 (자동 기본값은 세팅하지 않음)
   // ─────────────────────────────────────────────────────────
   const noop = (() => {}) as any;
   const setIsNew =
-    (header.actions as any)?.setIsNew ??
-    (header.actions as any)?.set_isNew ??
+    (grades.actions as any)?.setIsNew ??
+    (grades.actions as any)?.set_isNew ??
     noop;
   const setIsOld =
-    (header.actions as any)?.setIsOld ??
-    (header.actions as any)?.set_isOld ??
+    (grades.actions as any)?.setIsOld ??
+    (grades.actions as any)?.set_isOld ??
     noop;
-
-  useEffect(() => {
-    const hs: any = header.state ?? {};
-    const newVal =
-      typeof hs.isNew === "boolean"
-        ? hs.isNew
-        : (hs.is_new as boolean | undefined);
-    const oldVal =
-      typeof hs.isOld === "boolean"
-        ? hs.isOld
-        : (hs.is_old as boolean | undefined);
-
-    const hasNew = typeof newVal === "boolean";
-    const hasOld = typeof oldVal === "boolean";
-
-    // 둘 다 비어있으면 기본 신축
-    if (!hasNew && !hasOld) {
-      setIsNew(true);
-      setIsOld(false);
-      return;
-    }
-    // 둘 다 false라면(무선택 상태) 기본 신축
-    if (newVal === false && oldVal === false) {
-      setIsNew(true);
-      setIsOld(false);
-      return;
-    }
-    // 값이 하나라도 명시돼 있으면 그대로 둔다(드래프트/수정 진입 보호)
-  }, [header.state, setIsNew, setIsOld]);
 
   // 상호배타 선택 유틸 (UI에서 바로 호출)
   const selectNew = useCallback(() => {
@@ -143,22 +114,22 @@ export function useCreateForm({ initialAddress }: Args) {
 
     return {
       // actions
-      ...header.actions, // ⬅ setParkingGrade, setIsNew/setIsOld 등
+      ...header.actions, // ⬅ setParkingGrade 등
       ...basic.actions,
       ...nums.actions,
       ...parking.actions,
-      ...grades.actions,
+      ...grades.actions, // ⬅ setIsNew / setIsOld 포함
       ...aspects.actions,
       ...areas.actions,
       ...units.actions,
       ...opts.actions,
 
       // state
-      ...header.state, // ⬅ parkingGrade, isNew/isOld 포함
+      ...header.state,
       ...basic.state,
       ...nums.state,
       ...parking.state,
-      ...grades.state,
+      ...grades.state, // ⬅ isNew / isOld 포함
       ...aspects.state,
       ...areas.state,
       ...units.state,

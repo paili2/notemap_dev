@@ -5,8 +5,14 @@ import { BuildingGrade } from "@/features/properties/types/building-grade";
 import { cn } from "@/lib/cn";
 
 type Props = {
-  value: BuildingGrade; // 표시상 null 허용(미선택)
-  onChange: (v: Exclude<BuildingGrade, null>) => void; // 엘리베이터처럼 해제 없음
+  /**
+   * value: "" | "new" | "old"
+   * - ""   : 미선택
+   * - "new": 신축
+   * - "old": 구옥
+   */
+  value: "" | BuildingGrade;
+  onChange: (v: "" | BuildingGrade) => void;
   className?: string;
 };
 
@@ -37,6 +43,7 @@ export default function BuildingGradeSegment({
       >
         신축
       </Button>
+
       <Button
         type="button"
         onClick={() => onChange("old")}

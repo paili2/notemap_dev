@@ -13,17 +13,17 @@ type HeaderForm = {
   parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
   setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
 
-  /** 엘리베이터 */
-  elevator: "O" | "X";
-  setElevator: (v: "O" | "X") => void;
+  /** 엘리베이터 - 내부 상태는 null 허용 */
+  elevator: "O" | "X" | null;
+  setElevator: (v: "O" | "X" | null) => void;
 
   /** 핀 종류 */
   pinKind: PinKind;
   setPinKind: (v: PinKind) => void;
 
-  /** 신축/구옥 — 기본값 신축, 미선택 없음 */
-  buildingGrade: BuildingGrade; // "new" | "old"
-  setBuildingGrade: Dispatch<SetStateAction<BuildingGrade>>;
+  /** 신축/구옥 — "new" | "old" | null(미선택) */
+  buildingGrade: BuildingGrade | null;
+  setBuildingGrade: Dispatch<SetStateAction<BuildingGrade | null>>;
 };
 
 export default function HeaderContainer({
@@ -40,10 +40,13 @@ export default function HeaderContainer({
         setTitle={form.setTitle}
         parkingGrade={form.parkingGrade}
         setParkingGrade={form.setParkingGrade}
-        elevator={form.elevator}
-        setElevator={form.setElevator}
+        // ✅ HeaderSection은 "O" | "X"만 받으므로 null이면 기본값 "X"로 보냄
+        elevator={form.elevator ?? "X"}
+        // ✅ HeaderSection 타입에 맞게 래핑: (v: "O" | "X") => ...
+        setElevator={(v) => form.setElevator(v)}
         pinKind={form.pinKind}
         setPinKind={form.setPinKind}
+        // ✅ 신축/구옥은 null 허용이라 그대로 전달 (HeaderSection에서 어댑터 처리)
         buildingGrade={form.buildingGrade}
         setBuildingGrade={form.setBuildingGrade}
         onClose={onClose}
