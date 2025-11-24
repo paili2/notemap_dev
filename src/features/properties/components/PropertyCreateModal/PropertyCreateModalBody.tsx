@@ -1063,6 +1063,86 @@ export default function PropertyCreateModalBody({
     ? minimalForVisitPlan && !isSaving
     : f.isSaveEnabled && !isSaving;
 
+  /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값도 같이 초기화 */
+  const prevIsVisitPlanRef = useRef(isVisitPlanPin);
+  useEffect(() => {
+    const prev = prevIsVisitPlanRef.current;
+
+    // 이전에는 일반핀(false)이었다가 지금 답사예정(true)으로 바뀐 경우에만 초기화
+    if (isVisitPlanPin && prev === false) {
+      const anyForm = f as any;
+
+      /* ── 헤더/상단 쪽 ── */
+      anyForm.setBuildingGrade?.(null);
+      anyForm.setParkingGrade?.("");
+      anyForm.setSlopeGrade?.("");
+      anyForm.setStructureGrade?.("");
+
+      // ✅ 등기(건물유형)도 같이 초기화
+      anyForm.setBuildingType?.(null);
+      anyForm.buildingType = null;
+
+      // 준공일
+      anyForm.setCompletionDate?.("");
+      anyForm.completionDate = "";
+
+      // 최저실입(실입주금)
+      if (typeof anyForm.setSalePrice === "function") {
+        anyForm.setSalePrice(null);
+      } else {
+        anyForm.salePrice = null;
+      }
+
+      /* ── 숫자/카운트들 ── */
+      anyForm.setTotalBuildings?.("");
+      anyForm.setTotalFloors?.("");
+      anyForm.setTotalHouseholds?.("");
+      anyForm.setRemainingHouseholds?.("");
+
+      /* ── 주차 관련 ── */
+      anyForm.setTotalParkingSlots?.(null);
+      anyForm.setParkingType?.("");
+      anyForm.setParkingTypeId?.(null);
+
+      /* ── 엘리베이터 ── */
+      anyForm.setElevator?.(null);
+
+      /* ── 개별 평수 / 면적 그룹 ── */
+      const emptyArea: StrictAreaSet = {
+        title: "",
+        exMinM2: "",
+        exMaxM2: "",
+        exMinPy: "",
+        exMaxPy: "",
+        realMinM2: "",
+        realMaxM2: "",
+        realMinPy: "",
+        realMaxPy: "",
+      };
+      anyForm.setBaseAreaSet?.(emptyArea);
+      anyForm.setExtraAreaSets?.([]);
+
+      /* ── 구조별 입력 ── */
+      if (typeof anyForm.setUnitLines === "function") {
+        anyForm.setUnitLines([]);
+      } else {
+        anyForm.unitLines = [];
+      }
+
+      /* ── 방향(Aspects) ── */
+      anyForm.setAspects?.([]);
+
+      /* ── 옵션/메모 ── */
+      anyForm.setOptions?.([]);
+      anyForm.setEtcChecked?.(false);
+      anyForm.setOptionEtc?.("");
+      anyForm.setPublicMemo?.("");
+      anyForm.setSecretMemo?.("");
+    }
+
+    prevIsVisitPlanRef.current = isVisitPlanPin;
+  }, [isVisitPlanPin, f]);
+
   /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
@@ -1109,8 +1189,11 @@ export default function PropertyCreateModalBody({
               <div className="space-y-6">
                 <NumbersContainer form={f} />
                 <ParkingContainer form={parkingForm} />
-                <CompletionRegistryContainer form={f} />
-                <AspectsContainer form={f} />
+                <CompletionRegistryContainer
+                  form={f}
+                  isVisitPlanPin={isVisitPlanPin}
+                />
+                <AspectsContainer form={f} isVisitPlanPin={isVisitPlanPin} />
                 <AreaSetsContainer
                   form={{
                     baseAreaSet: toStrictAreaSet(f.baseAreaSet),
@@ -1123,7 +1206,11 @@ export default function PropertyCreateModalBody({
                       f.setExtraAreaSets(arr),
                   }}
                 />
-                <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
+                <StructureLinesContainer
+                  form={f}
+                  presets={STRUCTURE_PRESETS}
+                  isVisitPlanPin={isVisitPlanPin}
+                />
                 <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
                 <MemosContainer form={f} />
               </div>

@@ -19,14 +19,22 @@ type FormWithUnitLines = CommonFns & {
   unitLines: UnitLine[];
 };
 
+type Props = {
+  form: FormWithLines | FormWithUnitLines;
+  presets: readonly string[];
+  /** 답사예정 핀일 때 true → UI는 항상 빈 상태로 보여줌 */
+  isVisitPlanPin?: boolean;
+};
+
 export default function StructureLinesContainer({
   form,
   presets,
-}: {
-  form: FormWithLines | FormWithUnitLines;
-  presets: readonly string[];
-}) {
-  const lines = "lines" in form ? form.lines : form.unitLines;
+  isVisitPlanPin,
+}: Props) {
+  const rawLines = "lines" in form ? form.lines : form.unitLines;
+
+  // ✅ 답사예정이면 구조별 입력을 비워서 렌더
+  const lines = isVisitPlanPin ? [] : rawLines;
 
   return (
     <StructureLinesSection

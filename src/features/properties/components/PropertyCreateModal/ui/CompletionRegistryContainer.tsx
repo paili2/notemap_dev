@@ -51,8 +51,11 @@ const clampYmdSetter = (set: (v: string) => void) => (v: string) => {
 
 export default function CompletionRegistryContainer({
   form,
+  isVisitPlanPin,
 }: {
   form: CRContainerForm;
+  /** 답사예정 핀 여부 */
+  isVisitPlanPin?: boolean;
 }) {
   // 안전 폴백 (buildingType 관련은 optional 그대로 유지)
   const buildingType = (form as any).buildingType ?? null;
@@ -97,6 +100,8 @@ export default function CompletionRegistryContainer({
       // ✅ 엘리베이터
       elevator={elevator}
       setElevator={setElevator}
+      // ✅ 답사예정 모드 여부 (로컬 state 초기화용)
+      isVisitPlanPin={isVisitPlanPin}
     />
   );
 }

@@ -3,7 +3,7 @@
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import PillRadioGroup from "@/components/atoms/PillRadioGroup";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   Grade,
@@ -69,11 +69,14 @@ export default function CompletionRegistrySection({
   setBuildingType,
   elevator,
   setElevator,
+  /** ✅ 답사예정 핀 여부 */
+  isVisitPlanPin,
 }: CompletionRegistrySectionProps & {
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
   elevator?: "O" | "X" | null;
   setElevator?: (v: "O" | "X" | null) => void;
+  isVisitPlanPin?: boolean;
 }) {
   /** ── 준공일 ── */
   const [localDate, setLocalDate] = useState<string>(toYmd(completionDate));
@@ -100,9 +103,8 @@ export default function CompletionRegistrySection({
   const onChangePrice = useCallback(
     (raw: string) => {
       const digits = onlyDigits(raw);
-      setLocalPrice(digits); // 👈 UI는 무조건 즉시 반영
+      setLocalPrice(digits);
 
-      // 윗단 상태도 있으면 같이 올려주기
       if (typeof setMinRealMoveInCost === "function") {
         setMinRealMoveInCost(digits === "" ? null : digits);
       } else if (typeof setSalePrice === "function") {
@@ -122,6 +124,40 @@ export default function CompletionRegistrySection({
       setStructureGrade?.(v as Grade | undefined),
     [setStructureGrade]
   );
+
+  /** ✅ 일반핀 → 답사예정 전환 시, 준공일/최저실입/등기 초기화 */
+  const prevIsVisitRef = useRef<boolean | undefined>(isVisitPlanPin);
+  useEffect(() => {
+    const prev = prevIsVisitRef.current;
+
+    if (isVisitPlanPin && !prev) {
+      // 로컬 state
+      setLocalDate("");
+      setLocalPrice("");
+
+      // 상위 폼 상태
+      setCompletionDate("");
+      if (typeof setMinRealMoveInCost === "function") {
+        setMinRealMoveInCost(null);
+      }
+      if (typeof setSalePrice === "function") {
+        setSalePrice("");
+      }
+
+      // 🔹 등기(건물유형)도 리셋
+      if (typeof setBuildingType === "function") {
+        setBuildingType(null);
+      }
+    }
+
+    prevIsVisitRef.current = isVisitPlanPin;
+  }, [
+    isVisitPlanPin,
+    setCompletionDate,
+    setMinRealMoveInCost,
+    setSalePrice,
+    setBuildingType,
+  ]);
 
   return (
     <div className="space-y-4">

@@ -70,6 +70,29 @@ export default function HeaderSection(
   /** ───────── 리베이트 입력 (setRebate 없을 때 fallback 상태) ───────── */
   const [fallbackRebate, setFallbackRebate] = React.useState<string>("");
 
+  // ✅ 답사예정으로 전환될 때 값 초기화 (신축/구옥 + 별점 + 리베이트)
+  const prevIsVisitPlanRef = React.useRef<boolean | null>(null);
+  React.useEffect(() => {
+    const prev = prevIsVisitPlanRef.current;
+    const current = !!isVisitPlanPin;
+
+    // 다른 핀(일반) → 답사예정 으로 바뀌는 순간에만 초기화
+    if (current && prev === false) {
+      // 신축/구옥 초기화
+      setBuildingGrade(null);
+      // 별점 초기화
+      setParkingGrade("" as HeaderSectionProps["parkingGrade"]);
+      // 리베이트 초기화
+      if (setRebate) {
+        setRebate(null);
+      } else {
+        setFallbackRebate("");
+      }
+    }
+
+    prevIsVisitPlanRef.current = current;
+  }, [isVisitPlanPin, setBuildingGrade, setParkingGrade, setRebate]);
+
   // 부모가 setRebate를 안 넘겨준 경우 → 내부 상태를 사용
   const rebateDisplay =
     setRebate != null
