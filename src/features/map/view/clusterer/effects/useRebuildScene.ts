@@ -100,6 +100,15 @@ export function useRebuildScene(args: Args) {
     return undefined;
   }
 
+  /** "__something" 같은 내부 키는 라벨 후보에서 제거 */
+  function cleanLabelCandidate(v: unknown) {
+    if (typeof v !== "string") return v;
+    const t = v.trim();
+    if (!t) return undefined;
+    if (t.startsWith("__")) return undefined;
+    return t;
+  }
+
   /**
    * 좌표 → 그룹핑용 키 (소수 5자리 ≈ 1.1m)
    * ⚠️ 주의: 이 값은 라벨/그룹핑 전용입니다.
@@ -192,10 +201,18 @@ export function useRebuildScene(args: Args) {
           : m.getPosition?.().getLng?.();
       const posKey = m.posKey ?? toGroupingPosKey(lat, lng); // 허용오차 포함 posKey (그룹핑 전용)
 
+      const idStr = String(m.id ?? "");
+      // title 또는 id 가 __visit__ 로 시작하면 "답사예정 전용 마커"로 간주
+      const isVisitPlaceholder =
+        (typeof (m as any).title === "string" &&
+          (m as any).title.trim().startsWith("__visit__")) ||
+        idStr.startsWith("__visit__");
+
       // ✅ 주소임시핀은 절대 isPlan 되지 않도록 가드
       const isPlan =
         !isAddressOnly &&
         (isDraft ||
+          isVisitPlaceholder ||
           m.isPlan === true ||
           m.visit?.state === "PLANNED" ||
           (typeof m.planCount === "number" && m.planCount > 0) ||
@@ -224,7 +241,7 @@ export function useRebuildScene(args: Args) {
       const R = 6371000;
       const toRad = (d: number) => (d * Math.PI) / 180;
       const dLat = toRad(lat2 - lat1);
-      const dLng = toRad(lng2 - lng1);
+      const dLng = toRad(lng2 - lng1); // 🔧 오탈자 수정
       const a =
         Math.sin(dLat / 2) ** 2 +
         Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
@@ -280,23 +297,23 @@ export function useRebuildScene(args: Args) {
         const displayName =
           firstNonEmpty(
             // 1순위: 매물명 계열
-            (m as any).property?.name,
-            (m as any).property?.title,
-            (m as any).data?.propertyName,
-            (m as any).propertyName,
+            cleanLabelCandidate((m as any).property?.name),
+            cleanLabelCandidate((m as any).property?.title),
+            cleanLabelCandidate((m as any).data?.propertyName),
+            cleanLabelCandidate((m as any).propertyName),
 
             // 2순위: MapMarker.name (주소랑 다를 때만)
-            nameCandidate,
+            cleanLabelCandidate(nameCandidate),
 
             // 3순위: 기타 name 계열
-            (m as any).point?.name,
-            (m as any).data?.name,
+            cleanLabelCandidate((m as any).point?.name),
+            cleanLabelCandidate((m as any).data?.name),
 
             // 4순위: 그 다음에야 title(주소 등)
-            m.title,
+            cleanLabelCandidate(m.title),
 
-            // 5순위: 그래도 없으면 id
-            String(m.id ?? "")
+            // 5순위: 그래도 없으면 id (내부키는 cleanLabelCandidate로 필터)
+            cleanLabelCandidate(String(m.id ?? ""))
           ) || "";
 
         const planText = `${m.regionLabel ?? ""} 답사예정`.trim();
@@ -334,14 +351,26 @@ export function useRebuildScene(args: Args) {
             hideLabelsNear(lat, lng, 20);
         }
 
-        // 같은 key로 남아있던 이전 라벨 제거(안전망)
-        try {
-          const prev = labelOvRef.current[key];
-          if (prev) {
-            prev.setMap?.(null);
-            delete labelOvRef.current[key];
+        // 🔁 기존 라벨이 있으면 제거하지 말고 텍스트 + 위치만 업데이트
+        const prev = labelOvRef.current[key];
+        if (prev) {
+          const el = prev.getContent?.() as HTMLElement | null;
+
+          const titleEl = el?.querySelector?.(
+            '[data-role="label-title"]'
+          ) as HTMLElement | null;
+
+          if (titleEl) {
+            titleEl.textContent = labelText;
+          } else if (el) {
+            el.textContent = labelText;
           }
-        } catch {}
+
+          prev.setPosition(pos);
+          prev.setMap(map);
+
+          return; // ⬅️ 새 라벨 생성 로직을 건너뛰고 끝!
+        }
 
         // 같은 posKey의 기존 라벨 제거 후 교체
         if (isPlan && posKey && labelByPos[posKey]) {

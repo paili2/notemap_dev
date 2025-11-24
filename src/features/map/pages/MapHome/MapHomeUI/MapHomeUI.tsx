@@ -418,15 +418,30 @@ export function MapHomeUI(props: MapHomeUIProps) {
     []
   );
 
-  /** ✅ 생성 후: 마커만 정리 (뷰모달 오픈은 단일 호스트가 담당) */
+  // 원래 createHostHandlers.onAfterCreate 백업
+  const originalOnAfterCreate = createHostHandlers?.onAfterCreate;
+
+  /** ✅ 생성/답사예정 등록 후 후처리 */
   const handleAfterCreate = useCallback(
-    (args: {
-      pinId: string;
-      matchedDraftId?: string | number | null;
-      lat: number;
-      lng: number;
-    }) => {
-      const { pinId, matchedDraftId, lat, lng } = args;
+    (args: any) => {
+      // 1) 답사예정핀 전용 모드면: 모달 / 상세뷰 전부 닫고 끝내기
+      if (args?.mode === "visit-plan-only") {
+        // 생성 모달/상태 정리
+        createHostHandlers?.resetAfterCreate?.();
+        createHostHandlers?.onClose?.();
+
+        // 혹시 상세보기 모달 떠 있으면 같이 닫기
+        closeView?.();
+
+        return;
+      }
+
+      // 2) 일반 매물 등록 로직 (기존과 동일)
+      const { pinId, matchedDraftId, lat, lng } = args || {};
+      if (!pinId) {
+        // pinId 없으면 할 일이 없음
+        return;
+      }
 
       if (matchedDraftId != null) {
         replaceTempByRealId(matchedDraftId, pinId);
@@ -439,8 +454,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
           source: "draft",
         });
       }
+
+      // 3) 기존 onAfterCreate(드래프트 숨김 / refetch 등)도 호출
+      originalOnAfterCreate?.(args);
     },
-    [replaceTempByRealId, upsertDraftMarker]
+    [
+      closeView,
+      createHostHandlers,
+      originalOnAfterCreate,
+      replaceTempByRealId,
+      upsertDraftMarker,
+    ]
   );
 
   const draftStateForQuery = useMemo<

@@ -627,6 +627,11 @@ export default function PropertyCreateModalBody({
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
+  /* ====== 답사예정 핀 여부 & 최소 저장 조건 ====== */
+  const isVisitPlanPin = isVisitPlanPinKind((f as any).pinKind);
+  const mainTitle = (f.title ?? "").trim();
+  const mainOfficePhone = (f.officePhone ?? "").trim();
+
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
     isSavingRef.current = true;
@@ -641,6 +646,47 @@ export default function PropertyCreateModalBody({
         alert("좌표가 유효하지 않습니다. (initialLat/initialLng 미전달)");
         return;
       }
+
+      /* ====== 1) 답사예정핀 전용 분기: 임시핀(답사예정) 등록 ====== */
+      if (isVisitPlanPin) {
+        if (!mainTitle) {
+          alert("매물명을 입력해 주세요.");
+          return;
+        }
+        if (!isValidPhoneKR(f.officePhone)) {
+          alert("분양사무실 전화번호를 정확히 입력해 주세요.");
+          return;
+        }
+
+        // TODO: 실제 사용하는 API로 교체 (before → pin-drafts 등)
+        const res = await api.post("/pin-drafts", {
+          lat: latNum,
+          lng: lngNum,
+          addressLine: f.address,
+        });
+
+        const created = res?.data?.data ?? res?.data ?? null;
+
+        await Promise.resolve(
+          onSubmit?.({
+            mode: "visit-plan-only",
+            pinDraftId:
+              created?.id ??
+              created?.pinDraftId ??
+              created?.pin_draft_id ??
+              null,
+            lat: latNum,
+            lng: lngNum,
+          } as any)
+        );
+
+        // ✅ asInner 여부 상관없이 항상 onClose 호출
+        onClose?.();
+
+        return; // ⛔ 여기서 일반 createPin 로직은 타지 않음
+      }
+
+      /* ====== 2) 일반핀 저장(createPin) 로직 ====== */
 
       // 🔹 가로 카드 폴더 제목 검증 (id 기반)
       {
@@ -1012,6 +1058,9 @@ export default function PropertyCreateModalBody({
     pinDraftId,
     asInner,
     findGroupById,
+    isVisitPlanPin,
+    mainTitle,
+    mainOfficePhone,
   ]);
 
   const imagesProp = useMemo(
@@ -1052,11 +1101,6 @@ export default function PropertyCreateModalBody({
   );
 
   /* ====== 답사예정 핀일 때 저장 가능 조건 (매물명 + 분양사무실 전화번호만) ====== */
-  const isVisitPlanPin = isVisitPlanPinKind((f as any).pinKind);
-  const mainTitle = (f.title ?? "").trim();
-  const mainOfficePhone = (f.officePhone ?? "").trim();
-
-  // ✅ 버튼 활성화는 "비어있지 않음"만 체크
   const minimalForVisitPlan = !!mainTitle && !!mainOfficePhone;
 
   const canSave = isVisitPlanPin
