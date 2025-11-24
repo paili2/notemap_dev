@@ -17,11 +17,11 @@ export type HeaderForm = {
 
   /** 핀선택: placeholder를 쓰기 위해 null 허용 */
   pinKind: PinKind | null;
-  setPinKind: (v: PinKind) => void;
+  setPinKind: (v: PinKind | null) => void;
 
-  /** 신축/구옥 - ✅ HeaderSection의 정의(널 허용)와 동일하게 맞춘다 */
-  buildingGrade: BuildingGrade; // "new" | "old" | null (HeaderSection 기준)
-  setBuildingGrade: (v: BuildingGrade) => void; // (null까지 받도록)
+  /** 신축/구옥 */
+  buildingGrade: BuildingGrade | null;
+  setBuildingGrade: (v: BuildingGrade | null) => void;
 };
 
 export default function HeaderContainer({
@@ -40,10 +40,8 @@ export default function HeaderContainer({
       elevator={form.elevator}
       setElevator={form.setElevator}
       onClose={onClose}
-      // 핀 선택 (기존 그대로)
-      pinKind={(form.pinKind ?? undefined) as unknown as PinKind}
-      setPinKind={form.setPinKind}
-      // ✅ 신축/구옥 - 타입 맞춘 그대로 전달
+      pinKind={form.pinKind} // 🔥 여기!
+      setPinKind={form.setPinKind} // 🔥 null 허용 함수
       buildingGrade={form.buildingGrade}
       setBuildingGrade={form.setBuildingGrade}
     />
