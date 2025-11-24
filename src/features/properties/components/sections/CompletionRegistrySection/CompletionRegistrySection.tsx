@@ -3,7 +3,7 @@
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import PillRadioGroup from "@/components/atoms/PillRadioGroup";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type {
   Grade,
@@ -16,7 +16,6 @@ import ElevatorSegment from "../HeaderSection/components/ElevatorSegment";
 const GRADES = ["상", "중", "하"] as const;
 type GradeLiteral = (typeof GRADES)[number];
 
-// UI 라벨(버튼) 고정 튜플
 const UI_BUILDING_TYPES = ["주택", "APT", "OP", "도/생", "근/생"] as const;
 type UIBuildingType = (typeof UI_BUILDING_TYPES)[number];
 
@@ -25,7 +24,7 @@ const mapLabelToBackend = (v?: UIBuildingType | null): BuildingType | null => {
   if (!v) return null;
   if (v === "근/생") return "근생";
   if (v === "도/생") return "도생";
-  return v as unknown as BuildingType; // "주택" | "APT" | "OP"
+  return v as unknown as BuildingType;
 };
 
 const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
@@ -51,7 +50,6 @@ const finalizeYmd = (raw: string) => {
   return raw;
 };
 
-// 숫자 문자열 정규화
 const onlyDigits = (s: string) => s.replace(/[^\d]/g, "");
 
 export default function CompletionRegistrySection({
@@ -69,18 +67,15 @@ export default function CompletionRegistrySection({
   setStructureGrade,
   buildingType,
   setBuildingType,
-  // 엘리베이터
   elevator,
   setElevator,
 }: CompletionRegistrySectionProps & {
-  /** 신규 필드(선택): 최저 실입 정수 금액 */
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
-  /** 엘리베이터: O / X / null(미선택) */
   elevator?: "O" | "X" | null;
   setElevator?: (v: "O" | "X" | null) => void;
 }) {
-  /** 준공일 로컬 상태(타이핑 쾌적성) */
+  /** ── 준공일 ── */
   const [localDate, setLocalDate] = useState<string>(toYmd(completionDate));
   useEffect(() => setLocalDate(toYmd(completionDate)), [completionDate]);
 
@@ -90,19 +85,24 @@ export default function CompletionRegistrySection({
     setLocalDate(toYmd(v));
   }, [localDate, setCompletionDate]);
 
-  /** UI 라벨로 변환 (백엔드 enum → 버튼 라벨) */
+  /** ── 건물유형 (등기) ── */
   const uiBuildingType = mapBackendToLabel(buildingType as any);
 
-  /** 최저실입: 신규(minRealMoveInCost) 우선, 없으면 레거시(salePrice) 사용 */
-  const priceValue = useMemo(() => {
-    const v = minRealMoveInCost ?? salePrice ?? "";
-    return String(v ?? "");
-  }, [minRealMoveInCost, salePrice]);
+  /** ── 최저실입: 항상 로컬 상태 하나 두고, 필요 시 위로도 올려줌 ── */
+  const initialPrice = String(minRealMoveInCost ?? salePrice ?? "");
+  const [localPrice, setLocalPrice] = useState<string>(initialPrice);
+
+  // props 쪽 값이 바뀌면 로컬도 동기화 (예: 편집모드 초기 로드)
+  useEffect(() => {
+    setLocalPrice(initialPrice);
+  }, [initialPrice]);
 
   const onChangePrice = useCallback(
     (raw: string) => {
       const digits = onlyDigits(raw);
+      setLocalPrice(digits); // 👈 UI는 무조건 즉시 반영
 
+      // 윗단 상태도 있으면 같이 올려주기
       if (typeof setMinRealMoveInCost === "function") {
         setMinRealMoveInCost(digits === "" ? null : digits);
       } else if (typeof setSalePrice === "function") {
@@ -112,7 +112,7 @@ export default function CompletionRegistrySection({
     [setMinRealMoveInCost, setSalePrice]
   );
 
-  /** Grade 온체인지: setter가 없을 수도 있으므로 안전 래퍼 */
+  /** ── 경사도/구조 ── */
   const onChangeSlope = useCallback(
     (v: GradeLiteral | undefined) => setSlopeGrade?.(v as Grade | undefined),
     [setSlopeGrade]
@@ -147,7 +147,7 @@ export default function CompletionRegistrySection({
 
         <Field label="엘리베이터" align="center">
           <ElevatorSegment
-            value={elevator ?? null} // 🔹 기본값 강제 없이 그대로 전달
+            value={elevator ?? null}
             onChange={(next) => {
               if (setElevator) setElevator(next);
             }}
@@ -199,7 +199,7 @@ export default function CompletionRegistrySection({
           <Input
             type="text"
             inputMode="numeric"
-            value={priceValue}
+            value={localPrice}
             onChange={(e) => onChangePrice(e.target.value)}
             placeholder="예: 5000"
             className="h-9 w-40"

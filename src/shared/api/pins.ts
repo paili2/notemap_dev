@@ -1060,6 +1060,10 @@ export type CreatePinDraftDto = {
   lat: number | string;
   lng: number | string;
   addressLine: string | null | undefined;
+  name?: string | null;
+
+  /** 분양사무실 전화번호 */
+  contactMainPhone?: string | null;
 };
 type CreatePinDraftResponse = {
   success: boolean;
@@ -1085,6 +1089,17 @@ export async function createPinDraft(
     lat: latNum,
     lng: lngNum,
     addressLine: String(dto.addressLine ?? ""),
+
+    // ✅ 매물명: 값이 있을 때만 전송
+    ...(dto.name != null && String(dto.name).trim() !== ""
+      ? { name: String(dto.name).trim() }
+      : {}),
+
+    // ✅ 분양사무실 전화번호: 값이 있을 때만 전송
+    ...(dto.contactMainPhone != null &&
+    String(dto.contactMainPhone).trim() !== ""
+      ? { contactMainPhone: String(dto.contactMainPhone).trim() }
+      : {}),
   };
 
   assertNoTruncate("createPinDraft", payload.lat, payload.lng);

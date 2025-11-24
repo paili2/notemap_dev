@@ -1066,7 +1066,12 @@ export default function PropertyCreateModalBody({
   /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
-      <HeaderContainer form={f} onClose={onClose} />
+      {/* 헤더: 매물명은 항상 입력 가능 */}
+      <HeaderContainer
+        form={f}
+        onClose={onClose}
+        isVisitPlanPin={isVisitPlanPin}
+      />
 
       {/* ⭐ 내부 스크롤 래퍼에 ref 연결 + 가로 스크롤 숨김 */}
       <div
@@ -1075,34 +1080,55 @@ export default function PropertyCreateModalBody({
           flex-1 min-h-0
           overflow-y-auto overflow-x-hidden overscroll-y-contain
           px-4 py-4 md:px-5 md:py-4
-          grid gap-4 md:gap-6
-          grid-cols-1 md:grid-cols-[300px_1fr]
         "
       >
-        <ImagesContainer images={imagesProp} />
+        <div
+          className="
+            grid gap-4 md:gap-6
+            grid-cols-1 md:grid-cols-[300px_1fr]
+          "
+        >
+          {/* ⬅️ 왼쪽 이미지 영역: 답사예정핀일 때 비활성화 */}
+          <fieldset
+            disabled={isVisitPlanPin}
+            className={isVisitPlanPin ? "opacity-60" : ""}
+          >
+            <ImagesContainer images={imagesProp} />
+          </fieldset>
 
-        {/* 오른쪽 컬럼: 내용 넓이 제한용 min-w-0 */}
-        <div className="space-y-6 min-w-0">
-          <BasicInfoContainer form={f} />
-          <NumbersContainer form={f} />
-          <ParkingContainer form={parkingForm} />
-          <CompletionRegistryContainer form={f} />
-          <AspectsContainer form={f} />
-          <AreaSetsContainer
-            form={{
-              baseAreaSet: toStrictAreaSet(f.baseAreaSet),
-              setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
-              extraAreaSets: (Array.isArray(f.extraAreaSets)
-                ? f.extraAreaSets
-                : []
-              ).map(toStrictAreaSet),
-              setExtraAreaSets: (arr: StrictAreaSet[]) =>
-                f.setExtraAreaSets(arr),
-            }}
-          />
-          <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
-          <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
-          <MemosContainer form={f} />
+          {/* ➡️ 오른쪽 컬럼 */}
+          <div className="space-y-6 min-w-0">
+            {/* ✅ BasicInfoContainer: 항상 활성화 (주소/분양사무실/회사명 등) */}
+            <BasicInfoContainer form={f} />
+
+            {/* ✅ 답사예정핀일 때, 나머지 섹션 전부 비활성화 */}
+            <fieldset
+              disabled={isVisitPlanPin}
+              className={isVisitPlanPin ? "opacity-60" : ""}
+            >
+              <div className="space-y-6">
+                <NumbersContainer form={f} />
+                <ParkingContainer form={parkingForm} />
+                <CompletionRegistryContainer form={f} />
+                <AspectsContainer form={f} />
+                <AreaSetsContainer
+                  form={{
+                    baseAreaSet: toStrictAreaSet(f.baseAreaSet),
+                    setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
+                    extraAreaSets: (Array.isArray(f.extraAreaSets)
+                      ? f.extraAreaSets
+                      : []
+                    ).map(toStrictAreaSet),
+                    setExtraAreaSets: (arr: StrictAreaSet[]) =>
+                      f.setExtraAreaSets(arr),
+                  }}
+                />
+                <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
+                <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
+                <MemosContainer form={f} />
+              </div>
+            </fieldset>
+          </div>
         </div>
       </div>
 

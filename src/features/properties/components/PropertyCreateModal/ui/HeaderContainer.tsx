@@ -26,30 +26,55 @@ type HeaderForm = {
   setBuildingGrade: Dispatch<SetStateAction<BuildingGrade | null>>;
 };
 
+type HeaderContainerProps = {
+  form: HeaderForm;
+  onClose: () => void;
+  /** 답사예정핀(question) 여부 */
+  isVisitPlanPin?: boolean;
+};
+
 export default function HeaderContainer({
   form,
   onClose,
-}: {
-  form: HeaderForm;
-  onClose: () => void;
-}) {
+  isVisitPlanPin,
+}: HeaderContainerProps) {
+  // ⭐ 답사예정일 때: 별점/엘리베이터/신축·구옥만 막고,
+  //    핀 종류(pinKind)는 항상 변경 가능해야 한다.
+  const disabled = !!isVisitPlanPin;
+
   return (
     <div className="sticky top-0 z-[1002] bg-white">
       <HeaderSection
+        /** 매물명은 항상 입력 가능 */
         title={form.title}
         setTitle={form.setTitle}
         parkingGrade={form.parkingGrade}
-        setParkingGrade={form.setParkingGrade}
-        // ✅ HeaderSection은 "O" | "X"만 받으므로 null이면 기본값 "X"로 보냄
+        /** 답사예정핀일 때 매물평점 변경 막기 */
+        setParkingGrade={(v) => {
+          if (disabled) return;
+          form.setParkingGrade(v);
+        }}
+        // HeaderSection은 "O" | "X"만 받으므로 null이면 기본값 "X"로 보냄
         elevator={form.elevator ?? "X"}
-        // ✅ HeaderSection 타입에 맞게 래핑: (v: "O" | "X") => ...
-        setElevator={(v) => form.setElevator(v)}
+        // 답사예정핀일 때 엘리베이터 토글 막기
+        setElevator={(v) => {
+          if (disabled) return;
+          form.setElevator(v);
+        }}
         pinKind={form.pinKind}
-        setPinKind={form.setPinKind}
-        // ✅ 신축/구옥은 null 허용이라 그대로 전달 (HeaderSection에서 어댑터 처리)
+        // ✅ 핀 종류는 항상 변경 가능 (답사예정 → 다른 핀, 다른 핀 → 답사예정)
+        setPinKind={(v) => {
+          form.setPinKind(v);
+        }}
+        // 신축/구옥도 답사예정이면 변경 막기
         buildingGrade={form.buildingGrade}
-        setBuildingGrade={form.setBuildingGrade}
+        setBuildingGrade={(next) => {
+          if (disabled) return;
+          form.setBuildingGrade(next);
+        }}
         onClose={onClose}
+        /** 별/리베이트/신축·구옥 비활성화용 플래그 */
+        isVisitPlanPin={isVisitPlanPin}
       />
     </div>
   );
