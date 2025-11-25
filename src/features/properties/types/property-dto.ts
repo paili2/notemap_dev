@@ -65,6 +65,8 @@ export type CreatePayload = {
   /** ✅ 서버 PATCH 키와 일치: 최저 실입비(정수/null) */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
+  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+  rebate?: number | null;
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
@@ -165,6 +167,8 @@ export type UpdatePayload = {
   /** ✅ 서버 PATCH 키와 일치 */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
+  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+  rebate?: number | null;
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;

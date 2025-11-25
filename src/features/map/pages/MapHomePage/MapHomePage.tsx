@@ -15,6 +15,7 @@ import { useReserveFromMenu, eqId } from "./hooks/useReserveFromMenu";
 import { createPinDraft } from "@/shared/api/pins";
 import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
 import { useToast } from "@/hooks/use-toast";
+import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
 
 const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 
@@ -128,9 +129,9 @@ export default function MapHomePage() {
   );
 
   const onCreateFromMenu = useCallback(
-    (pos: { lat: number; lng: number }) => {
-      (s as any).setDraftPin?.(pos);
-      (s as any).onCreateFromMenu?.() ?? (s as any).createFromMenu?.();
+    (args: CreateFromPinArgs) => {
+      // 좌표/모드 처리 포함한 실제 로직은 useMapHomeState 쪽에서 처리
+      (s as any).onCreateFromMenu?.(args) ?? (s as any).createFromMenu?.(args);
     },
     [s]
   );
@@ -277,6 +278,7 @@ export default function MapHomePage() {
       onChangeHideLabelForId,
       onReserveFromMenu,
       createFromDraftId: s.createFromDraftId,
+      createPinKind: (s as any).createPinKind ?? null,
     }),
     [
       KAKAO_MAP_KEY,

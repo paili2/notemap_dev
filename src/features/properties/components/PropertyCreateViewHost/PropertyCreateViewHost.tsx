@@ -10,6 +10,7 @@ import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import type { PropertyCreateResult } from "@/features/properties/components/PropertyCreateModal/types";
+import type { PinKind } from "@/features/pins/types";
 
 type Stage = "create" | "view";
 
@@ -37,6 +38,9 @@ type Props = {
     payload?: any;
   }) => void;
 
+  /** ✅ MapHomeUI에서 내려오는 기본 핀 종류 */
+  initialPinKind?: PinKind | null;
+
   // 뷰 쪽
   initialViewData?: PropertyViewDetails | null;
   onSaveViewPatch?: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
@@ -53,10 +57,12 @@ export default function PropertyCreateViewHost({
   appendItem,
   resetAfterCreate,
   onAfterCreate,
+  initialPinKind,
   initialViewData,
   onSaveViewPatch,
   onDeleteFromView,
 }: Props) {
+  console.log("[PropertyCreateViewHost] initialPinKind prop =", initialPinKind);
   const [stage, setStage] = useState<Stage>(initialStage);
   const [createdPinId, setCreatedPinId] = useState<string | number | null>(
     initialViewData?.id ?? null
@@ -132,6 +138,7 @@ export default function PropertyCreateViewHost({
         initialLat={initialPos.lat}
         initialLng={initialPos.lng}
         pinDraftId={resolvedPinDraftId}
+        initialPinKind={initialPinKind ?? undefined}
       />
     );
   } else {

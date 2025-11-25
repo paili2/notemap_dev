@@ -19,12 +19,10 @@ import question from "@/../public/pins/question-pin.svg";
 import townhouse from "@/../public/pins/townhouse-pin.svg";
 
 import type { PinKind } from "@/features/pins/types";
-import { useEffect } from "react";
 
 /** next/image src 타입 보조 */
 type IconSrc = string | StaticImageData;
 
-/** 옵션을 상수로 고정 → value가 문자열 리터럴 타입으로 유지됨 */
 export const PIN_OPTIONS = [
   { value: "1room", label: "1룸~1.5룸", icon: oneRoom },
   { value: "1room-terrace", label: "1룸~1.5룸 (테라스)", icon: oneRoomTerrace },
@@ -44,8 +42,6 @@ export const PIN_OPTIONS = [
 
 /** 옵션 기반 타입 가드: unknown -> PinKind */
 function isPinKind(v: unknown): v is PinKind {
-  // 프로젝트 전역 PinKind가 이 옵션들과 동일해야 합니다.
-  // 다르면 features/pins/types의 PinKind 정의를 아래 value 집합과 동기화하세요.
   return (PIN_OPTIONS as readonly { value: string }[]).some(
     (o) => o.value === v
   );
@@ -71,25 +67,15 @@ export default function PinTypeSelect({
   className?: string;
   placeholder?: string;
 }) {
-  /** ✅ 폼에서 값이 비어 있으면 최초에 무조건 'question'(답사예정)으로 보정 */
-  const effectiveValue: PinKind | null = (value ?? "question") as PinKind;
-
-  // 폼 state 쪽도 동기화(처음 한 번만)
-  useEffect(() => {
-    if (value == null) {
-      onChange("question");
-    }
-  }, [value, onChange]);
-
   return (
     <SafeSelect
-      value={effectiveValue} // 값이 항상 존재하므로 placeholder는 안 보임
+      value={value ?? undefined} // null이면 placeholder 보임
       onChange={(v) => {
-        if (v == null) return; // placeholder 선택 → 무시
-        if (isPinKind(v)) onChange(v); // 타입 안전 전달
+        if (v == null) return;
+        if (isPinKind(v)) onChange(v);
       }}
       items={PIN_OPTIONS.map((o) => ({
-        value: o.value, // 문자열 리터럴 그대로
+        value: o.value,
         label: <PinOptionView icon={o.icon} label={o.label} />,
       }))}
       placeholder={placeholder}

@@ -17,13 +17,13 @@ type HeaderForm = {
   elevator: "O" | "X" | null;
   setElevator: (v: "O" | "X" | null) => void;
 
-  /** 핀 종류 */
-  pinKind: PinKind;
-  setPinKind: (v: PinKind) => void;
+  /** 🔹 핀 종류 - null 허용 (핀 미선택 상태) */
+  pinKind: PinKind | null;
+  setPinKind: (v: PinKind | null) => void;
 
   /** 신축/구옥 — "new" | "old" | null(미선택) */
   buildingGrade: BuildingGrade | null;
-  setBuildingGrade: Dispatch<SetStateAction<BuildingGrade | null>>;
+  setBuildingGrade: (v: BuildingGrade | null) => void;
 };
 
 type HeaderContainerProps = {

@@ -5,6 +5,8 @@ import { PropertyViewDetails } from "@/features/properties/components/PropertyVi
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { PoiKind } from "../../shared/overlays/poiOverlays";
+import { PinKind } from "@/features/pins/types";
+import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
 
 type ReserveFromMenuPayload =
   | { visitId: string | number; dateISO?: string }
@@ -62,7 +64,7 @@ export type MapHomeUIProps = {
   // ✅ 상세보기 트리거 (컨트롤드 지원 시에만 전달; 없으면 내부에서 처리)
   onViewFromMenu?: (id: string | number) => void;
 
-  onCreateFromMenu: (pos: LatLng) => void;
+  onCreateFromMenu: (args: CreateFromPinArgs) => void;
   onPlanFromMenu: (pos: LatLng) => void;
 
   // map callbacks
@@ -129,4 +131,6 @@ export type MapHomeUIProps = {
 
   /** 시청역 답사예정핀 등에서 create 눌렀을 때 연결할 draftId (문자열) */
   createFromDraftId?: string | null;
+
+  createPinKind?: PinKind | null;
 };

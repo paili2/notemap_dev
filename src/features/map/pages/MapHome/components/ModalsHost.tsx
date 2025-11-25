@@ -5,6 +5,7 @@ import type { PropertyViewDetails } from "@/features/properties/components/Prope
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost/PropertyCreateViewHost";
 import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
+import type { PinKind } from "@/features/pins/types";
 
 export default function ModalsHost(props: {
   /** View Modal */
@@ -42,6 +43,9 @@ export default function ModalsHost(props: {
   /** ✅ draft 기반 생성용 id */
   pinDraftId?: number;
 
+  /** ✅ MapHomeUI에서 내려주는 생성용 기본 핀종류 */
+  createPinKind?: PinKind | null;
+
   /** Roadview */
   roadviewVisible: boolean;
   roadviewContainerRef: any;
@@ -61,6 +65,7 @@ export default function ModalsHost(props: {
     selectedPos,
     createHostHandlers,
     pinDraftId,
+    createPinKind,
     // roadview
     roadviewVisible,
     roadviewContainerRef,
@@ -103,6 +108,8 @@ export default function ModalsHost(props: {
               appendItem={createHostHandlers.appendItem}
               resetAfterCreate={createHostHandlers.resetAfterCreate}
               onAfterCreate={createHostHandlers.onAfterCreate}
+              /* 생성 모달 기본 핀종류 */
+              initialPinKind={createPinKind ?? undefined}
               /* 뷰 단계 props */
               initialViewData={selectedViewItem ?? undefined}
               onSaveViewPatch={onSaveViewPatch}

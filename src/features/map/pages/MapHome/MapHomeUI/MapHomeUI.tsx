@@ -238,6 +238,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onMapReady,
     onViewportChange,
     createOpen,
+    createPinKind,
     selectedViewItem,
     prefillAddress,
     draftPin,
@@ -1149,6 +1150,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         roadviewVisible={roadviewVisible}
         roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}
+        createPinKind={createPinKind ?? null}
       />
     </div>
   );

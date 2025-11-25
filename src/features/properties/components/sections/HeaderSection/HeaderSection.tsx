@@ -76,7 +76,7 @@ export default function HeaderSection(
     const prev = prevIsVisitPlanRef.current;
     const current = !!isVisitPlanPin;
 
-    // 다른 핀(일반) → 답사예정 으로 바뀌는 순간에만 초기화
+    // 일반핀(false) → 답사예정(true)으로 바뀌는 순간에만 초기화
     if (current && prev === false) {
       // 신축/구옥 초기화
       setBuildingGrade(null);
@@ -138,7 +138,7 @@ export default function HeaderSection(
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="flex flex-wrap items-center gap-6 px-4 py-4 min-w-0">
-        {/* 1) 신축/구옥 */}
+        {/* 1) 신축/구옥 — 답사예정일 때만 비활성화 */}
         <div
           className={cn(
             "order-1 flex-shrink-0",
@@ -148,7 +148,7 @@ export default function HeaderSection(
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
         </div>
 
-        {/* 2) 핀선택 (항상 선택 가능해야 해서 disable 안 건드림) */}
+        {/* 2) 핀선택 — 항상 변경 가능 (답사예정/일반 모두) */}
         <div className="order-2 flex-shrink-0">
           <PinTypeSelect
             value={pinKind ?? null}
@@ -158,7 +158,7 @@ export default function HeaderSection(
           />
         </div>
 
-        {/* 3) 매물평점 */}
+        {/* 3) 매물평점 — 답사예정일 때만 비활성화 */}
         <div className="order-3 flex items-center gap-2 min-w-[150px]">
           <span
             className={cn(
@@ -169,7 +169,6 @@ export default function HeaderSection(
             매물평점
           </span>
           <div className="w-[140px] md:w-[200px] leading-none">
-            {/* ⭐ 답사예정일 때 hover/클릭 완전히 막기 */}
             <div
               className={cn(
                 "flex items-center",
@@ -209,7 +208,7 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 4) 매물명 (항상 입력 가능) */}
+        {/* 4) 매물명 — 항상 입력 가능 */}
         <div className="order-4 flex items-center gap-2 min-w-0">
           <span className="text-[16px] md:text-[18px] font-semibold text-gray-800 whitespace-nowrap">
             매물명
@@ -229,7 +228,7 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 5) 리베이트 R표시 */}
+        {/* 5) 리베이트 R표시 — 답사예정일 때만 비활성화 */}
         <div
           className={cn(
             "order-5 flex items-center gap-3",

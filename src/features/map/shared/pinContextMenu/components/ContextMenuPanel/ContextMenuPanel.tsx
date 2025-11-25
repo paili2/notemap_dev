@@ -12,7 +12,10 @@ import {
 import type React from "react";
 import type { ContextMenuPanelProps } from "./types";
 import { Plus } from "lucide-react";
-import type { ReserveRequestPayload } from "../PinContextMenu/types";
+import type {
+  CreateMode,
+  ReserveRequestPayload,
+} from "../PinContextMenu/types";
 import { getPinRaw } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
@@ -245,22 +248,41 @@ export default function ContextMenuPanel({
     const pinDraftId = extractDraftIdFromPropertyId(propertyId);
     const { lat, lng } = getLatLng(position);
 
-    console.log("✳️ handleCreateClick position:", position);
-    console.log("✳️ lat/lng from marker:", lat, lng);
+    const createMode: CreateMode = draft
+      ? "PLAN_FROM_DRAFT" // 신규핀 → 답사예정지 등록 클릭
+      : reserved
+      ? "FULL_PROPERTY_FROM_RESERVED" // 답사지 예약핀 → 매물 정보 입력
+      : "NORMAL";
 
-    onCreate?.({
+    // 🔹 기본 payload
+    const basePayload = {
       latFromPin: lat,
       lngFromPin: lng,
       fromPinDraftId: pinDraftId,
       address: roadAddress ?? jibunAddress ?? null,
       roadAddress: roadAddress ?? null,
       jibunAddress: jibunAddress ?? null,
-      // NOTE: 필요하면 여기서 createMode 같은 플래그 추가해서
-      //       기본 핀 종류(답사예정핀 등)를 컨테이너에 알려줄 수 있음.
-    });
+      createMode,
+    };
+
+    // 🔥 draft(검색 임시핀)일 때만 visitPlanOnly: true 추가
+    const payload = draft
+      ? { ...basePayload, visitPlanOnly: true }
+      : basePayload;
+
+    onCreate?.(payload);
 
     onClose();
-  }, [onCreate, onClose, propertyId, roadAddress, jibunAddress, position]);
+  }, [
+    onCreate,
+    onClose,
+    propertyId,
+    roadAddress,
+    jibunAddress,
+    position,
+    draft,
+    reserved,
+  ]);
 
   // ✅ Hover 시 프리페치
   const handleHoverPrefetch = useCallback(() => {
@@ -389,7 +411,7 @@ export default function ContextMenuPanel({
             onClick={handleCreateClick}
             className="w-full"
           >
-            이 위치로 신규 등록
+            답사예정지 등록
           </Button>
         </div>
       ) : (

@@ -25,6 +25,13 @@ import {
 } from "../../shared/hooks/useKakaoTools";
 import { useRunSearch } from "../../shared/hooks/useRunSearch";
 import { useToast } from "@/hooks/use-toast";
+import { PinKind } from "@/features/pins/types";
+import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
+
+type LocalCreateFromPinArgs = CreateFromPinArgs & {
+  /** 답사예정지 '간단등록' 모드인지 여부 */
+  visitPlanOnly?: boolean;
+};
 
 const PIN_MENU_MAX_LEVEL = 5;
 
@@ -128,6 +135,8 @@ export function useMapHomeState() {
   // 생성용 draft 핀 복원
   const [draftPin, _setDraftPin] = useState<LatLng | null>(null);
   const restoredDraftPinRef = useRef<LatLng | null>(null);
+
+  const [createPinKind, setCreatePinKind] = useState<PinKind | null>(null);
 
   // ✅ 매물등록용 좌표 캡쳐
   const [createPos, setCreatePos] = useState<LatLng | null>(null);
@@ -595,7 +604,10 @@ export function useMapHomeState() {
         const draft = (drafts ?? []).find((d: any) => String(d.id) === rawId);
         if (draft) {
           const pos = { lat: draft.lat, lng: draft.lng };
-          await focusAndOpenAt(pos, "__draft__");
+
+          // ⬇️ 여기! 더 이상 "__draft__"로 바꾸지 말고,
+          //    원래 visit-id 그대로 넘겨서 openMenuAt 에서도 __visit__... 를 받게 한다
+          await focusAndOpenAt(pos, `__visit__${rawId}`);
           return;
         }
       }
@@ -721,19 +733,71 @@ export function useMapHomeState() {
     [closeMenu]
   );
 
-  const openCreateFromMenu = useCallback(() => {
-    // ✅ 메뉴가 닫히기 전에 현재 위치 캡쳐
-    const anchor: LatLng | null =
-      menuAnchor ??
-      draftPin ??
-      (selected ? normalizeLL((selected as any).position) : null);
+  const openCreateFromMenu = useCallback(
+    (args?: LocalCreateFromPinArgs) => {
+      let anchor: LatLng | null = null;
 
-    setCreatePos(anchor);
+      // ✅ 1) 여기서 모드 결정
+      //    - 답사예정지 등록 버튼 → visitPlanOnly: true 로 호출
+      //    - 일반 매물등록 / 답사예정핀에서 "매물정보입력" → visitPlanOnly 안 넘김
+      const isVisitPlanOnly = !!args?.visitPlanOnly;
 
-    closeMenu();
-    setPrefillAddress(menuRoadAddr ?? menuJibunAddr ?? undefined);
-    setCreateOpen(true);
-  }, [menuAnchor, draftPin, selected, menuRoadAddr, menuJibunAddr, closeMenu]);
+      console.log("[openCreateFromMenu] args =", args);
+      console.log("[openCreateFromMenu] isVisitPlanOnly =", isVisitPlanOnly);
+
+      //  답사예정 전용 모드면 "question" 으로, 나머지는 일반(1룸 기본값)
+      setCreatePinKind(isVisitPlanOnly ? "question" : null);
+
+      console.log(
+        "[openCreateFromMenu] createPinKind set to",
+        isVisitPlanOnly ? "question" : null
+      );
+
+      // ✅ 2) 좌표 결정 (기존 코드 그대로 유지)
+      if (args) {
+        const lat = (args as any).lat ?? (args as any).latFromPin ?? null;
+        const lng = (args as any).lng ?? (args as any).lngFromPin ?? null;
+
+        if (lat != null && lng != null) {
+          anchor = normalizeLL({ lat, lng });
+        }
+
+        if (args.fromPinDraftId != null) {
+          setCreateFromDraftId(String(args.fromPinDraftId));
+        }
+      }
+
+      if (!anchor) {
+        anchor =
+          menuAnchor ??
+          draftPin ??
+          (selected ? normalizeLL((selected as any).position) : null);
+      }
+
+      setCreatePos(anchor);
+      closeMenu();
+
+      const prefill =
+        args?.address ??
+        args?.roadAddress ??
+        args?.jibunAddress ??
+        menuRoadAddr ??
+        menuJibunAddr ??
+        undefined;
+
+      setPrefillAddress(prefill);
+      setCreateOpen(true);
+    },
+    [
+      menuAnchor,
+      draftPin,
+      selected,
+      menuRoadAddr,
+      menuJibunAddr,
+      closeMenu,
+      setCreateFromDraftId,
+    ]
+  );
 
   // alias들
   const onCloseMenu = closeMenu;
@@ -818,6 +882,7 @@ export function useMapHomeState() {
         setMenuOpen(false);
         setCreateFromDraftId(null);
         setCreatePos(null); // ✅ 생성 좌표 초기화
+        setCreatePinKind(null);
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
       selectAndOpenView: (id: string | number) => {
@@ -832,6 +897,7 @@ export function useMapHomeState() {
         setCreateOpen(false);
         setCreateFromDraftId(null);
         setCreatePos(null); // ✅ 생성 좌표 초기화
+        setCreatePinKind(null);
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
@@ -840,7 +906,7 @@ export function useMapHomeState() {
         refetch();
       },
     }),
-    [hideDraft, refetch, setDraftPinSafe, setCreatePos]
+    [hideDraft, refetch, setDraftPinSafe, setCreatePos, setCreatePinKind]
   );
 
   const editHostHandlers = useMemo(
@@ -859,6 +925,7 @@ export function useMapHomeState() {
     setMenuOpen(false);
     setCreateFromDraftId(null);
     setCreatePos(null); // ✅ 생성 좌표 초기화
+    setCreatePinKind(null);
   }, [setDraftPinSafe, setCreatePos]);
 
   // POI 변경 즉시 반영
@@ -1003,6 +1070,9 @@ export function useMapHomeState() {
     // draft
     draftPin,
     setDraftPin: setDraftPinSafe,
+
+    createPinKind,
+    setCreatePinKind,
 
     // marker / viewport
     handleMarkerClick,

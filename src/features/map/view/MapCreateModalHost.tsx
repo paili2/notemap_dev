@@ -10,6 +10,7 @@ import { toastBus } from "@/shared/toast/toastBus";
 import { ensureAuthed } from "@/shared/api/auth";
 
 import type { PropertyCreateResult } from "@/features/properties/components/PropertyCreateModal/types";
+import { PinKind } from "@/features/pins/types";
 
 type MapCreateModalHostProps = {
   open: boolean;
@@ -30,6 +31,7 @@ type MapCreateModalHostProps = {
 
   /** 임시핀 id (문자/숫자 둘 다 가능) */
   pinDraftId?: number | string | null;
+  createPinKind?: PinKind | null;
 };
 
 export default function MapCreateModalHost({
@@ -42,6 +44,7 @@ export default function MapCreateModalHost({
   resetAfterCreate,
   onAfterCreate,
   pinDraftId,
+  createPinKind,
 }: MapCreateModalHostProps) {
   const submittingRef = useRef(false);
 
@@ -65,6 +68,7 @@ export default function MapCreateModalHost({
       initialLng={resolvePos().lng}
       /** ✅ 임시핀 아이디 전달 (없으면 undefined) */
       pinDraftId={resolvedPinDraftId}
+      initialPinKind={createPinKind ?? null}
       onSubmit={async ({
         pinId,
         matchedDraftId,

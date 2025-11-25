@@ -13,9 +13,13 @@ import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
 import { sanitizeAreaGroups } from "@/features/properties/lib/forms/dtoUtils";
 
-type Args = { initialAddress?: string };
+type Args = {
+  initialAddress?: string;
+  /** MapHome → ModalsHost → PropertyCreateModalBody 에서 내려주는 draftId */
+  pinDraftId?: number | string | null;
+};
 
-export function useCreateForm({ initialAddress }: Args) {
+export function useCreateForm({ initialAddress, pinDraftId }: Args) {
   const header = useHeaderFields();
   const basic = useBasicInfo({ initialAddress });
   const nums = useNumbers();
@@ -30,7 +34,7 @@ export function useCreateForm({ initialAddress }: Args) {
   // ① 기본 저장 가능 여부 (전체 검증용)
   // ─────────────────────────────────────────────────────────
   const { isSaveEnabled: rawIsSaveEnabled } = useCreateValidation({
-    ...header.state, // ⬅ title, parkingGrade, (isNew/isOld가 들어온다면 함께 전달)
+    ...header.state,
     ...basic.state,
     ...nums.state,
     ...parking.state,
@@ -81,21 +85,9 @@ export function useCreateForm({ initialAddress }: Args) {
   }, [setIsNew, setIsOld]);
 
   // ─────────────────────────────────────────────────────────
-  // ✅ 답사예정 핀일 때: 저장 가능 조건 완화
-  //    - pinKind === "question" 이고
-  //    - title + officePhone 둘 다 채워졌으면 isSaveEnabled = true
+  // ✅ 저장 가능 여부: 답사예정 특수 로직은 Modal 쪽에서 처리
   // ─────────────────────────────────────────────────────────
-  const isVisitPlanPin =
-    String((header.state as any)?.pinKind ?? "") === "question";
-  const mainTitle = String((header.state as any)?.title ?? "").trim();
-  const mainOfficePhone = String(
-    (basic.state as any)?.officePhone ?? ""
-  ).trim();
-
-  const minimalForVisitPlan =
-    isVisitPlanPin && !!mainTitle && !!mainOfficePhone;
-
-  const isSaveEnabled = isVisitPlanPin ? minimalForVisitPlan : rawIsSaveEnabled;
+  const isSaveEnabled = rawIsSaveEnabled;
 
   return useMemo(() => {
     const noopLocal = (() => {}) as any;
@@ -114,11 +106,11 @@ export function useCreateForm({ initialAddress }: Args) {
 
     return {
       // actions
-      ...header.actions, // ⬅ setParkingGrade 등
+      ...header.actions,
       ...basic.actions,
       ...nums.actions,
       ...parking.actions,
-      ...grades.actions, // ⬅ setIsNew / setIsOld 포함
+      ...grades.actions,
       ...aspects.actions,
       ...areas.actions,
       ...units.actions,
@@ -129,7 +121,7 @@ export function useCreateForm({ initialAddress }: Args) {
       ...basic.state,
       ...nums.state,
       ...parking.state,
-      ...grades.state, // ⬅ isNew / isOld 포함
+      ...grades.state,
       ...aspects.state,
       ...areas.state,
       ...units.state,
