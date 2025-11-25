@@ -8,6 +8,7 @@ import type { SidebarSectionProps as BaseProps } from "../types/sidebar";
 import { FavorateListItem } from "./FavorateListItem";
 import { useDragAndDrop } from "../hooks/useDragAndDrop";
 import { ExplorationItem } from "./ExplorationItem";
+import { cn } from "@/lib/cn";
 
 /** ✅ 드래그 종료 후 최종 순서 id 배열을 알려주는 콜백을 props에 추가 */
 type SidebarSectionProps = BaseProps & {
@@ -28,7 +29,8 @@ export function SidebarSection({
   onReorderIds, // ✅ 추가된 콜백
   onUpdateGroupTitle,
 }: SidebarSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // 🔹 기본값: 접힌 상태
+  const [isExpanded, setIsExpanded] = useState(false);
   const headerId = useId();
   const regionId = useId();
 
@@ -62,7 +64,13 @@ export function SidebarSection({
           onUpdateTitle={onUpdateGroupTitle}
         />
       )),
-    [nestedItems, onNestedItemsChange, onDeleteNestedItem, onDeleteSubItem, onUpdateGroupTitle]
+    [
+      nestedItems,
+      onNestedItemsChange,
+      onDeleteNestedItem,
+      onDeleteSubItem,
+      onUpdateGroupTitle,
+    ]
   );
 
   const flatNodes = useMemo(
@@ -93,14 +101,15 @@ export function SidebarSection({
   );
 
   return (
-    <Card className="bg-white border-gray-200 shadow-sm">
-      <CardHeader className="pb-1">
+    <Card className="bg-white border border-gray-200 rounded-xl shadow-sm">
+      {/* 헤더를 버튼처럼 한 줄 카드 형태로 */}
+      <CardHeader className="p-0">
         <Button
           id={headerId}
           aria-controls={regionId}
           aria-expanded={isExpanded}
           variant="ghost"
-          className="w-full justify-start gap-2 p-1.5 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+          className="flex h-11 w-full items-center gap-2 px-4 text-gray-700 justify-start hover:bg-gray-50 hover:text-gray-900"
           onClick={() => setIsExpanded((v) => !v)}
         >
           {isExpanded ? (
@@ -108,16 +117,24 @@ export function SidebarSection({
           ) : (
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
           )}
-          <span className="font-semibold text-base">{title}</span>
+          <span className="font-semibold text-base leading-none">{title}</span>
         </Button>
       </CardHeader>
 
-      {isExpanded && (
-        <CardContent
-          id={regionId}
-          role="region"
-          aria-labelledby={headerId}
-          className="pt-0 pb-2"
+      {/* 🔽 부드러운 열림/닫힘용 래퍼 (항상 렌더) */}
+      <CardContent
+        id={regionId}
+        role="region"
+        aria-labelledby={headerId}
+        className="pt-0 pb-0"
+      >
+        <div
+          className={cn(
+            "overflow-hidden transition-[max-height,opacity] duration-200 ease-out",
+            isExpanded
+              ? "max-h-[600px] opacity-100 pt-2 pb-2"
+              : "max-h-0 opacity-0"
+          )}
         >
           <div className="space-y-1">
             {/* 즐겨찾기(그룹) */}
@@ -125,7 +142,7 @@ export function SidebarSection({
 
             {/* 비어있을 때 */}
             {isEmpty ? (
-              <p className="text-sm text-muted-foreground text-center py-2">
+              <p className="py-2 text-center text-sm text-muted-foreground">
                 목록이 비어있습니다
               </p>
             ) : (
@@ -133,8 +150,8 @@ export function SidebarSection({
               flatNodes
             )}
           </div>
-        </CardContent>
-      )}
+        </div>
+      </CardContent>
     </Card>
   );
 }

@@ -1048,57 +1048,66 @@ export function MapHomeUI(props: MapHomeUIProps) {
         refreshViewportPins={refreshViewportPins}
       />
 
-      {/* 상단 검색바 */}
+      {/* 상단 검색 + 필터 + 토글 */}
       <div
         className={cn(
-          "flex flex-wrap md:flex-nowrap",
-          "pointer-events-none absolute left-3 top-3 z-[70] items-center gap-2"
+          "pointer-events-none absolute left-3 right-3 top-3 z-[70]",
+          "flex flex-col gap-2"
         )}
         role="region"
-        aria-label="지도 상단 검색"
+        aria-label="지도 상단 검색 및 토글"
       >
-        <div className="pointer-events-auto">
+        {/* 🔍 검색창 - 모바일에서 꽉 차게 */}
+        <div className="pointer-events-auto w-full md:w-auto">
           <SearchForm
             value={q}
             onChange={onChangeQ}
             onSubmit={handleSubmitSearch}
             placeholder="장소, 주소, 버스 검색"
-            className="flex-1 min-w-[200px] md:min-w-[260px] max-w-[420px]"
+            // ✅ 모바일: 가로 꽉 차게, 데스크탑: 최대 360px
+            className="w-full md:max-w-[360px]"
           />
         </div>
-      </div>
 
-      {/* 오른쪽 상단 컨트롤 + 패널 영역 */}
-      <div ref={rightAreaRef}>
-        <TopRightControls
-          activeMenu={activeMenu}
-          onChangeFilter={(next) => {
-            const resolved = next === activeMenu ? "all" : next;
-            (onChangeFilter as any)(resolved);
-          }}
-          isDistrictOn={isDistrictOn}
-          setIsDistrictOn={handleSetDistrictOn}
-          poiKinds={poiKinds}
-          onChangePoiKinds={onChangePoiKinds}
-          roadviewVisible={roadviewVisible}
-          onToggleRoadview={toggleRoadview}
-          rightOpen={rightOpen}
-          setRightOpen={handleSetRightOpen}
-          sidebarOpen={useSidebar}
-          setSidebarOpen={(open) => {
-            setUseSidebar(open);
-            if (open) {
-              // 사이드바 열릴 때 오른쪽 토글/필터검색 둘 다 닫기
-              setRightOpen(false);
-              setFilterSearchOpen(false);
-            }
-          }}
-          getBounds={getBoundsLLB}
-          getLevel={() => mapInstance?.getLevel?.()}
-          // 🔵 로드뷰 도로 버튼용 상태/토글 전달
-          roadviewRoadOn={roadviewRoadOn}
-          onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
-        />
+        {/* 2줄째: 왼쪽 필터검색 / 오른쪽 토글버튼들 */}
+        <div
+          ref={filterAreaRef}
+          className="pointer-events-auto flex items-center justify-between"
+        >
+          {/* 토글 버튼들 (로드뷰도로 / K&N / R / 메뉴 / 사이드바) */}
+          <div
+            ref={rightAreaRef}
+            className="flex flex-col md:flex-row items-center gap-2"
+          >
+            <TopRightControls
+              activeMenu={activeMenu}
+              onChangeFilter={(next) => {
+                const resolved = next === activeMenu ? "all" : next;
+                (onChangeFilter as any)(resolved);
+              }}
+              isDistrictOn={isDistrictOn}
+              setIsDistrictOn={handleSetDistrictOn}
+              poiKinds={poiKinds}
+              onChangePoiKinds={onChangePoiKinds}
+              roadviewVisible={roadviewVisible}
+              onToggleRoadview={toggleRoadview}
+              rightOpen={rightOpen}
+              setRightOpen={handleSetRightOpen}
+              sidebarOpen={useSidebar}
+              setSidebarOpen={(open) => {
+                setUseSidebar(open);
+                if (open) {
+                  setRightOpen(false);
+                  setFilterSearchOpen(false);
+                }
+              }}
+              getBounds={getBoundsLLB}
+              getLevel={() => mapInstance?.getLevel?.()}
+              roadviewRoadOn={roadviewRoadOn}
+              onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
+            />
+          </div>
+        </div>
       </div>
 
       {/* 필터 플로팅 버튼 + 필터 검색 패널 영역 */}

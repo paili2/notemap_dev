@@ -109,19 +109,33 @@ export default function MapMenu(props: MapMenuProps) {
       </Button>
 
       {isExpanded && (
-        <ExpandedMenu
-          active={active}
-          activeSubmenu={activeSubmenu}
-          onSubmenuClick={handleSubmenu}
-          onMenuItemClick={handleMenuItemClick}
-          isDistrictOn={isDistrictOn}
-          onToggleDistrict={handleToggleDistrictClick} // 🔧 여기만 래핑해서 전달
-          onToggle={api.close}
-          poiKinds={poiKinds}
-          onChangePoiKinds={onChangePoiKinds}
-          roadviewVisible={roadviewVisible}
-          onToggleRoadview={onToggleRoadview}
-        />
+        <div
+          className={cn(
+            // 📱 모바일: 위에서부터, 아래 토글 버튼들 남겨두고 꽉 차게
+            "fixed left-0 right-0 top-0 bottom-[80px] z-[80] flex justify-center items-start pt-4 px-3",
+            // 💻 데스크탑: 예전처럼 MapMenu 옆에서만 뜨게
+            "md:static md:inset-auto md:z-auto md:flex-none md:p-0"
+          )}
+          // 바깥 눌렀을 때 닫히게 하고 싶으면 이거 추가해도 됨
+          onClick={() => api.close()}
+        >
+          {/* 안쪽 패널 눌렀을 땐 바깥 onClick 안 타도록 막기 */}
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md">
+            <ExpandedMenu
+              active={active}
+              activeSubmenu={activeSubmenu}
+              onSubmenuClick={handleSubmenu}
+              onMenuItemClick={handleMenuItemClick}
+              isDistrictOn={isDistrictOn}
+              onToggleDistrict={handleToggleDistrictClick}
+              onToggle={api.close}
+              poiKinds={poiKinds}
+              onChangePoiKinds={onChangePoiKinds}
+              roadviewVisible={roadviewVisible}
+              onToggleRoadview={onToggleRoadview}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

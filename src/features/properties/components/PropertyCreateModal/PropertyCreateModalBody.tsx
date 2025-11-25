@@ -31,9 +31,7 @@ import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
-import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
-import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import type { UnitLine } from "@/features/properties/types/property-domain";
 import type { PinKind } from "@/features/pins/types";
 
@@ -109,10 +107,7 @@ export default function PropertyCreateModalBody({
 }: Props) {
   const f = useCreateForm({ initialAddress, pinDraftId });
 
-  /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부
-   *  - pinDraftId 가 없고
-   *  - initialPinKind 가 "question" 일 때만 true
-   */
+  /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부 */
   const isVisitPlanPin = !pinDraftId && isVisitPlanPinKind(initialPinKind);
 
   console.log("[PropertyCreateModalBody] initialPinKind =", initialPinKind);
@@ -122,10 +117,7 @@ export default function PropertyCreateModalBody({
     (f as any).pinKind
   );
 
-  // ✅ 최초 마운트 시 pinKind 초기값 설정:
-  //   - 1순위: 부모에서 initialPinKind 를 주면 그대로 사용
-  //   - 2순위: 폼에 이미 있는 pinKind
-  //   - 둘 다 없으면 "1room" 기본값(일반 매물등록용)
+  // ✅ 최초 마운트 시 pinKind 초기값 설정
   const didInitPinKindRef = useRef(false);
   useEffect(() => {
     if (didInitPinKindRef.current) return;
@@ -141,7 +133,7 @@ export default function PropertyCreateModalBody({
     const targetKind: PinKind =
       (initialPinKind as PinKind | null | undefined) ??
       currentKind ??
-      ("1room" as PinKind); // ← 최종 기본값
+      ("1room" as PinKind);
 
     setPinKind(targetKind);
     didInitPinKindRef.current = true;
@@ -160,8 +152,6 @@ export default function PropertyCreateModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
-
-    // ⬇️ 폴더 메타 (제목) 관리용
     groups,
     queueGroupTitle,
   } = usePropertyImages();
@@ -654,11 +644,6 @@ export default function PropertyCreateModalBody({
   }, []);
 
   /* ====== 답사예정 핀 여부 & 최소 저장 조건 ====== */
-  /**
-   * ✅ 규칙
-   * - pinDraftId가 있는 경우: "답사예정핀 → 매물등록" → 일반 매물 모드
-   * - pinDraftId가 없고, pinKind === "question" 인 경우만 답사예정 전용 모드
-   */
   const rawPinKind = (f as any).pinKind as PinKind | null | undefined;
 
   const mainTitle = (f.title ?? "").trim();
@@ -670,7 +655,12 @@ export default function PropertyCreateModalBody({
     setIsSaving(true);
 
     try {
-      if (!f.title.trim()) return;
+      console.log("[PropertyCreate] save clicked");
+
+      if (!f.title.trim()) {
+        alert("매물명을 입력해 주세요.");
+        return;
+      }
 
       const latNum = Number(initialLat);
       const lngNum = Number(initialLng);
@@ -679,10 +669,9 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // ✅ 여기서 한 번만 읽어오기
       const rawPinKindLocal = (f as any).pinKind as PinKind | null | undefined;
 
-      /* ====== 1) 답사예정핀 전용 분기: 임시핀(답사예정) 등록 ====== */
+      /* ====== 1) 답사예정핀 전용 분기 ====== */
       if (isVisitPlanPin) {
         if (!mainTitle) {
           alert("매물명을 입력해 주세요.");
@@ -693,7 +682,6 @@ export default function PropertyCreateModalBody({
           return;
         }
 
-        // (선택) 핀 종류 null 방지 체크
         if (!rawPinKindLocal) {
           alert("핀 종류를 선택해 주세요.");
           return;
@@ -708,7 +696,7 @@ export default function PropertyCreateModalBody({
         const created = res?.data?.data ?? res?.data ?? null;
 
         await Promise.resolve(
-          onSubmit?.({
+          (onSubmit as any)?.({
             mode: "visit-plan-only",
             pinDraftId:
               created?.id ??
@@ -717,31 +705,214 @@ export default function PropertyCreateModalBody({
               null,
             lat: latNum,
             lng: lngNum,
-          } as any)
+          })
         );
 
-        // ✅ asInner 여부 상관없이 항상 onClose 호출
         onClose?.();
-
-        return; // ⛔ 여기서 일반 createPin 로직은 타지 않음
+        return;
       }
 
       /* ====== 2) 일반핀 저장(createPin) 로직 ====== */
 
-      // ✅ 일반핀인데 핀종류가 없으면 바로 막기
       if (!rawPinKindLocal) {
         alert("핀 종류를 선택해 주세요.");
         return;
       }
 
-      // ... (이 아래 로직은 기존 코드 그대로 유지)
-      // [중략: 이미지 폴더 타이틀 검증, 전화번호/날짜/구조/면적 검증, payload 생성,
-      //  createPin 호출, 사진 업로드, 예약/드래프트 정리, onSubmit 호출 등]
-      // ⬆️ 이 전체 블록은 네가 올린 코드 그대로 두고,
-      //     위에서 isVisitPlanPin 부분만 변경하면 동작이 달라져.
+      if (!f.isSaveEnabled) {
+        alert("필수 항목을 확인해 주세요.");
+        return;
+      }
 
-      // 👇 아래 부분은 네 원래 코드 그대로 유지 (여기서는 생략)
-      // ...
+      const priceError = validateUnitPriceRanges(f.unitLines as any[]);
+      if (priceError) {
+        alert(priceError);
+        return;
+      }
+
+      const areaError = validateAreaSets();
+      if (areaError) {
+        alert(areaError);
+        return;
+      }
+
+      const rawCompletion = normalizeDateInput(f.completionDate);
+      const normalizedCompletion =
+        rawCompletion && rawCompletion.length >= 10
+          ? rawCompletion.slice(0, 10)
+          : rawCompletion;
+
+      if (normalizedCompletion && !isValidIsoDateStrict(normalizedCompletion)) {
+        alert("준공일은 YYYY-MM-DD 형식으로 입력해 주세요.");
+        return;
+      }
+
+      /* ========= 최저 실입 / 리베이트 값 수집 ========= */
+      const anyForm = f as any;
+
+      const findFieldByKeyIncludes = (keywords: string[]): any => {
+        const ks = Object.keys(anyForm);
+        for (const k of ks) {
+          const lower = k.toLowerCase();
+          if (keywords.every((kw) => lower.includes(kw))) {
+            return anyForm[k];
+          }
+        }
+        return null;
+      };
+
+      // ✅ 최저 실입(만원 단위) 숫자 정규화
+      const rawMinRealMoveInCost =
+        anyForm.minRealMoveInCost ??
+        anyForm.minRealMoveInCostText ??
+        anyForm.minRealMoveInCostRaw ??
+        // 혹시 다른 이름으로 들어와도 잡도록 키 검색
+        findFieldByKeyIncludes(["min", "move", "cost"]) ??
+        null;
+
+      const minRealMoveInCost = numOrNull(rawMinRealMoveInCost);
+
+      // ✅ 리베이트 텍스트 정규화 (최대 50자)
+      const rawRebate =
+        anyForm.rebate ??
+        anyForm.rebateText ??
+        anyForm.rebateRaw ??
+        findFieldByKeyIncludes(["rebate"]) ??
+        null;
+
+      const rebateText =
+        rawRebate == null
+          ? null
+          : (() => {
+              const t = String(rawRebate).trim();
+              return t ? t.slice(0, 50) : null;
+            })();
+
+      // 디버그 로그
+      console.log("[save] rawMinRealMoveInCost =", rawMinRealMoveInCost);
+      console.log("[save] minRealMoveInCost =", minRealMoveInCost);
+      console.log("[save] rawRebate =", rawRebate);
+      console.log("[save] rebateText =", rebateText);
+
+      // ✅ badge: 직접 입력이 없으면 핀 종류 기반 기본값 사용
+      const effectiveBadge =
+        (f.badge ?? "").trim() ||
+        (rawPinKindLocal ? mapPinKindToBadge(rawPinKindLocal) : "") ||
+        undefined;
+
+      const payload = buildCreatePayload({
+        title: f.title,
+        address: f.address,
+        officeName: f.officeName,
+        officePhone: f.officePhone,
+        officePhone2: f.officePhone2,
+        moveIn: f.moveIn,
+        floor: f.floor,
+        roomNo: f.roomNo,
+        structure: f.structure,
+
+        badge: effectiveBadge ?? null,
+
+        parkingGrade: f.parkingGrade,
+        parkingType: f.parkingType ?? null,
+        totalParkingSlots: f.totalParkingSlots,
+
+        completionDate: normalizedCompletion,
+        salePrice: f.salePrice,
+
+        // 프론트 내부용으로만 사용 (dto로는 rebateText로 보냄)
+        rebate: rebateText,
+
+        baseAreaSet: f.baseAreaSet,
+        extraAreaSets: Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [],
+
+        elevator: f.elevator,
+        registryOne: f.registryOne,
+        slopeGrade: f.slopeGrade,
+        structureGrade: f.structureGrade,
+
+        totalBuildings: f.totalBuildings,
+        totalFloors: f.totalFloors,
+        totalHouseholds: f.totalHouseholds,
+        remainingHouseholds: f.remainingHouseholds,
+
+        buildingType: (f as any).buildingType ?? null,
+        registrationTypeId: (f as any).registrationTypeId ?? null,
+        parkingTypeId: (f as any).parkingTypeId ?? null,
+
+        options: f.options,
+        etcChecked: f.etcChecked,
+        optionEtc: f.optionEtc,
+        publicMemo: f.publicMemo,
+        secretMemo: f.secretMemo,
+
+        aspects: f.aspects,
+        unitLines: f.unitLines as UnitLine[],
+
+        imageFolders,
+        fileItems,
+
+        pinKind: rawPinKindLocal,
+        lat: latNum,
+        lng: lngNum,
+
+        pinDraftId,
+      });
+
+      console.log("[PropertyCreate] payload →", payload);
+
+      // ✅ dto에선 rebate 필드 제거 (백엔드는 rebateText만 받음)
+      const { rebate: _ignoredRebate, ...payloadWithoutRebate } =
+        payload as any;
+
+      const dto: CreatePinDto = {
+        ...(payloadWithoutRebate as any),
+
+        // 좌표 & 주소
+        lat: latNum,
+        lng: lngNum,
+        addressLine: f.address ?? null,
+
+        // 매물명
+        name: f.title.trim(),
+
+        // 메모
+        publicMemo: f.publicMemo ?? null,
+        privateMemo: f.secretMemo ?? null,
+
+        // 최저 실입
+        minRealMoveInCost,
+
+        // ✅ 리베이트 텍스트
+        rebateText,
+
+        // 안전하게 다시 명시
+        pinKind: rawPinKindLocal,
+        pinDraftId,
+      } as any;
+
+      const createdPin = await createPin(dto);
+      const createdData = (createdPin as any)?.data ?? createdPin;
+      const pinId =
+        createdData?.id ?? createdData?.pinId ?? createdData?.pin_id ?? null;
+
+      if (pinId != null) {
+        for (let i = 0; i < (imageFolders as any[]).length; i++) {
+          await persistOneCard(pinId, i);
+        }
+        if (fileItems.length > 0) {
+          await persistVerticalFiles(pinId);
+        }
+      }
+
+      if (pinDraftId != null) {
+        removeDraft(pinDraftId);
+      }
+
+      await Promise.resolve(
+        (onSubmit as any)?.({ mode: "create", pin: createdData })
+      );
+      onClose?.();
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
       const msg =
@@ -811,58 +982,49 @@ export default function PropertyCreateModalBody({
     ]
   );
 
-  /* ====== 답사예정 핀일 때 저장 가능 조건 (매물명 + 분양사무실 전화번호만) ====== */
+  /* ====== 답사예정 핀일 때 저장 가능 조건 ====== */
   const minimalForVisitPlan = !!mainTitle && !!mainOfficePhone;
 
   const canSave = isVisitPlanPin
     ? minimalForVisitPlan && !isSaving
     : f.isSaveEnabled && !isSaving;
 
-  /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값도 같이 초기화 */
+  /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값 초기화 */
   const prevIsVisitPlanRef = useRef(isVisitPlanPin);
   useEffect(() => {
     const prev = prevIsVisitPlanRef.current;
 
-    // 이전에는 일반핀(false)이었다가 지금 답사예정(true)으로 바뀐 경우에만 초기화
     if (isVisitPlanPin && prev === false) {
       const anyForm = f as any;
 
-      /* ── 헤더/상단 쪽 ── */
       anyForm.setBuildingGrade?.(null);
       anyForm.setParkingGrade?.("");
       anyForm.setSlopeGrade?.("");
       anyForm.setStructureGrade?.("");
 
-      // ✅ 등기(건물유형)도 같이 초기화
       anyForm.setBuildingType?.(null);
       anyForm.buildingType = null;
 
-      // 준공일
       anyForm.setCompletionDate?.("");
       anyForm.completionDate = "";
 
-      // 최저실입(실입주금)
       if (typeof anyForm.setSalePrice === "function") {
         anyForm.setSalePrice(null);
       } else {
         anyForm.salePrice = null;
       }
 
-      /* ── 숫자/카운트들 ── */
       anyForm.setTotalBuildings?.("");
       anyForm.setTotalFloors?.("");
       anyForm.setTotalHouseholds?.("");
       anyForm.setRemainingHouseholds?.("");
 
-      /* ── 주차 관련 ── */
       anyForm.setTotalParkingSlots?.(null);
       anyForm.setParkingType?.("");
       anyForm.setParkingTypeId?.(null);
 
-      /* ── 엘리베이터 ── */
       anyForm.setElevator?.(null);
 
-      /* ── 개별 평수 / 면적 그룹 ── */
       const emptyArea: StrictAreaSet = {
         title: "",
         exMinM2: "",
@@ -877,17 +1039,14 @@ export default function PropertyCreateModalBody({
       anyForm.setBaseAreaSet?.(emptyArea);
       anyForm.setExtraAreaSets?.([]);
 
-      /* ── 구조별 입력 ── */
       if (typeof anyForm.setUnitLines === "function") {
         anyForm.setUnitLines([]);
       } else {
         anyForm.unitLines = [];
       }
 
-      /* ── 방향(Aspects) ── */
       anyForm.setAspects?.([]);
 
-      /* ── 옵션/메모 ── */
       anyForm.setOptions?.([]);
       anyForm.setEtcChecked?.(false);
       anyForm.setOptionEtc?.("");
@@ -901,14 +1060,12 @@ export default function PropertyCreateModalBody({
   /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
-      {/* 헤더: 매물명은 항상 입력 가능 */}
       <HeaderContainer
         form={f}
         onClose={onClose}
         isVisitPlanPin={isVisitPlanPin}
       />
 
-      {/* ⭐ 내부 스크롤 래퍼에 ref 연결 + 가로 스크롤 숨김 */}
       <div
         ref={scrollRef}
         className="
@@ -923,7 +1080,6 @@ export default function PropertyCreateModalBody({
             grid-cols-1 md:grid-cols-[300px_1fr]
           "
         >
-          {/* ⬅️ 왼쪽 이미지 영역: 답사예정핀일 때 비활성화 */}
           <fieldset
             disabled={isVisitPlanPin}
             className={isVisitPlanPin ? "opacity-60" : ""}
@@ -931,12 +1087,9 @@ export default function PropertyCreateModalBody({
             <ImagesContainer images={imagesProp} />
           </fieldset>
 
-          {/* ➡️ 오른쪽 컬럼 */}
           <div className="space-y-6 min-w-0">
-            {/* ✅ BasicInfoContainer: 항상 활성화 (주소/분양사무실/회사명 등) */}
             <BasicInfoContainer form={f} />
 
-            {/* ✅ 답사예정핀일 때, 나머지 섹션 전부 비활성화 */}
             <fieldset
               disabled={isVisitPlanPin}
               className={isVisitPlanPin ? "opacity-60" : ""}
@@ -978,9 +1131,7 @@ export default function PropertyCreateModalBody({
     </>
   );
 
-  if (asInner) {
-    return content;
-  }
+  if (asInner) return content;
 
   return (
     <div className="fixed inset-0 z-[100]">

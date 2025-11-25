@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import type React from "react";
+import { useMemo, useCallback, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ToggleSidebarProps } from "./types/sidebar";
@@ -17,8 +18,9 @@ import { useCancelReservation } from "../survey-reservations/hooks/useCancelRese
 import { useSignout } from "../auth/hooks/useSignout";
 import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "../users/api/account";
+import { cn } from "@/lib/cn";
 
-export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
+export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
   // 0) 안전 기본값
   const {
     nestedFavorites = [],
@@ -69,18 +71,83 @@ export function Sidebar({ isSidebarOn }: ToggleSidebarProps) {
     // no-op
   }, []);
 
-  // 3) 조기 리턴
+  /* ───────── 모바일 드래그-다운 닫기용 상태 ───────── */
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const startYRef = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const y = e.touches[0]?.clientY ?? 0;
+    startYRef.current = y;
+    setDragY(0);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || startYRef.current == null) return;
+    const y = e.touches[0]?.clientY ?? 0;
+    const delta = y - startYRef.current;
+
+    if (delta > 0) {
+      setDragY(delta); // 아래로만
+    } else {
+      setDragY(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    const threshold = 80; // 이 이상 내려가면 닫기
+
+    if (dragY > threshold) {
+      onToggleSidebar?.();
+      setDragY(0);
+    } else {
+      // 원위치로 부드럽게 복귀
+      setDragY(0);
+    }
+
+    setIsDragging(false);
+    startYRef.current = null;
+  };
+
+  // 3) 조기 리턴 (모든 훅 정의 후)
   if (!isSidebarOn) return null;
 
+  const rootClass = cn(
+    "fixed z-[80] bg-white shadow-xl border border-gray-300 overflow-hidden",
+    // 📱 모바일: 바텀시트
+    "max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:w-full max-md:rounded-t-2xl max-md:rounded-b-none max-md:border-x-0 max-md:border-t",
+    // 🖥 데스크탑: 기존 위치 유지
+    "md:top-16 md:right-4 md:bottom-auto md:left-auto md:w-80 md:rounded-lg"
+  );
+
   return (
-    <div className="fixed top-16 right-4 z-50 w-80 bg-white border border-gray-400 rounded-lg shadow-xl overflow-hidden">
+    <div
+      className={rootClass}
+      style={{
+        transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+        transition: isDragging ? "none" : "transform 0.18s ease-out",
+      }}
+    >
       <style jsx>{`
         .scrollbar-no-arrows::-webkit-scrollbar-button {
           display: none;
         }
       `}</style>
 
-      <div className="flex flex-col gap-2 p-1 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-track-white scrollbar-thumb-black hover:scrollbar-thumb-gray-800 scrollbar-no-arrows">
+      {/* 📱 드래그 핸들 (모바일 전용) */}
+      <div
+        className="max-md:block hidden pt-2 pb-1"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div className="mx-auto h-1 w-12 rounded-full bg-gray-300" />
+      </div>
+
+      {/* 내용 스크롤 영역 */}
+      <div className="flex flex-col gap-2 p-1 max-h-[80vh] max-md:max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-track-white scrollbar-thumb-black hover:scrollbar-thumb-gray-800 scrollbar-no-arrows">
         {/* ✅ 답사지 예약 섹션 */}
         <SidebarSection
           title="답사지 예약"

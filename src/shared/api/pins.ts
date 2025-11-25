@@ -246,6 +246,9 @@ export type CreatePinDto = {
   /** ✅ 최저 실입(정수 금액, 서버: number|null) */
   minRealMoveInCost?: number | string | null;
 
+  /** ✅ 리베이트 텍스트(최대 50자) */
+  rebateText?: string | null;
+
   pinKind?: PinKind | null;
 };
 
@@ -624,6 +627,16 @@ export async function createPin(
               : Number(dto.minRealMoveInCost),
         }
       : {}),
+
+    /** ✅ 리베이트 텍스트(최대 50자) */
+    ...(Object.prototype.hasOwnProperty.call(dto, "rebateText")
+      ? {
+          rebateText:
+            dto.rebateText == null
+              ? null
+              : String(dto.rebateText).trim().slice(0, 50),
+        }
+      : {}),
   } as const;
 
   if (DEV) {
@@ -937,6 +950,16 @@ export async function updatePin(
             dto.minRealMoveInCost == null
               ? null
               : Number(dto.minRealMoveInCost),
+        }
+      : {}),
+
+    /** ✅ 리베이트 텍스트 PATCH 지원 */
+    ...(has("rebateText")
+      ? {
+          rebateText:
+            dto.rebateText == null
+              ? null
+              : String(dto.rebateText).trim().slice(0, 50),
         }
       : {}),
   };

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import ToggleSidebar from "../../../view/top/ToggleSidebar/ToggleSidebar";
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
-import Portal from "@/components/Portal";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { MapMenu, MapMenuKey } from "@/features/map/menu";
 import {
@@ -15,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/atoms/Dialog/Dialog";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
+import { cn } from "@/lib/cn";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned"; // ← 실제 키로 교체
@@ -105,13 +105,6 @@ export default function TopRightControls(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.activeMenu, reloadPlanned]);
 
-  // 로드뷰가 열리면 z-index / pointer-events 조정
-  const rootClass =
-    "fixed top-3 right-3 " +
-    (props.roadviewVisible
-      ? "z-[5] pointer-events-none opacity-40"
-      : "z-[10] pointer-events-auto");
-
   // ✅ 편의시설 모달 상태
   const [poiWarningOpen, setPoiWarningOpen] = useState(false);
 
@@ -142,100 +135,102 @@ export default function TopRightControls(props: {
   // ✅ 전역 메모 보기 모드 (K&N / R)
   const { mode: memoMode, setMode: setMemoMode } = useMemoViewMode();
 
+  // 🔧 roadviewVisible일 때 살짝 비활성/투명 처리 (이제 고정 위치는 아님)
+  const rootClass = cn(
+    "fixed flex flex-row items-center gap-2", // 공통
+    "bottom-4 left-[4.5rem]", // 기본: 모바일
+    "lg:top-3 lg:right-3 lg:bottom-auto lg:left-auto", // PC 이상에서 override
+    props.roadviewVisible
+      ? "z-[5] pointer-events-none opacity-40"
+      : "z-[10] pointer-events-auto"
+  );
+
   return (
     <>
-      {/* 오른쪽 상단 메뉴 영역 */}
-      <Portal>
-        <div
-          id="top-right-controls"
-          className={rootClass}
-          aria-hidden={props.roadviewVisible}
+      <div
+        id="top-right-controls"
+        className={rootClass}
+        aria-hidden={props.roadviewVisible}
+        onPointerDown={stop}
+        onMouseDown={stop}
+        onTouchStart={stop}
+      >
+        {/* 🔵 로드뷰 도로(파란 라인) 토글 버튼 - 제일 왼쪽 */}
+        <button
+          type="button"
+          onClick={props.onToggleRoadviewRoad}
+          className={`h-8 px-3 text-xs rounded-md border shadow-sm ${
+            props.roadviewRoadOn
+              ? "bg-blue-600 text-white border-blue-600"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+          }`}
         >
-          <div
-            className="relative flex items-center gap-2"
-            onPointerDown={stop}
-            onMouseDown={stop}
-            onTouchStart={stop}
-          >
-            {/* 🔵 로드뷰 도로(파란 라인) 토글 버튼 - 제일 왼쪽 */}
+          로드뷰도로
+        </button>
+
+        {/* 🟡 전역 메모 보기 토글 (K&N / R) */}
+        <div className="relative z-[2] shrink-0">
+          <div className="inline-flex rounded-md border overflow-hidden bg-white">
             <button
               type="button"
-              onClick={props.onToggleRoadviewRoad}
-              className={`h-8 px-3 text-xs rounded-md border shadow-sm ${
-                props.roadviewRoadOn
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+              onClick={() => setMemoMode("public")}
+              className={`px-3 h-8 text-sm ${
+                memoMode === "public"
+                  ? "bg-amber-500 text-white"
+                  : "text-gray-700"
               }`}
             >
-              로드뷰도로
+              K&N
             </button>
-
-            {/* 🟡 전역 메모 보기 토글 (K&N / R) */}
-            <div className="relative z-[2] shrink-0">
-              <div className="inline-flex rounded-md border overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setMemoMode("public")}
-                  className={`px-3 h-8 text-sm ${
-                    memoMode === "public"
-                      ? "bg-amber-500 text-white"
-                      : "bg-white text-gray-700"
-                  }`}
-                >
-                  K&N
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMemoMode("secret")}
-                  className={`px-3 h-8 text-sm border-l ${
-                    memoMode === "secret"
-                      ? "bg-rose-600 text-white"
-                      : "bg-white text-gray-700"
-                  }`}
-                >
-                  R
-                </button>
-              </div>
-            </div>
-
-            {/* 🔵 지도 메뉴 (등록/답사/임시핀 등 필터) - 가운데 */}
-            <div className="relative z-[2] shrink-0">
-              <MapMenu
-                active={props.activeMenu}
-                onChange={(next) => {
-                  const resolved = next === props.activeMenu ? "all" : next;
-                  if (isPlannedKey(resolved)) reloadPlanned();
-                  props.onChangeFilter(resolved as MapMenuKey);
-                }}
-                isDistrictOn={props.isDistrictOn}
-                onToggleDistrict={props.setIsDistrictOn}
-                poiKinds={props.poiKinds}
-                onChangePoiKinds={handleChangePoiKinds}
-                roadviewVisible={props.roadviewVisible}
-                onToggleRoadview={props.onToggleRoadview}
-                expanded={props.rightOpen}
-                onExpandChange={(expanded) => {
-                  props.setRightOpen(expanded);
-                  if (expanded && props.sidebarOpen)
-                    props.setSidebarOpen(false);
-                }}
-              />
-            </div>
-
-            {/* 🟢 사이드바 토글 버튼 - 오른쪽 */}
-            <div className="relative z-[3] shrink-0">
-              <ToggleSidebar
-                overlay={false}
-                controlledOpen={props.sidebarOpen}
-                onChangeOpen={(open) => {
-                  props.setSidebarOpen(open);
-                  if (open) props.setRightOpen(false);
-                }}
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setMemoMode("secret")}
+              className={`px-3 h-8 text-sm border-l ${
+                memoMode === "secret"
+                  ? "bg-rose-600 text-white"
+                  : "text-gray-700"
+              }`}
+            >
+              R
+            </button>
           </div>
         </div>
-      </Portal>
+
+        {/* 🔵 지도 메뉴 (등록/답사/임시핀 등 필터) - 가운데 */}
+        <div className="relative z-[2] shrink-0">
+          <MapMenu
+            active={props.activeMenu}
+            onChange={(next) => {
+              const resolved = next === props.activeMenu ? "all" : next;
+              if (isPlannedKey(resolved)) reloadPlanned();
+              props.onChangeFilter(resolved as MapMenuKey);
+            }}
+            isDistrictOn={props.isDistrictOn}
+            onToggleDistrict={props.setIsDistrictOn}
+            poiKinds={props.poiKinds}
+            onChangePoiKinds={handleChangePoiKinds}
+            roadviewVisible={props.roadviewVisible}
+            onToggleRoadview={props.onToggleRoadview}
+            expanded={props.rightOpen}
+            onExpandChange={(expanded) => {
+              props.setRightOpen(expanded);
+              if (expanded && props.sidebarOpen) props.setSidebarOpen(false);
+            }}
+          />
+        </div>
+
+        {/* 🟢 사이드바 토글 버튼 - 오른쪽 */}
+        <div className="relative z-[3] shrink-0">
+          <ToggleSidebar
+            overlay={false}
+            controlledOpen={props.sidebarOpen}
+            onChangeOpen={(open) => {
+              props.setSidebarOpen(open);
+              if (open) props.setRightOpen(false);
+            }}
+          />
+        </div>
+      </div>
 
       {/* ✅ 편의시설 안내 모달 (Dialog 사용) */}
       <Dialog open={poiWarningOpen} onOpenChange={setPoiWarningOpen}>
@@ -247,7 +242,8 @@ export default function TopRightControls(props: {
                 편의시설(지하철, 학교, 편의점, 카페, 약국)은
                 <br />
                 지도 축척이 <b>50m 이상으로 확대</b>되었을 때만 표시됩니다.
-                <br /> <br />
+                <br />
+                <br />
                 지도를 조금 더 확대한 뒤 다시 시도해 주세요.
               </p>
             </DialogDescription>

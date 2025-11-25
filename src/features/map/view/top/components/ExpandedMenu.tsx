@@ -24,7 +24,7 @@ interface ExpandedMenuProps {
   // (과거 콜백 호환—현재 이 컴포넌트에서는 사용하지 않음)
   onSubmenuClick: (submenu: "filter" | "edit") => void;
   onMenuItemClick: (key: MapMenuKey) => void;
-  onToggle?: () => void;
+  onToggle?: () => void; // ✅ MapMenu 에서 api.close 넘어옴
 
   // 주변시설
   poiKinds: readonly PoiKind[];
@@ -56,8 +56,7 @@ const POI_CATEGORY_LABEL: Record<PoiCategoryKey, string> = {
 };
 
 /**
- * poiOverlays.tsx 에서 PoiKind를 다음처럼 확장했다고 가정:
- *
+ * poiOverlays.tsx 예시:
  *  "subway" | "ktx" | "convenience" | "mart" | "cafe" |
  *  "pharmacy" | "hospital" | "school" | "police" | "fireStation" | "park"
  */
@@ -93,10 +92,57 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
     onChangePoiKinds,
     roadviewVisible,
     onToggleRoadview,
+    onToggle,
   }) {
     // ✅ 주변시설 카테고리 탭 상태
     const [activePoiCategory, setActivePoiCategory] =
       React.useState<PoiCategoryKey>("transport");
+
+    // ✅ 드래그해서 닫기 상태
+    const [dragY, setDragY] = React.useState(0);
+    const [isDragging, setIsDragging] = React.useState(false);
+    const startYRef = React.useRef<number | null>(null);
+
+    const handleClose = React.useCallback(() => {
+      onToggle?.();
+    }, [onToggle]);
+
+    const getClientY = (e: any): number => {
+      const touch = e.touches?.[0] ?? e.changedTouches?.[0];
+      if (touch) return touch.clientY;
+      return e.clientY ?? 0;
+    };
+
+    const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
+      e.stopPropagation();
+      const y = getClientY(e);
+      startYRef.current = y;
+      setIsDragging(true);
+    };
+
+    const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
+      if (!isDragging || startYRef.current == null) return;
+      e.stopPropagation();
+      const y = getClientY(e);
+      const delta = y - startYRef.current;
+      if (delta > 0) {
+        setDragY(delta); // 아래로만
+      } else {
+        setDragY(0);
+      }
+    };
+
+    const handleDragEnd = () => {
+      if (!isDragging) return;
+      const threshold = 80; // ✅ 이 이상 내려가면 닫기
+      if (dragY > threshold) {
+        handleClose();
+      } else {
+        setDragY(0); // 원위치로 복귀
+      }
+      setIsDragging(false);
+      startYRef.current = null;
+    };
 
     // ✅ POI 토글 핸들러
     const toggleKind = React.useCallback(
@@ -166,55 +212,82 @@ export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(
     return (
       <div
         className={cn(
-          "fixed z-[220]",
-          "right-4 top-[65px]", // 답사지 패널이랑 세로 위치 맞추기
-          "w-[318px] max-w-[calc(100vw-2rem)]", // ⬅️ 가로 폭: 사이드바랑 동일하게
-          "rounded-md border border-gray-200 bg-white p-2 shadow-xl",
-          "pointer-events-auto"
+          "fixed z-[220] pointer-events-auto bg-white border border-gray-200 shadow-xl",
+          // 📱 모바일: 바텀시트 (아래에서 올라오는 패널)
+          "max-md:left-0 max-md:right-0 max-md:bottom-0 max-md:top-auto max-md:w-full",
+          "max-md:rounded-t-2xl max-md:rounded-b-none max-md:border-x-0 max-md:border-t",
+          // 🖥 PC: 기존처럼 우측 상단 카드
+          "md:right-4 md:top-[65px] md:bottom-auto md:left-auto",
+          "md:w-[318px] md:max-w-[calc(100vw-2rem)] md:rounded-md"
         )}
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: isDragging ? "none" : "transform 0.18s ease-out",
+        }}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         role="region"
         aria-label="지도 도구 및 주변시설"
       >
-        <FilterSection
-          active={active}
-          activeSubmenu={activeSubmenu}
-          onSubmenuClick={onSubmenuClick}
-          onMenuItemClick={onMenuItemClick}
-        />
-
-        {/* 지도 도구 */}
-        <div className="px-2 pb-1">
-          <div className="mb-2 text-xs font-semibold text-gray-600">
-            지도 도구
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <DistrictToggleButton
-              pressed={isDistrictOn}
-              onPress={onToggleDistrict}
-              showLabel
-            />
-
-            <RoadviewToggleButton
-              pressed={roadviewVisible}
-              onPress={onToggleRoadview}
-              showLabel
-            />
-          </div>
+        {/* 📱 모바일 전용 드래그바 헤더 */}
+        <div
+          className="max-md:flex md:hidden items-center justify-center px-4 pt-2 pb-1 border-b"
+          onMouseDown={handleDragStart}
+          onMouseMove={handleDragMove}
+          onMouseUp={handleDragEnd}
+          onMouseLeave={handleDragEnd}
+          onTouchStart={handleDragStart}
+          onTouchMove={(e) => {
+            e.preventDefault();
+            handleDragMove(e);
+          }}
+          onTouchEnd={handleDragEnd}
+          onTouchCancel={handleDragEnd}
+        >
+          <div className="h-1 w-10 rounded-full bg-gray-300" />
         </div>
 
-        {/* 주변시설 */}
-        <div className="px-2 pb-2">
-          <div className="mb-2 text-xs font-semibold text-gray-600">
-            주변시설
+        {/* 안쪽 스크롤 영역 (모바일에서 70vh 정도만 보이게) */}
+        <div className="max-md:max-h-[70vh] max-md:overflow-y-auto p-2 md:p-3">
+          <FilterSection
+            active={active}
+            activeSubmenu={activeSubmenu}
+            onSubmenuClick={onSubmenuClick}
+            onMenuItemClick={onMenuItemClick}
+          />
+
+          {/* 지도 도구 */}
+          <div className="px-2 pb-1">
+            <div className="mb-2 text-xs font-semibold text-gray-600">
+              지도 도구
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <DistrictToggleButton
+                pressed={isDistrictOn}
+                onPress={onToggleDistrict}
+                showLabel
+              />
+
+              <RoadviewToggleButton
+                pressed={roadviewVisible}
+                onPress={onToggleRoadview}
+                showLabel
+              />
+            </div>
           </div>
 
-          {/* 카테고리 탭 */}
-          <div className="mb-2 flex flex-wrap gap-1">{categoryTabs}</div>
+          {/* 주변시설 */}
+          <div className="px-2 pb-2">
+            <div className="mb-2 text-xs font-semibold text-gray-600">
+              주변시설
+            </div>
 
-          {/* 현재 카테고리의 POI 토글들 */}
-          <div className="grid grid-cols-3 gap-2">{poiButtons}</div>
+            {/* 카테고리 탭 */}
+            <div className="mb-2 flex flex-wrap gap-1">{categoryTabs}</div>
+
+            {/* 현재 카테고리의 POI 토글들 */}
+            <div className="grid grid-cols-3 gap-2">{poiButtons}</div>
+          </div>
         </div>
       </div>
     );
