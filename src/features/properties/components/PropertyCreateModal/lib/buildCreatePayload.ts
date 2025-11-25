@@ -100,8 +100,10 @@ type BuildArgs = {
   completionDate?: string;
   salePrice: string;
 
-  /** ✅ 리베이트 (문자/숫자 입력 → number | null 로 정규화) */
-  rebate?: string | number | null;
+  minRealMoveInCost?: number | string | null;
+
+  /** ✅ 리베이트 텍스트 */
+  rebateText?: string | null;
 
   baseAreaSet: LooseAreaSet | StrictAreaSet;
   extraAreaSets: Array<LooseAreaSet | StrictAreaSet>;
@@ -204,7 +206,8 @@ export function buildCreatePayload(args: BuildArgs) {
     totalParkingSlots,
     completionDate,
 
-    rebate,
+    minRealMoveInCost,
+    rebateText,
 
     baseAreaSet: baseAreaSetRaw,
     extraAreaSets: extraAreaSetsRaw,
@@ -384,7 +387,9 @@ export function buildCreatePayload(args: BuildArgs) {
   /* 5) 최종 payload */
   const safeBadge = s(badge);
   const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
-  const rebateValue = toIntOrNull(rebate); // ✅ 리베이트 숫자 정규화
+
+  const minRealMoveInCostValue = toIntOrNull(minRealMoveInCost);
+  const rebateTextSafe = s(rebateText);
 
   // ✅ 서버 전송용 units: 항상 포함(비어있으면 []), 타입은 배열
   const unitsForServer = normalizeUnits(unitLines);
@@ -492,8 +497,12 @@ export function buildCreatePayload(args: BuildArgs) {
       ? { parkingGrade: parkingGrade as StarStr }
       : {}),
 
-    // ✅ 리베이트(입력된 경우에만 전송, 0도 허용)
-    ...(rebateValue === null ? {} : { rebate: rebateValue }),
+    ...(minRealMoveInCostValue === null
+      ? {}
+      : { minRealMoveInCost: minRealMoveInCostValue }),
+
+    // ✅ 리베이트 텍스트: 문자열 있으면 전송
+    ...(rebateTextSafe ? { rebateText: rebateTextSafe } : {}),
 
     // 엘리베이터: 선택한 경우에만 전송 (O/X), 미선택(null/undefined)은 키 자체 제거
     ...(elevator ? { elevator } : {}),

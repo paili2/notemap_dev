@@ -61,6 +61,9 @@ export default function CompletionRegistrySection({
   // (신규) 최저 실입 정수 금액
   minRealMoveInCost,
   setMinRealMoveInCost,
+  // ✅ 리베이트 텍스트
+  rebateText,
+  setRebateText,
   slopeGrade,
   setSlopeGrade,
   structureGrade,
@@ -74,6 +77,8 @@ export default function CompletionRegistrySection({
 }: CompletionRegistrySectionProps & {
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
+  rebateText?: string | null;
+  setRebateText?: (v: string | null) => void;
   elevator?: "O" | "X" | null;
   setElevator?: (v: "O" | "X" | null) => void;
   isVisitPlanPin?: boolean;
@@ -114,6 +119,23 @@ export default function CompletionRegistrySection({
     [setMinRealMoveInCost, setSalePrice]
   );
 
+  const [localRebate, setLocalRebate] = useState<string>(rebateText ?? "");
+
+  useEffect(() => {
+    setLocalRebate(rebateText ?? "");
+  }, [rebateText]);
+
+  const onChangeRebate = useCallback(
+    (raw: string) => {
+      setLocalRebate(raw);
+      if (typeof setRebateText === "function") {
+        const trimmed = raw.trim();
+        setRebateText(trimmed ? trimmed : null);
+      }
+    },
+    [setRebateText]
+  );
+
   /** ── 경사도/구조 ── */
   const onChangeSlope = useCallback(
     (v: GradeLiteral | undefined) => setSlopeGrade?.(v as Grade | undefined),
@@ -134,6 +156,7 @@ export default function CompletionRegistrySection({
       // 로컬 state
       setLocalDate("");
       setLocalPrice("");
+      setLocalRebate("");
 
       // 상위 폼 상태
       setCompletionDate("");
@@ -142,6 +165,11 @@ export default function CompletionRegistrySection({
       }
       if (typeof setSalePrice === "function") {
         setSalePrice("");
+      }
+
+      if (typeof setRebateText === "function") {
+        // ✅ 추가
+        setRebateText(null);
       }
 
       // 🔹 등기(건물유형)도 리셋
@@ -157,6 +185,7 @@ export default function CompletionRegistrySection({
     setMinRealMoveInCost,
     setSalePrice,
     setBuildingType,
+    setRebateText,
   ]);
 
   return (

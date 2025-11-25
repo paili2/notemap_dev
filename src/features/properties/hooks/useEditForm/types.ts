@@ -75,6 +75,9 @@ export type CompletionRegistryFormSlice = {
   minRealMoveInCost: number | string | null;
   setMinRealMoveInCost: (v: number | string | null) => void;
 
+  rebateText: string | null;
+  setRebateText: (v: string | null) => void;
+
   slopeGrade?: Grade;
   setSlopeGrade: (v?: Grade) => void;
 

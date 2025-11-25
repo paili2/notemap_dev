@@ -93,46 +93,26 @@ export default function HeaderSection(
     prevIsVisitPlanRef.current = current;
   }, [isVisitPlanPin, setBuildingGrade, setParkingGrade, setRebate]);
 
-  // 부모가 setRebate를 안 넘겨준 경우 → 내부 상태를 사용
-  const rebateDisplay =
-    setRebate != null
-      ? typeof rebate === "number"
-        ? rebate.toString()
-        : asControlled(rebate)
-      : fallbackRebate;
+  const rebateDisplay = setRebate
+    ? rebate == null
+      ? ""
+      : String(rebate)
+    : fallbackRebate;
 
   const handleChangeRebate = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (rebateDisabled) return;
 
     const raw = e.currentTarget.value;
-    const cleaned = raw.replace(/,/g, "");
 
-    // 부모가 상태를 관리해주는 경우
+    // 부모가 상태를 관리해주는 경우 (HeaderContainer → useHeaderFields.rebateRaw)
     if (setRebate) {
-      if (cleaned === "") {
-        setRebate(null);
-        return;
-      }
-      const n = Number(cleaned);
-      if (Number.isNaN(n)) {
-        setRebate(raw);
-      } else {
-        setRebate(n);
-      }
+      // 빈 문자열이면 null 로
+      setRebate(raw.trim() === "" ? null : raw);
       return;
     }
 
     // 부모가 setRebate를 안 넘겨준 경우 → 로컬 상태만 업데이트
-    if (cleaned === "") {
-      setFallbackRebate("");
-      return;
-    }
-    const n = Number(cleaned);
-    if (Number.isNaN(n)) {
-      setFallbackRebate(raw);
-    } else {
-      setFallbackRebate(String(n));
-    }
+    setFallbackRebate(raw);
   };
 
   return (

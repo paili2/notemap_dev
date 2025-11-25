@@ -24,6 +24,7 @@ export default function CompletionRegistryContainer({
   const completionDate = toYmd(form.completionDate);
   const setCompletionDate = clampYmdSetter(form.setCompletionDate);
   const salePrice = toStr(form.salePrice);
+  const rebateText = toStr(form.rebateText);
 
   return (
     <CompletionRegistrySection
@@ -35,6 +36,9 @@ export default function CompletionRegistryContainer({
       setSalePrice={form.setSalePrice}
       minRealMoveInCost={form.minRealMoveInCost}
       setMinRealMoveInCost={form.setMinRealMoveInCost}
+      /* ✅ 리베이트 */
+      rebateText={rebateText}
+      setRebateText={form.setRebateText}
       /* 등급(경사/구조) */
       slopeGrade={form.slopeGrade}
       setSlopeGrade={form.setSlopeGrade}

@@ -34,6 +34,7 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
   // ① 기본 저장 가능 여부 (전체 검증용)
   // ─────────────────────────────────────────────────────────
   const { isSaveEnabled: rawIsSaveEnabled } = useCreateValidation({
+    // header 에는 title / parkingGrade / elevator / pinKind / badge / rebateRaw 등이 포함됨
     ...header.state,
     ...basic.state,
     ...nums.state,
@@ -55,6 +56,7 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
     () => sanitizeAreaGroups(areaSetsCombined),
     [areaSetsCombined]
   );
+
   const getAreaGroups = useCallback(
     () => sanitizeAreaGroups(areaSetsCombined),
     [areaSetsCombined]
@@ -105,8 +107,8 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       (parking.actions as any).setParkingTypeId ?? noopLocal;
 
     return {
-      // actions
-      ...header.actions,
+      // ── actions (헤더 + 나머지 전체)
+      ...header.actions, // setTitle, setParkingGrade, setElevator, setPinKind, setBadge, setRebateRaw 포함
       ...basic.actions,
       ...nums.actions,
       ...parking.actions,
@@ -116,8 +118,8 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       ...units.actions,
       ...opts.actions,
 
-      // state
-      ...header.state,
+      // ── state (헤더 + 나머지 전체)
+      ...header.state, // title, parkingGrade, elevator, pinKind, badge, rebateRaw 포함
       ...basic.state,
       ...nums.state,
       ...parking.state,
@@ -144,7 +146,7 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       selectNew,
       selectOld,
 
-      // ✅ 최종 저장 가능 여부 (답사예정이면 완화된 조건 적용)
+      // ✅ 최종 저장 가능 여부 (답사예정이면 완화된 조건은 Modal 쪽에서 별도 처리)
       isSaveEnabled,
     };
   }, [

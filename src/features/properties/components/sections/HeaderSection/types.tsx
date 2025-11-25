@@ -9,13 +9,13 @@ export type HeaderSectionProps = {
   parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
   setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
 
-  /** 엘리베이터: HeaderSection 기준에서는 null 없이 "O" | "X" */
-  elevator: "O" | "X";
-  setElevator: (v: "O" | "X") => void;
+  /** 엘리베이터: null = 미선택 상태 허용 */
+  elevator: "O" | "X" | null;
+  setElevator: (v: "O" | "X" | null) => void;
 
   /** ✅ nullable: 핀 선택 전(placeholder) 상태 표현 */
   pinKind: PinKind | null;
-  setPinKind: (v: PinKind) => void;
+  setPinKind: (v: PinKind | null) => void;
 
   /** 닫기 버튼 핸들러 */
   onClose: () => void;

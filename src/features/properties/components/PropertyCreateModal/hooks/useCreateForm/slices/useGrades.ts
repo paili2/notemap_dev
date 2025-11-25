@@ -9,6 +9,13 @@ import type {
 export function useGrades() {
   const [completionDate, setCompletionDate] = useState("");
   const [salePrice, setSalePrice] = useState("");
+
+  // ✅ 신규: 최저 실입 / 리베이트
+  const [minRealMoveInCost, setMinRealMoveInCost] = useState<
+    number | string | null
+  >(null);
+  const [rebateText, setRebateText] = useState<string | null>(null);
+
   const [registryOne, setRegistryOne] = useState<Registry | undefined>();
   const [slopeGrade, setSlopeGrade] = useState<Grade | undefined>();
   const [structureGrade, setStructureGrade] = useState<Grade | undefined>();
@@ -21,6 +28,8 @@ export function useGrades() {
     () => ({
       completionDate,
       salePrice,
+      minRealMoveInCost, // ✅ 추가
+      rebateText, // ✅ 추가
       registryOne,
       slopeGrade,
       structureGrade,
@@ -30,6 +39,8 @@ export function useGrades() {
     [
       completionDate,
       salePrice,
+      minRealMoveInCost, // ✅ 추가
+      rebateText, // ✅ 추가
       registryOne,
       slopeGrade,
       structureGrade,
@@ -42,6 +53,8 @@ export function useGrades() {
     () => ({
       setCompletionDate,
       setSalePrice,
+      setMinRealMoveInCost,
+      setRebateText,
       setRegistryOne,
       setSlopeGrade,
       setStructureGrade,

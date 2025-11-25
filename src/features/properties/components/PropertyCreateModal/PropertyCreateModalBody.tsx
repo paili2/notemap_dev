@@ -750,49 +750,45 @@ export default function PropertyCreateModalBody({
       /* ========= 최저 실입 / 리베이트 값 수집 ========= */
       const anyForm = f as any;
 
-      const findFieldByKeyIncludes = (keywords: string[]): any => {
-        const ks = Object.keys(anyForm);
-        for (const k of ks) {
-          const lower = k.toLowerCase();
-          if (keywords.every((kw) => lower.includes(kw))) {
-            return anyForm[k];
-          }
-        }
-        return null;
-      };
-
-      // ✅ 최저 실입(만원 단위) 숫자 정규화
+      // ✅ 최저 실입(만원 단위)
       const rawMinRealMoveInCost =
         anyForm.minRealMoveInCost ??
         anyForm.minRealMoveInCostText ??
         anyForm.minRealMoveInCostRaw ??
-        // 혹시 다른 이름으로 들어와도 잡도록 키 검색
-        findFieldByKeyIncludes(["min", "move", "cost"]) ??
         null;
 
       const minRealMoveInCost = numOrNull(rawMinRealMoveInCost);
 
-      // ✅ 리베이트 텍스트 정규화 (최대 50자)
-      const rawRebate =
-        anyForm.rebate ??
-        anyForm.rebateText ??
-        anyForm.rebateRaw ??
-        findFieldByKeyIncludes(["rebate"]) ??
-        null;
+      // ✅ 리베이트: 헤더 R 인풋의 원본 텍스트(rebateRaw)만 사용
+      const rawRebate = String(anyForm.rebateRaw ?? "").trim();
+      const rebateNumeric = rawRebate.replace(/[^\d]/g, "");
+      const rebateText: string | null = rebateNumeric
+        ? rebateNumeric.slice(0, 50)
+        : null;
 
-      const rebateText =
-        rawRebate == null
-          ? null
-          : (() => {
-              const t = String(rawRebate).trim();
-              return t ? t.slice(0, 50) : null;
-            })();
+      // ✅ 신축/구옥 선택 여부: buildingGrade 또는 isNew/isOld 둘 중 아무거나
+      const hasBuildingGrade =
+        anyForm.buildingGrade != null ||
+        anyForm.isNew === true ||
+        anyForm.isOld === true;
 
-      // 디버그 로그
       console.log("[save] rawMinRealMoveInCost =", rawMinRealMoveInCost);
       console.log("[save] minRealMoveInCost =", minRealMoveInCost);
-      console.log("[save] rawRebate =", rawRebate);
       console.log("[save] rebateText =", rebateText);
+      console.log("[save] hasBuildingGrade =", hasBuildingGrade);
+
+      if (!hasBuildingGrade) {
+        alert("신축/구옥을 선택해 주세요.");
+        return;
+      }
+      if (anyForm.elevator !== "O" && anyForm.elevator !== "X") {
+        alert("엘리베이터 유무를 선택해 주세요.");
+        return;
+      }
+      if (!rebateText) {
+        alert("리베이트를 입력해 주세요.");
+        return;
+      }
 
       // ✅ badge: 직접 입력이 없으면 핀 종류 기반 기본값 사용
       const effectiveBadge =
@@ -820,8 +816,8 @@ export default function PropertyCreateModalBody({
         completionDate: normalizedCompletion,
         salePrice: f.salePrice,
 
-        // 프론트 내부용으로만 사용 (dto로는 rebateText로 보냄)
-        rebate: rebateText,
+        minRealMoveInCost,
+        rebateText,
 
         baseAreaSet: f.baseAreaSet,
         extraAreaSets: Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [],
@@ -985,9 +981,40 @@ export default function PropertyCreateModalBody({
   /* ====== 답사예정 핀일 때 저장 가능 조건 ====== */
   const minimalForVisitPlan = !!mainTitle && !!mainOfficePhone;
 
+  const anyFormForCanSave = f as any;
+
+  // ✅ 신축/구옥 선택 여부
+  const hasBuildingGradeForCanSave =
+    anyFormForCanSave.buildingGrade != null ||
+    anyFormForCanSave.isNew === true ||
+    anyFormForCanSave.isOld === true;
+
+  // ✅ 엘리베이터 선택 여부
+  const elevatorSelected =
+    anyFormForCanSave.elevator === "O" || anyFormForCanSave.elevator === "X";
+
+  // ✅ 리베이트 인풋이 채워졌는지 (rebateRaw 기준, 숫자만 추출)
+  const rawRebateForCanSave = String(
+    (anyFormForCanSave as any).rebateRaw ?? ""
+  ).trim();
+  const rebateFilled = rawRebateForCanSave.replace(/[^\d]/g, "").length > 0;
+
+  // 🔹 버튼 활성에 필요한 추가 필수들
+  const extraRequiredFilled =
+    hasBuildingGradeForCanSave && elevatorSelected && rebateFilled;
+
+  console.log("[canSave]", {
+    rawIsSaveEnabled: f.isSaveEnabled,
+    hasBuildingGradeForCanSave,
+    elevatorSelected,
+    rebateFilled,
+    isVisitPlanPin,
+    minimalForVisitPlan,
+  });
+
   const canSave = isVisitPlanPin
     ? minimalForVisitPlan && !isSaving
-    : f.isSaveEnabled && !isSaving;
+    : f.isSaveEnabled && extraRequiredFilled && !isSaving;
 
   /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값 초기화 */
   const prevIsVisitPlanRef = useRef(isVisitPlanPin);

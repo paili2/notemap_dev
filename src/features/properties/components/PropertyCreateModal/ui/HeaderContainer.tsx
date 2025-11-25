@@ -24,6 +24,10 @@ type HeaderForm = {
   /** 신축/구옥 — "new" | "old" | null(미선택) */
   buildingGrade: BuildingGrade | null;
   setBuildingGrade: (v: BuildingGrade | null) => void;
+
+  /** 🔴 헤더 R 인풋의 원본 숫자 문자열 */
+  rebateRaw: string;
+  setRebateRaw: (v: string) => void;
 };
 
 type HeaderContainerProps = {
@@ -71,6 +75,14 @@ export default function HeaderContainer({
         setBuildingGrade={(next) => {
           if (disabled) return;
           form.setBuildingGrade(next);
+        }}
+        /** 🔴 헤더 R 인풋 ↔ form.rebateRaw 연결 */
+        rebate={form.rebateRaw}
+        setRebate={(next) => {
+          if (disabled) return;
+          // null 이나 빈 값 들어오면 빈 문자열로
+          const s = next == null ? "" : String(next);
+          form.setRebateRaw(s.replace(/[^\d]/g, "")); // 숫자만
         }}
         onClose={onClose}
         /** 별/리베이트/신축·구옥 비활성화용 플래그 */

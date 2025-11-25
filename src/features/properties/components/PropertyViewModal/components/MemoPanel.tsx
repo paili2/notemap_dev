@@ -22,7 +22,7 @@ export default function MemoPanel({
           mode === "R" && "text-rose-600"
         )}
       >
-        {mode === "KN" ? "특이사항(공개)" : "리베이트 / 비밀 메모 (R)"}
+        {mode === "KN" ? "특이사항(공개)" : "비밀 메모"}
       </div>
       <div className="min-h-[72px] whitespace-pre-wrap text-sm">
         {value?.trim() ? (
