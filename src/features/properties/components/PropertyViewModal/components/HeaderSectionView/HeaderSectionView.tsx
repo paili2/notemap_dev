@@ -74,9 +74,9 @@ export default function HeaderSectionView({
   buildingAgeType,
   completionDate,
   newYearsThreshold = 5,
-  // ⭐ 리베이트 추가
-  rebate,
-}: HeaderSectionViewProps & { rebate?: number | null }) {
+  // ⭐ 리베이트 텍스트(만원 단위)
+  rebateText,
+}: HeaderSectionViewProps) {
   const pinSrc = useMemo(() => getPinUrl(pinKind), [pinKind]);
 
   const rating = useMemo(() => {
@@ -118,6 +118,18 @@ export default function HeaderSectionView({
       : ageLabel === "구옥"
       ? "bg-amber-50 border-amber-200 text-amber-700"
       : "bg-gray-50 border-gray-200 text-gray-500";
+
+  // 🔢 리베이트 표시용 문자열 (0이하 / 비어있으면 숨김)
+  const rebateDisplay = useMemo(() => {
+    if (rebateText === null || rebateText === undefined) return null;
+    const raw = String(rebateText).trim();
+    if (!raw) return null;
+
+    const n = Number(raw.replace(/,/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    return n.toLocaleString("ko-KR");
+  }, [rebateText]);
 
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
@@ -163,11 +175,26 @@ export default function HeaderSectionView({
         {/* 구분선 */}
         <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
 
-        {/* 🔥 리베이트 표시 */}
-        {typeof rebate === "number" && rebate > 0 && (
-          <span className="shrink-0 text-red-600 font-bold text-xl">
-            R{rebate}
-          </span>
+        {/* 🔥 리베이트 표시: 입력 헤더처럼 R + 박스, 인풋 없는 읽기 전용 */}
+        {rebateDisplay && (
+          <div className="shrink-0 flex items-center gap-3">
+            {/* ✅ R: h-9 + flex items-center 로 숫자와 동일 높이/정렬 */}
+            <span className="flex items-center h-9 text-[20px] md:text-[22px] font-extrabold text-red-500">
+              R
+            </span>
+
+            {/* 값 박스 – 인풋 대신 읽기 전용 박스 */}
+            <div
+              className={cn(
+                "min-w-[2rem] h-9 px-2 text-right",
+                "flex items-center justify-end",
+                "text-[20px] md:text-[22px] font-extrabold",
+                "text-gray-400 bg-white"
+              )}
+            >
+              {rebateDisplay}
+            </div>
+          </div>
         )}
       </div>
     </header>

@@ -322,6 +322,15 @@ function ViewStage({
     return resolved;
   }, [data, f]);
 
+  const rebateTextFromSources = useMemo(() => {
+    const fromView = (data as any)?.rebateText;
+    const fromForm = (f as any)?.rebateText;
+    const fromMetaRoot = (metaDetails as any)?.rebateText;
+    const fromRaw = (metaDetails as any)?.raw?.rebateText;
+
+    return fromView ?? fromForm ?? fromMetaRoot ?? fromRaw ?? null;
+  }, [data, f, metaDetails]);
+
   // 🔁 전역 메모 보기 모드 (K&N / R)
   const memoViewMode = useMemoViewMode((s) => s.mode); // "public" | "secret"
   const isPublicMemoMode = memoViewMode === "public";
@@ -463,6 +472,8 @@ function ViewStage({
                 null
               }
               newYearsThreshold={5}
+              // ⭐ rebateText를 헤더로 전달 (뷰데이터 우선, 없으면 폼 값)
+              rebateText={rebateTextFromSources}
             />
           </div>
 
