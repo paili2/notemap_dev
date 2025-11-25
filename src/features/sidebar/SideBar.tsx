@@ -111,6 +111,18 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
     startYRef.current = null;
   };
 
+  /* ───────── 섹션 아코디언 상태 (한 번에 하나만 열기) ───────── */
+  type SectionKey = "exploration" | "favorites" | null;
+  const [openSection, setOpenSection] = useState<SectionKey>(null);
+
+  const toggleExploration = () => {
+    setOpenSection((prev) => (prev === "exploration" ? null : "exploration"));
+  };
+
+  const toggleFavorites = () => {
+    setOpenSection((prev) => (prev === "favorites" ? null : "favorites"));
+  };
+
   // 3) 조기 리턴 (모든 훅 정의 후)
   if (!isSidebarOn) return null;
 
@@ -155,6 +167,8 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onItemsChange={handleListItemsChange}
           onDeleteItem={(id) => onCancel(id)}
           onReorderIds={onReorder}
+          expanded={openSection === "exploration"}
+          onToggleExpanded={toggleExploration}
         />
 
         {/* 즐겨찾기 */}
@@ -168,6 +182,8 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onDeleteNestedItem={handleDeleteNestedFavorite}
           onDeleteSubItem={handleDeleteSubFavorite}
           onUpdateGroupTitle={updateFavoriteGroupTitle}
+          expanded={openSection === "favorites"}
+          onToggleExpanded={toggleFavorites}
         />
 
         <ContractRecordsButton onClick={handleContractRecordsClick} />
