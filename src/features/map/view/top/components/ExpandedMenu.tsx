@@ -3,7 +3,19 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import type { LucideIcon } from "lucide-react";
-import { Train, Coffee, Store, Pill, School } from "lucide-react";
+import {
+  Train,
+  Coffee,
+  Store,
+  ShoppingCart,
+  Pill,
+  Cross,
+  School,
+  ParkingCircle,
+  ShieldCheck,
+  Landmark,
+  TreePine,
+} from "lucide-react";
 
 import type { MapMenuKey } from "./types/types";
 import { PoiKind, POI_LABEL } from "@/features/map/shared/overlays/poiOverlays";
@@ -56,28 +68,36 @@ const POI_CATEGORY_LABEL: Record<PoiCategoryKey, string> = {
 };
 
 /**
- * poiOverlays.tsx 예시:
- *  "subway" | "ktx" | "convenience" | "mart" | "cafe" |
- *  "pharmacy" | "hospital" | "school" | "police" | "fireStation" | "park"
+ * poiOverlays.tsx 기준 PoiKind:
+ *  "convenience" | "mart" | "cafe" | "pharmacy" | "hospital" |
+ *  "subway" | "parking" | "school" | "police"(안전기관: 경찰/소방) | "culture" | "park"
+ *
+ * - 예전 "ktx" → "parking" 으로 통일
+ * - 소방 포함 안전기관은 "police" kind 로 통합 관리
  */
 const POI_CATEGORY_ITEMS: Record<PoiCategoryKey, PoiKind[]> = {
-  transport: ["subway", "ktx"],
+  transport: ["subway", "parking"],
   convenience: ["convenience", "mart"],
   medical: ["pharmacy", "hospital"],
-  public: ["school", "police", "fireStation"],
-  leisure: ["cafe", "park"],
+  public: ["school", "police"],
+  leisure: ["cafe", "park", "culture"],
 };
 
-/* ───────── 메뉴용 아이콘 (있는 것만 사용) ───────── */
+/* ───────── 메뉴용 아이콘 ───────── */
 
 const POI_MENU_ICON: Partial<Record<PoiKind, LucideIcon>> = {
   subway: Train,
   school: School,
   convenience: Store,
-  mart: Store,
+  mart: ShoppingCart, // ✅ 마트 → ShoppingCart
   cafe: Coffee,
   pharmacy: Pill,
-  hospital: Pill,
+  hospital: Cross, // ✅ 병원 → Cross (십자가)
+  // 추가 아이콘들
+  parking: ParkingCircle,
+  police: ShieldCheck, // 안전기관(경찰/소방)
+  culture: Landmark,
+  park: TreePine,
 };
 
 export const ExpandedMenu: React.FC<ExpandedMenuProps> = React.memo(

@@ -25,7 +25,13 @@ export function searchCategoryAllPagesByBounds(
   });
 }
 
-/** 키워드 검색(페이징 자동) — bounds→(부족 시) x/y/radius 폴백 */
+/**
+ * 키워드 검색(페이징 자동)
+ * - bounds 우선
+ * - 부족하면 x/y/radius 폴백
+ * - keyword: string | string[]
+ *   예) 안전기관(poiKind: "police") → ["경찰서", "소방서"]
+ */
 export async function searchKeywordAllPagesByBounds(
   kakao: any,
   places: any,
@@ -88,7 +94,7 @@ export async function searchKeywordAllPagesByBounds(
     if (all.length >= hardLimit) break;
   }
 
-  // dedup by id or (x,y)
+  // ✅ id 또는 (x,y) 기준 dedup
   const seen = new Set<string>();
   const uniq: any[] = [];
   for (const p of all) {
@@ -127,7 +133,10 @@ export function pickNearFar(
   ];
 }
 
-/** 화면이 넓을수록 bounds를 더 잘게 — 그리고 중심에 가까운 셀부터 */
+/**
+ * 화면이 넓을수록 bounds를 더 잘게 나누고,
+ * 중심에 가까운 셀부터 검색하도록 정렬
+ */
 export function gridCellsSortedByCenter(
   kakao: any,
   boundsObj: any,
@@ -153,8 +162,8 @@ export function gridCellsSortedByCenter(
   };
 
   cells.sort((a, b) => {
-    const A = cellCenter(a),
-      B = cellCenter(b);
+    const A = cellCenter(a);
+    const B = cellCenter(b);
     return distM(A.lat, A.lng, cLat, cLng) - distM(B.lat, B.lng, cLat, cLng);
   });
 

@@ -211,6 +211,7 @@ export function usePoiLayer({
         );
         const acc = chunks.flat();
 
+        // ✅ id 기준 dedup
         const seenIds = new Set<string>();
         const dedup: any[] = [];
         for (const p of acc) {
@@ -220,11 +221,22 @@ export function usePoiLayer({
           dedup.push(p);
         }
 
+        // 🔁 예전: 지하철/ktx 분리용 filterRailPoiByKind 사용
+        //  - 현재는 PoiKind에서 "ktx" 제거, "parking"/"culture"/"police(안전기관)"로 통합되어
+        //    별도 필터링 없이 그대로 사용
+        const filtered = dedup;
+
         const center = map.getCenter();
         const cLat = center.getLat();
         const cLng = center.getLng();
         const radiusM = RADIUS_BY_KIND[kind] ?? 1000;
-        const pick = pickNearFar(dedup, cLat, cLng, radiusM, maxResultsPerKind);
+        const pick = pickNearFar(
+          filtered,
+          cLat,
+          cLng,
+          radiusM,
+          maxResultsPerKind
+        );
 
         for (const p of pick) {
           const x = Number(p.x);

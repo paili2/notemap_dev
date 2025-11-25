@@ -195,6 +195,10 @@ const useKakaoMap = ({
           });
           mapRef.current = map;
 
+          if (typeof window !== "undefined") {
+            (window as any).kakaoMapInstance = map;
+          }
+
           // (B) 지도 DOM 아래 http→https 강제 옵저버 설치
           try {
             const node: HTMLElement = map.getNode();
@@ -343,6 +347,13 @@ const useKakaoMap = ({
       try {
         (map as any)?.__detachHttpsPatch__?.();
       } catch {}
+
+      if (
+        typeof window !== "undefined" &&
+        (window as any).kakaoMapInstance === map
+      ) {
+        (window as any).kakaoMapInstance = null;
+      }
 
       // mapRef는 언마운트 시에만 null
       mapRef.current = null;

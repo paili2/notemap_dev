@@ -1,23 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import ToggleSidebar from "../../../view/top/ToggleSidebar/ToggleSidebar";
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { MapMenu, MapMenuKey } from "@/features/map/menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/atoms/Dialog/Dialog";
-import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
+import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 import { cn } from "@/lib/cn";
+import { useToast } from "@/hooks/use-toast";
 
 function isPlannedKey(k: MapMenuKey | string) {
-  return k === "planned"; // ← 실제 키로 교체
+  return k === "planned";
 }
 
 // 편의시설이 보이기 시작하는 축척(단위 m)
@@ -67,6 +60,9 @@ export default function TopRightControls(props: {
     e.nativeEvent?.stopImmediatePropagation?.();
   };
 
+  // ✅ 토스트 훅은 컴포넌트 안에서 호출해야 함
+  const { toast } = useToast();
+
   // kakao Bounds -> 커스텀 Bounds 어댑터
   const getBoundsForHook = () => {
     const b = props.getBounds?.();
@@ -105,10 +101,7 @@ export default function TopRightControls(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.activeMenu, reloadPlanned]);
 
-  // ✅ 편의시설 모달 상태
-  const [poiWarningOpen, setPoiWarningOpen] = useState(false);
-
-  // ✅ 편의시설 토글을 가로채서 축척 체크
+  // ✅ 편의시설 토글을 가로채서 축척 체크 + 자동 줌 + 토스트
   const handleChangePoiKinds = useCallback(
     (next: PoiKind[]) => {
       // 모두 꺼져있다가 처음 켜는 상황에서만 체크
@@ -119,9 +112,22 @@ export default function TopRightControls(props: {
         if (typeof level === "number") {
           const scaleM = getScaleMetersFromLevel(level);
 
-          // 50m보다 축소(= 숫자 큼)면 모달만 띄우고 실제 토글은 막기
+          // 50m보다 축소(= 숫자 큼)면 자동으로 50m로 줌 + 토스트
           if (scaleM > POI_VISIBLE_MIN_SCALE_M) {
-            setPoiWarningOpen(true);
+            toast({
+              title: "지도를 확대했어요",
+              description:
+                "편의시설은 지도 축척이 50m 이상일 때 표시됩니다. 지도를 자동으로 확대했어요.",
+            });
+
+            const mapLevelFor50m = 3; // 현재 로직 기준 3레벨을 50m로 가정
+            const map = (window as any).kakaoMapInstance;
+            if (map && typeof map.setLevel === "function") {
+              map.setLevel(mapLevelFor50m, { animate: true });
+            }
+
+            // 토글 자체는 그대로 반영 (유저 입장에서는 '켜진 상태' 유지)
+            props.onChangePoiKinds(next);
             return;
           }
         }
@@ -129,8 +135,30 @@ export default function TopRightControls(props: {
 
       props.onChangePoiKinds(next);
     },
-    [props.poiKinds.length, props.getLevel, props.onChangePoiKinds]
+    [props.poiKinds.length, props.getLevel, props.onChangePoiKinds, toast]
   );
+
+  /* 🔸 50m보다 축소되면 주변시설 토글 전부 해제 */
+  useEffect(() => {
+    const checkZoomAndClear = () => {
+      const level = props.getLevel?.();
+      if (typeof level !== "number") return;
+
+      const scaleM = getScaleMetersFromLevel(level);
+
+      // 50m보다 축소인데 토글이 켜져 있으면 모두 해제
+      if (scaleM > POI_VISIBLE_MIN_SCALE_M && props.poiKinds.length > 0) {
+        props.onChangePoiKinds([]);
+      }
+    };
+
+    // idle 이벤트를 못 받으니까 간단히 폴링 (0.5초마다 한 번)
+    const timer = window.setInterval(checkZoomAndClear, 500);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [props.getLevel, props.poiKinds.length, props.onChangePoiKinds]);
 
   // ✅ 전역 메모 보기 모드 (K&N / R)
   const { mode: memoMode, setMode: setMemoMode } = useMemoViewMode();
@@ -231,34 +259,6 @@ export default function TopRightControls(props: {
           />
         </div>
       </div>
-
-      {/* ✅ 편의시설 안내 모달 (Dialog 사용) */}
-      <Dialog open={poiWarningOpen} onOpenChange={setPoiWarningOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>편의시설 보기</DialogTitle>
-            <DialogDescription asChild>
-              <p className="mt-1 text-sm leading-relaxed">
-                편의시설(지하철, 학교, 편의점, 카페, 약국)은
-                <br />
-                지도 축척이 <b>50m 이상으로 확대</b>되었을 때만 표시됩니다.
-                <br />
-                <br />
-                지도를 조금 더 확대한 뒤 다시 시도해 주세요.
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() => setPoiWarningOpen(false)}
-              className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
-            >
-              확인
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
