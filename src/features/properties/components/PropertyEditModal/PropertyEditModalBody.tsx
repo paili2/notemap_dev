@@ -1566,13 +1566,21 @@ export default function PropertyEditModalBody({
         f.setStructureGrade(() => v);
       },
 
-      // 등기/건물 타입 (⚠️ 추가 매핑 없이 우리가 쓰는 라벨만)
+      // 등기/건물 타입
       buildingType: (normalizeBuildingType(f.buildingType) ??
         null) as BuildingType | null,
       setBuildingType: (v: string | null) => {
         const bt = normalizeBuildingType(v);
         console.log("[Completion] buildingType change:", v, "→", bt);
         f.setBuildingType(bt ?? null);
+      },
+
+      // ⭐ 리베이트 텍스트
+      rebateText: f.rebateText ?? "",
+      setRebateText: (v: string | null) => {
+        const s = v ?? "";
+        console.log("[Completion] rebateText change:", v, "→", s);
+        f.setRebateText(s);
       },
     }),
     [
@@ -1588,6 +1596,8 @@ export default function PropertyEditModalBody({
       f.setStructureGrade,
       f.buildingType,
       f.setBuildingType,
+      f.rebateText,
+      f.setRebateText,
     ]
   );
 

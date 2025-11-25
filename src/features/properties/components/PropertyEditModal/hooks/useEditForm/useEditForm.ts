@@ -91,6 +91,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     []
   );
 
+  const [rebateText, setRebateText] = useState<string>("");
+
   const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
     title: "",
     exMinM2: "",
@@ -231,6 +233,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setSecretMemo("");
     setUnitLines([]);
     setBuildingType(null);
+    setRebateText("");
   }, []);
 
   /* ========== 초기 주입 ========== */
@@ -301,7 +304,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     );
     setCompletionDate(normalized.completionDate);
     setSalePrice(normalized.salePrice);
-
+    setRebateText(
+      (normalized as any).rebateText ??
+        (normalized as any).rebateMemo ??
+        (normalized as any).rebate ??
+        ""
+    );
     setBaseAreaSet(normalized.baseArea);
     setExtraAreaSets(normalized.extraAreas);
 
@@ -592,6 +600,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingType,
       buildingGrade,
       aspectsTouched,
+      rebateText,
     }),
     [
       pinKind,
@@ -630,6 +639,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingType,
       buildingGrade,
       aspectsTouched,
+      rebateText,
     ]
   );
 
@@ -678,6 +688,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       reset,
       setBuildingType,
       setBuildingGrade,
+      setRebateText,
     }),
     [
       addAspect,
