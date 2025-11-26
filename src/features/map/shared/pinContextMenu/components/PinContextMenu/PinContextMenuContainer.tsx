@@ -18,7 +18,8 @@ import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedM
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
-import { togglePinDisabled } from "@/shared/api/pins"; // ✅ 추가
+import { togglePinDisabled } from "@/shared/api/pins";
+import { useMe } from "@/shared/api/auth";
 
 /** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 function posKey(lat: number, lng: number) {
@@ -115,6 +116,9 @@ export default function PinContextMenuContainer(props: Props) {
     upsertDraftMarker,
     onDeleteProperty,
   } = props;
+
+  // 🔐 현재 로그인 유저
+  const { data: me } = useMe();
 
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
@@ -538,9 +542,13 @@ export default function PinContextMenuContainer(props: Props) {
   /** ✅ 매물 삭제 여부 상태 */
   const [deleting, setDeleting] = React.useState(false);
 
+  // 🔐 삭제 권한: admin / manager(팀장)만
+  const role = me?.role;
+  const canDeleteByRole = role === "admin" || role === "manager";
+
   const canDelete = React.useMemo(
-    () => !!propertyIdClean && listed && !isSearchDraft,
-    [propertyIdClean, listed, isSearchDraft]
+    () => !!propertyIdClean && listed && !isSearchDraft && canDeleteByRole,
+    [propertyIdClean, listed, isSearchDraft, canDeleteByRole]
   );
 
   const handleDelete = React.useCallback(async () => {

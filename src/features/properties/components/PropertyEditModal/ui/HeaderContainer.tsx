@@ -23,7 +23,7 @@ export type HeaderForm = {
   buildingGrade: BuildingGrade | null;
   setBuildingGrade: (v: BuildingGrade | null) => void;
 
-  /** 🔥 헤더 R 인풋 원본 값 */
+  /** 🔥 헤더 R 인풋 원본 값 (useEditForm.rebateRaw 와 매칭) */
   rebateRaw: string;
   setRebateRaw: (v: string) => void;
 };
@@ -56,7 +56,7 @@ export default function HeaderContainer({
       setPinKind={form.setPinKind}
       buildingGrade={form.buildingGrade}
       setBuildingGrade={form.setBuildingGrade}
-      // 🔥 여기 수정
+      // 🔥 useEditForm.rebateRaw 을 그대로 사용
       rebate={form.rebateRaw}
       setRebate={handleSetRebate}
       isVisitPlanPin={isVisitPlanPin}

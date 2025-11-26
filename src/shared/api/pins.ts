@@ -9,6 +9,7 @@ import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-gro
 import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 import type { AxiosRequestConfig } from "axios";
+import { CreatePinOptionsDto } from "@/features/properties/types/property-dto";
 
 /* 개발환경 플래그 */
 const DEV = process.env.NODE_ENV !== "production";
@@ -152,18 +153,6 @@ function deepPrune<T>(obj: T): Partial<T> {
 function isEmpty(obj: object | null | undefined) {
   return !obj || Object.keys(obj).length === 0;
 }
-
-/* ───────────── DTO (export!) ───────────── */
-export type CreatePinOptionsDto = {
-  hasAircon?: boolean;
-  hasFridge?: boolean;
-  hasWasher?: boolean;
-  hasDryer?: boolean;
-  hasBidet?: boolean;
-  hasAirPurifier?: boolean;
-  /** 최대 255자 */
-  extraOptionsText?: string | null;
-};
 
 export type CreatePinDirectionDto = {
   direction: string;

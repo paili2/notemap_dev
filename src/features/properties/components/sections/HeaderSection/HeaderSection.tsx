@@ -104,7 +104,7 @@ export default function HeaderSection(
 
     const raw = e.currentTarget.value;
 
-    // 부모가 상태를 관리해주는 경우 (HeaderContainer → useHeaderFields.rebateRaw)
+    // 부모가 상태를 관리해주는 경우 (HeaderContainer → useEditForm.rebateRaw)
     if (setRebate) {
       // 빈 문자열이면 null 로
       setRebate(raw.trim() === "" ? null : raw);

@@ -278,12 +278,26 @@ export function MapHomeUI(props: MapHomeUIProps) {
     setViewDataLocal(null);
     try {
       const apiPin = await getPinRaw(pinId);
-      const base = toViewDetailsFromApi(apiPin) as PropertyViewDetails;
-      const ensured = ensureViewForEdit({
+
+      // 🔥 get /pins 응답에서 실제 데이터 부분 추출
+      //    - getPinRaw가 이미 data만 반환하면 raw = apiPin
+      //    - envelope를 반환하면 raw = apiPin.data
+      const raw = (apiPin as any)?.data ?? apiPin;
+
+      // 뷰모달에서 쓰는 view 모델
+      const base = toViewDetailsFromApi(raw) as PropertyViewDetails;
+
+      // 🔥 여기서 바로 editInitial = { view, raw } 를 붙여준다
+      const withEditInitial = {
         ...base,
         id: (base as any).id ?? pinId,
-      });
-      setViewDataLocal(ensured as any);
+        editInitial: {
+          view: { ...base },
+          raw, // ← 여기에 /pins/{id}의 전체 데이터 객체 들어감 (rebateText, options.extraOptionsText 포함)
+        },
+      } as PropertyViewDetails & { editInitial: any };
+
+      setViewDataLocal(withEditInitial);
     } catch (e) {
       console.error(e);
       setViewOpenLocal(false);
@@ -293,8 +307,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
   // ✅ 먼저 선언
   const handleViewFromMenu = useCallback(
     (id: string) => {
-      if (typeof onViewFromMenu === "function") onViewFromMenu(id);
-      else handleViewFromMenuLocal(id);
+      if (typeof onViewFromMenu === "function") {
+        onViewFromMenu(id); // 기존 selection / 상태 업데이트 유지
+      }
+      handleViewFromMenuLocal(id); // + 항상 /pins/{id} 로컬 패칭해서 viewDataLocal 채우기
     },
     [onViewFromMenu, handleViewFromMenuLocal]
   );
@@ -956,8 +972,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
   }, [closeView]);
 
   const selectedViewForModal = useMemo(() => {
-    const base = (selectedViewItem ??
-      viewDataLocal ??
+    // 🔥 raw를 포함한 viewDataLocal을 먼저 쓰고,
+    //    없을 때만 selectedViewItem으로 fallback
+    const base = (viewDataLocal ??
+      selectedViewItem ??
       null) as PropertyViewDetails | null;
     return ensureViewForEdit(base);
   }, [selectedViewItem, viewDataLocal]);

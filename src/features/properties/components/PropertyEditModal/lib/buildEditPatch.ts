@@ -2,7 +2,10 @@ import { hydrateRefsToMedia, materializeToRefs } from "@/lib/media/refs";
 import { PropertyViewDetails } from "../../PropertyViewModal/types";
 
 function buildEditPatch(payload: any, selectedId?: string) {
-  const patch: Partial<PropertyViewDetails> & { pinKind?: string } = {
+  const patch: Partial<PropertyViewDetails> & {
+    pinKind?: string;
+    rebateText?: string;
+  } = {
     id: payload.id ?? selectedId,
     title: payload.title,
     address: payload.address,
@@ -33,12 +36,25 @@ function buildEditPatch(payload: any, selectedId?: string) {
     aspect3: payload.aspect3,
     slopeGrade: payload.slopeGrade,
     structureGrade: payload.structureGrade,
+
+    // ✅ 옵션 라벨 배열
     options: payload.options,
-    optionEtc: payload.optionEtc,
+
+    // ✅ 옵션 직접입력: 여러 케이스 다 커버
+    optionEtc:
+      payload.optionEtc ??
+      payload.extraOptionsText ??
+      payload.options?.extraOptionsText ??
+      "",
+
     registry: payload.registry,
     unitLines: payload.unitLines,
     publicMemo: payload.publicMemo,
     secretMemo: payload.secretMemo,
+
+    // ✅ 리베이트 텍스트도 같이 넘겨주기
+    rebateText: payload.rebateText ?? payload.rebate ?? "",
+
     // 이미지 계열은 WithMedia에서 최종 세팅
     images: payload.images,
     pinKind: payload.pinKind,

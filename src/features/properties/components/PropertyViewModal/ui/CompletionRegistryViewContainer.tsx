@@ -12,8 +12,8 @@ type Props = {
   structureGrade?: any;
   /** ✅ 최저 실입(정수 금액) */
   minRealMoveInCost?: number | null;
-  /** ✅ 엘리베이터 O/X */
-  elevator?: string | null;
+  /** ✅ 엘리베이터: boolean | "O" | "X" */
+  elevator?: boolean | string | null;
 };
 
 export default function CompletionRegistryViewContainer({
@@ -29,6 +29,16 @@ export default function CompletionRegistryViewContainer({
       ? toYMDFlexible(completionDate, { utc: true })
       : "-";
 
+  // 👇 여기서 boolean / string 을 "O" / "X" 로 정규화
+  const elevatorLabel =
+    elevator === "O" || elevator === "X"
+      ? elevator
+      : elevator === true
+      ? "O"
+      : elevator === false
+      ? "X"
+      : null;
+
   return (
     <CompletionRegistryView
       completionDate={completionText}
@@ -36,7 +46,7 @@ export default function CompletionRegistryViewContainer({
       slopeGrade={slopeGrade}
       structureGrade={structureGrade}
       minRealMoveInCost={minRealMoveInCost}
-      elevator={elevator}
+      elevator={elevatorLabel}
     />
   );
 }

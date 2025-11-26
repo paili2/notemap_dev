@@ -1354,6 +1354,12 @@ export default function PropertyEditModalBody({
     ]
   );
 
+  console.log("[EditModal] initialData(raw) =", initialData);
+  console.log(
+    "[EditModal] bridgedInitial(before useEditForm) =",
+    bridgedInitial
+  );
+
   // 폼 훅
   const f = useEditForm({ initialData: bridgedInitial });
 
@@ -1438,8 +1444,16 @@ export default function PropertyEditModalBody({
         console.log("[Header] pinKind selected:", v);
         f.setPinKind(v);
       },
+
       buildingGrade, // "new" | "old"
       setBuildingGrade, // (v: "new" | "old") => void
+
+      // 🔥 리베이트 필드(만원 단위 텍스트)
+      rebateRaw: f.rebateRaw, // useEditForm 에서 alias 로 제공
+      setRebateRaw: (v: string) => {
+        console.log("[Header] rebateRaw change:", v);
+        f.setRebateRaw(v); // 내부적으로 setRebateText 호출
+      },
     }),
     [
       f.title,
@@ -1452,6 +1466,8 @@ export default function PropertyEditModalBody({
       f.setPinKind,
       buildingGrade,
       setBuildingGrade,
+      f.rebateRaw,
+      f.setRebateRaw,
     ]
   );
 

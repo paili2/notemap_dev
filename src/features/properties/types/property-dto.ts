@@ -32,6 +32,19 @@ export type UnitsDto = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Options DTO (옵션 세트: 서버 전송용 shape)                         */
+/* ------------------------------------------------------------------ */
+export type CreatePinOptionsDto = {
+  hasAircon?: boolean;
+  hasFridge?: boolean;
+  hasWasher?: boolean;
+  hasDryer?: boolean;
+  hasBidet?: boolean;
+  hasAirPurifier?: boolean;
+  extraOptionsText?: string | null;
+};
+
+/* ------------------------------------------------------------------ */
 /* Create DTO (클라이언트 → 서버)                                      */
 /* ------------------------------------------------------------------ */
 export type CreatePayload = {
@@ -98,7 +111,7 @@ export type CreatePayload = {
   contactSubPhone?: string;
 
   // 옵션/메모/등기/구조
-  options: string[];
+  options: CreatePinOptionsDto;
   optionEtc?: string;
   publicMemo?: string | null;
   secretMemo?: string | null;
@@ -194,7 +207,7 @@ export type UpdatePayload = {
   remainingHouseholds?: number | string;
 
   // 옵션/메모/등기/구조
-  options?: string[];
+  options?: CreatePinOptionsDto | null;
   optionEtc?: string;
   publicMemo?: string | null;
   secretMemo?: string | null;

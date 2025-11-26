@@ -27,6 +27,7 @@ import { deletePin } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 import MetaInfoContainer from "./components/MetaInfoContainer";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
+import { useMe } from "@/shared/api/auth";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -316,6 +317,14 @@ function ViewStage({
   asInner?: boolean;
 }) {
   console.log("[PropertyViewModal/ViewStage] render", { data });
+
+  // ✅ 현재 로그인 유저 정보
+  const { data: me } = useMe();
+
+  // ✅ 삭제 버튼 노출 권한: 부장 / 팀장만
+  const role = me?.role;
+  const canDelete = ["admin", "manager"].includes(role ?? ""); // 아직 백엔드 수정 안되어서 우선 최고관리자랑 manager = 팀장 넣음
+
   const hasData = !!data;
   const formInput = useMemo(
     () => ({ open: true, data: data ?? ({} as PropertyViewDetails) }),
@@ -533,7 +542,17 @@ function ViewStage({
                 slopeGrade={f.slopeGrade}
                 structureGrade={f.structureGrade}
                 minRealMoveInCost={(f as any).minRealMoveInCost}
+                elevator={
+                  // 1순위: 폼 상태에 문자열 "O"/"X"가 있으면 사용
+                  (f as any).elevator ??
+                  // 2순위: 뷰 데이터에 문자열 elevator 필드가 있으면 사용
+                  (data as any)?.elevator ??
+                  // 3순위: 서버에서 내려온 boolean hasElevator 사용
+                  (data as any)?.hasElevator ??
+                  null
+                }
               />
+
               <AspectsViewContainer details={data!} />
               <AreaSetsViewContainer
                 exclusiveArea={f.exclusiveArea}
@@ -589,20 +608,23 @@ function ViewStage({
                   수정
                 </button>
 
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  disabled={deleting || !data?.id}
-                  className={cn(
-                    "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
-                    deleting && "opacity-60 cursor-not-allowed"
-                  )}
-                  aria-label="삭제"
-                  title="삭제"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {deleting ? "삭제 중…" : "삭제"}
-                </button>
+                {/* ✅ 부장 / 팀장만 삭제 버튼 노출 */}
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    disabled={deleting || !data?.id}
+                    className={cn(
+                      "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
+                      deleting && "opacity-60 cursor-not-allowed"
+                    )}
+                    aria-label="삭제"
+                    title="삭제"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleting ? "삭제 중…" : "삭제"}
+                  </button>
+                )}
               </div>
 
               <button

@@ -318,6 +318,8 @@ type BuildUpdateArgs = {
 
   // ✅ 수정모달에서 선택한 건물유형
   buildingType?: BuildingType | null;
+
+  rebateText?: string | null;
 };
 
 /** 초기 스냅샷: 자유 키 접근 허용 */
@@ -581,6 +583,15 @@ export function buildUpdatePayload(
     put("optionEtc", optionEtcFinal, initial?.optionEtc);
   put("publicMemo", a.publicMemo, initial?.publicMemo);
   put("secretMemo", a.secretMemo, initial?.secretMemo);
+
+  // ✅ 리베이트 텍스트 PATCH
+  if (defined(a.rebateText)) {
+    const nextRebate = (a.rebateText ?? "").toString().trim();
+    const prevRebate = (initial as any)?.rebateText ?? "";
+    if (initial === undefined || !deepEq(prevRebate, nextRebate)) {
+      (patch as any).rebateText = nextRebate;
+    }
+  }
 
   /* ===== 면적 (레거시 단일값) ===== */
   put("exclusiveArea", a.exclusiveArea, initial?.exclusiveArea);

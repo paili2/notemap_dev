@@ -108,7 +108,13 @@ type BuildArgs = {
   baseAreaSet: LooseAreaSet | StrictAreaSet;
   extraAreaSets: Array<LooseAreaSet | StrictAreaSet>;
 
+  /** 엘리베이터: "O" | "X" | null */
   elevator?: "O" | "X" | null;
+
+  /** 신축/구옥 여부 → 그대로 DTO isNew/isOld 로 나감 */
+  isNew?: boolean | null;
+  isOld?: boolean | null;
+
   registryOne?: Registry;
   slopeGrade?: Grade;
   structureGrade?: Grade;
@@ -123,6 +129,7 @@ type BuildArgs = {
   registrationTypeId?: number | string | null;
   parkingTypeId?: number | string | null;
 
+  /** ✅ UI 에서 선택된 옵션 라벨/코드 목록 */
   options: string[];
   etcChecked: boolean;
   optionEtc: string;
@@ -178,6 +185,42 @@ function normalizeUnits(lines: UnitLine[] | undefined | null) {
   });
 }
 
+/** ✅ 서버 DTO(CreatePinOptionsDto) 모양으로 변환할 타입 */
+type OptionsForServer = {
+  hasAircon?: boolean;
+  hasFridge?: boolean;
+  hasWasher?: boolean;
+  hasDryer?: boolean;
+  hasBidet?: boolean;
+  hasAirPurifier?: boolean;
+  extraOptionsText?: string | null;
+};
+
+/** ✅ UI 의 options 배열 + 직접입력 → 서버용 options 객체로 변환 */
+function buildOptionsForServer(
+  selected: string[],
+  etcChecked: boolean,
+  optionEtc: string
+): OptionsForServer {
+  const set = new Set(selected);
+  const etcText = s(optionEtc);
+
+  const out: OptionsForServer = {
+    hasAircon: set.has("에어컨"),
+    hasFridge: set.has("냉장고"),
+    hasWasher: set.has("세탁기"),
+    hasDryer: set.has("건조기"),
+    hasBidet: set.has("비데"),
+    hasAirPurifier: set.has("공기순환기"),
+  };
+
+  if (etcChecked && etcText) {
+    out.extraOptionsText = etcText; // ← 요기!
+  }
+
+  return out;
+}
+
 export function buildCreatePayload(args: BuildArgs) {
   console.log(
     "%c[buildCreatePayload] args.lat/lng →",
@@ -213,6 +256,8 @@ export function buildCreatePayload(args: BuildArgs) {
     extraAreaSets: extraAreaSetsRaw,
 
     elevator,
+    isNew,
+    isOld,
     registryOne,
     slopeGrade,
     structureGrade,
@@ -384,6 +429,10 @@ export function buildCreatePayload(args: BuildArgs) {
   /* 4) 타입 보강(로컬): CreatePayload에 없는 확장 필드 허용 */
   type OrientationOut = { ho: number; value: string };
 
+  /* 엘리베이터 → boolean 으로 변환 */
+  const hasElevator =
+    elevator === "O" ? true : elevator === "X" ? false : undefined;
+
   /* 5) 최종 payload */
   const safeBadge = s(badge);
   const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
@@ -504,8 +553,12 @@ export function buildCreatePayload(args: BuildArgs) {
     // ✅ 리베이트 텍스트: 문자열 있으면 전송
     ...(rebateTextSafe ? { rebateText: rebateTextSafe } : {}),
 
-    // 엘리베이터: 선택한 경우에만 전송 (O/X), 미선택(null/undefined)은 키 자체 제거
-    ...(elevator ? { elevator } : {}),
+    // 엘리베이터: 선택한 경우에만 전송 → hasElevator(boolean)
+    ...(hasElevator !== undefined ? { hasElevator } : {}),
+
+    // 신축/구옥 여부: boolean 인 경우만 전송
+    ...(typeof isNew === "boolean" ? { isNew } : {}),
+    ...(typeof isOld === "boolean" ? { isOld } : {}),
 
     // ✅ 단지 숫자들
     ...(toNum(totalBuildings) !== undefined
@@ -523,8 +576,12 @@ export function buildCreatePayload(args: BuildArgs) {
 
     slopeGrade,
     structureGrade,
-    options,
+
+    options: buildOptionsForServer(options ?? [], etcChecked, optionEtc),
+
+    // (필요하면 UI 쪽에서 계속 쓰라고 그대로 둠 — 서버는 무시)
     optionEtc: etcChecked ? s(optionEtc) : "",
+
     publicMemo,
     secretMemo,
     privateMemo: secretMemo,
@@ -541,7 +598,7 @@ export function buildCreatePayload(args: BuildArgs) {
     imageCards: imageCardsUI,
     imageCardCounts,
     verticalImages: verticalImagesStored, // 저장형(세로)
-    imagesVertical: verticalImagesStored, // ✅ 추가: 레거시/호환 키
+    imagesVertical: verticalImagesStored, // ✅ 레거시/호환 키
     images: imagesFlatStrings,
     fileItems: verticalImagesUI, // UI 프리뷰용(세로)
     imageFoldersRaw,

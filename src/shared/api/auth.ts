@@ -1,97 +1,92 @@
 "use client";
+
+import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
 
 /* ---------- types ---------- */
 type SignInBody = {
-  username?: string; // 서버 규격에 맞춰 credentialId/username 중 택1
-  credentialId?: string;
+  // 백엔드에서는 dto.email / dto.password 쓰고 있으니까
+  // 실제로는 이렇게 맞춰서 보내는 게 제일 안전:
+  email?: string;
   password?: string;
+
+  // 기존 필드는 혹시 다른 곳에서 쓰고 있으면 유지
+  username?: string;
+  credentialId?: string;
 };
 
-type SignInResp = {
-  success: boolean;
-  path: string; // "/auth/signin"
-  message?: string;
-  messages?: string[];
-  statusCode?: number;
-  data?: {
-    credentialId: string;
-    username: string;
-  };
+/** 백엔드 signin 응답: { message, data: sessionUser } */
+type SignInResp<T = any> = {
+  message: string;
+  data: T;
 };
 
-type MeData = {
-  accountId: number;
-  credentialId: string;
-  username: string;
+/** 세션에 들어가는 유저 정보 형태 (req.session.user) */
+export type MeData = {
+  id?: number;
+  email?: string;
+  accountId?: number;
+  credentialId?: string;
+  username?: string;
+  role?: string; // 🔥 여기로 'admin' 등 직급/권한 문자열이 들어옴
 } | null;
 
+/** /auth/me 응답: { message, data: MeData } */
 type MeResponse = {
-  success: boolean;
-  path: string; // "/auth/me"
-  message?: string;
-  messages?: string[];
-  statusCode?: number;
+  message: string;
   data: MeData;
 };
 
+/** /auth/signout 응답: { message, data: null } */
 type SignOutResp = {
-  success: boolean;
-  path: string; // "/auth/signout"
-  message?: string;
-  messages?: string[];
-  statusCode?: number;
-  data?: null;
+  message: string;
+  data: null;
 };
 
 /* ---------- API functions ---------- */
 
 // 로그인
 export async function signIn(body: SignInBody) {
-  const { data } = await api.post<SignInResp>("/auth/signin", body, {
+  const payload = {
+    email: body.email ?? body.username ?? body.credentialId ?? "",
+    password: body.password ?? "",
+  };
+
+  const { data } = await api.post<SignInResp>("/auth/signin", payload, {
     withCredentials: true,
   });
-  if (!data?.success) {
-    const msg = data?.messages?.join("\n") || data?.message || "로그인 실패";
-    const e = new Error(msg) as any;
-    e.responseData = data;
-    throw e;
-  }
-  return data.data; // { credentialId, username }
+
+  return data.data; // sessionUser
 }
 
 // 로그아웃(세션 종료)
 export async function signOut() {
   const { data } = await api.post<SignOutResp>(
     "/auth/signout",
-    {}, // 요청 바디 없음
+    {},
     { withCredentials: true }
   );
 
-  // 서버는 멱등 처리(이미 로그아웃이어도 200)지만, 에러 포맷은 통일
-  if (!data?.success) {
-    const msg = data?.messages?.join("\n") || data?.message || "로그아웃 실패";
-    const e = new Error(msg) as any;
-    e.responseData = data;
-    throw e;
-  }
-
+  // 마찬가지로 에러면 axios가 throw
   return true as const;
 }
 
-// 내 정보
+// 내 정보 (실제 호출 함수)
 async function fetchMe() {
   const { data } = await api.get<MeResponse>("/auth/me", {
     withCredentials: true,
   });
-  if (!data?.success) {
-    const msg =
-      data?.messages?.join(", ") || data?.message || "인증 정보가 없습니다.";
-    const e = new Error(msg) as any;
-    e.responseData = data;
-    throw e;
-  }
-  return data.data; // MeData
+
+  return data.data; // MeData (null 가능)
+}
+
+// ✅ React Query 기반 me 훅 (클라이언트 컴포넌트에서 사용)
+export function useMe() {
+  return useQuery<MeData>({
+    queryKey: ["me"],
+    queryFn: fetchMe,
+    staleTime: 5 * 60 * 1000, // 5분 캐시
+  });
 }
 
 // 로그인 보장 헬퍼
@@ -102,4 +97,9 @@ export async function ensureAuthed(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// 내 정보 조회 (훅 말고 그냥 Promise로 쓰고 싶을 때)
+export async function getMe() {
+  return await fetchMe();
 }

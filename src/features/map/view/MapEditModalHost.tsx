@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useMemo } from "react";
 import PropertyEditModal from "@/features/properties/components/PropertyEditModal/PropertyEditModal";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
@@ -10,7 +10,10 @@ import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToIte
 type MapEditModalHostProps = {
   open: boolean;
   /** 뷰모달에서 온 프리필(부분 데이터일 수 있음) */
-  data: Partial<PropertyViewDetails>;
+  data: Partial<PropertyViewDetails> & {
+    // editInitial이 붙어 올 수도 있어서 넉넉하게 허용
+    editInitial?: any;
+  };
   selectedId: string;
   onClose: () => void;
   updateItems: (updater: (prev: PropertyItem[]) => PropertyItem[]) => void;
@@ -19,9 +22,8 @@ type MapEditModalHostProps = {
 
 /** 🔧 Partial<PropertyViewDetails> → PropertyViewDetails 로 승격
  *  - 현재 스키마에서 필수는 listingStars뿐이라 기본값 0만 채워주면 충분
- *  - 필요하면 여기서 다른 필수/기본값도 점차 보강
  */
-function toEditInitialData(
+function toEditInitialView(
   d: Partial<PropertyViewDetails>
 ): PropertyViewDetails {
   return {
@@ -76,11 +78,26 @@ export default function MapEditModalHost({
 
   if (!open) return null;
 
+  // 🔥 useEditForm이 기대하는 initialData 래퍼 구성
+  const initialForForm = useMemo(() => {
+    const anyData = data as any;
+
+    // 1) MapHomeUI / ViewModal 쪽에서 이미 editInitial = { view, raw } 를 붙여줬다면 → 그대로 사용
+    if (anyData.editInitial) {
+      return anyData.editInitial;
+    }
+
+    // 2) 아니면 최소한 view 래퍼로 감싸서 넘겨줌
+    //    useEditForm 안에서 wrapper.view를 보고 normalizeInitialData() 실행
+    const view = toEditInitialView(data);
+    return { view };
+  }, [data]);
+
   return (
     <PropertyEditModal
       key={selectedId}
       open={open}
-      initialData={toEditInitialData(data)}
+      initialData={initialForForm}
       onClose={onClose}
       onSubmit={handleSubmit}
     />
