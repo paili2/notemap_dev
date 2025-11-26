@@ -41,8 +41,8 @@ export function useMergedMarkers(params: {
   localMarkers: MapMarker[];
   serverPoints?: Array<{
     id: string | number;
-    name?: string | null;
-    title?: string | null;
+    name?: string | null; // 🔹 매물명
+    title?: string | null; // 🔹 있으면 부제/지역 정도로 사용
     lat: number;
     lng: number;
     badge?: string | null;
@@ -77,7 +77,6 @@ export function useMergedMarkers(params: {
 
   // 1) 판정용 메타 배열 (id/좌표/출처/상태)
   const mergedMeta: MergedMarker[] = useMemo(() => {
-    // before/planned 모드에서는 실매물 포인트는 아예 사용하지 않음
     const effectivePoints =
       isBeforeMode || isPlannedMode ? [] : serverPoints ?? [];
 
@@ -91,23 +90,32 @@ export function useMergedMarkers(params: {
             return true;
           });
 
-    const normals: MergedMarker[] = effectivePoints.map((p) => ({
-      id: p.id,
-      name: p.name ?? p.title ?? "",
-      title: p.title ?? "",
-      lat: p.lat,
-      lng: p.lng,
-      source: "point",
-    }));
+    const normals: MergedMarker[] = effectivePoints.map((p) => {
+      const name = (p.name ?? "").trim(); // 🔹 매물명
+      const title = (p.title ?? "").trim(); // 🔹 주소/부제
 
-    const drafts: MergedMarker[] = effectiveDrafts.map((d) => ({
-      id: d.id,
-      title: d.title ?? "답사예정",
-      lat: d.lat,
-      lng: d.lng,
-      source: "draft",
-      draftState: d.draftState,
-    }));
+      return {
+        id: p.id,
+        name: name || title, // 이름 없으면 title로 보충
+        title, // 주소는 title에만
+        lat: p.lat,
+        lng: p.lng,
+        source: "point",
+      };
+    });
+
+    const drafts: MergedMarker[] = effectiveDrafts.map((d) => {
+      const title = (d.title ?? "답사예정").trim();
+      return {
+        id: d.id,
+        name: title,
+        title,
+        lat: d.lat,
+        lng: d.lng,
+        source: "draft",
+        draftState: d.draftState,
+      };
+    });
 
     return [...normals, ...drafts];
   }, [
@@ -137,10 +145,13 @@ export function useMergedMarkers(params: {
       const kindFromBadge = mapBadgeToPinKind(p.badge);
       const kind: PinKind = (kindFromBadge ?? "1room") as PinKind;
 
+      const name = (p.name ?? "").trim();
+      const title = (p.title ?? "").trim();
+
       return {
         id: String(p.id),
-        name: p.name ?? p.title ?? "",
-        title: p.title ?? "",
+        name: name || title, // ✅ 라벨에 들어갈 텍스트
+        title, // ✅ 주소/부제는 title 에만
         position: { lat: p.lat, lng: p.lng },
         kind,
       };
@@ -151,9 +162,12 @@ export function useMergedMarkers(params: {
       const fallback: PinKind = "question";
       const kind: PinKind = (kindFromBadge ?? fallback) as PinKind;
 
+      const label = (d.title ?? "답사예정").trim();
+
       return {
         id: `__visit__${String(d.id)}`,
-        title: d.title ?? "답사예정",
+        name: label,
+        title: label,
         position: { lat: d.lat, lng: d.lng },
         kind,
       };

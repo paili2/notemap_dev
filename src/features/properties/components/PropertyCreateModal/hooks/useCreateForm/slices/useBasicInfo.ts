@@ -24,8 +24,11 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
   /** ✅ 준공일 기본값: 오늘(KST, YYYY-MM-DD) — 비워두는 정책이 아니라면 유지 */
   const [completionDate, setCompletionDate] = useState<string>(todayYmdKST());
 
-  /** ✅ 신축/구옥: 기본 "신축" */
-  const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("new");
+  /** ✅ 신축/구옥: 기본값 제거 → 처음엔 미선택(null) */
+  const [buildingGrade, setBuildingGrade] = useState<BuildingGrade | null>(
+    null
+  );
+
   // 호환 플래그 (기존 isNew/isOld 사용코드 대응)
   const isNew = buildingGrade === "new";
   const isOld = buildingGrade === "old";
@@ -77,8 +80,6 @@ export function useBasicInfo({ initialAddress }: { initialAddress?: string }) {
       setStructure,
       setBuildingType,
       setCompletionDate,
-
-      // ⬇️ 추가
       setBuildingGrade,
     }),
     [

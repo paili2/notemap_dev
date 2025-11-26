@@ -5,6 +5,7 @@ import type {
   BuildingType,
   Grade,
 } from "@/features/properties/types/property-domain";
+import type { Dispatch, SetStateAction } from "react";
 
 /** ✅ 섹션 전용 폼 슬라이스 — 고유 이름 사용 */
 export type CRContainerForm = {
@@ -24,6 +25,14 @@ export type CRContainerForm = {
   /** 등기(서버 enum): registryOne 대신 buildingType 사용 */
   buildingType?: BuildingType | null;
   setBuildingType?: (v: BuildingType | null) => void;
+
+  /** ✅ 신규: 최저 실입(정수, 만원 단위) */
+  minRealMoveInCost?: number | string | null;
+  setMinRealMoveInCost?: (v: number | string | null) => void;
+
+  /** ✅ 엘리베이터 O/X/null (초기 미선택 허용) */
+  elevator: "O" | "X" | null;
+  setElevator: Dispatch<SetStateAction<"O" | "X" | null>>;
 };
 
 /** YYYY-MM-DD 로 잘라서 반환(없으면 빈 문자열) */
@@ -42,14 +51,25 @@ const clampYmdSetter = (set: (v: string) => void) => (v: string) => {
 
 export default function CompletionRegistryContainer({
   form,
+  isVisitPlanPin,
 }: {
   form: CRContainerForm;
+  /** 답사예정 핀 여부 */
+  isVisitPlanPin?: boolean;
 }) {
-  // 안전 폴백
+  // 안전 폴백 (buildingType 관련은 optional 그대로 유지)
   const buildingType = (form as any).buildingType ?? null;
   const setBuildingType = ((form as any).setBuildingType ?? (() => {})) as (
     v: BuildingType | null
   ) => void;
+
+  const minRealMoveInCost = (form as any).minRealMoveInCost ?? null;
+  const setMinRealMoveInCost = ((form as any).setMinRealMoveInCost ??
+    (() => {})) as (v: number | string | null) => void;
+
+  // ✅ 엘리베이터는 타입을 정확히 맞춰서 그대로 사용
+  const elevator = form.elevator;
+  const setElevator = form.setElevator;
 
   // 표기/입력용 값 정규화
   const normalizedCompletionDate = toYmd(form.completionDate);
@@ -63,9 +83,12 @@ export default function CompletionRegistryContainer({
       // 준공일
       completionDate={normalizedCompletionDate}
       setCompletionDate={setCompletionDateSafe}
-      // 가격
+      // 가격 (레거시)
       salePrice={normalizedSalePrice}
       setSalePrice={form.setSalePrice}
+      // ✅ 최저 실입(신규)
+      minRealMoveInCost={minRealMoveInCost}
+      setMinRealMoveInCost={setMinRealMoveInCost}
       // 등급
       slopeGrade={form.slopeGrade}
       setSlopeGrade={form.setSlopeGrade}
@@ -74,6 +97,11 @@ export default function CompletionRegistryContainer({
       // 건물유형
       buildingType={buildingType}
       setBuildingType={setBuildingType}
+      // ✅ 엘리베이터
+      elevator={elevator}
+      setElevator={setElevator}
+      // ✅ 답사예정 모드 여부 (로컬 state 초기화용)
+      isVisitPlanPin={isVisitPlanPin}
     />
   );
 }

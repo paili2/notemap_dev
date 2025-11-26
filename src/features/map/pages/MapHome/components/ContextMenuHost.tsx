@@ -13,6 +13,7 @@ import {
   showLabelsAround,
 } from "@/features/map/shared/overlays/labelRegistry";
 import PinContextMenuContainer from "@/features/map/shared/pinContextMenu/components/PinContextMenu/PinContextMenuContainer";
+import { CreateFromPinArgs } from "@/features/map/shared/pinContextMenu/components/PinContextMenu/types";
 
 /* ───────── 유틸 ───────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {
@@ -145,7 +146,7 @@ export default function ContextMenuHost(props: {
   siteReservations?: any[];
   onCloseMenu?: () => void;
   onViewFromMenu?: (id: string) => void;
-  onCreateFromMenu?: (pos: { lat: number; lng: number }) => void;
+  onCreateFromMenu?: (args: CreateFromPinArgs) => void;
   onPlanFromMenu?: (pos: { lat: number; lng: number }) => void;
   onReserveFromMenu?: (
     args:
@@ -288,7 +289,7 @@ export default function ContextMenuHost(props: {
     if (underlyingMarker && !String(underlyingMarker.id).startsWith("__")) {
       return { id: String(underlyingMarker.id), marker: underlyingMarker };
     }
-    return { id: "__draft__", marker: undefined };
+    return { id: "__new__", marker: undefined };
   }, [menuTargetId, targetPin, underlyingMarker]);
 
   /** 4) 최종 앵커: draft/question 핀이 있으면 그 핀 좌표 기준으로 강제 */
@@ -349,11 +350,44 @@ export default function ContextMenuHost(props: {
     radius: 240,
   });
 
-  // ======== 렌더 분기 ========
-  if (!shouldRender || !anchorPos) return null;
+  /** 컨텍스트 메뉴가 실제로 붙을 좌표 (임시핀일 때만 살짝 아래로 보정) */
+  const overlayLatLng = useMemo(() => {
+    if (!anchorPos || !kakaoSDK?.maps) return null;
+
+    const base = new kakaoSDK.maps.LatLng(anchorPos.lat, anchorPos.lng);
+
+    // 지도 projection 없으면 그대로 사용
+    if (!mapInstance?.getProjection) return base;
+
+    // 임시핀이 아닐 때는 그대로 사용 (답사예정/예약/매물핀)
+    if (String(effectiveTarget.id) !== "__draft__") return base;
+
+    try {
+      const proj = mapInstance.getProjection();
+      const pt = proj.pointFromCoords(base);
+
+      // 메뉴가 너무 위에 떠서, 약간 아래로 내려서 핀과 간격 맞추기 (px)
+      const OFFSET_Y_PX = 22;
+      pt.y += OFFSET_Y_PX;
+
+      return proj.coordsFromPoint(pt);
+    } catch {
+      return base;
+    }
+  }, [
+    anchorPos?.lat,
+    anchorPos?.lng,
+    kakaoSDK,
+    mapInstance,
+    effectiveTarget.id,
+  ]);
+
+  // ======== 렌더 분기 (hooks 아래에서만 return) ========
+  if (!shouldRender || !anchorPos || !overlayLatLng) return null;
 
   type LatLngRO = Readonly<{ lat: number; lng: number }>;
   const anchorPosRO: LatLngRO = { lat: anchorPos.lat, lng: anchorPos.lng };
+
   assertNoTruncate(
     "ContextMenuHost:anchorPos",
     anchorPosRO.lat,
@@ -518,7 +552,7 @@ export default function ContextMenuHost(props: {
       }
       kakao={kakaoSDK}
       map={mapInstance}
-      position={new kakaoSDK.maps.LatLng(anchorPosRO.lat, anchorPosRO.lng)}
+      position={overlayLatLng}
       roadAddress={menuRoadAddr ?? undefined}
       jibunAddress={menuJibunAddr ?? undefined}
       propertyId={propertyIdForView}
@@ -539,12 +573,70 @@ export default function ContextMenuHost(props: {
         onViewFromMenu?.(sid);
         Promise.resolve().then(() => onCloseMenu?.());
       }}
-      onCreate={async () => {
+      onCreate={async (panelArgs?: any) => {
+        if (!onCreateFromMenu) return;
+
         const basePos = effectiveTarget.marker?.position
           ? normalizeLL(effectiveTarget.marker.position)
           : anchorPosRO;
+
         assertNoTruncate("ContextMenuHost:onCreate", basePos.lat, basePos.lng);
-        onCreateFromMenu?.({ lat: basePos.lat, lng: basePos.lng });
+
+        // __visit__123 형태면 드래프트 id 추출
+        let fromPinDraftId: number | undefined;
+        let createMode: CreateFromPinArgs["createMode"] = "NORMAL";
+
+        if (
+          typeof effectiveTarget.id === "string" &&
+          effectiveTarget.id.startsWith("__visit__")
+        ) {
+          const raw = effectiveTarget.id.replace("__visit__", "");
+          const n = Number(raw);
+          if (!Number.isNaN(n)) {
+            fromPinDraftId = n;
+            // 답사예약/답사예정 핀에서 "매물 정보 입력" 누른 케이스
+            createMode = "FULL_PROPERTY_FROM_RESERVED";
+          }
+        }
+
+        // 🔥 ContextMenuPanel 쪽에서 온 visitPlanOnly 플래그
+        const visitPlanOnly = !!panelArgs?.visitPlanOnly;
+
+        // 🔍 디버그용 로그
+        console.debug("[ContextMenuHost:onCreate] panelArgs =", panelArgs, {
+          basePos,
+          fromPinDraftId,
+          createMode,
+          visitPlanOnly,
+        });
+
+        const args = {
+          // 클릭 지점 기준 좌표
+          latFromPin: basePos.lat,
+          lngFromPin: basePos.lng,
+
+          // 답사예정 임시핀에서 온 경우
+          fromPinDraftId,
+
+          // 주소/타이틀 힌트
+          address:
+            panelArgs?.address ??
+            menuRoadAddr ??
+            menuJibunAddr ??
+            (pin as any)?.title ??
+            menuTitle ??
+            null,
+          roadAddress: panelArgs?.roadAddress ?? menuRoadAddr ?? null,
+          jibunAddress: panelArgs?.jibunAddress ?? menuJibunAddr ?? null,
+
+          // 어떤 경로로 열린 생성모달인지
+          createMode,
+
+          // 🔥 답사예정 전용 모드 플래그
+          visitPlanOnly,
+        };
+
+        onCreateFromMenu(args as any);
       }}
       onPlan={() => {
         onPlanFromMenu?.({ lat: anchorPosRO.lat, lng: anchorPosRO.lng });

@@ -16,35 +16,38 @@ import {
 
 /* ───────────── 유틸 ───────────── */
 type StarStr = "" | "1" | "2" | "3" | "4" | "5";
+
 const asStr = (v: unknown) => (v == null ? "" : String(v));
+
 const asYMD = (v: unknown) => {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   const s = asStr(v);
   return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
 };
+
 const asNum = (v: unknown, fallback = 0) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 };
+
 const asOptionalNum = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+
 const unpackRange = (s: unknown): { min: string; max: string } => {
   const raw = asStr(s).trim();
   if (!raw) return { min: "", max: "" };
   const [min, max] = raw.split("~", 2);
   return { min: (min ?? "").trim(), max: (max ?? "").trim() };
 };
+
 const pickOrientation = (o: unknown): OrientationValue | "" =>
   ((o as any)?.dir ?? (o as any)?.direction ?? (o as any)?.value ?? "") as
     | OrientationValue
     | "";
 
-/* ───────── Registry 정규화 ─────────
-   서버에서 "확인 필요", "등기완료", "미등기" 등 다양한 표기가 올 수 있어
-   수정모달 셀렉트 옵션(확인필요/완료/미완료)로 일치시켜 줍니다.
-*/
+/* ───────── Registry 정규화 ───────── */
 function normalizeRegistry(v: unknown): Registry | undefined {
   const s = String(v ?? "").trim();
   if (!s) return undefined;
@@ -58,11 +61,7 @@ function normalizeRegistry(v: unknown): Registry | undefined {
     : undefined;
 }
 
-/* ───────── buildingType 정규화 ─────────
-   - 숫자 id가 오면: 1=주택, 2=APT, 3=OP, 4/5 = 근생
-   - 문자열 라벨/별칭: normalizeBuildingTypeLabelToEnum 사용
-   - 이미 백엔드 enum이면 그대로 유지
-*/
+/* ───────── buildingType 정규화 ───────── */
 function normalizeBuildingType(input: unknown): BuildingType | null {
   if (typeof input === "number") {
     switch (input) {
@@ -133,6 +132,9 @@ type Normalized = {
 
   aspects: AspectRowLite[];
   buildingType: BuildingType | null;
+
+  /** 리베이트(만원 단위 텍스트) */
+  rebateText: string;
 };
 
 /* ───────── 메인 Normalizer ───────── */
@@ -192,13 +194,11 @@ export function normalizeInitialData(initialData: any | null): Normalized {
         })) as AspectRowLite[]);
 
   // ───────── 주차 ─────────
-  // 이름은 여러 필드 중 하나로 올 수 있음
   const rawParkingType = asStr(
     d.parkingType ?? d.parkingTypeName ?? d.parkingTypeLabel ?? d.parking?.type
   ).trim();
   const parkingType: string | null = rawParkingType ? rawParkingType : null;
 
-  // ID도 여러 필드 후보
   const parkingTypeId: number | null =
     asOptionalNum(d.parkingTypeId) ??
     asOptionalNum(d.parking?.typeId) ??
@@ -220,7 +220,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
         ? String(listingStars)
         : "") as StarStr);
 
-  // units → unitLines (최소/최대 매매가 primary/secondary로 매핑)
+  // units → unitLines
   const unitLines: UnitLine[] = Array.isArray(d.units)
     ? (d.units as any[]).map((u) => ({
         rooms: asNum(u?.rooms ?? 0, 0),
@@ -244,11 +244,56 @@ export function normalizeInitialData(initialData: any | null): Normalized {
       d.registrationTypeId
   );
 
+  /* ───────── 옵션/직접입력/리베이트 ───────── */
+
+  // 1) options: 서버 객체 → 라벨 배열
+  const optionsFromServer = d.options;
+  let options: string[] = [];
+
+  if (Array.isArray(optionsFromServer)) {
+    // 예전 형식이면 그대로
+    options = optionsFromServer.map(asStr).filter(Boolean);
+  } else if (optionsFromServer && typeof optionsFromServer === "object") {
+    const o = optionsFromServer as any;
+    if (o.hasAircon) options.push("에어컨");
+    if (o.hasFridge) options.push("냉장고");
+    if (o.hasWasher) options.push("세탁기");
+    if (o.hasDryer) options.push("건조기");
+    if (o.hasBidet) options.push("비데");
+    if (o.hasAirPurifier) options.push("공기순환기");
+  }
+
+  // 2) 직접입력 텍스트: extraOptionsText + options.extraOptionsText 모두 보기
+  const optionEtc = asStr(
+    d.extraOptionsText ??
+      d.options?.extraOptionsText ??
+      d.optionEtc ??
+      d.optionsEtc ??
+      d.option_etc ??
+      d.optionEtcText ??
+      ""
+  );
+  const etcChecked = optionEtc.trim().length > 0;
+
+  // 3) 리베이트 텍스트
+  const rebateText = asStr(
+    d.rebateText ?? d.rebateMemo ?? d.rebate ?? ""
+  ).trim();
+
+  // 엘리베이터: 서버 값 -> "O" | "X"
+  const elevator: "O" | "X" = (() => {
+    const raw = d.elevator ?? d.hasElevator;
+    if (raw === "O" || raw === "X") return raw;
+    if (raw === true) return "O";
+    if (raw === false) return "X";
+    return "O";
+  })();
+
   return {
     // 기본
     pinKind: (d.pinKind ?? d.kind ?? d.markerKind ?? "1room") as PinKind,
-    title: asStr(d.title),
-    address: asStr(d.address),
+    title: asStr(d.title ?? d.name),
+    address: asStr(d.address ?? d.addressLine),
     officePhone: asStr(d.contactMainPhone ?? d.officePhone),
     officePhone2: asStr(d.contactSubPhone ?? d.officePhone2),
     officeName: asStr(d.contactMainLabel ?? d.officeName),
@@ -281,7 +326,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     extraAreas: extraSets,
 
     // 설비/등급/등기
-    elevator: (d.elevator as "O" | "X") ?? "O",
+    elevator,
     registryOne: normalizeRegistry(d.registry ?? d.registryOne),
     slopeGrade: d.slopeGrade as Grade | undefined,
     structureGrade: d.structureGrade as Grade | undefined,
@@ -293,9 +338,9 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     remainingHouseholds: asStr(d.remainingHouseholds),
 
     // 옵션/메모/유닛
-    options: (d.options as string[]) ?? [],
-    optionEtc: asStr(d.optionEtc),
-    etcChecked: asStr(d.optionEtc).trim().length > 0,
+    options,
+    optionEtc,
+    etcChecked,
     publicMemo: asStr(d.publicMemo),
     secretMemo: asStr(d.secretMemo ?? d.privateMemo),
     unitLines,
@@ -305,5 +350,8 @@ export function normalizeInitialData(initialData: any | null): Normalized {
 
     // 빌딩 타입
     buildingType,
+
+    // 리베이트
+    rebateText,
   };
 }

@@ -13,14 +13,12 @@ import type React from "react";
 import type { ContextMenuPanelProps } from "./types";
 import { Plus } from "lucide-react";
 import type {
-  PlanRequestPayload,
+  CreateMode,
   ReserveRequestPayload,
 } from "../PinContextMenu/types";
 import { getPinRaw } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
-import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 /** 느슨한 불리언 변환 (true/"true"/1/"1") */
 const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
@@ -78,7 +76,7 @@ export default function ContextMenuPanel({
   onClose,
   onView,
   onCreate,
-  onPlan,
+  onPlan, // NOTE: 현재 버튼 UI에서는 사용 안 하지만, 타입 호환 위해 props는 유지
   onReserve,
   /** ✅ 컨테이너에서 내려주는 현재 좌표 */
   position,
@@ -90,13 +88,10 @@ export default function ContextMenuPanel({
   const headingId = useId();
   const descId = useId();
   const qc = useQueryClient();
-  const bump = useReservationVersion((s) => s.bump);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
-
-  const [creating, setCreating] = useState(false);
 
   /** ✅ 제목 로컬 상태: 컨테이너에서 title이 없을 때 보완 */
   const [displayTitle, setDisplayTitle] = useState(
@@ -236,36 +231,6 @@ export default function ContextMenuPanel({
     e.stopPropagation();
   }, []);
 
-  // ✅ 답사예정 생성 후 닫기 (UI만; 실제 POST는 컨테이너 핸들러에서)
-  const handlePlanClick = useCallback(async () => {
-    if (creating) return;
-    setCreating(true);
-    try {
-      const payload: Partial<PlanRequestPayload> = {
-        roadAddress: roadAddress ?? null,
-        jibunAddress: jibunAddress ?? null,
-        propertyId: propertyId ?? null,
-        propertyTitle: displayTitle || propertyTitle || null,
-        dateISO: todayYmdKST(),
-      };
-      await onPlan?.(payload as PlanRequestPayload);
-      bump();
-      onClose();
-    } finally {
-      setCreating(false);
-    }
-  }, [
-    creating,
-    roadAddress,
-    jibunAddress,
-    propertyId,
-    propertyTitle,
-    displayTitle,
-    onPlan,
-    onClose,
-    bump,
-  ]);
-
   const handleReserveClick = useCallback(() => {
     const payload: ReserveRequestPayload | undefined = undefined;
     onReserve?.(payload);
@@ -283,20 +248,41 @@ export default function ContextMenuPanel({
     const pinDraftId = extractDraftIdFromPropertyId(propertyId);
     const { lat, lng } = getLatLng(position);
 
-    console.log("✳️ handleCreateClick position:", position);
-    console.log("✳️ lat/lng from marker:", lat, lng);
+    const createMode: CreateMode = draft
+      ? "PLAN_FROM_DRAFT" // 신규핀 → 답사예정지 등록 클릭
+      : reserved
+      ? "FULL_PROPERTY_FROM_RESERVED" // 답사지 예약핀 → 매물 정보 입력
+      : "NORMAL";
 
-    onCreate?.({
+    // 🔹 기본 payload
+    const basePayload = {
       latFromPin: lat,
       lngFromPin: lng,
       fromPinDraftId: pinDraftId,
       address: roadAddress ?? jibunAddress ?? null,
       roadAddress: roadAddress ?? null,
       jibunAddress: jibunAddress ?? null,
-    });
+      createMode,
+    };
+
+    // 🔥 draft(검색 임시핀)일 때만 visitPlanOnly: true 추가
+    const payload = draft
+      ? { ...basePayload, visitPlanOnly: true }
+      : basePayload;
+
+    onCreate?.(payload);
 
     onClose();
-  }, [onCreate, onClose, propertyId, roadAddress, jibunAddress, position]);
+  }, [
+    onCreate,
+    onClose,
+    propertyId,
+    roadAddress,
+    jibunAddress,
+    position,
+    draft,
+    reserved,
+  ]);
 
   // ✅ Hover 시 프리페치
   const handleHoverPrefetch = useCallback(() => {
@@ -416,18 +402,8 @@ export default function ContextMenuPanel({
           </Button>
         </div>
       ) : draft ? (
-        <div className="flex flex-col gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            className="w-full"
-            onClick={handlePlanClick}
-            disabled={creating}
-          >
-            {creating ? "생성 중..." : "답사예정"}
-          </Button>
-
+        // ✅ 임시핀: 답사예정 버튼 제거, '이 위치로 신규 등록'만 사용
+        <div className="flex items-center gap-2">
           <Button
             type="button"
             variant="default"
@@ -435,7 +411,7 @@ export default function ContextMenuPanel({
             onClick={handleCreateClick}
             className="w-full"
           >
-            이 위치로 신규 등록
+            답사예정지 등록
           </Button>
         </div>
       ) : (

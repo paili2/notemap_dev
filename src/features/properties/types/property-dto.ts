@@ -32,6 +32,19 @@ export type UnitsDto = {
 };
 
 /* ------------------------------------------------------------------ */
+/* Options DTO (옵션 세트: 서버 전송용 shape)                         */
+/* ------------------------------------------------------------------ */
+export type CreatePinOptionsDto = {
+  hasAircon?: boolean;
+  hasFridge?: boolean;
+  hasWasher?: boolean;
+  hasDryer?: boolean;
+  hasBidet?: boolean;
+  hasAirPurifier?: boolean;
+  extraOptionsText?: string | null;
+};
+
+/* ------------------------------------------------------------------ */
 /* Create DTO (클라이언트 → 서버)                                      */
 /* ------------------------------------------------------------------ */
 export type CreatePayload = {
@@ -65,6 +78,8 @@ export type CreatePayload = {
   /** ✅ 서버 PATCH 키와 일치: 최저 실입비(정수/null) */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
+  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+  rebate?: number | null;
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
@@ -96,7 +111,7 @@ export type CreatePayload = {
   contactSubPhone?: string;
 
   // 옵션/메모/등기/구조
-  options: string[];
+  options: CreatePinOptionsDto;
   optionEtc?: string;
   publicMemo?: string | null;
   secretMemo?: string | null;
@@ -165,6 +180,8 @@ export type UpdatePayload = {
   /** ✅ 서버 PATCH 키와 일치 */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
+  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+  rebate?: number | null;
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
@@ -190,7 +207,7 @@ export type UpdatePayload = {
   remainingHouseholds?: number | string;
 
   // 옵션/메모/등기/구조
-  options?: string[];
+  options?: CreatePinOptionsDto | null;
   optionEtc?: string;
   publicMemo?: string | null;
   secretMemo?: string | null;

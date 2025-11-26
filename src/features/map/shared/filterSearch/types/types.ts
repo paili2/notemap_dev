@@ -1,11 +1,13 @@
-import { PinSearchParams } from "@/features/pins/types/pin-search";
+import type { ReactNode } from "react";
+import type { PinSearchParams } from "@/features/pins/types/pin-search";
 
 export interface FilterState {
   rooms: string[];
   deposit: string;
   areaMin: string;
   areaMax: string;
-  buildingType: string;
+  /** ✅ 여러 등기 선택 */
+  buildingTypes: string[];
   elevator: string;
   priceMin: string;
   priceMax: string;
@@ -20,8 +22,8 @@ export interface FilterSearchProps {
 }
 
 export interface FilterSectionProps {
-  title: string;
-  children: React.ReactNode;
+  title: ReactNode;
+  children: ReactNode;
 }
 
 export interface SelectableButtonProps {

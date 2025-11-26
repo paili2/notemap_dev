@@ -1,4 +1,3 @@
-// ✅ 수정안: 서버에서 백엔드로 직행 + 쿠키 전달
 import { cookies } from "next/headers";
 import ClientSessionGuard from "app/components/auth/ClientSessionGuard";
 import SidebarProviders from "./SidebarProviders";

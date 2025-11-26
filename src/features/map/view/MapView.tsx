@@ -31,6 +31,8 @@ export type MapViewHandle = {
   panTo: (p: { lat: number; lng: number }) => void;
 };
 
+const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
+
 const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   {
     appKey,
@@ -60,7 +62,6 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     center,
     level,
     fitKoreaBounds: true,
-    maxLevel: 11,
     viewportDebounceMs: 500,
     onMapReady,
     onViewportChange, // 그대로 전달 (훅이 디바운스 처리)
@@ -119,7 +120,9 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   // 마커 클릭 핸들러
   const handleMarkerClick = useCallback(
     (id: string) => {
-      // 1) 드래프트 핀
+      const level = map?.getLevel?.() ?? 0;
+
+      // 1) 드래프트 핀은 기존 동작 유지
       if (id === "__draft__") {
         const draft = markers.find((m) => String(m.id) === "__draft__");
         if (draft && onDraftPinClick) {
@@ -131,10 +134,23 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         return;
       }
 
-      // 2) 답사예정 핀 → 자동 예약 금지, 메뉴만 오픈
-      if (String(id).startsWith("__visit__")) {
-        const m = markers.find((x) => String(x.id) === String(id));
-        if (m && onOpenMenu) {
+      const isVisit = String(id).startsWith("__visit__");
+      const m = markers.find((x) => String(x.id) === String(id));
+      if (!m) return;
+
+      // 2) 너무 멀리서 클릭한 경우 → 먼저 250m(레벨 5)로 "점프" 줌
+      if (level > PIN_MENU_MAX_LEVEL && map) {
+        try {
+          // 애니메이션 없이 바로 레벨 변경 → 클릭 한 번에 "쑥" 들어온 느낌
+          map.setLevel(PIN_MENU_MAX_LEVEL);
+        } catch {
+          /* noop */
+        }
+      }
+
+      // 3) 답사예정 핀 (__visit__) → 자동 예약 금지, 메뉴만 오픈
+      if (isVisit) {
+        if (onOpenMenu) {
           onOpenMenu({
             position: m.position,
             propertyId: String(m.id),
@@ -145,9 +161,8 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         return;
       }
 
-      // 3) 일반 핀 → 컨텍스트 메뉴 열기 + 상위 콜백 알림
-      const m = markers.find((x) => String(x.id) === String(id));
-      if (m && onOpenMenu) {
+      // 4) 일반 매물 핀 → 컨텍스트 메뉴 열기 + 상위 콜백 알림
+      if (onOpenMenu) {
         onOpenMenu({
           position: m.position,
           propertyId: String(m.id),
@@ -159,7 +174,6 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
         });
       }
 
-      // 기존 상위 알림도 유지 (필요 시 제거 가능)
       onMarkerClick?.(id);
     },
     [markers, onDraftPinClick, onMarkerClick, map, kakao, onOpenMenu, pinKind]
@@ -172,6 +186,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     defaultPinKind: pinKind,
     fitToMarkers,
     hideLabelForId,
+    enableDebug: true,
   });
 
   return (

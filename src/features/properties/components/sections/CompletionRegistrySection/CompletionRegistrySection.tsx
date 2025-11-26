@@ -3,37 +3,34 @@
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import PillRadioGroup from "@/components/atoms/PillRadioGroup";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type {
   Grade,
   BuildingType,
 } from "@/features/properties/types/property-domain";
 import type { CompletionRegistrySectionProps } from "./types";
+import ElevatorSegment from "../HeaderSection/components/ElevatorSegment";
 
 /** ───────── 상수/타입 ───────── */
 const GRADES = ["상", "중", "하"] as const;
 type GradeLiteral = (typeof GRADES)[number];
 
-// UI 라벨(버튼) 고정 튜플
 const UI_BUILDING_TYPES = ["주택", "APT", "OP", "도/생", "근/생"] as const;
 type UIBuildingType = (typeof UI_BUILDING_TYPES)[number];
 
-/** 라벨 ↔ 백엔드 enum 매핑
- *  - 버튼     → 상태값: "도/생"  → "도생", "근/생" → "근생"
- *  - 상태값   → 버튼:   "도생"   → "도/생", "근생" → "근/생"
- */
+/** 라벨 ↔ 백엔드 enum 매핑 */
 const mapLabelToBackend = (v?: UIBuildingType | null): BuildingType | null => {
   if (!v) return null;
   if (v === "근/생") return "근생";
-  if (v === "도/생") return "도생"; // ✅ 도/생 → 도생(백엔드 enum)
-  return v as unknown as BuildingType; // "주택" | "APT" | "OP"
+  if (v === "도/생") return "도생";
+  return v as unknown as BuildingType;
 };
 
 const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
   if (!v) return undefined;
-  if (v === "근생") return "근/생"; // ✅ 근생 enum → 근/생 라벨
-  if (v === "도생" || v === "도/생") return "도/생"; // ✅ 도생/도/생 → 도/생 라벨
+  if (v === "근생") return "근/생";
+  if (v === "도생" || v === "도/생") return "도/생";
   if (["주택", "APT", "OP"].includes(v)) return v as UIBuildingType;
   return undefined;
 };
@@ -53,30 +50,40 @@ const finalizeYmd = (raw: string) => {
   return raw;
 };
 
-// 숫자 문자열 정규화
 const onlyDigits = (s: string) => s.replace(/[^\d]/g, "");
 
 export default function CompletionRegistrySection({
   completionDate,
   setCompletionDate,
-  // (레거시) salePrice: 과거에 최저실입으로 쓰던 필드
+  // (레거시) 최저실입으로 쓰던 필드
   salePrice,
   setSalePrice,
   // (신규) 최저 실입 정수 금액
   minRealMoveInCost,
   setMinRealMoveInCost,
+  // ✅ 리베이트 텍스트
+  rebateText,
+  setRebateText,
   slopeGrade,
   setSlopeGrade,
   structureGrade,
   setStructureGrade,
   buildingType,
   setBuildingType,
+  elevator,
+  setElevator,
+  /** ✅ 답사예정 핀 여부 */
+  isVisitPlanPin,
 }: CompletionRegistrySectionProps & {
-  /** ✅ 신규 필드(선택): 최저 실입 정수 금액 */
   minRealMoveInCost?: number | string | null;
   setMinRealMoveInCost?: (v: number | string | null) => void;
+  rebateText?: string | null;
+  setRebateText?: (v: string | null) => void;
+  elevator?: "O" | "X" | null;
+  setElevator?: (v: "O" | "X" | null) => void;
+  isVisitPlanPin?: boolean;
 }) {
-  /** 준공일 로컬 상태(타이핑 쾌적성) */
+  /** ── 준공일 ── */
   const [localDate, setLocalDate] = useState<string>(toYmd(completionDate));
   useEffect(() => setLocalDate(toYmd(completionDate)), [completionDate]);
 
@@ -86,38 +93,50 @@ export default function CompletionRegistrySection({
     setLocalDate(toYmd(v));
   }, [localDate, setCompletionDate]);
 
-  /** UI 라벨로 변환 (백엔드 enum → 버튼 라벨) */
+  /** ── 건물유형 (등기) ── */
   const uiBuildingType = mapBackendToLabel(buildingType as any);
 
-  // 🔍 디버그: 어떤 값이 왔다 갔다 하는지 확인용
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("[CompletionRegistry] buildingType(raw) =", buildingType);
-    // eslint-disable-next-line no-console
-    console.log("[CompletionRegistry] uiBuildingType(label) =", uiBuildingType);
-  }, [buildingType, uiBuildingType]);
+  /** ── 최저실입: 항상 로컬 상태 하나 두고, 필요 시 위로도 올려줌 ── */
+  const initialPrice = String(minRealMoveInCost ?? salePrice ?? "");
+  const [localPrice, setLocalPrice] = useState<string>(initialPrice);
 
-  /** ✅ 최저실입: 신규(minRealMoveInCost) 우선, 없으면 레거시(salePrice) 사용 */
-  const priceValue = useMemo(() => {
-    const v = minRealMoveInCost ?? salePrice ?? "";
-    return String(v ?? "");
-  }, [minRealMoveInCost, salePrice]);
+  // props 쪽 값이 바뀌면 로컬도 동기화 (예: 편집모드 초기 로드)
+  useEffect(() => {
+    setLocalPrice(initialPrice);
+  }, [initialPrice]);
 
   const onChangePrice = useCallback(
     (raw: string) => {
       const digits = onlyDigits(raw);
+      setLocalPrice(digits);
+
       if (typeof setMinRealMoveInCost === "function") {
-        // 신규 상태가 있으면 여기에 반영
         setMinRealMoveInCost(digits === "" ? null : digits);
       } else if (typeof setSalePrice === "function") {
-        // 레거시 유지
-        setSalePrice(digits);
+        setSalePrice(digits === "" ? "" : digits);
       }
     },
     [setMinRealMoveInCost, setSalePrice]
   );
 
-  /** ✅ Grade 온체인지: setter가 없을 수도 있으므로 안전 래퍼 */
+  const [localRebate, setLocalRebate] = useState<string>(rebateText ?? "");
+
+  useEffect(() => {
+    setLocalRebate(rebateText ?? "");
+  }, [rebateText]);
+
+  const onChangeRebate = useCallback(
+    (raw: string) => {
+      setLocalRebate(raw);
+      if (typeof setRebateText === "function") {
+        const trimmed = raw.trim();
+        setRebateText(trimmed ? trimmed : null);
+      }
+    },
+    [setRebateText]
+  );
+
+  /** ── 경사도/구조 ── */
   const onChangeSlope = useCallback(
     (v: GradeLiteral | undefined) => setSlopeGrade?.(v as Grade | undefined),
     [setSlopeGrade]
@@ -128,10 +147,51 @@ export default function CompletionRegistrySection({
     [setStructureGrade]
   );
 
+  /** ✅ 일반핀 → 답사예정 전환 시, 준공일/최저실입/등기 초기화 */
+  const prevIsVisitRef = useRef<boolean | undefined>(isVisitPlanPin);
+  useEffect(() => {
+    const prev = prevIsVisitRef.current;
+
+    if (isVisitPlanPin && !prev) {
+      // 로컬 state
+      setLocalDate("");
+      setLocalPrice("");
+      setLocalRebate("");
+
+      // 상위 폼 상태
+      setCompletionDate("");
+      if (typeof setMinRealMoveInCost === "function") {
+        setMinRealMoveInCost(null);
+      }
+      if (typeof setSalePrice === "function") {
+        setSalePrice("");
+      }
+
+      if (typeof setRebateText === "function") {
+        // ✅ 추가
+        setRebateText(null);
+      }
+
+      // 🔹 등기(건물유형)도 리셋
+      if (typeof setBuildingType === "function") {
+        setBuildingType(null);
+      }
+    }
+
+    prevIsVisitRef.current = isVisitPlanPin;
+  }, [
+    isVisitPlanPin,
+    setCompletionDate,
+    setMinRealMoveInCost,
+    setSalePrice,
+    setBuildingType,
+    setRebateText,
+  ]);
+
   return (
     <div className="space-y-4">
-      {/* 1행: 경사도/구조 */}
-      <div className="grid grid-cols-3 items-center gap-14 md:flex">
+      {/* 1행: 경사도 / 구조 / 엘리베이터 */}
+      <div className="grid grid-cols-3 items-center gap-6 md:gap-10">
         <Field label="경사도" align="center">
           <PillRadioGroup
             name="slopeGrade"
@@ -149,9 +209,18 @@ export default function CompletionRegistrySection({
             onChange={onChangeStructure}
           />
         </Field>
+
+        <Field label="엘리베이터" align="center">
+          <ElevatorSegment
+            value={elevator ?? null}
+            onChange={(next) => {
+              if (setElevator) setElevator(next);
+            }}
+          />
+        </Field>
       </div>
 
-      {/* 2행: 준공일/건물유형 */}
+      {/* 2행: 준공일 / 건물유형(등기) */}
       <div className="grid grid-cols-3 items-end gap-x-4 gap-y-2 md:gap-x-5">
         <Field label="준공일" align="center">
           <Input
@@ -181,11 +250,7 @@ export default function CompletionRegistrySection({
             options={UI_BUILDING_TYPES}
             value={uiBuildingType}
             onChange={(v) => {
-              // eslint-disable-next-line no-console
-              console.log("[CompletionRegistry] clicked label =", v);
               const next = mapLabelToBackend(v as UIBuildingType);
-              // eslint-disable-next-line no-console
-              console.log("[CompletionRegistry] mapped to backend =", next);
               setBuildingType?.(next);
             }}
             allowUnset
@@ -193,13 +258,13 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
-      {/* 3행: 최저실입(만원) → 신규 필드 우선, 레거시와 호환 */}
+      {/* 3행: 최저실입(만원) */}
       <Field label="최저실입" align="center">
         <div className="flex items-center gap-3">
           <Input
             type="text"
             inputMode="numeric"
-            value={priceValue}
+            value={localPrice}
             onChange={(e) => onChangePrice(e.target.value)}
             placeholder="예: 5000"
             className="h-9 w-40"

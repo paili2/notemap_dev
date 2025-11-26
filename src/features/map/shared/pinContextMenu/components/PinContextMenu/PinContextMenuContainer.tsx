@@ -7,7 +7,7 @@ import { toLatLng } from "./utils/geo";
 import { useDerivedPinState } from "./hooks/useDerivedPinState";
 import { usePlanReserve } from "./hooks/usePlanReserve";
 import ContextMenuPanel from "../ContextMenuPanel/ContextMenuPanel";
-import { PinContextMenuProps } from "./types";
+import { CreateFromPinArgs, PinContextMenuProps } from "./types";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import {
   BeforeDraft,
@@ -18,7 +18,8 @@ import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedM
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
-import { togglePinDisabled } from "@/shared/api/pins"; // ✅ 추가
+import { togglePinDisabled } from "@/shared/api/pins";
+import { useMe } from "@/shared/api/auth";
 
 /** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 function posKey(lat: number, lng: number) {
@@ -115,6 +116,9 @@ export default function PinContextMenuContainer(props: Props) {
     upsertDraftMarker,
     onDeleteProperty,
   } = props;
+
+  // 🔐 현재 로그인 유저
+  const { data: me } = useMe();
 
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
@@ -419,56 +423,87 @@ export default function PinContextMenuContainer(props: Props) {
   };
 
   /** 신규 등록/정보 입력 */
-  const handleCreateClick = React.useCallback(async () => {
-    const lat = position.getLat();
-    const lng = position.getLng();
+  const handleCreateClick = React.useCallback(
+    (payloadFromPanel: CreateFromPinArgs) => {
+      const lat = position.getLat();
+      const lng = position.getLng();
 
-    let pinDraftId = extractDraftIdFromPin(pin);
+      // Panel에서 내려준 값 우선 사용
+      let {
+        latFromPin,
+        lngFromPin,
+        fromPinDraftId,
+        address,
+        roadAddress: roadAddrFromPanel,
+        jibunAddress: jibunAddrFromPanel,
+        createMode,
+      } = payloadFromPanel;
 
-    if (pinDraftId == null && metaAtPos?.source === "draft") {
-      const n = Number((metaAtPos as any)?.id);
-      if (Number.isFinite(n)) pinDraftId = n;
-    }
+      // 좌표가 비어있다면 현재 position 기준으로 채워주기
+      latFromPin ||= lat;
+      lngFromPin ||= lng;
 
-    if (pinDraftId == null) {
-      const idStr = String(propertyId ?? "");
-      const m = idStr.match(/(\d{1,})$/);
-      if (m) {
-        const n = Number(m[1]);
-        if (Number.isFinite(n)) pinDraftId = n;
+      // fromPinDraftId 없으면 기존 heuristic으로 보완
+      let effectiveDraftId =
+        fromPinDraftId ?? extractDraftIdFromPin(pin) ?? undefined;
+
+      if (effectiveDraftId == null && metaAtPos?.source === "draft") {
+        const n = Number((metaAtPos as any)?.id);
+        if (Number.isFinite(n)) effectiveDraftId = n;
       }
-    }
 
-    onCreate?.({
-      latFromPin: lat,
-      lngFromPin: lng,
-      fromPinDraftId: pinDraftId,
-      address: roadAddress ?? jibunAddress ?? null,
-      roadAddress: roadAddress ?? null,
-      jibunAddress: jibunAddress ?? null,
-    });
+      if (effectiveDraftId == null) {
+        const idStr = String(propertyId ?? "");
+        const m = idStr.match(/(\d{1,})$/);
+        if (m) {
+          const n = Number(m[1]);
+          if (Number.isFinite(n)) effectiveDraftId = n;
+        }
+      }
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        try {
-          const anyWin = globalThis as any;
-          if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
-            anyWin.__cleanupOverlaysAtPos(lat, lng);
-          }
-        } catch {}
+      // 주소도 Panel → Container 순으로 fallback
+      const roadAddressFinal = roadAddrFromPanel ?? roadAddress ?? null;
+      const jibunAddressFinal = jibunAddrFromPanel ?? jibunAddress ?? null;
+      const addressFinal =
+        address ?? roadAddressFinal ?? jibunAddressFinal ?? null;
+
+      // 🔼 최종 payload를 상위 onCreate로 전달
+      onCreate?.({
+        ...payloadFromPanel,
+        latFromPin,
+        lngFromPin,
+        fromPinDraftId: effectiveDraftId,
+        address: addressFinal,
+        roadAddress: roadAddressFinal,
+        jibunAddress: jibunAddressFinal,
+        // createMode는 Panel에서 계산된 그대로 사용
+        createMode,
       });
-    });
-    onClose?.();
-  }, [
-    onCreate,
-    onClose,
-    position,
-    pin,
-    metaAtPos,
-    propertyId,
-    roadAddress,
-    jibunAddress,
-  ]);
+
+      // 오버레이 정리 + 닫기
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          try {
+            const anyWin = globalThis as any;
+            if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
+              anyWin.__cleanupOverlaysAtPos(latFromPin, lngFromPin);
+            }
+          } catch {}
+        });
+      });
+      onClose?.();
+    },
+    [
+      onCreate,
+      onClose,
+      position,
+      pin,
+      metaAtPos,
+      propertyId,
+      roadAddress,
+      jibunAddress,
+    ]
+  );
 
   const xAnchor = 0.5;
   const yAnchor = 1;
@@ -507,9 +542,13 @@ export default function PinContextMenuContainer(props: Props) {
   /** ✅ 매물 삭제 여부 상태 */
   const [deleting, setDeleting] = React.useState(false);
 
+  // 🔐 삭제 권한: admin / manager(팀장)만
+  const role = me?.role;
+  const canDeleteByRole = role === "admin" || role === "manager";
+
   const canDelete = React.useMemo(
-    () => !!propertyIdClean && listed && !isSearchDraft,
-    [propertyIdClean, listed, isSearchDraft]
+    () => !!propertyIdClean && listed && !isSearchDraft && canDeleteByRole,
+    [propertyIdClean, listed, isSearchDraft, canDeleteByRole]
   );
 
   const handleDelete = React.useCallback(async () => {

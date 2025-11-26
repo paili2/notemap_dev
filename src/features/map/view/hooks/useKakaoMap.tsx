@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
 import { KOREA_BOUNDS } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
+import { useToast } from "@/hooks/use-toast"; // ✅ 추가
+import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
 
 type Args = {
   appKey: string;
@@ -17,6 +19,8 @@ type Args = {
   disableAutoPan?: boolean;
   /** idle 콜백 디바운스(ms). 기본 120ms */
   viewportDebounceMs?: number;
+  /** 지도 위에 로드뷰 도로 라인을 표시할지 여부 (기본 false) */
+  showRoadviewOverlay?: boolean;
   onMapReady?: (args: { kakao: any; map: any }) => void;
   onViewportChange?: (query: {
     leftTop: LatLng;
@@ -120,6 +124,7 @@ const useKakaoMap = ({
   maxLevel = 11,
   disableAutoPan = false,
   viewportDebounceMs = DEFAULT_VIEWPORT_DEBOUNCE,
+  showRoadviewOverlay = false,
   onMapReady,
   onViewportChange,
 }: Args) => {
@@ -128,6 +133,7 @@ const useKakaoMap = ({
   const mapRef = useRef<any>(null);
 
   const [ready, setReady] = useState(false);
+  const { toast } = useToast(); // ✅ 추가
 
   // 옵션/콜백 ref로 고정
   const maxLevelRef = useRef<number>(maxLevel);
@@ -139,6 +145,9 @@ const useKakaoMap = ({
 
   // 검색 마커 1개 유지
   const lastSearchMarkerRef = useRef<any>(null);
+
+  // 로드뷰 도로 오버레이
+  const roadviewOverlayRef = useRef<any>(null);
 
   // 리스너/타이머
   const zoomListenerRef = useRef<((...a: any[]) => void) | null>(null);
@@ -189,6 +198,10 @@ const useKakaoMap = ({
           });
           mapRef.current = map;
 
+          if (typeof window !== "undefined") {
+            (window as any).kakaoMapInstance = map;
+          }
+
           // (B) 지도 DOM 아래 http→https 강제 옵저버 설치
           try {
             const node: HTMLElement = map.getNode();
@@ -216,6 +229,20 @@ const useKakaoMap = ({
             const lv = map.getLevel();
             maxLevelRef.current = lv;
             map.setMaxLevel(lv);
+          }
+
+          // 로드뷰 도로 오버레이 인스턴스만 생성 (초기엔 꺼둔다)
+          try {
+            if (!roadviewOverlayRef.current && kakao?.maps?.RoadviewOverlay) {
+              roadviewOverlayRef.current = new kakao.maps.RoadviewOverlay();
+            }
+            if (roadviewOverlayRef.current) {
+              roadviewOverlayRef.current.setMap(
+                showRoadviewOverlay ? map : null
+              );
+            }
+          } catch (e) {
+            console.warn("[RoadviewOverlay] init failed:", e);
           }
 
           // ✅ 최초 로드시 현재 위치로 지도 중심 이동 (옵션 켰을 때만)
@@ -311,10 +338,25 @@ const useKakaoMap = ({
         lastSearchMarkerRef.current = null;
       }
 
+      // 로드뷰 도로 오버레이 제거
+      try {
+        if (roadviewOverlayRef.current) {
+          roadviewOverlayRef.current.setMap(null);
+          roadviewOverlayRef.current = null;
+        }
+      } catch {}
+
       // https 패치 옵저버 해제
       try {
         (map as any)?.__detachHttpsPatch__?.();
       } catch {}
+
+      if (
+        typeof window !== "undefined" &&
+        (window as any).kakaoMapInstance === map
+      ) {
+        (window as any).kakaoMapInstance = null;
+      }
 
       // mapRef는 언마운트 시에만 null
       mapRef.current = null;
@@ -322,6 +364,21 @@ const useKakaoMap = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // 최초 1회
+
+  // ─────────────────────────────────────────────
+  // 로드뷰 도로 오버레이 on/off 토글
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    const rv = roadviewOverlayRef.current;
+    if (!ready || !map || !rv) return;
+
+    try {
+      rv.setMap(showRoadviewOverlay ? map : null);
+    } catch (e) {
+      console.warn("[RoadviewOverlay] toggle failed:", e);
+    }
+  }, [ready, showRoadviewOverlay]);
 
   // ─────────────────────────────────────────────
   // 2) 이벤트 리스너 등록 (1회)
@@ -463,7 +520,19 @@ const useKakaoMap = ({
 
   const searchPlace = useCallback(
     (query: string, opts?: SearchOptions) => {
-      if (!ready || !kakaoRef.current || !mapRef.current || !query) return;
+      if (!ready || !kakaoRef.current || !mapRef.current) return;
+
+      const trimmed = query.trim();
+      if (!trimmed) return;
+
+      // ✅ 광역 키워드면 아예 검색 자체를 막고 토스트만
+      if (isTooBroadKeyword(trimmed)) {
+        toast({
+          title: "검색 범위가 너무 넓어요",
+          description: "정확한 주소 또는 건물명을 입력해주세요.",
+        });
+        return;
+      }
 
       const kakao = kakaoRef.current;
       const geocoder =
@@ -473,14 +542,14 @@ const useKakaoMap = ({
       placesRef.current = places;
 
       const { preferStation = false, onFound } = opts || {};
-      const endsWithStation = query.trim().endsWith("역");
+      const endsWithStation = trimmed.endsWith("역");
 
       const tryStationFirst = (): Promise<{
         lat: number;
         lng: number;
       } | null> =>
         new Promise((resolve) => {
-          places.keywordSearch(query, (data: any[], status: string) => {
+          places.keywordSearch(trimmed, (data: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && data?.length) {
               const station =
                 data.find(
@@ -502,7 +571,7 @@ const useKakaoMap = ({
 
       const tryKeyword = (): Promise<{ lat: number; lng: number } | null> =>
         new Promise((resolve) => {
-          places.keywordSearch(query, (data: any[], status: string) => {
+          places.keywordSearch(trimmed, (data: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && data?.[0]) {
               resolve({
                 lat: parseFloat(data[0].y),
@@ -516,7 +585,7 @@ const useKakaoMap = ({
 
       const tryAddress = (): Promise<{ lat: number; lng: number } | null> =>
         new Promise((resolve) => {
-          geocoder.addressSearch(query, (res: any[], status: string) => {
+          geocoder.addressSearch(trimmed, (res: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && res?.[0]) {
               resolve({
                 lat: parseFloat(res[0].y),
@@ -541,7 +610,12 @@ const useKakaoMap = ({
         }
 
         if (!found) {
-          console.warn("검색 결과 없음:", query);
+          console.warn("검색 결과 없음:", trimmed);
+          // 필요하면 여기서도 토스트 가능
+          // toast({
+          //   title: "검색 결과가 없습니다.",
+          //   description: "정확한 주소 또는 건물명을 입력해주세요.",
+          // });
           return;
         }
 
@@ -549,7 +623,7 @@ const useKakaoMap = ({
         onFound?.({ lat: found.lat, lng: found.lng });
       })();
     },
-    [placeMarkerAt, ready]
+    [placeMarkerAt, ready, toast]
   );
 
   // 외부 제어 API

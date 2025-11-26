@@ -23,9 +23,11 @@ import PropertyEditModalBody from "@/features/properties/components/PropertyEdit
 import { CreatePayload, UpdatePayload } from "../../types/property-dto";
 import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { togglePinDisabled } from "@/shared/api/pins";
+import { deletePin } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 import MetaInfoContainer from "./components/MetaInfoContainer";
+import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
+import { useMe } from "@/shared/api/auth";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -189,19 +191,32 @@ export default function PropertyViewModal({
     (data as any)?.propertyId ??
     effectiveId;
 
-  const handleDisable = useCallback(async () => {
+  /** ✅ DELETE /pins/:id 사용 */
+  const handleDelete = useCallback(async () => {
     if (!idForActions || deleting) return;
-    if (!confirm("정말 삭제(비활성화)할까요?")) return;
+
+    const numericId = Number(idForActions);
+    if (!Number.isFinite(numericId)) {
+      alert("삭제할 핀 ID가 올바르지 않습니다.");
+      return;
+    }
+
+    if (
+      !confirm("정말 이 매물을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.")
+    ) {
+      return;
+    }
+
     try {
       setDeleting(true);
-      await togglePinDisabled(String(idForActions), true);
+      await deletePin(numericId);
       await onDelete?.();
       onClose();
     } catch (err: any) {
       const msg =
         err?.message ||
         err?.responseData?.message ||
-        "비활성화 요청에 실패했습니다.";
+        "삭제 요청에 실패했습니다.";
       alert(msg);
     } finally {
       setDeleting(false);
@@ -252,7 +267,7 @@ export default function PropertyViewModal({
         headingId={headingId}
         descId={descId}
         onClose={onClose}
-        onDisable={handleDisable}
+        onDelete={handleDelete}
         deleting={deleting}
         loading={!!(open && effectiveId && q.isFetching && !viewData)}
         onRequestEdit={(seed) => {
@@ -283,7 +298,7 @@ function ViewStage({
   descId,
   onClose,
   onClickEdit,
-  onDisable,
+  onDelete,
   deleting,
   loading,
   onRequestEdit,
@@ -295,13 +310,21 @@ function ViewStage({
   descId: string;
   onClose: () => void;
   onClickEdit: () => void;
-  onDisable: () => void;
+  onDelete: () => void;
   deleting: boolean;
   loading?: boolean;
   onRequestEdit: (seed: any) => void;
   asInner?: boolean;
 }) {
   console.log("[PropertyViewModal/ViewStage] render", { data });
+
+  // ✅ 현재 로그인 유저 정보
+  const { data: me } = useMe();
+
+  // ✅ 삭제 버튼 노출 권한: 부장 / 팀장만
+  const role = me?.role;
+  const canDelete = ["admin", "manager"].includes(role ?? ""); // 아직 백엔드 수정 안되어서 우선 최고관리자랑 manager = 팀장 넣음
+
   const hasData = !!data;
   const formInput = useMemo(
     () => ({ open: true, data: data ?? ({} as PropertyViewDetails) }),
@@ -320,6 +343,19 @@ function ViewStage({
 
     return resolved;
   }, [data, f]);
+
+  const rebateTextFromSources = useMemo(() => {
+    const fromView = (data as any)?.rebateText;
+    const fromForm = (f as any)?.rebateText;
+    const fromMetaRoot = (metaDetails as any)?.rebateText;
+    const fromRaw = (metaDetails as any)?.raw?.rebateText;
+
+    return fromView ?? fromForm ?? fromMetaRoot ?? fromRaw ?? null;
+  }, [data, f, metaDetails]);
+
+  // 🔁 전역 메모 보기 모드 (K&N / R)
+  const memoViewMode = useMemoViewMode((s) => s.mode); // "public" | "secret"
+  const isPublicMemoMode = memoViewMode === "public";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -458,6 +494,8 @@ function ViewStage({
                 null
               }
               newYearsThreshold={5}
+              // ⭐ rebateText를 헤더로 전달 (뷰데이터 우선, 없으면 폼 값)
+              rebateText={rebateTextFromSources}
             />
           </div>
 
@@ -504,7 +542,17 @@ function ViewStage({
                 slopeGrade={f.slopeGrade}
                 structureGrade={f.structureGrade}
                 minRealMoveInCost={(f as any).minRealMoveInCost}
+                elevator={
+                  // 1순위: 폼 상태에 문자열 "O"/"X"가 있으면 사용
+                  (f as any).elevator ??
+                  // 2순위: 뷰 데이터에 문자열 elevator 필드가 있으면 사용
+                  (data as any)?.elevator ??
+                  // 3순위: 서버에서 내려온 boolean hasElevator 사용
+                  (data as any)?.hasElevator ??
+                  null
+                }
               />
+
               <AspectsViewContainer details={data!} />
               <AreaSetsViewContainer
                 exclusiveArea={f.exclusiveArea}
@@ -522,9 +570,11 @@ function ViewStage({
                 options={f.options}
                 optionEtc={f.optionEtc}
               />
+
+              {/* 🔁 전역 토글 상태에 따라 한 종류의 메모만 전달 */}
               <MemosContainer
-                publicMemo={f.publicMemo}
-                secretMemo={f.secretMemo}
+                publicMemo={isPublicMemoMode ? f.publicMemo : undefined}
+                secretMemo={!isPublicMemoMode ? f.secretMemo : undefined}
               />
 
               {/* 👇 생성자/답사자/수정자 메타 정보 (메모 밑) */}
@@ -558,20 +608,23 @@ function ViewStage({
                   수정
                 </button>
 
-                <button
-                  type="button"
-                  onClick={onDisable}
-                  disabled={deleting || !data?.id}
-                  className={cn(
-                    "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
-                    deleting && "opacity-60 cursor-not-allowed"
-                  )}
-                  aria-label="삭제"
-                  title="삭제"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  {deleting ? "비활성화 중…" : "삭제"}
-                </button>
+                {/* ✅ 부장 / 팀장만 삭제 버튼 노출 */}
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    disabled={deleting || !data?.id}
+                    className={cn(
+                      "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
+                      deleting && "opacity-60 cursor-not-allowed"
+                    )}
+                    aria-label="삭제"
+                    title="삭제"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deleting ? "삭제 중…" : "삭제"}
+                  </button>
+                )}
               </div>
 
               <button

@@ -39,6 +39,12 @@ export type ReserveRequestPayload =
       dateISO?: string;
     } & { kind: "coords" });
 
+// 어떤 모드로 생성모달을 열었는지 구분용
+export type CreateMode =
+  | "PLAN_FROM_DRAFT" // 신규핀 → 답사예정지 등록
+  | "FULL_PROPERTY_FROM_RESERVED" // 답사지 예약핀 → 매물 정보 입력
+  | "NORMAL"; // 그 외 일반 케이스
+
 /** ✅ 신규 등록(onCreate) 시 컨텍스트 메뉴에서 폼으로 전달할 페이로드 */
 export type CreateFromPinArgs = {
   /** 클릭 지점(또는 선택 핀)의 좌표 */
@@ -51,6 +57,10 @@ export type CreateFromPinArgs = {
   roadAddress?: string | null;
   jibunAddress?: string | null;
   pinDraftId?: number;
+
+  /** 어떤 버튼에서 열린 생성 모달인지 */
+  createMode?: CreateMode;
+  visitPlanOnly?: boolean;
 };
 
 /** PinContextMenu 컴포넌트 props */

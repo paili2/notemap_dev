@@ -18,8 +18,7 @@ export default function MemoSection({
   autoGrow = false,
   className,
 }: MemoSectionProps) {
-  const labelText =
-    mode === "KN" ? "특이사항(공개)" : "리베이트 / 비밀 메모 (R)";
+  const labelText = mode === "KN" ? "특이사항(공개)" : "비밀 메모";
   const hint =
     placeholder ?? (mode === "KN" ? "공개 가능한 메모" : "내부 메모");
   const inputId = id ?? (mode === "KN" ? "memo-public" : "memo-secret");

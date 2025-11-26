@@ -22,15 +22,21 @@ function toPosKey(lat?: number, lng?: number) {
     : undefined;
 }
 
+/** 🔹 라벨에 사용할 "매물명/이름" 선택
+ *  - 주소 계열 필드(addressLine, address, address_name)는 **절대 라벨 텍스트로 사용하지 않음**
+ *  - 주소는 MapMarker.address에만 보관
+ */
 function pickDisplayName(p: any): string {
   return (
+    // 매물명/타이틀 계열 우선
+    p?.title ??
     p?.name ??
     p?.displayName ??
-    p?.title ??
     p?.label ??
-    p?.addressLine ??
-    p?.address ??
-    p?.address_name ??
+    p?.propertyName ??
+    p?.property?.name ??
+    p?.property?.title ??
+    // 그래도 없으면 id fallback
     String(p?.id ?? "")
   );
 }
@@ -44,11 +50,13 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
   const lng = Number((p as any).lng ?? (p as any).x);
   const displayName = String(pickDisplayName(p)).trim();
 
-  // 디버그 로그 (원본 좌표 확인용)
+  // 디버그 로그 (원본 좌표/라벨명 확인용)
   console.debug("[pinPointToMarker]", {
     id: String((p as any).id),
     name: (p as any).name,
+    title: (p as any).title,
     picked: displayName,
+    addressLine: (p as any).addressLine,
     lat,
     lng,
     source,
@@ -59,6 +67,7 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
     position: { lat, lng }, // ✅ 원본 좌표 보존 (절삭/반올림 없음)
     name: displayName,
     title: displayName,
+    // ✅ 주소는 별도 필드에만 저장 (라벨 텍스트 X)
     address: (p as any).addressLine ?? (p as any).address ?? undefined,
     kind: ((p as any).pinKind ?? "1room") as any,
     source,
@@ -104,11 +113,13 @@ export function usePinsFromViewport({
         (res?.data?.points ?? []).map((p: any) => ({
           id: p.id,
           name: p.name,
+          title: p.title,
+          propertyName: (p as any).propertyName,
           addressLine: p.addressLine,
           isNew: (p as any).isNew,
           isOld: (p as any).isOld,
         })),
-        ["id", "name", "addressLine", "isNew", "isOld"]
+        ["id", "name", "title", "propertyName", "addressLine", "isNew", "isOld"]
       );
 
       setPoints(res.data.points ?? []);
@@ -141,13 +152,14 @@ export function usePinsFromViewport({
     );
     const all = [...live, ...draftMarkers];
 
-    // 최종 산출물 로그 (여기서도 원본 좌표가 찍혀야 정상)
+    // 최종 산출물 로그 (여기서도 원본 좌표/라벨명 확인)
     console.debug(
       "[usePinsFromViewport] markers",
       all.map((m) => ({
         id: String(m.id),
         name: (m as any).name,
         title: m.title,
+        address: (m as any).address,
         lat: m.position.lat, // ✅ 소수 절삭 없이 그대로
         lng: m.position.lng,
       }))

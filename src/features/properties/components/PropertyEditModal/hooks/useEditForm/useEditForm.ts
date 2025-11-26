@@ -91,6 +91,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     []
   );
 
+  /** 🔥 헤더 R 인풋과 연결될 리베이트 텍스트(만원 단위) */
+  const [rebateText, setRebateText] = useState<string>("");
+
   const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
     title: "",
     exMinM2: "",
@@ -104,6 +107,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   });
   const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
 
+  /** ✅ 엘리베이터: "O" | "X" (기본값 "O") */
   const [elevator, setElevator] = useState<"O" | "X">("O");
 
   const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
@@ -230,6 +234,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setSecretMemo("");
     setUnitLines([]);
     setBuildingType(null);
+    setRebateText("");
   }, []);
 
   /* ========== 초기 주입 ========== */
@@ -250,7 +255,17 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const initKey: string | number | null =
     initId ?? (sourceData ? "__NOID__" : null);
 
-  const normalized = useMemo(() => normalizeInitialData(sourceData), [initKey]);
+  const normalized = useMemo(() => {
+    // 🔍 2차: sourceData → normalized 흐름 확인용
+    console.log("[useEditForm] sourceData(flattened) =", sourceData);
+
+    const n = normalizeInitialData(sourceData);
+
+    console.log("[useEditForm] normalized =", n);
+
+    return n;
+  }, [initKey]);
+
   const injectedOnceRef = useRef<null | string | number>(null);
 
   const initialForPatchRef = useRef<InitialForPatch>({
@@ -301,10 +316,31 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setCompletionDate(normalized.completionDate);
     setSalePrice(normalized.salePrice);
 
+    // 🔥 서버에서 온 리베이트 값들을 최대한 안전하게 텍스트로 주입
+    setRebateText(
+      (normalized as any).rebateText ??
+        (normalized as any).rebateMemo ??
+        (normalized as any).rebate ??
+        ""
+    );
+
     setBaseAreaSet(normalized.baseArea);
     setExtraAreaSets(normalized.extraAreas);
 
-    setElevator(normalized.elevator);
+    /** 🔵 엘리베이터: 서버 값 → "O" | "X" 로 안전 정규화 */
+    {
+      const raw =
+        (normalized as any).elevator ?? (normalized as any).hasElevator;
+      let next: "O" | "X" = "O";
+      if (raw === "O" || raw === "X") {
+        next = raw;
+      } else if (raw === true) {
+        next = "O";
+      } else if (raw === false) {
+        next = "X";
+      }
+      setElevator(next);
+    }
 
     const normGrade =
       (normalized as any)?.building?.grade ??
@@ -337,6 +373,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       (normalized.remainingHouseholds ?? "") as unknown as string
     );
 
+    // ✅ 옵션/직접입력도 서버 값 주입
     setOptions(normalized.options);
     setOptionEtc(normalized.optionEtc);
     setEtcChecked(normalized.etcChecked);
@@ -578,6 +615,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingType,
       buildingGrade,
       aspectsTouched,
+      rebateText,
+      // 🔥 HeaderForm에서 바로 쓸 수 있게 alias 제공
+      rebateRaw: rebateText,
     }),
     [
       pinKind,
@@ -616,6 +656,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingType,
       buildingGrade,
       aspectsTouched,
+      rebateText,
     ]
   );
 
@@ -664,6 +705,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       reset,
       setBuildingType,
       setBuildingGrade,
+      setRebateText,
+      // 🔥 HeaderForm용 alias
+      setRebateRaw: (v: string) => setRebateText(v),
     }),
     [
       addAspect,

@@ -19,20 +19,26 @@ const toStr = (v: unknown) =>
 export default function CompletionRegistryContainer({
   form,
 }: {
-  form: CompletionRegistryFormSlice; // ✅ 슬라이스 타입으로 변경
+  form: CompletionRegistryFormSlice; // ✅ 슬라이스 타입
 }) {
   const completionDate = toYmd(form.completionDate);
   const setCompletionDate = clampYmdSetter(form.setCompletionDate);
   const salePrice = toStr(form.salePrice);
+  const rebateText = toStr(form.rebateText);
 
   return (
     <CompletionRegistrySection
       /* 준공일 */
       completionDate={completionDate}
       setCompletionDate={setCompletionDate}
-      /* 최저실입 */
+      /* 최저실입 (레거시 + 신규) */
       salePrice={salePrice}
       setSalePrice={form.setSalePrice}
+      minRealMoveInCost={form.minRealMoveInCost}
+      setMinRealMoveInCost={form.setMinRealMoveInCost}
+      /* ✅ 리베이트 */
+      rebateText={rebateText}
+      setRebateText={form.setRebateText}
       /* 등급(경사/구조) */
       slopeGrade={form.slopeGrade}
       setSlopeGrade={form.setSlopeGrade}
@@ -41,6 +47,9 @@ export default function CompletionRegistryContainer({
       /* 건물유형 */
       buildingType={form.buildingType}
       setBuildingType={form.setBuildingType}
+      /* ✅ 엘리베이터 */
+      elevator={form.elevator}
+      setElevator={form.setElevator}
     />
   );
 }

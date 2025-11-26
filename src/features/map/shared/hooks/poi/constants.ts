@@ -1,5 +1,3 @@
-"use client";
-
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 
 export const DEFAULTS = {
@@ -20,10 +18,17 @@ export const DESIRED_SCALEBAR_M = 400;
 /** 중심 근처 우선 채우기 */
 export const NEAR_RATIO = 0.6;
 
+/** POI 종류별 검색 반경(m) */
 export const RADIUS_BY_KIND: Record<PoiKind, number> = {
   convenience: 800,
+  mart: 1000,
   cafe: 800,
   pharmacy: 1000,
+  hospital: 1200,
   subway: 1500,
+  parking: 1000,
   school: 1000,
+  police: 1500, // 안전기관(경찰 + 소방 등)
+  culture: 1500,
+  park: 800,
 };

@@ -41,4 +41,7 @@ export interface HeaderSectionViewProps {
 
   /** 완공일 보정 기준(최근 N년 이내면 신축으로 간주). 기본 5 */
   newYearsThreshold?: number;
+
+  /** 리베이트 텍스트(만원 단위, 서버 rebateText) */
+  rebateText?: string | number | null;
 }

@@ -12,25 +12,37 @@ export type HeaderForm = {
   parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
   setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
 
-  elevator: "O" | "X";
-  setElevator: (v: "O" | "X") => void;
+  elevator: "O" | "X" | null;
+  setElevator: (v: "O" | "X" | null) => void;
 
   /** 핀선택: placeholder를 쓰기 위해 null 허용 */
   pinKind: PinKind | null;
-  setPinKind: (v: PinKind) => void;
+  setPinKind: (v: PinKind | null) => void;
 
-  /** 신축/구옥 - ✅ HeaderSection의 정의(널 허용)와 동일하게 맞춘다 */
-  buildingGrade: BuildingGrade; // "new" | "old" | null (HeaderSection 기준)
-  setBuildingGrade: (v: BuildingGrade) => void; // (null까지 받도록)
+  /** 신축/구옥 */
+  buildingGrade: BuildingGrade | null;
+  setBuildingGrade: (v: BuildingGrade | null) => void;
+
+  /** 🔥 헤더 R 인풋 원본 값 (useEditForm.rebateRaw 와 매칭) */
+  rebateRaw: string;
+  setRebateRaw: (v: string) => void;
 };
 
 export default function HeaderContainer({
   form,
   onClose,
+  isVisitPlanPin,
 }: {
   form: HeaderForm;
   onClose: () => void;
+  isVisitPlanPin?: boolean;
 }) {
+  // ✅ HeaderSection이 기대하는 시그니처로 맞춰주는 어댑터
+  const handleSetRebate = (v: string | number | null) => {
+    if (v == null) form.setRebateRaw("");
+    else form.setRebateRaw(String(v));
+  };
+
   return (
     <HeaderSection
       title={form.title}
@@ -40,12 +52,14 @@ export default function HeaderContainer({
       elevator={form.elevator}
       setElevator={form.setElevator}
       onClose={onClose}
-      // 핀 선택 (기존 그대로)
-      pinKind={(form.pinKind ?? undefined) as unknown as PinKind}
+      pinKind={form.pinKind}
       setPinKind={form.setPinKind}
-      // ✅ 신축/구옥 - 타입 맞춘 그대로 전달
       buildingGrade={form.buildingGrade}
       setBuildingGrade={form.setBuildingGrade}
+      // 🔥 useEditForm.rebateRaw 을 그대로 사용
+      rebate={form.rebateRaw}
+      setRebate={handleSetRebate}
+      isVisitPlanPin={isVisitPlanPin}
     />
   );
 }

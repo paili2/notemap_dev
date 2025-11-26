@@ -25,9 +25,14 @@ export default function MapCanvas(props: {
   onMapReady?: (api: unknown) => void;
   onViewportChange?: (v: any) => void;
   isDistrictOn: boolean;
+
+  /** 🔵 로드뷰 도로(파란 라인) 오버레이 표시 여부 */
+  showRoadviewOverlay?: boolean;
 }) {
   const {
     appKey,
+    kakaoSDK,
+    // mapInstance, // 필요하면 나중에 사용할 수 있음
     markers,
     fitAllOnce,
     poiKinds,
@@ -40,6 +45,7 @@ export default function MapCanvas(props: {
     onMapReady,
     onViewportChange,
     isDistrictOn,
+    showRoadviewOverlay,
   } = props;
 
   // ✅ 전역 라벨 레지스트리 이벤트 핸들러 1회 연결
@@ -47,8 +53,11 @@ export default function MapCanvas(props: {
     attachLabelRegistryGlobalHandlers();
   }, []);
 
-  // ✅ Map 인스턴스 보관(라벨 숨김 이벤트에 동봉)
+  // ✅ Map 인스턴스 보관(라벨 숨김 이벤트 + 로드뷰 도로 오버레이에서 사용)
   const mapRef = React.useRef<any>(null);
+
+  // 🔵 로드뷰 도로 오버레이 인스턴스 보관
+  const roadviewOverlayRef = React.useRef<any>(null);
 
   const handleMapReady = React.useCallback(
     (api: any) => {
@@ -58,6 +67,38 @@ export default function MapCanvas(props: {
     },
     [onMapReady]
   );
+
+  // 🔵 로드뷰 도로(파란 라인) 오버레이 토글
+  React.useEffect(() => {
+    // SDK 없으면 아무것도 안 함
+    if (!kakaoSDK) return;
+
+    // 오버레이가 꺼져야 하는 경우 → 있으면 제거
+    if (!showRoadviewOverlay) {
+      if (roadviewOverlayRef.current) {
+        try {
+          roadviewOverlayRef.current.setMap(null);
+        } catch {}
+      }
+      return;
+    }
+
+    // 여기부터는 켜야 하는 경우
+    if (!mapRef.current) return; // 아직 지도 준비 안 됨
+
+    // 최초 생성
+    if (!roadviewOverlayRef.current) {
+      try {
+        roadviewOverlayRef.current = new kakaoSDK.maps.RoadviewOverlay();
+      } catch {
+        return;
+      }
+    }
+
+    try {
+      roadviewOverlayRef.current.setMap(mapRef.current);
+    } catch {}
+  }, [kakaoSDK, showRoadviewOverlay]);
 
   // ✅ 공통: 메뉴 오픈 시 근처 라벨 숨김 이벤트 발행
   const emitHideLabels = React.useCallback(

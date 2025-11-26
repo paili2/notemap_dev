@@ -10,8 +10,10 @@ function isValidDate(d: Date) {
  * 우선순위:
  * 1) isOld = true  → 구옥
  * 2) isNew = true  → 신축
- * 3) 완료일 기반 판단
- * 4) 정보 없으면 "-"
+ * 3) (자동 판정 없이) 정보 없으면 "-"
+ *
+ * ✅ 신축/구옥을 직접 선택하지 않았다면,
+ *    completionDate가 있어도 절대 "신축"/"구옥"으로 자동 표시하지 않는다.
  */
 export function getAgeLabel(args: {
   isNew?: boolean | null;
@@ -30,20 +32,17 @@ export function getAgeLabel(args: {
   if (isOld === true) return "구옥";
   if (isNew === true) return "신축";
 
-  // 2) 명시 플래그 없으면 준공일 기반 추정
-  if (completionDate) {
-    const dt =
-      completionDate instanceof Date
-        ? completionDate
-        : new Date(completionDate);
+  // 2) 명시 플래그가 둘 다 없거나(false/undefined/null)면 → 항상 "-"
+  const noFlag =
+    (isNew === null || isNew === undefined || isNew === false) &&
+    (isOld === null || isOld === undefined || isOld === false);
 
-    if (isValidDate(dt)) {
-      const diffYears =
-        (Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
-      return diffYears <= newYearsThreshold ? "신축" : "구옥";
-    }
+  if (noFlag) {
+    return "-";
   }
 
-  // 3) 완전히 정보 없으면 중립
+  // (필요하면 여기에 completionDate 기반 자동 판정을 넣을 수 있지만,
+  //  지금 요구사항대로라면 자동 판정은 완전히 막는다.)
+
   return "-";
 }

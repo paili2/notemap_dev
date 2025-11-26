@@ -1,4 +1,4 @@
-import type { PinItem } from "@/features/pins/types"; // 현재 올려준 PinItem 경로에 맞게 수정
+import type { PinItem } from "@/features/pins/types";
 
 type PinStatus = "draft" | "plan" | "listed";
 
@@ -7,14 +7,21 @@ function computeStatus(
   pin?: PinItem | null,
   propertyId?: string | null
 ): PinStatus {
-  // 1) draft 우선: state가 draft 이거나, 아직 propertyId가 없음
-  if (!propertyId || pin?.state === "draft") return "draft";
+  if (!pin) {
+    // 핀이 없고 property만 있으면 등록 완료로 보고, 아니면 draft
+    return propertyId ? "listed" : "draft";
+  }
 
-  // 2) plan: 방문/답사 예정은 kind === "question" 으로 정의
-  if (pin?.kind === "question") return "plan";
+  // 1) 진짜 임시핀: state === "draft" 우선
+  if (pin.state === "draft") return "draft";
 
-  // 3) listed: 그 외 저장된 매물
-  return "listed";
+  // 2) 답사/방문 예정핀: kind === "question"
+  if (pin.kind === "question") return "plan";
+
+  // 3) 나머지: propertyId가 있으면 listed, 없으면 draft 취급
+  if (propertyId) return "listed";
+
+  return "draft";
 }
 
 export function isDraftPin(pin?: PinItem | null, propertyId?: string | null) {

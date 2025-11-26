@@ -4,6 +4,8 @@ import * as React from "react";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Input } from "@/components/atoms/Input/Input";
+import { useToast } from "@/hooks/use-toast";
+import { isTooBroadKeyword } from "@/features/map/shared/utils/isTooBroadKeyword";
 
 export const FILTER_KEYS = ["all", "new", "old"] as const;
 export type FilterKey = (typeof FILTER_KEYS)[number];
@@ -46,6 +48,7 @@ const SearchForm = React.memo(
     const hasText = inputValue.trim().length > 0;
     const composingRef = React.useRef(false);
     const inputRef = React.useRef<HTMLInputElement | null>(null);
+    const { toast } = useToast(); // 🔹 추가
 
     const setVal = React.useCallback(
       (v: string) => {
@@ -71,10 +74,20 @@ const SearchForm = React.memo(
         if (composingRef.current) return; // 조합 중이면 무시
         const q = inputValue.trim();
         if (!q) return;
+
+        // 🔻 여기서 광역 키워드 컷 + 지도 이동/검색 모두 막기
+        if (isTooBroadKeyword(q)) {
+          toast({
+            title: "검색 범위가 너무 넓어요",
+            description: "정확한 주소 또는 건물명을 입력해주세요.",
+          });
+          return; // 🔴 onSubmit 호출 안 하므로 runSearch / runPins 둘 다 안 돈다
+        }
+
         onSubmit?.(q);
         if (clearOnSubmit) setVal("");
       },
-      [disabled, inputValue, onSubmit, clearOnSubmit, setVal]
+      [disabled, inputValue, onSubmit, clearOnSubmit, setVal, toast]
     );
 
     const handleKeyDown = React.useCallback<

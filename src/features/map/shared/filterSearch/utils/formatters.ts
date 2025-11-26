@@ -305,6 +305,6 @@ export const convertPriceToWon = (input: string): string => {
   const num = Number(input.replace(/,/g, ""));
   if (isNaN(num) || num === 0) return "0";
 
-  // 만원 단위를 원 단위로 변환 (예: 200 → 200,000,000)
-  return (num * 1000000).toString();
+  // 만원 단위를 원 단위로 변환 (예: 200 → 2,000,000)
+  return (num * 10000).toString();
 };

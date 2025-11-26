@@ -38,6 +38,12 @@ export const asBuildingGrade = z.preprocess((v) => {
   return v;
 }, z.enum(["new", "old"]).nullable());
 
+/** 엘리베이터 정규화: "" | null | undefined → null, 그 외 "O" | "X" */
+export const asElevator = z.preprocess((v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  return v;
+}, z.enum(["O", "X"]).nullable());
+
 /* ────────────────────────────────────────────────────────────
  * Phone helpers (KR)
  * ──────────────────────────────────────────────────────────── */
@@ -125,7 +131,7 @@ export const propertyFormSchema = z.object({
   unitLines: z.array(unitLineSchema).default([]),
 
   /** ✅ 엘리베이터: "O" | "X" (UI에서 Segment로 선택) */
-  elevator: z.enum(["O", "X"]).optional(),
+  elevator: asElevator.optional().default(null),
 
   /** ✅ 평점 계열: "", "1"~"5" */
   parkingGrade: asStarStr.optional().default(""),
@@ -147,16 +153,16 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   isPublished: true,
   // 필요 시 기본 상태 지정 원하면 주석 해제
   // status: "판매중",
-  phone: "", // ✅ 추가
+  phone: "",
   totalParkingSlots: null,
   options: [],
   unitLines: [],
   imageUrls: [],
-  elevator: "O",
   parkingGrade: "",
   slopeGrade: "",
   structureGrade: "",
-  buildingGrade: null, // ✅ 신축/구옥 미선택 기본
+  buildingGrade: null,
+  elevator: null,
 };
 
 /* ────────────────────────────────────────────────────────────

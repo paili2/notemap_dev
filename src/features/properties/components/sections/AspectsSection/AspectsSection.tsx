@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import Field from "@/components/atoms/Field/Field";
 import { Button } from "@/components/atoms/Button/Button";
 import { Plus } from "lucide-react";
@@ -15,8 +15,30 @@ export default function AspectsSection({
   addAspect,
   removeAspect,
   setAspectDir,
-}: AspectsSectionProps) {
+  isVisitPlanPin,
+}: AspectsSectionProps & {
+  /** ✅ 답사예정 핀 여부 */
+  isVisitPlanPin?: boolean;
+}) {
   const list = ORIENTATIONS;
+
+  // ✅ 일반핀 → 답사예정으로 바뀔 때, 모든 향(dir) 초기화
+  const prevIsVisitRef = useRef<boolean | undefined>(isVisitPlanPin);
+  useEffect(() => {
+    const prev = prevIsVisitRef.current;
+
+    if (isVisitPlanPin && !prev) {
+      aspects.forEach((row) => {
+        const no = (row as any)?.no;
+        if (no != null) {
+          // dir을 빈 문자열로 초기화 (또는 undefined)
+          setAspectDir(no, "");
+        }
+      });
+    }
+
+    prevIsVisitRef.current = isVisitPlanPin;
+  }, [isVisitPlanPin, aspects, setAspectDir]);
 
   // 두 개씩 끊어서 한 줄에 배치
   const rows: AspectRowLite[][] = [];

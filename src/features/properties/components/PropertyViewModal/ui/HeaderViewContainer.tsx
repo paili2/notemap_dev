@@ -37,6 +37,9 @@ export type HeaderViewContainerProps = {
 
   /** 완공일 보정 기준(최근 N년 이내면 신축으로 간주). 기본 5 */
   newYearsThreshold?: number;
+
+  /** 🔥 리베이트 텍스트(만원 단위, 서버 rebateText 그대로) */
+  rebateText?: string | number | null;
 };
 
 export default function HeaderViewContainer({
@@ -52,6 +55,7 @@ export default function HeaderViewContainer({
   buildingAgeType,
   completionDate,
   newYearsThreshold = 5,
+  rebateText,
 }: HeaderViewContainerProps) {
   // 평점만 안전하게 숫자로 정규화
   const safeGrade =
@@ -69,6 +73,7 @@ export default function HeaderViewContainer({
       buildingAgeType,
       completionDate,
       newYearsThreshold,
+      rebateText,
     });
   }
 
@@ -86,6 +91,7 @@ export default function HeaderViewContainer({
       buildingAgeType={buildingAgeType ?? undefined}
       completionDate={completionDate ?? null}
       newYearsThreshold={newYearsThreshold}
+      rebateText={rebateText}
     />
   );
 }

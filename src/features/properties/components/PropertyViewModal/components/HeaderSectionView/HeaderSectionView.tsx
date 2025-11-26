@@ -22,7 +22,6 @@ function normalizeBool(v: unknown): boolean | null {
   return null;
 }
 
-/* ───────────── buildingAgeType → 불리언 ───────────── */
 function fromBuildingAgeType(t: "NEW" | "OLD" | "" | null | undefined): {
   isNew: boolean | null;
   isOld: boolean | null;
@@ -32,12 +31,6 @@ function fromBuildingAgeType(t: "NEW" | "OLD" | "" | null | undefined): {
   return { isNew: null, isOld: null };
 }
 
-/* ───────────── 최종 플래그 결정(우선순위) ─────────────
-   1) 명시 isNew/isOld (문자열/숫자 포함 정규화)
-      → ⚠️ isOld 가 true 면 구옥 우선
-   2) buildingAgeType ("NEW"/"OLD")
-   completionDate 보정은 getAgeLabel 내부에서 수행
-*/
 function resolveAgeFlags(opts: {
   isNewRaw?: boolean | null | string | number;
   isOldRaw?: boolean | null | string | number;
@@ -46,8 +39,6 @@ function resolveAgeFlags(opts: {
   const nIsNew = normalizeBool(opts.isNewRaw);
   const nIsOld = normalizeBool(opts.isOldRaw);
 
-  // 1) 명시 불리언 우선
-  //    👉 둘 다 true 인 경우에도 "구옥" 우선
   if (nIsOld === true && nIsNew !== true) {
     return { isNew: false, isOld: true };
   }
@@ -55,14 +46,9 @@ function resolveAgeFlags(opts: {
     return { isNew: true, isOld: false };
   }
   if (nIsOld === true && nIsNew === true) {
-    // 둘 다 true 라면 구옥으로 고정
     return { isNew: false, isOld: true };
   }
-  if (nIsNew === false && nIsOld === false) {
-    return { isNew: undefined, isOld: undefined };
-  }
 
-  // 2) 타입 문자열 (NEW/OLD)
   const byType = fromBuildingAgeType(opts.buildingAgeType);
   if (byType.isNew !== null || byType.isOld !== null) {
     return {
@@ -71,29 +57,28 @@ function resolveAgeFlags(opts: {
     };
   }
 
-  // 판단 재료 없음
   return { isNew: undefined, isOld: undefined };
 }
 
 export default function HeaderSectionView({
   title,
   parkingGrade,
-  elevator,
   pinKind = "1room",
-  onClose, // 사용 중이면 유지
+  onClose,
   closeButtonRef,
   headingId,
   descId,
-  // ⬇️ 연식 관련
+  // 연식
   isNew,
   isOld,
   buildingAgeType,
   completionDate,
   newYearsThreshold = 5,
+  // ⭐ 리베이트 텍스트(만원 단위)
+  rebateText,
 }: HeaderSectionViewProps) {
   const pinSrc = useMemo(() => getPinUrl(pinKind), [pinKind]);
 
-  // 평점 숫자 변환
   const rating = useMemo(() => {
     const n =
       typeof parkingGrade === "number"
@@ -107,16 +92,6 @@ export default function HeaderSectionView({
     return s.length ? s : "-";
   }, [title]);
 
-  // 엘리베이터 라벨/스타일
-  const elevLabel = elevator ?? "-";
-  const elevClass =
-    elevLabel === "O"
-      ? "bg-blue-50 border-blue-200 text-blue-700"
-      : elevLabel === "X"
-      ? "bg-red-50 border-red-200 text-red-700"
-      : "bg-gray-50 border-gray-200 text-gray-600";
-
-  // ✅ 신축/구옥 라벨 계산 (구옥 우선)
   const ageLabel = useMemo<"신축" | "구옥" | "-">(() => {
     const { isNew: finalIsNew, isOld: finalIsOld } = resolveAgeFlags({
       isNewRaw: isNew,
@@ -134,22 +109,9 @@ export default function HeaderSectionView({
       newYearsThreshold,
     });
 
-    console.log("[HeaderSectionView] age label debug", {
-      inputs: {
-        isNew,
-        isOld,
-        buildingAgeType,
-        completionDate,
-        newYearsThreshold,
-      },
-      normalized: { finalIsNew, finalIsOld },
-      label,
-    });
-
     return label;
   }, [isNew, isOld, buildingAgeType, completionDate, newYearsThreshold]);
 
-  // 신축/구옥 뱃지 색상 (정보 없음일 때는 중립)
   const ageClass =
     ageLabel === "신축"
       ? "bg-blue-50 border-blue-200 text-blue-700"
@@ -157,30 +119,33 @@ export default function HeaderSectionView({
       ? "bg-amber-50 border-amber-200 text-amber-700"
       : "bg-gray-50 border-gray-200 text-gray-500";
 
+  // 🔢 리베이트 표시용 문자열 (0이하 / 비어있으면 숨김)
+  const rebateDisplay = useMemo(() => {
+    if (rebateText === null || rebateText === undefined) return null;
+    const raw = String(rebateText).trim();
+    if (!raw) return null;
+
+    const n = Number(raw.replace(/,/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return null;
+
+    return n.toLocaleString("ko-KR");
+  }, [rebateText]);
+
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-5 whitespace-nowrap overflow-hidden">
-        {/* 🔵 신축/구옥 뱃지 */}
         <span
           className={cn(
             "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",
             ageClass
           )}
-          title="신축/구옥"
-          aria-live="polite"
         >
           {ageLabel}
         </span>
 
         {/* 핀 아이콘 */}
         <div className="shrink-0 w-7 h-7 md:w-9 md:h-9 grid place-items-center">
-          <Image
-            src={pinSrc}
-            alt={`${pinKind} 핀`}
-            width={24}
-            height={32}
-            priority
-          />
+          <Image src={pinSrc} alt="pin" width={24} height={32} priority />
         </div>
 
         {/* 평점 */}
@@ -188,10 +153,8 @@ export default function HeaderSectionView({
           매물평점
         </span>
         <div className="shrink-0 w-[120px] md:w-[200px] leading-none">
-          <div className="hidden md:flex items-center">
-            <StarsRating value={rating} className="leading-none antialiased" />
-          </div>
-          <div className="flex md:hidden items-center">
+          <StarsRating value={rating} className="hidden md:flex" />
+          <div className="flex md:hidden">
             <StarMeter value={rating} showValue />
           </div>
         </div>
@@ -205,38 +168,34 @@ export default function HeaderSectionView({
         </span>
         <div className="flex-1 min-w-0 text-xl text-slate-900">
           <div className="h-9 md:h-10 flex items-center px-2 md:px-3 rounded-md bg-white">
-            <span
-              id={headingId}
-              className="truncate text-lg font-medium"
-              title={displayTitle}
-            >
-              {displayTitle}
-            </span>
-            {descId && (
-              <span id={descId} className="sr-only">
-                매물 상세 보기 모달
-              </span>
-            )}
+            <span className="truncate text-lg font-medium">{displayTitle}</span>
           </div>
         </div>
 
         {/* 구분선 */}
         <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
 
-        {/* 엘리베이터 */}
-        <span className="shrink-0 font-medium text-gray-800 text-sm md:text-[20px]">
-          엘리베이터
-        </span>
-        <span
-          className={cn(
-            "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",
-            elevClass
-          )}
-          title="엘리베이터 유무"
-          aria-live="polite"
-        >
-          {elevLabel}
-        </span>
+        {/* 🔥 리베이트 표시: 입력 헤더처럼 R + 박스, 인풋 없는 읽기 전용 */}
+        {rebateDisplay && (
+          <div className="shrink-0 flex items-center gap-3">
+            {/* ✅ R: h-9 + flex items-center 로 숫자와 동일 높이/정렬 */}
+            <span className="flex items-center h-9 text-[20px] md:text-[22px] font-extrabold text-red-500">
+              R
+            </span>
+
+            {/* 값 박스 – 인풋 대신 읽기 전용 박스 */}
+            <div
+              className={cn(
+                "min-w-[2rem] h-9 px-2 text-right",
+                "flex items-center justify-end",
+                "text-[20px] md:text-[22px] font-extrabold",
+                "text-gray-400 bg-white"
+              )}
+            >
+              {rebateDisplay}
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

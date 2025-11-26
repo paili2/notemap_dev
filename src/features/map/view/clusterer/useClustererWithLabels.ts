@@ -23,7 +23,7 @@ export function useClustererWithLabels(
   markers: readonly MapMarker[],
   {
     labelMaxLevel = 5,
-    clusterMinLevel = 6,
+    clusterMinLevel = 6, // 500m부터 클러스터
     onMarkerClick,
     fitToMarkers = false,
     labelGapPx = LABEL.GAP_PX,
@@ -109,7 +109,7 @@ export function useClustererWithLabels(
   usePreloadIcons(isReady, markers, defaultPinKind as PinKind, realMarkersKey);
   useInitClusterer(isReady, kakao, map, clustererRef, clusterMinLevel);
 
-  // 클러스터 클릭 확대 동작은 기본 유지
+  // 🔧 클러스터 기본 클릭-줌은 **끄지 않는다** (카카오 기본 동작 사용)
   useEffect(() => {
     if (!isReady || !clustererRef.current) return;
     try {
@@ -118,6 +118,9 @@ export function useClustererWithLabels(
       }
     } catch {}
   }, [isReady, realMarkersKey]);
+
+  // ❌ 커스텀 clusterclick 핸들러는 제거
+  //   - 카카오 기본 clusterclick: 클러스터 중심으로 줌인 → 그대로 사용
 
   useRebuildScene({
     isReady,

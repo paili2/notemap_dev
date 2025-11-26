@@ -31,10 +31,9 @@ import { api } from "@/shared/api/api";
 import { createPin, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
-import { buildAreaGroups } from "@/features/properties/lib/area";
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
-import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import type { UnitLine } from "@/features/properties/types/property-domain";
+import type { PinKind } from "@/features/pins/types";
 
 /* ───────────── 미디어 영속화 단계 API ───────────── */
 import { createPhotoGroup } from "@/shared/api/photoGroups";
@@ -82,9 +81,18 @@ const toBoolUndef = (v: unknown): boolean | undefined => {
   return undefined;
 };
 
+/** ✅ 실제 답사예정 핀 kind 값: PinKind 중 "question" 을 사용 */
+const VISIT_PLAN_PIN_KIND: PinKind = "question";
+
+/** pinKind 값이 '답사예정핀'인지 판별 */
+const isVisitPlanPinKind = (pinKind: any): boolean =>
+  String(pinKind) === VISIT_PLAN_PIN_KIND;
+
 /** ✅ asInner: true면 카드 안 내용만 렌더(딤/포털 없음) */
 type Props = Omit<PropertyCreateModalProps, "open"> & {
   asInner?: boolean;
+  /** 상위에서 내려주는 기본 핀종류 (없으면 그대로 둠) */
+  initialPinKind?: PinKind | null;
 };
 
 export default function PropertyCreateModalBody({
@@ -95,8 +103,41 @@ export default function PropertyCreateModalBody({
   initialLng,
   pinDraftId,
   asInner,
+  initialPinKind,
 }: Props) {
-  const f = useCreateForm({ initialAddress });
+  const f = useCreateForm({ initialAddress, pinDraftId });
+
+  /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부 */
+  const isVisitPlanPin = !pinDraftId && isVisitPlanPinKind(initialPinKind);
+
+  console.log("[PropertyCreateModalBody] initialPinKind =", initialPinKind);
+  console.log("[PropertyCreateModalBody] isVisitPlanPin =", isVisitPlanPin);
+  console.log(
+    "[PropertyCreateModalBody] form.pinKind BEFORE init =",
+    (f as any).pinKind
+  );
+
+  // ✅ 최초 마운트 시 pinKind 초기값 설정
+  const didInitPinKindRef = useRef(false);
+  useEffect(() => {
+    if (didInitPinKindRef.current) return;
+
+    const setPinKind = (f as any).setPinKind as
+      | ((kind: PinKind) => void)
+      | undefined;
+    if (typeof setPinKind !== "function") return;
+
+    const anyForm = f as any;
+    const currentKind = anyForm.pinKind as PinKind | null | undefined;
+
+    const targetKind: PinKind =
+      (initialPinKind as PinKind | null | undefined) ??
+      currentKind ??
+      ("1room" as PinKind);
+
+    setPinKind(targetKind);
+    didInitPinKindRef.current = true;
+  }, [f, initialPinKind]);
 
   const {
     imageFolders,
@@ -111,8 +152,6 @@ export default function PropertyCreateModalBody({
     onAddFiles,
     onChangeFileItemCaption,
     handleRemoveFileItem,
-
-    // ⬇️ 폴더 메타 (제목) 관리용
     groups,
     queueGroupTitle,
   } = usePropertyImages();
@@ -604,13 +643,24 @@ export default function PropertyCreateModalBody({
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
+  /* ====== 답사예정 핀 여부 & 최소 저장 조건 ====== */
+  const rawPinKind = (f as any).pinKind as PinKind | null | undefined;
+
+  const mainTitle = (f.title ?? "").trim();
+  const mainOfficePhone = (f.officePhone ?? "").trim();
+
   const save = useCallback(async () => {
     if (isSavingRef.current) return;
     isSavingRef.current = true;
     setIsSaving(true);
 
     try {
-      if (!f.title.trim()) return;
+      console.log("[PropertyCreate] save clicked");
+
+      if (!f.title.trim()) {
+        alert("매물명을 입력해 주세요.");
+        return;
+      }
 
       const latNum = Number(initialLat);
       const lngNum = Number(initialLng);
@@ -619,95 +669,136 @@ export default function PropertyCreateModalBody({
         return;
       }
 
-      // 🔹 가로 카드 폴더 제목 검증 (id 기반)
-      {
-        const foldersAny = imageFolders as any[];
+      const rawPinKindLocal = (f as any).pinKind as PinKind | null | undefined;
 
-        for (let idx = 0; idx < foldersAny.length; idx++) {
-          const folder = foldersAny[idx];
-          const isFolderObject =
-            folder && typeof folder === "object" && "items" in folder;
-          if (!isFolderObject) continue;
-
-          const items: ImageItem[] = Array.isArray(folder.items)
-            ? (folder.items as ImageItem[])
-            : [];
-          if (!items.length) continue;
-
-          const titleFromFolder =
-            typeof folder.title === "string" ? folder.title.trim() : "";
-
-          const meta = findGroupById(`folder-${idx}`);
-          const titleFromGroup =
-            meta && typeof meta.title === "string"
-              ? String(meta.title).trim()
-              : "";
-
-          const effectiveTitle = titleFromFolder || titleFromGroup;
-
-          if (!effectiveTitle) {
-            alert(`가로 카드 ${idx + 1}의 폴더 이름을 입력해 주세요.`);
-            return;
-          }
+      /* ====== 1) 답사예정핀 전용 분기 ====== */
+      if (isVisitPlanPin) {
+        if (!mainTitle) {
+          alert("매물명을 입력해 주세요.");
+          return;
         }
-      }
+        if (!isValidPhoneKR(f.officePhone)) {
+          alert("분양사무실 전화번호를 정확히 입력해 주세요.");
+          return;
+        }
 
-      // 전화번호 검증
-      if (!isValidPhoneKR(f.officePhone)) {
-        alert("전화번호를 입력해주세요");
+        if (!rawPinKindLocal) {
+          alert("핀 종류를 선택해 주세요.");
+          return;
+        }
+
+        const res = await api.post("/pin-drafts", {
+          lat: latNum,
+          lng: lngNum,
+          addressLine: f.address,
+        });
+
+        const created = res?.data?.data ?? res?.data ?? null;
+
+        await Promise.resolve(
+          (onSubmit as any)?.({
+            mode: "visit-plan-only",
+            pinDraftId:
+              created?.id ??
+              created?.pinDraftId ??
+              created?.pin_draft_id ??
+              null,
+            lat: latNum,
+            lng: lngNum,
+          })
+        );
+
+        onClose?.();
         return;
       }
-      if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
-        alert("전화번호를 입력해주세요");
+
+      /* ====== 2) 일반핀 저장(createPin) 로직 ====== */
+
+      if (!rawPinKindLocal) {
+        alert("핀 종류를 선택해 주세요.");
         return;
       }
 
-      // ✅ 준공일 형식 검증
-      let completionDateNormalized = (f.completionDate ?? "").trim();
-      if (completionDateNormalized) {
-        completionDateNormalized = normalizeDateInput(completionDateNormalized);
-        if (completionDateNormalized !== f.completionDate) {
-          f.setCompletionDate(completionDateNormalized);
-        }
-        if (!isValidIsoDateStrict(completionDateNormalized)) {
-          alert("준공일은 YYYY-MM-DD 형식으로 입력해주세요. 예: 2024-04-14");
-          return;
-        }
+      if (!f.isSaveEnabled) {
+        alert("필수 항목을 확인해 주세요.");
+        return;
       }
 
-      // 구조별 입력 가격 검증
-      {
-        const msg = validateUnitPriceRanges(f.unitLines);
-        if (msg) {
-          alert(msg);
-          return;
-        }
+      const priceError = validateUnitPriceRanges(f.unitLines as any[]);
+      if (priceError) {
+        alert(priceError);
+        return;
       }
 
-      // 개별 평수 입력 검증
-      {
-        const msg = validateAreaSets();
-        if (msg) {
-          alert(msg);
-          return;
-        }
+      const areaError = validateAreaSets();
+      if (areaError) {
+        alert(areaError);
+        return;
       }
 
-      const badgeFromKind = mapPinKindToBadge(f.pinKind);
-      const effectiveBadge = f.badge ?? badgeFromKind ?? undefined;
+      const rawCompletion = normalizeDateInput(f.completionDate);
+      const normalizedCompletion =
+        rawCompletion && rawCompletion.length >= 10
+          ? rawCompletion.slice(0, 10)
+          : rawCompletion;
 
-      const effectiveCompletionDate = completionDateNormalized || todayYmdKST();
+      if (normalizedCompletion && !isValidIsoDateStrict(normalizedCompletion)) {
+        alert("준공일은 YYYY-MM-DD 형식으로 입력해 주세요.");
+        return;
+      }
 
-      const strictBase = toStrictAreaSet(f.baseAreaSet);
-      const strictExtras = (
-        Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
-      ).map(toStrictAreaSet);
-      const areaGroups = buildAreaGroups(strictBase, strictExtras);
+      /* ========= 최저 실입 / 리베이트 값 수집 ========= */
+      const anyForm = f as any;
+
+      // ✅ 최저 실입(만원 단위)
+      const rawMinRealMoveInCost =
+        anyForm.minRealMoveInCost ??
+        anyForm.minRealMoveInCostText ??
+        anyForm.minRealMoveInCostRaw ??
+        null;
+
+      const minRealMoveInCost = numOrNull(rawMinRealMoveInCost);
+
+      // ✅ 리베이트: 헤더 R 인풋의 원본 텍스트(rebateRaw)만 사용
+      const rawRebate = String(anyForm.rebateRaw ?? "").trim();
+      const rebateNumeric = rawRebate.replace(/[^\d]/g, "");
+      const rebateText: string | null = rebateNumeric
+        ? rebateNumeric.slice(0, 50)
+        : null;
+
+      // ✅ 신축/구옥 선택 여부: buildingGrade 또는 isNew/isOld 둘 중 아무거나
+      const hasBuildingGrade =
+        anyForm.buildingGrade != null ||
+        anyForm.isNew === true ||
+        anyForm.isOld === true;
+
+      console.log("[save] rawMinRealMoveInCost =", rawMinRealMoveInCost);
+      console.log("[save] minRealMoveInCost =", minRealMoveInCost);
+      console.log("[save] rebateText =", rebateText);
+      console.log("[save] hasBuildingGrade =", hasBuildingGrade);
+
+      if (!hasBuildingGrade) {
+        alert("신축/구옥을 선택해 주세요.");
+        return;
+      }
+      if (anyForm.elevator !== "O" && anyForm.elevator !== "X") {
+        alert("엘리베이터 유무를 선택해 주세요.");
+        return;
+      }
+      if (!rebateText) {
+        alert("리베이트를 입력해 주세요.");
+        return;
+      }
+
+      // ✅ badge: 직접 입력이 없으면 핀 종류 기반 기본값 사용
+      const effectiveBadge =
+        (f.badge ?? "").trim() ||
+        (rawPinKindLocal ? mapPinKindToBadge(rawPinKindLocal) : "") ||
+        undefined;
 
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
-        badge: effectiveBadge,
         officeName: f.officeName,
         officePhone: f.officePhone,
         officePhone2: f.officePhone2,
@@ -716,17 +807,23 @@ export default function PropertyCreateModalBody({
         roomNo: f.roomNo,
         structure: f.structure,
 
-        parkingGrade: f.parkingGrade,
+        badge: effectiveBadge ?? null,
 
-        parkingType: f.parkingType,
-        totalParkingSlots: (f as any).totalParkingSlots,
-        completionDate: effectiveCompletionDate,
+        parkingGrade: f.parkingGrade,
+        parkingType: f.parkingType ?? null,
+        totalParkingSlots: f.totalParkingSlots,
+
+        completionDate: normalizedCompletion,
         salePrice: f.salePrice,
 
-        baseAreaSet: strictBase,
-        extraAreaSets: strictExtras,
+        minRealMoveInCost,
+        rebateText,
+
+        baseAreaSet: f.baseAreaSet,
+        extraAreaSets: Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [],
 
         elevator: f.elevator,
+        registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
 
@@ -746,222 +843,72 @@ export default function PropertyCreateModalBody({
         secretMemo: f.secretMemo,
 
         aspects: f.aspects,
-        unitLines: f.unitLines,
+        unitLines: f.unitLines as UnitLine[],
 
         imageFolders,
         fileItems,
 
-        pinKind: f.pinKind,
+        pinKind: rawPinKindLocal,
         lat: latNum,
         lng: lngNum,
+
+        pinDraftId,
       });
 
-      const reservationId = (f as any).reservationId as string | number | null;
-      const explicitPinDraftId =
-        pinDraftId != null
-          ? pinDraftId
-          : ((f as any).pinDraftId as string | number | null);
+      console.log("[PropertyCreate] payload →", payload);
 
-      const selected: string[] = Array.isArray(f.options) ? f.options : [];
-      const has = (label: string) => selected.includes(label);
-      const extraOptionsTextRaw = String(f.optionEtc ?? "").trim();
-      const pinOptions = {
-        hasAircon: has("에어컨"),
-        hasFridge: has("냉장고"),
-        hasWasher: has("세탁기"),
-        hasDryer: has("건조기"),
-        hasBidet: has("비데"),
-        hasAirPurifier: has("공기순환기"),
-        ...(extraOptionsTextRaw
-          ? { extraOptionsText: extraOptionsTextRaw.slice(0, 255) }
-          : {}),
-      };
+      // ✅ dto에선 rebate 필드 제거 (백엔드는 rebateText만 받음)
+      const { rebate: _ignoredRebate, ...payloadWithoutRebate } =
+        payload as any;
 
-      const directions: string[] = Array.isArray((f as any).aspects)
-        ? Array.from(
-            new Set(
-              (f as any).aspects
-                .map((a: any) => (a?.dir ?? "").trim())
-                .filter((d: string) => d.length > 0)
-            )
-          )
-        : [];
+      const dto: CreatePinDto = {
+        ...(payloadWithoutRebate as any),
 
-      const sourceUnits: UnitLine[] = Array.isArray((f as any).unitLines)
-        ? (f as any).unitLines
-        : Array.isArray((f as any).units)
-        ? (f as any).units
-        : [];
-
-      const unitsDto =
-        sourceUnits.length > 0
-          ? sourceUnits.map((unit: UnitLine) => ({
-              rooms: ((): number | null => {
-                const v = (unit as any)?.rooms;
-                if (v === "" || v == null) return null;
-                const n = Number(v);
-                return Number.isFinite(n) ? Math.trunc(n) : null;
-              })(),
-              baths: ((): number | null => {
-                const v = (unit as any)?.baths;
-                if (v === "" || v == null) return null;
-                const n = Number(v);
-                return Number.isFinite(n) ? Math.trunc(n) : null;
-              })(),
-              hasLoft: !!(unit as any)?.duplex,
-              hasTerrace: !!(unit as any)?.terrace,
-              minPrice: ((): number | null => {
-                const v = (unit as any)?.primary;
-                if (v === "" || v == null) return null;
-                const n = Number(v);
-                return Number.isFinite(n) ? Math.trunc(n) : null;
-              })(),
-              maxPrice: ((): number | null => {
-                const v = (unit as any)?.secondary;
-                if (v === "" || v == null) return null;
-                const n = Number(v);
-                return Number.isFinite(n) ? Math.trunc(n) : null;
-              })(),
-            }))
-          : [];
-
-      const isOld = toBoolUndef((f as any).isOld ?? (f as any).is_old);
-      const isNew = toBoolUndef((f as any).isNew ?? (f as any).is_new);
-
-      const pinDto: CreatePinDto = {
+        // 좌표 & 주소
         lat: latNum,
         lng: lngNum,
-        parkingGrade: f.parkingGrade || undefined,
-        addressLine: f.address ?? "",
-        name: f.title ?? "임시 매물",
-        contactMainPhone: (f.officePhone ?? "").trim(),
-        contactSubPhone: (f.officePhone2 ?? "").trim()
-          ? (f.officePhone2 ?? "").trim()
-          : undefined,
-        completionDate: effectiveCompletionDate,
-        buildingType: (f as any).buildingType ?? null,
-        totalHouseholds: ((): number | null => {
-          const s = String(f.totalHouseholds ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        totalBuildings: ((): number | null => {
-          const s = String(f.totalBuildings ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        totalFloors: ((): number | null => {
-          const s = String(f.totalFloors ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        remainingHouseholds: ((): number | null => {
-          const s = String(f.remainingHouseholds ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        registrationTypeId: ((): number | null => {
-          const s = String((f as any).registrationTypeId ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        parkingTypeId: ((): number | null => {
-          const s = String((f as any).parkingTypeId ?? "").trim();
-          if (!s) return null;
-          const n = Number(s);
-          return Number.isFinite(n) ? n : null;
-        })(),
-        slopeGrade: f.slopeGrade ?? null,
-        structureGrade: f.structureGrade ?? null,
-        badge: (effectiveBadge as any) ?? null,
+        addressLine: f.address ?? null,
+
+        // 매물명
+        name: f.title.trim(),
+
+        // 메모
         publicMemo: f.publicMemo ?? null,
         privateMemo: f.secretMemo ?? null,
-        hasElevator: f.elevator === "O",
-        totalParkingSlots: ((): number | null => {
-          const v = (f as any).totalParkingSlots;
-          if (v === "" || v == null) return null;
-          const n = Number(v);
-          return Number.isFinite(n) ? Math.trunc(n) : null;
-        })(),
-        options: pinOptions,
-        directions,
-        minRealMoveInCost: ((): number | null => {
-          const v = f.salePrice;
-          if (v === "" || v == null) return null;
-          const n = Number(v);
-          return Number.isFinite(n) ? Math.trunc(n) : null;
-        })(),
-        ...(areaGroups && areaGroups.length > 0 ? { areaGroups } : {}),
-        ...(explicitPinDraftId != null && {
-          pinDraftId: String(explicitPinDraftId),
-        }),
-        ...(unitsDto.length > 0 ? { units: unitsDto } : {}),
-        ...(isOld !== undefined ? { isOld } : {}),
-        ...(isNew !== undefined ? { isNew } : {}),
+
+        // 최저 실입
+        minRealMoveInCost,
+
+        // ✅ 리베이트 텍스트
+        rebateText,
+
+        // 안전하게 다시 명시
+        pinKind: rawPinKindLocal,
+        pinDraftId,
       } as any;
 
-      const { id: pinId, matchedDraftId } = await createPin(pinDto);
+      const createdPin = await createPin(dto);
+      const createdData = (createdPin as any)?.data ?? createdPin;
+      const pinId =
+        createdData?.id ?? createdData?.pinId ?? createdData?.pin_id ?? null;
 
-      try {
+      if (pinId != null) {
         for (let i = 0; i < (imageFolders as any[]).length; i++) {
           await persistOneCard(pinId, i);
         }
-        await persistVerticalFiles(pinId);
-      } catch (mediaErr) {
-        console.warn("[PropertyCreate] media persist failed:", mediaErr);
-      }
-
-      try {
-        if (reservationId != null) {
-          await api.delete(`/survey-reservations/${reservationId}`);
-          removeReservation?.(String(reservationId));
-        } else if ((explicitPinDraftId ?? matchedDraftId) != null) {
-          const pinDraftId = explicitPinDraftId ?? matchedDraftId;
-          const listRes = await api.get("/survey-reservations/scheduled");
-          const arr = Array.isArray(listRes.data?.data)
-            ? listRes.data.data
-            : Array.isArray(listRes.data)
-            ? listRes.data
-            : [];
-          const target = arr.find(
-            (r: any) =>
-              String(r?.pin_draft_id) === String(pinDraftId) ||
-              String(r?.pin?.draftId) === String(pinDraftId)
-          );
-          if (target?.id != null) {
-            await api.delete(`/survey-reservations/${target.id}`);
-            removeReservation?.(String(target.id));
-          }
-        }
-      } catch (err: any) {
-        const st = err?.response?.status;
-        if (st !== 404 && st !== 403) {
-          console.warn("reservation cleanup failed:", err);
+        if (fileItems.length > 0) {
+          await persistVerticalFiles(pinId);
         }
       }
 
-      if (explicitPinDraftId != null) {
-        removeDraft?.(String(explicitPinDraftId));
+      if (pinDraftId != null) {
+        removeDraft(pinDraftId);
       }
 
       await Promise.resolve(
-        onSubmit?.({
-          pinId: String(pinId),
-          matchedDraftId: explicitPinDraftId ?? matchedDraftId ?? null,
-          lat: latNum,
-          lng: lngNum,
-          payload,
-        } as any)
+        (onSubmit as any)?.({ mode: "create", pin: createdData })
       );
-
-      if (!asInner) {
-        onClose?.();
-      }
+      onClose?.();
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
       const msg =
@@ -989,6 +936,9 @@ export default function PropertyCreateModalBody({
     pinDraftId,
     asInner,
     findGroupById,
+    isVisitPlanPin,
+    mainTitle,
+    mainOfficePhone,
   ]);
 
   const imagesProp = useMemo(
@@ -1028,60 +978,187 @@ export default function PropertyCreateModalBody({
     ]
   );
 
+  /* ====== 답사예정 핀일 때 저장 가능 조건 ====== */
+  const minimalForVisitPlan = !!mainTitle && !!mainOfficePhone;
+
+  const anyFormForCanSave = f as any;
+
+  // ✅ 신축/구옥 선택 여부
+  const hasBuildingGradeForCanSave =
+    anyFormForCanSave.buildingGrade != null ||
+    anyFormForCanSave.isNew === true ||
+    anyFormForCanSave.isOld === true;
+
+  // ✅ 엘리베이터 선택 여부
+  const elevatorSelected =
+    anyFormForCanSave.elevator === "O" || anyFormForCanSave.elevator === "X";
+
+  // ✅ 리베이트 인풋이 채워졌는지 (rebateRaw 기준, 숫자만 추출)
+  const rawRebateForCanSave = String(
+    (anyFormForCanSave as any).rebateRaw ?? ""
+  ).trim();
+  const rebateFilled = rawRebateForCanSave.replace(/[^\d]/g, "").length > 0;
+
+  // 🔹 버튼 활성에 필요한 추가 필수들
+  const extraRequiredFilled =
+    hasBuildingGradeForCanSave && elevatorSelected && rebateFilled;
+
+  console.log("[canSave]", {
+    rawIsSaveEnabled: f.isSaveEnabled,
+    hasBuildingGradeForCanSave,
+    elevatorSelected,
+    rebateFilled,
+    isVisitPlanPin,
+    minimalForVisitPlan,
+  });
+
+  const canSave = isVisitPlanPin
+    ? minimalForVisitPlan && !isSaving
+    : f.isSaveEnabled && extraRequiredFilled && !isSaving;
+
+  /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값 초기화 */
+  const prevIsVisitPlanRef = useRef(isVisitPlanPin);
+  useEffect(() => {
+    const prev = prevIsVisitPlanRef.current;
+
+    if (isVisitPlanPin && prev === false) {
+      const anyForm = f as any;
+
+      anyForm.setBuildingGrade?.(null);
+      anyForm.setParkingGrade?.("");
+      anyForm.setSlopeGrade?.("");
+      anyForm.setStructureGrade?.("");
+
+      anyForm.setBuildingType?.(null);
+      anyForm.buildingType = null;
+
+      anyForm.setCompletionDate?.("");
+      anyForm.completionDate = "";
+
+      if (typeof anyForm.setSalePrice === "function") {
+        anyForm.setSalePrice(null);
+      } else {
+        anyForm.salePrice = null;
+      }
+
+      anyForm.setTotalBuildings?.("");
+      anyForm.setTotalFloors?.("");
+      anyForm.setTotalHouseholds?.("");
+      anyForm.setRemainingHouseholds?.("");
+
+      anyForm.setTotalParkingSlots?.(null);
+      anyForm.setParkingType?.("");
+      anyForm.setParkingTypeId?.(null);
+
+      anyForm.setElevator?.(null);
+
+      const emptyArea: StrictAreaSet = {
+        title: "",
+        exMinM2: "",
+        exMaxM2: "",
+        exMinPy: "",
+        exMaxPy: "",
+        realMinM2: "",
+        realMaxM2: "",
+        realMinPy: "",
+        realMaxPy: "",
+      };
+      anyForm.setBaseAreaSet?.(emptyArea);
+      anyForm.setExtraAreaSets?.([]);
+
+      if (typeof anyForm.setUnitLines === "function") {
+        anyForm.setUnitLines([]);
+      } else {
+        anyForm.unitLines = [];
+      }
+
+      anyForm.setAspects?.([]);
+
+      anyForm.setOptions?.([]);
+      anyForm.setEtcChecked?.(false);
+      anyForm.setOptionEtc?.("");
+      anyForm.setPublicMemo?.("");
+      anyForm.setSecretMemo?.("");
+    }
+
+    prevIsVisitPlanRef.current = isVisitPlanPin;
+  }, [isVisitPlanPin, f]);
+
   /* ================= 카드 내부 레이아웃 ================= */
   const content = (
     <>
-      <HeaderContainer form={f} onClose={onClose} />
+      <HeaderContainer
+        form={f}
+        onClose={onClose}
+        isVisitPlanPin={isVisitPlanPin}
+      />
 
-      {/* ⭐ 내부 스크롤 래퍼에 ref 연결 + 가로 스크롤 숨김 */}
       <div
         ref={scrollRef}
         className="
           flex-1 min-h-0
           overflow-y-auto overflow-x-hidden overscroll-y-contain
           px-4 py-4 md:px-5 md:py-4
-          grid gap-4 md:gap-6
-          grid-cols-1 md:grid-cols-[300px_1fr]
         "
       >
-        <ImagesContainer images={imagesProp} />
+        <div
+          className="
+            grid gap-4 md:gap-6
+            grid-cols-1 md:grid-cols-[300px_1fr]
+          "
+        >
+          <fieldset
+            disabled={isVisitPlanPin}
+            className={isVisitPlanPin ? "opacity-60" : ""}
+          >
+            <ImagesContainer images={imagesProp} />
+          </fieldset>
 
-        {/* 오른쪽 컬럼: 내용 넓이 제한용 min-w-0 */}
-        <div className="space-y-6 min-w-0">
-          <BasicInfoContainer form={f} />
-          <NumbersContainer form={f} />
-          <ParkingContainer form={parkingForm} />
-          <CompletionRegistryContainer form={f} />
-          <AspectsContainer form={f} />
-          <AreaSetsContainer
-            form={{
-              baseAreaSet: toStrictAreaSet(f.baseAreaSet),
-              setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
-              extraAreaSets: (Array.isArray(f.extraAreaSets)
-                ? f.extraAreaSets
-                : []
-              ).map(toStrictAreaSet),
-              setExtraAreaSets: (arr: StrictAreaSet[]) =>
-                f.setExtraAreaSets(arr),
-            }}
-          />
-          <StructureLinesContainer form={f} presets={STRUCTURE_PRESETS} />
-          <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
-          <MemosContainer form={f} />
+          <div className="space-y-6 min-w-0">
+            <BasicInfoContainer form={f} />
+
+            <fieldset
+              disabled={isVisitPlanPin}
+              className={isVisitPlanPin ? "opacity-60" : ""}
+            >
+              <div className="space-y-6">
+                <NumbersContainer form={f} />
+                <ParkingContainer form={parkingForm} />
+                <CompletionRegistryContainer
+                  form={f}
+                  isVisitPlanPin={isVisitPlanPin}
+                />
+                <AspectsContainer form={f} isVisitPlanPin={isVisitPlanPin} />
+                <AreaSetsContainer
+                  form={{
+                    baseAreaSet: toStrictAreaSet(f.baseAreaSet),
+                    setBaseAreaSet: (v: StrictAreaSet) => f.setBaseAreaSet(v),
+                    extraAreaSets: (Array.isArray(f.extraAreaSets)
+                      ? f.extraAreaSets
+                      : []
+                    ).map(toStrictAreaSet),
+                    setExtraAreaSets: (arr: StrictAreaSet[]) =>
+                      f.setExtraAreaSets(arr),
+                  }}
+                />
+                <StructureLinesContainer
+                  form={f}
+                  presets={STRUCTURE_PRESETS}
+                  isVisitPlanPin={isVisitPlanPin}
+                />
+                <OptionsContainer form={f} PRESET_OPTIONS={PRESET_OPTIONS} />
+                <MemosContainer form={f} />
+              </div>
+            </fieldset>
+          </div>
         </div>
       </div>
 
-      <FooterButtons
-        onClose={onClose}
-        onSave={save}
-        canSave={f.isSaveEnabled && !isSaving}
-      />
+      <FooterButtons onClose={onClose} onSave={save} canSave={canSave} />
     </>
   );
 
-  if (asInner) {
-    return content;
-  }
+  if (asInner) return content;
 
   return (
     <div className="fixed inset-0 z-[100]">

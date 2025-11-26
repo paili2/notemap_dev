@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useMapHomeState } from "../hooks/useMapHomeState";
 import { MapHomeUI } from "../MapHome/MapHomeUI/MapHomeUI";
 
@@ -14,6 +14,10 @@ import { useReserveFromMenu, eqId } from "./hooks/useReserveFromMenu";
 
 import { createPinDraft } from "@/shared/api/pins";
 import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
+import { useToast } from "@/hooks/use-toast";
+import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
+
+const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -27,6 +31,44 @@ export default function MapHomePage() {
   }
 
   const s = useMapHomeState();
+  const { toast } = useToast();
+
+  // 🔍 250m(레벨 5) 이하에서만 컨텍스트 메뉴 유지
+  useEffect(() => {
+    const kakaoSDK = (s as any).kakaoSDK;
+    const map = (s as any).mapInstance;
+    if (!kakaoSDK || !map) return;
+
+    const ev = kakaoSDK.maps?.event ?? (globalThis as any)?.kakao?.maps?.event;
+    if (!ev || typeof ev.addListener !== "function") return;
+
+    let closing = false;
+
+    const handler = () => {
+      const level = map.getLevel?.();
+      if (typeof level !== "number") return;
+
+      // 250m(레벨 5)보다 더 축소됐고, 메뉴가 열려있고, 아직 닫는 중이 아닐 때만
+      if (level > PIN_MENU_MAX_LEVEL && (s as any).menuOpen && !closing) {
+        closing = true;
+        (s as any).closeMenu?.();
+      }
+    };
+
+    // 🔴 기존: "zoom_changed"
+    // ev.addListener(map, "zoom_changed", handler);
+
+    // ✅ 수정: 줌/이동이 끝난 뒤 한 번만 호출되도록 "idle" 사용
+    ev.addListener(map, "idle", handler);
+
+    return () => {
+      try {
+        ev.removeListener(map, "idle", handler);
+      } catch {
+        /* noop */
+      }
+    };
+  }, [s]);
 
   const {
     nestedFavorites,
@@ -87,13 +129,9 @@ export default function MapHomePage() {
   );
 
   const onCreateFromMenu = useCallback(
-    (pos: { lat: number; lng: number }) => {
-      // 1) 클릭한 위치를 draftPin으로 저장해서
-      //    실제 클릭 좌표가 생성 모달로 넘어가게
-      (s as any).setDraftPin?.(pos);
-
-      // 2) 나머지 동작은 그대로
-      (s as any).onCreateFromMenu?.() ?? (s as any).createFromMenu?.();
+    (args: CreateFromPinArgs) => {
+      // 좌표/모드 처리 포함한 실제 로직은 useMapHomeState 쪽에서 처리
+      (s as any).onCreateFromMenu?.(args) ?? (s as any).createFromMenu?.(args);
     },
     [s]
   );
@@ -105,7 +143,7 @@ export default function MapHomePage() {
     [s]
   );
 
-  // ✅ MapHomeUI → useMapHomeState onOpenMenu 어댑터
+  // ✅ MapHomeUI → useMapHomeState onOpenMenu 어댑터 + 줌 레벨 가드
   const handleOpenMenu = useCallback(
     (p: {
       position: { lat: number; lng: number };
@@ -115,7 +153,6 @@ export default function MapHomePage() {
     }) => {
       const payloadForState = {
         ...p,
-        // 내부 상태 쪽은 null 대신 undefined 쪽이 더 자연스러우면 변환
         propertyId: p.propertyId ?? undefined,
       };
       (s as any).onOpenMenu?.(payloadForState);
@@ -174,48 +211,39 @@ export default function MapHomePage() {
     reserveVisitPlan: reserveVisitPlanFromPayload,
   });
 
-  // ===== 메뉴 타이틀 메모 =====
   const menuTitle = useMemo(() => {
     if (!s.menuTargetId) return null;
     return s.items.find((p) => eqId(p.id, s.menuTargetId))?.title ?? null;
   }, [s.items, s.menuTargetId]);
 
-  // ===== MapHomeUI에 내려줄 프롭 메모 =====
   const uiProps = useMemo(
     () => ({
-      /* core */
       appKey: KAKAO_MAP_KEY,
       kakaoSDK: s.kakaoSDK,
       mapInstance: s.mapInstance,
 
-      /* data */
       items: s.items,
       filtered: s.filtered,
       markers: s.markers,
       fitAllOnce: s.fitAllOnce,
 
-      /* search & filter */
       q: s.q,
       filter: s.filter,
       onChangeQ,
       onChangeFilter,
       onSubmitSearch,
 
-      /* toggles */
       useSidebar: s.useSidebar,
       setUseSidebar: s.setUseSidebar,
       useDistrict: s.useDistrict,
 
-      /* POI */
       poiKinds: s.poiKinds,
       onChangePoiKinds,
 
-      /* 즐겨찾기 */
       addFav: true,
       favById: fav.favById,
       onAddFav: fav.onAddFav,
 
-      /* menu */
       menuOpen: s.menuOpen,
       menuAnchor: s.menuAnchor,
       menuTargetId: s.menuTargetId,
@@ -223,16 +251,13 @@ export default function MapHomePage() {
       menuJibunAddr: s.menuJibunAddr,
       menuTitle,
       onCloseMenu: s.closeMenu,
-      // 상세보기는 MapHomeUI 내부에서 처리
       onCreateFromMenu,
       onPlanFromMenu: s.onPlanFromMenu,
 
-      /* map callbacks */
       onMarkerClick: s.onMarkerClick,
       onMapReady: s.onMapReady,
       onViewportChange: s.onViewportChange,
 
-      /* modals (MapHomeUI가 view를 직접 관리) */
       editOpen: s.editOpen,
       createOpen: s.createOpen,
       selectedId: s.selectedId,
@@ -248,12 +273,12 @@ export default function MapHomePage() {
       createHostHandlers: s.createHostHandlers,
       editHostHandlers: s.editHostHandlers,
 
-      /* misc */
       hideLabelForId: s.hideLabelForId,
-      onOpenMenu: handleOpenMenu, // ✅ 어댑터 사용
+      onOpenMenu: handleOpenMenu,
       onChangeHideLabelForId,
       onReserveFromMenu,
       createFromDraftId: s.createFromDraftId,
+      createPinKind: (s as any).createPinKind ?? null,
     }),
     [
       KAKAO_MAP_KEY,

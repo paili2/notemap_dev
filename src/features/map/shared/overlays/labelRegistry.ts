@@ -43,6 +43,7 @@ export function registerLabel(
 ) {
   entries.add({ el, lat, lng, map });
   el.dataset.mapLabel = "1";
+  el.style.pointerEvents = "none";
 
   // 이미 존재하는 억제영역에 들어오면 즉시 숨김 (map 지정/미지정 모두 체크)
   for (const z of activeZones) {
@@ -56,7 +57,9 @@ export function registerLabel(
 
 export function unregisterLabel(el: HTMLElement) {
   for (const e of Array.from(entries)) {
-    if (e.el === el) entries.delete(e);
+    if (e.el === el) {
+      entries.delete(e);
+    }
   }
 }
 
@@ -68,6 +71,7 @@ export function hideLabelsAround(
   radiusPx = 36
 ) {
   activeZones.add({ map, lat, lng, radius: radiusPx });
+
   for (const e of entries) {
     if (e.map !== map) continue;
     if (distPx(map, { lat: e.lat, lng: e.lng }, { lat, lng }) <= radiusPx) {
@@ -79,6 +83,7 @@ export function hideLabelsAround(
 /** map 미지정: 모든 엔트리에 적용 (fallback) */
 export function hideLabelsAroundAny(lat: number, lng: number, radiusPx = 36) {
   activeZones.add({ lat, lng, radius: radiusPx }); // map 없음 = 글로벌 영역
+
   for (const e of entries) {
     if (distPx(e.map, { lat: e.lat, lng: e.lng }, { lat, lng }) <= radiusPx) {
       e.el.classList.add("hidden");
@@ -92,8 +97,10 @@ export function showLabelsAround(
   lng: number,
   radiusPx = 48
 ) {
+  // 근처 억제영역 제거
   for (const z of Array.from(activeZones)) {
     if (z.map && z.map !== map) continue;
+
     if (
       distPx(map, { lat: z.lat, lng: z.lng }, { lat, lng }) <=
       Math.max(4, Math.min(radiusPx, z.radius))
@@ -101,6 +108,8 @@ export function showLabelsAround(
       activeZones.delete(z);
     }
   }
+
+  // 라벨 다시 보이게
   for (const e of entries) {
     if (e.map !== map) continue;
     if (distPx(map, { lat: e.lat, lng: e.lng }, { lat, lng }) <= radiusPx) {
@@ -110,10 +119,11 @@ export function showLabelsAround(
 }
 
 export function showLabelsAroundAny(lat: number, lng: number, radiusPx = 48) {
+  // 글로벌 억제영역 중, 근처 것들 제거
   for (const z of Array.from(activeZones)) {
-    if (z.map) continue; // 글로벌 영역만 제거
-    // e.map으로 거리 계산
-    // (가장 가까운 엔트리의 맵으로 근사) — 전체 제거가 목적이라 느슨하게
+    if (z.map) continue; // 글로벌 영역만
+
+    // 가장 가까운 엔트리 기준으로 거리 계산 (느슨하게)
     for (const e of entries) {
       if (
         distPx(e.map, { lat: z.lat, lng: z.lng }, { lat, lng }) <=
@@ -124,6 +134,8 @@ export function showLabelsAroundAny(lat: number, lng: number, radiusPx = 48) {
       }
     }
   }
+
+  // 라벨 다시 보이게
   for (const e of entries) {
     if (distPx(e.map, { lat: e.lat, lng: e.lng }, { lat, lng }) <= radiusPx) {
       e.el.classList.remove("hidden");
@@ -131,9 +143,14 @@ export function showLabelsAroundAny(lat: number, lng: number, radiusPx = 48) {
   }
 }
 
+// 전역 이벤트 핸들러 중복 등록 방지 플래그
+let handlersAttached = false;
+
 // 전역 이벤트 핸들러
 export function attachLabelRegistryGlobalHandlers() {
   if (typeof window === "undefined") return;
+  if (handlersAttached) return;
+  handlersAttached = true;
 
   const hideHandler = (ev: Event) => {
     const d = (ev as CustomEvent).detail ?? {};

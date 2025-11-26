@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useEffect } from "react";
+import { useMemo, useCallback } from "react";
 import { useHeaderFields } from "./slices/useHeaderFields";
 import { useBasicInfo } from "./slices/useBasicInfo";
 import { useNumbers } from "./slices/useNumbers";
@@ -13,9 +13,13 @@ import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
 import { sanitizeAreaGroups } from "@/features/properties/lib/forms/dtoUtils";
 
-type Args = { initialAddress?: string };
+type Args = {
+  initialAddress?: string;
+  /** MapHome → ModalsHost → PropertyCreateModalBody 에서 내려주는 draftId */
+  pinDraftId?: number | string | null;
+};
 
-export function useCreateForm({ initialAddress }: Args) {
+export function useCreateForm({ initialAddress, pinDraftId }: Args) {
   const header = useHeaderFields();
   const basic = useBasicInfo({ initialAddress });
   const nums = useNumbers();
@@ -26,9 +30,12 @@ export function useCreateForm({ initialAddress }: Args) {
   const units = useUnitLines();
   const opts = useOptionsMemos();
 
-  // 저장 가능 여부 (parkingGrade 포함해 전달)
-  const { isSaveEnabled } = useCreateValidation({
-    ...header.state, // ⬅ title, parkingGrade, (isNew/isOld가 들어온다면 함께 전달)
+  // ─────────────────────────────────────────────────────────
+  // ① 기본 저장 가능 여부 (전체 검증용)
+  // ─────────────────────────────────────────────────────────
+  const { isSaveEnabled: rawIsSaveEnabled } = useCreateValidation({
+    // header 에는 title / parkingGrade / elevator / pinKind / badge / rebateRaw 등이 포함됨
+    ...header.state,
     ...basic.state,
     ...nums.state,
     ...parking.state,
@@ -49,54 +56,24 @@ export function useCreateForm({ initialAddress }: Args) {
     () => sanitizeAreaGroups(areaSetsCombined),
     [areaSetsCombined]
   );
+
   const getAreaGroups = useCallback(
     () => sanitizeAreaGroups(areaSetsCombined),
     [areaSetsCombined]
   );
 
   // ─────────────────────────────────────────────────────────
-  // ✅ 신축/구옥 기본값 보정: 기본 "신축=true, 구옥=false"
-  //    - 헤더 슬라이스에 isNew/isOld 또는 is_new/is_old 중 아무거나 들어와도 대응
-  //    - 둘 다 undefined 이거나 둘 다 false면 신축으로 강제 세팅
+  // ✅ 신축/구옥 토글 액션 얻기 (자동 기본값은 세팅하지 않음)
   // ─────────────────────────────────────────────────────────
   const noop = (() => {}) as any;
   const setIsNew =
-    (header.actions as any)?.setIsNew ??
-    (header.actions as any)?.set_isNew ??
+    (grades.actions as any)?.setIsNew ??
+    (grades.actions as any)?.set_isNew ??
     noop;
   const setIsOld =
-    (header.actions as any)?.setIsOld ??
-    (header.actions as any)?.set_isOld ??
+    (grades.actions as any)?.setIsOld ??
+    (grades.actions as any)?.set_isOld ??
     noop;
-
-  useEffect(() => {
-    const hs: any = header.state ?? {};
-    const newVal =
-      typeof hs.isNew === "boolean"
-        ? hs.isNew
-        : (hs.is_new as boolean | undefined);
-    const oldVal =
-      typeof hs.isOld === "boolean"
-        ? hs.isOld
-        : (hs.is_old as boolean | undefined);
-
-    const hasNew = typeof newVal === "boolean";
-    const hasOld = typeof oldVal === "boolean";
-
-    // 둘 다 비어있으면 기본 신축
-    if (!hasNew && !hasOld) {
-      setIsNew(true);
-      setIsOld(false);
-      return;
-    }
-    // 둘 다 false라면(무선택 상태) 기본 신축
-    if (newVal === false && oldVal === false) {
-      setIsNew(true);
-      setIsOld(false);
-      return;
-    }
-    // 값이 하나라도 명시돼 있으면 그대로 둔다(드래프트/수정 진입 보호)
-  }, [header.state, setIsNew, setIsOld]);
 
   // 상호배타 선택 유틸 (UI에서 바로 호출)
   const selectNew = useCallback(() => {
@@ -108,6 +85,11 @@ export function useCreateForm({ initialAddress }: Args) {
     setIsNew(false);
     setIsOld(true);
   }, [setIsNew, setIsOld]);
+
+  // ─────────────────────────────────────────────────────────
+  // ✅ 저장 가능 여부: 답사예정 특수 로직은 Modal 쪽에서 처리
+  // ─────────────────────────────────────────────────────────
+  const isSaveEnabled = rawIsSaveEnabled;
 
   return useMemo(() => {
     const noopLocal = (() => {}) as any;
@@ -125,8 +107,8 @@ export function useCreateForm({ initialAddress }: Args) {
       (parking.actions as any).setParkingTypeId ?? noopLocal;
 
     return {
-      // actions
-      ...header.actions, // ⬅ setParkingGrade, setIsNew/setIsOld 등
+      // ── actions (헤더 + 나머지 전체)
+      ...header.actions, // setTitle, setParkingGrade, setElevator, setPinKind, setBadge, setRebateRaw 포함
       ...basic.actions,
       ...nums.actions,
       ...parking.actions,
@@ -136,8 +118,8 @@ export function useCreateForm({ initialAddress }: Args) {
       ...units.actions,
       ...opts.actions,
 
-      // state
-      ...header.state, // ⬅ parkingGrade, isNew/isOld 포함
+      // ── state (헤더 + 나머지 전체)
+      ...header.state, // title, parkingGrade, elevator, pinKind, badge, rebateRaw 포함
       ...basic.state,
       ...nums.state,
       ...parking.state,
@@ -164,6 +146,7 @@ export function useCreateForm({ initialAddress }: Args) {
       selectNew,
       selectOld,
 
+      // ✅ 최종 저장 가능 여부 (답사예정이면 완화된 조건은 Modal 쪽에서 별도 처리)
       isSaveEnabled,
     };
   }, [
@@ -176,10 +159,10 @@ export function useCreateForm({ initialAddress }: Args) {
     areas,
     units,
     opts,
-    isSaveEnabled,
     areaSetsCombined,
     areaGroups,
     selectNew,
     selectOld,
+    isSaveEnabled,
   ]);
 }
