@@ -629,16 +629,22 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const target = event.target as Node | null;
       if (!target) return;
 
+      // ✅ 1) 필터 검색 포탈 내부 클릭이면 무시
+      const filterPortalRoot = document.getElementById("filter-search-root");
+      if (filterPortalRoot && filterPortalRoot.contains(target)) {
+        return;
+      }
+
+      // ✅ 2) 오른쪽 토글 / 상단 필터영역 / 사이드바 안쪽 클릭이면 무시
       if (
         rightAreaRef.current?.contains(target) ||
         filterAreaRef.current?.contains(target) ||
         sidebarAreaRef.current?.contains(target)
       ) {
-        // 토글 영역 안쪽 클릭이면 유지
         return;
       }
 
-      // 그 외(지도, 다른 UI 등)를 클릭하면 세 토글 모두 닫기
+      // ✅ 3) 그 외(지도, 다른 UI 등)를 클릭하면 세 토글 모두 닫기
       setRightOpen(false);
       setFilterSearchOpen(false);
       setUseSidebar(false);
@@ -1070,10 +1076,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         </div>
 
         {/* 2줄째: 왼쪽 필터검색 / 오른쪽 토글버튼들 */}
-        <div
-          ref={filterAreaRef}
-          className="pointer-events-auto flex items-center justify-between"
-        >
+        <div className="pointer-events-auto flex items-center justify-between">
           {/* 토글 버튼들 (로드뷰도로 / K&N / R / 메뉴 / 사이드바) */}
           <div
             ref={rightAreaRef}

@@ -128,13 +128,14 @@ export default function HeaderSection(
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
         </div>
 
-        {/* 2) 핀선택 — 항상 변경 가능 (답사예정/일반 모두) */}
+        {/* 2) 핀선택 — buildingGrade에 따라 아이콘 변경 */}
         <div className="order-2 flex-shrink-0">
           <PinTypeSelect
             value={pinKind ?? null}
             onChange={(v) => setPinKind(v)}
             className="h-9 w-[140px] md:w-[190px]"
             placeholder="핀선택"
+            buildingGrade={buildingGrade ?? null}
           />
         </div>
 

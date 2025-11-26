@@ -57,11 +57,11 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
     params.hasTerrace = true;
   }
 
-  // ⛔ 실입주금은 아직 서버에서 안 받으니까 주석/삭제
-  // const depositAmount = Number(convertPriceToWon(ui.deposit));
-  // if (Number.isFinite(depositAmount) && depositAmount > 0) {
-  //   (params as any).minRealMoveInCost = depositAmount;
-  // }
+  const depositAmount = Number(convertPriceToWon(ui.deposit));
+  if (Number.isFinite(depositAmount) && depositAmount > 0) {
+    (params as any).minRealMoveInCost = depositAmount;
+    params.minRealMoveInCost = depositAmount;
+  }
 
   // 3) 매매가
   const priceMin = Number(ui.priceMin.replaceAll(",", ""));
@@ -157,8 +157,6 @@ export default function FilterSearch({
     onClose();
   };
 
-  if (!isOpen) return null;
-
   const depositWon = convertPriceToWon(filters.deposit);
   const depositLabel =
     filters.deposit && filters.deposit !== "0"
@@ -181,10 +179,20 @@ export default function FilterSearch({
       ? formatKoreanCurrency(priceMaxWon)
       : "0원";
 
+  if (!isOpen) return null;
+
+  // 🔹 필터 카드 안에서 발생한 클릭이 맵까지 전달되지 않도록 막기
+  const stop = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    // 혹시 모를 네이티브 리스너도 한 번 더 차단
+    (e.nativeEvent as any)?.stopImmediatePropagation?.();
+  };
+
   return (
     <Portal>
       {/* 🔹 오버레이(검은 배경) 없이 패널만 띄우는 래퍼 */}
       <div
+        id="filter-search-root"
         className="
           fixed inset-x-0 bottom-0 z-[9998]
           flex justify-center sm:justify-start sm:items-end
@@ -201,6 +209,8 @@ export default function FilterSearch({
             sm:rounded-lg sm:border sm:border-gray-200 sm:shadow-xl
           "
           style={{ contain: "layout style" }}
+          onMouseDown={stop}
+          onClick={stop}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b border-gray-200">
