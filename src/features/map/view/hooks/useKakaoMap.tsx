@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
 import { KOREA_BOUNDS } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
+import { useToast } from "@/hooks/use-toast"; // ✅ 추가
+import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
 
 type Args = {
   appKey: string;
@@ -131,6 +133,7 @@ const useKakaoMap = ({
   const mapRef = useRef<any>(null);
 
   const [ready, setReady] = useState(false);
+  const { toast } = useToast(); // ✅ 추가
 
   // 옵션/콜백 ref로 고정
   const maxLevelRef = useRef<number>(maxLevel);
@@ -517,7 +520,19 @@ const useKakaoMap = ({
 
   const searchPlace = useCallback(
     (query: string, opts?: SearchOptions) => {
-      if (!ready || !kakaoRef.current || !mapRef.current || !query) return;
+      if (!ready || !kakaoRef.current || !mapRef.current) return;
+
+      const trimmed = query.trim();
+      if (!trimmed) return;
+
+      // ✅ 광역 키워드면 아예 검색 자체를 막고 토스트만
+      if (isTooBroadKeyword(trimmed)) {
+        toast({
+          title: "검색 범위가 너무 넓어요",
+          description: "정확한 주소 또는 건물명을 입력해주세요.",
+        });
+        return;
+      }
 
       const kakao = kakaoRef.current;
       const geocoder =
@@ -527,14 +542,14 @@ const useKakaoMap = ({
       placesRef.current = places;
 
       const { preferStation = false, onFound } = opts || {};
-      const endsWithStation = query.trim().endsWith("역");
+      const endsWithStation = trimmed.endsWith("역");
 
       const tryStationFirst = (): Promise<{
         lat: number;
         lng: number;
       } | null> =>
         new Promise((resolve) => {
-          places.keywordSearch(query, (data: any[], status: string) => {
+          places.keywordSearch(trimmed, (data: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && data?.length) {
               const station =
                 data.find(
@@ -556,7 +571,7 @@ const useKakaoMap = ({
 
       const tryKeyword = (): Promise<{ lat: number; lng: number } | null> =>
         new Promise((resolve) => {
-          places.keywordSearch(query, (data: any[], status: string) => {
+          places.keywordSearch(trimmed, (data: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && data?.[0]) {
               resolve({
                 lat: parseFloat(data[0].y),
@@ -570,7 +585,7 @@ const useKakaoMap = ({
 
       const tryAddress = (): Promise<{ lat: number; lng: number } | null> =>
         new Promise((resolve) => {
-          geocoder.addressSearch(query, (res: any[], status: string) => {
+          geocoder.addressSearch(trimmed, (res: any[], status: string) => {
             if (status === kakao.maps.services.Status.OK && res?.[0]) {
               resolve({
                 lat: parseFloat(res[0].y),
@@ -595,7 +610,12 @@ const useKakaoMap = ({
         }
 
         if (!found) {
-          console.warn("검색 결과 없음:", query);
+          console.warn("검색 결과 없음:", trimmed);
+          // 필요하면 여기서도 토스트 가능
+          // toast({
+          //   title: "검색 결과가 없습니다.",
+          //   description: "정확한 주소 또는 건물명을 입력해주세요.",
+          // });
           return;
         }
 
@@ -603,7 +623,7 @@ const useKakaoMap = ({
         onFound?.({ lat: found.lat, lng: found.lng });
       })();
     },
-    [placeMarkerAt, ready]
+    [placeMarkerAt, ready, toast]
   );
 
   // 외부 제어 API

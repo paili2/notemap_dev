@@ -29,6 +29,9 @@ type MapCreateModalHostProps = {
     payload?: any;
   }) => void;
 
+  /** 방금 생성한 매물 상세를 여는 핸들러 (선택) */
+  selectAndOpenView?: (id: string | number) => void;
+
   /** 임시핀 id (문자/숫자 둘 다 가능) */
   pinDraftId?: number | string | null;
   createPinKind?: PinKind | null;
@@ -43,6 +46,7 @@ export default function MapCreateModalHost({
   appendItem,
   resetAfterCreate,
   onAfterCreate,
+  selectAndOpenView,
   pinDraftId,
   createPinKind,
 }: MapCreateModalHostProps) {
@@ -100,11 +104,11 @@ export default function MapCreateModalHost({
             pos,
           });
 
-          // ✅ 리스트에 추가만 하고, 뷰모달 열기는 상위(onAfterCreate)에서 처리
+          // ✅ 리스트에 추가
           appendItem(next);
           resetAfterCreate();
 
-          // ✅ MapHomeUI 쪽에서 방금 생성한 매물 상세를 열도록 위임
+          // ✅ 공통 후처리 (임시핀 → 실핀 치환 등)
           onAfterCreate?.({
             pinId: serverId,
             matchedDraftId,
@@ -113,6 +117,9 @@ export default function MapCreateModalHost({
             payload,
           });
 
+          // ✅ 방금 생성한 매물 상세 뷰 열기
+          selectAndOpenView?.(serverId);
+
           toastBus?.success?.(
             matchedDraftId != null
               ? "임시핀과 매칭되어 등록되었습니다."
@@ -120,8 +127,6 @@ export default function MapCreateModalHost({
           );
 
           // ✅ 현재 구조에서는 여기서 생성 모달을 닫는다.
-          //    나중에 “단일 모달 호스트(stage: create/view/edit)”로 리팩터링하면
-          //    이 닫기 역할도 상위 호스트에서 stage 전환으로 대체할 예정.
           onClose?.();
         } catch (e: any) {
           const res = e?.response?.data;

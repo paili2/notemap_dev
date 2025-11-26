@@ -1045,37 +1045,53 @@ export async function updatePin(
   }
 }
 
-/* ───────────── 핀 비활성/활성 (/pins/disable/:id) ───────────── */
-export type ToggleDisableDto = { isDisabled: boolean };
-export type ToggleDisableRes = {
+/* ───────────── 핀 삭제 (/pins/:id, DELETE) ───────────── */
+export type DeletePinRes = {
   id: string;
-  isDisabled: boolean;
-  changed: boolean;
 };
 
-/** [PATCH] /pins/disable/:id — 핀 활성/비활성 변경 */
-export async function togglePinDisabled(
+/** [DELETE] /pins/:id — 핀 완전 삭제 */
+export async function deletePin(
   id: string | number,
-  isDisabled: boolean,
   config?: AxiosRequestConfig
-): Promise<ToggleDisableRes> {
-  const { data } = await api.patch<ApiEnvelope<ToggleDisableRes>>(
-    `/pins/disable/${encodeURIComponent(String(id))}`,
-    { isDisabled } satisfies ToggleDisableDto,
-    { withCredentials: true, ...(config ?? {}) }
-  );
+): Promise<DeletePinRes> {
+  const { data } = await api.delete<
+    ApiEnvelope<{ id: string | number } | null>
+  >(`/pins/${encodeURIComponent(String(id))}`, {
+    withCredentials: true,
+    ...(config ?? {}),
+  });
 
-  if (!data?.success || !data?.data) {
+  if (!data?.success) {
     const single = (data as any)?.message as string | undefined;
     const msg =
       (Array.isArray(data?.messages) && data!.messages!.join("\n")) ||
       single ||
-      "상태 변경 실패";
+      "핀 삭제에 실패했습니다.";
     const e = new Error(msg) as any;
     e.responseData = data;
     throw e;
   }
-  return data.data;
+
+  const resId = (data.data as any)?.id ?? id;
+  return { id: String(resId) };
+}
+
+/**
+ * ⚠️ 레거시 호환용:
+ *  - 예전 코드가 togglePinDisabled(id, true)를 호출해도
+ *    내부에서는 DELETE /pins/:id 로 동작하게 유지
+ */
+export async function togglePinDisabled(
+  id: string | number,
+  isDisabled: boolean,
+  config?: AxiosRequestConfig
+): Promise<DeletePinRes> {
+  if (!isDisabled) {
+    // 복구 기능은 아직 없으니까 방어적으로 막아둠
+    throw new Error("핀 복구 API는 아직 지원하지 않습니다.");
+  }
+  return deletePin(id, config);
 }
 
 /* ───────────── 임시핀 (/pin-drafts) ───────────── */

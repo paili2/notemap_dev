@@ -28,8 +28,9 @@ export default function AreaSetsView({
 
   return (
     <div className="space-y-4">
+      {/* 기본 세트 */}
       <div className="rounded-xl border bg-muted/10 p-3 space-y-3">
-        <div className="mb-1 text-sm font-medium">
+        <div className="mb-1 text-sm font-medium px-2 md:px-0">
           {baseAreaTitle && baseAreaTitle.trim().length > 0
             ? baseAreaTitle
             : "개별 평수입력"}
@@ -38,6 +39,7 @@ export default function AreaSetsView({
         <Row label="실평" minM2={reBase.minM2} maxM2={reBase.maxM2} />
       </div>
 
+      {/* 추가 세트들 */}
       {Array.from({ length: len }, (_, i) => {
         const exi = parsePackedRangeToM2(exArr[i] ?? "");
         const rei = parsePackedRangeToM2(reArr[i] ?? "");
@@ -49,7 +51,7 @@ export default function AreaSetsView({
 
         return (
           <div key={i} className="rounded-xl border bg-muted/5 p-3 space-y-3">
-            <div className="mb-1 text-sm font-medium">{title}</div>
+            <div className="mb-1 text-sm font-medium px-2 md:px-0">{title}</div>
             <Row label="전용" minM2={exi.minM2} maxM2={exi.maxM2} />
             <Row label="실평" minM2={rei.minM2} maxM2={rei.maxM2} />
           </div>

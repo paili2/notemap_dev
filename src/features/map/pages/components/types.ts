@@ -107,6 +107,7 @@ export type MapHomeUIProps = {
       lng: number;
       payload?: any;
     }) => void;
+    onOpenViewAfterCreate?: (pinId: string | number) => void;
   };
   editHostHandlers: {
     onClose: () => void;

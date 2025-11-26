@@ -38,6 +38,7 @@ export default function ModalsHost(props: {
       lng: number;
       payload?: any;
     }) => void;
+    onOpenViewAfterCreate?: (pinId: string | number) => void;
   };
 
   /** ✅ draft 기반 생성용 id */

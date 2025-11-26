@@ -290,12 +290,21 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, []);
 
+  // ✅ 먼저 선언
   const handleViewFromMenu = useCallback(
     (id: string) => {
       if (typeof onViewFromMenu === "function") onViewFromMenu(id);
       else handleViewFromMenuLocal(id);
     },
     [onViewFromMenu, handleViewFromMenuLocal]
+  );
+
+  // ✅ 그 다음에 이 헬퍼
+  const handleOpenViewAfterCreate = useCallback(
+    (pinId: string | number) => {
+      handleViewFromMenu(String(pinId));
+    },
+    [handleViewFromMenu]
   );
 
   const fitToSearch = useCallback(
@@ -425,28 +434,21 @@ export function MapHomeUI(props: MapHomeUIProps) {
   /** ✅ 생성/답사예정 등록 후 후처리 */
   const handleAfterCreate = useCallback(
     (args: any) => {
-      // 1) 답사예정핀 전용 모드면: 모달 / 상세뷰 전부 닫고 끝내기
-      if (args?.mode === "visit-plan-only") {
-        // 생성 모달/상태 정리
+      const { matchedDraftId, lat, lng, mode, pinId } = args || {};
+
+      // ✋ 답사예정만 한 경우: 모달 닫고 뷰도 닫기
+      if (mode === "visit-plan-only") {
         createHostHandlers?.resetAfterCreate?.();
         createHostHandlers?.onClose?.();
-
-        // 혹시 상세보기 모달 떠 있으면 같이 닫기
         closeView?.();
-
+        originalOnAfterCreate?.(args);
         return;
       }
 
-      // 2) 일반 매물 등록 로직 (기존과 동일)
-      const { pinId, matchedDraftId, lat, lng } = args || {};
-      if (!pinId) {
-        // pinId 없으면 할 일이 없음
-        return;
-      }
-
-      if (matchedDraftId != null) {
+      // 🔹 매물 등록 케이스: 임시핀 → 실핀 치환 정도만 처리
+      if (matchedDraftId != null && pinId != null) {
         replaceTempByRealId(matchedDraftId, pinId);
-      } else {
+      } else if (lat != null && lng != null && pinId != null) {
         upsertDraftMarker({
           id: `__visit__${pinId}`,
           lat,
@@ -456,7 +458,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         });
       }
 
-      // 3) 기존 onAfterCreate(드래프트 숨김 / refetch 등)도 호출
       originalOnAfterCreate?.(args);
     },
     [
@@ -1155,6 +1156,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         createHostHandlers={{
           ...createHostHandlers,
           onAfterCreate: handleAfterCreate,
+          onOpenViewAfterCreate: handleOpenViewAfterCreate,
         }}
         pinDraftId={
           createFromDraftId != null ? Number(createFromDraftId) : undefined

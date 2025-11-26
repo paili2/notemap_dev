@@ -27,6 +27,7 @@ import { useRunSearch } from "../../shared/hooks/useRunSearch";
 import { useToast } from "@/hooks/use-toast";
 import { PinKind } from "@/features/pins/types";
 import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
+import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
 
 type LocalCreateFromPinArgs = CreateFromPinArgs & {
   /** 답사예정지 '간단등록' 모드인지 여부 */
@@ -531,19 +532,29 @@ export function useMapHomeState() {
 
   const handleSearchSubmit = useCallback(
     async (kw?: string) => {
-      const keyword = kw ?? q;
+      const keyword = (kw ?? q).trim();
+      if (!keyword) return;
 
-      // 1) 내부 runSearch 먼저 (기존 그대로)
+      // ✅ 0. 제일 먼저 광역 키워드 컷
+      if (isTooBroadKeyword(keyword)) {
+        toast({
+          title: "검색 범위가 너무 넓어요",
+          description: "정확한 주소 또는 건물명을 입력해주세요.",
+        });
+        console.log("[handleSearchSubmit] blocked broad keyword:", keyword);
+        return; // ⬅️ 여기서 바로 종료 (runSearch / geocode 전부 안 감)
+      }
+
+      // ✅ 1. 여기까지 왔으면 세부 주소/건물명 → 내부 runSearch 실행
       await runSearch(keyword);
 
-      // 2) 카카오 지오코딩 결과 좌표 기준으로
-      //    "자동 확대 + 메뉴 오픈" 처리
+      // ✅ 2. 지오코딩 + 자동 확대 + 메뉴 오픈
       const pos = await geocodeAddress(keyword);
       if (pos) {
         await focusAndOpenAt(pos, "__draft__");
       }
     },
-    [q, runSearch, geocodeAddress, focusAndOpenAt]
+    [q, runSearch, geocodeAddress, focusAndOpenAt, toast]
   );
 
   const onSubmitSearch = useCallback(

@@ -23,7 +23,7 @@ import PropertyEditModalBody from "@/features/properties/components/PropertyEdit
 import { CreatePayload, UpdatePayload } from "../../types/property-dto";
 import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { togglePinDisabled } from "@/shared/api/pins";
+import { deletePin } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 import MetaInfoContainer from "./components/MetaInfoContainer";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
@@ -190,19 +190,32 @@ export default function PropertyViewModal({
     (data as any)?.propertyId ??
     effectiveId;
 
-  const handleDisable = useCallback(async () => {
+  /** ✅ DELETE /pins/:id 사용 */
+  const handleDelete = useCallback(async () => {
     if (!idForActions || deleting) return;
-    if (!confirm("정말 삭제(비활성화)할까요?")) return;
+
+    const numericId = Number(idForActions);
+    if (!Number.isFinite(numericId)) {
+      alert("삭제할 핀 ID가 올바르지 않습니다.");
+      return;
+    }
+
+    if (
+      !confirm("정말 이 매물을 삭제할까요?\n삭제 후에는 되돌릴 수 없습니다.")
+    ) {
+      return;
+    }
+
     try {
       setDeleting(true);
-      await togglePinDisabled(String(idForActions), true);
+      await deletePin(numericId);
       await onDelete?.();
       onClose();
     } catch (err: any) {
       const msg =
         err?.message ||
         err?.responseData?.message ||
-        "비활성화 요청에 실패했습니다.";
+        "삭제 요청에 실패했습니다.";
       alert(msg);
     } finally {
       setDeleting(false);
@@ -253,7 +266,7 @@ export default function PropertyViewModal({
         headingId={headingId}
         descId={descId}
         onClose={onClose}
-        onDisable={handleDisable}
+        onDelete={handleDelete}
         deleting={deleting}
         loading={!!(open && effectiveId && q.isFetching && !viewData)}
         onRequestEdit={(seed) => {
@@ -284,7 +297,7 @@ function ViewStage({
   descId,
   onClose,
   onClickEdit,
-  onDisable,
+  onDelete,
   deleting,
   loading,
   onRequestEdit,
@@ -296,7 +309,7 @@ function ViewStage({
   descId: string;
   onClose: () => void;
   onClickEdit: () => void;
-  onDisable: () => void;
+  onDelete: () => void;
   deleting: boolean;
   loading?: boolean;
   onRequestEdit: (seed: any) => void;
@@ -578,7 +591,7 @@ function ViewStage({
 
                 <button
                   type="button"
-                  onClick={onDisable}
+                  onClick={onDelete}
                   disabled={deleting || !data?.id}
                   className={cn(
                     "items-center gap-2 rounded-md border px-3 h-9 text-red-600 hover:bg-red-50 hidden md:inline-flex",
@@ -588,7 +601,7 @@ function ViewStage({
                   title="삭제"
                 >
                   <Trash2 className="h-4 w-4" />
-                  {deleting ? "비활성화 중…" : "삭제"}
+                  {deleting ? "삭제 중…" : "삭제"}
                 </button>
               </div>
 

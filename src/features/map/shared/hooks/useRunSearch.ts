@@ -6,6 +6,8 @@ import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import { NEAR_THRESHOLD_M } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import { distanceMeters } from "@/lib/geo/distance";
+import { useToast } from "@/hooks/use-toast";
+import { isTooBroadKeyword } from "../utils/isTooBroadKeyword";
 
 type Args = {
   kakaoSDK: any;
@@ -21,15 +23,28 @@ type Args = {
 
 export function useRunSearch({
   kakaoSDK,
-  mapInstance,
+  mapInstance, // ← 이제 사실상 안 써도 되지만, 타입만 남겨둬도 됨
   items,
   onMatchedPin,
   onNoMatch,
-  panToWithOffset,
 }: Args) {
+  const { toast } = useToast();
+
   return useCallback(
     async (keyword: string) => {
-      if (!kakaoSDK || !mapInstance || !keyword?.trim()) return;
+      if (!kakaoSDK || !mapInstance) return;
+
+      const trimmed = keyword.trim();
+      if (!trimmed) return;
+
+      // 1) 광역 키워드 컷
+      if (isTooBroadKeyword(trimmed)) {
+        toast({
+          title: "검색 범위가 너무 넓어요",
+          description: "정확한 주소 또는 건물명을 입력해주세요.",
+        });
+        return;
+      }
 
       const geocoder = new kakaoSDK.maps.services.Geocoder();
       const places = new kakaoSDK.maps.services.Places();
@@ -47,28 +62,27 @@ export function useRunSearch({
             nearest = p;
           }
         }
+
         if (nearest) {
-          await onMatchedPin(nearest);
+          await onMatchedPin(nearest); // ← 지도 이동은 여기서(= 상위) 처리
         } else {
-          await onNoMatch(coords);
+          await onNoMatch(coords); // ← 여기서도 상위에서 처리
         }
 
-        // 지도 이동/이벤트 트리거
-        const center = new kakaoSDK.maps.LatLng(lat, lng);
-        mapInstance.setCenter(center);
-        mapInstance.setLevel(Math.min(5, 11));
-        kakaoSDK.maps.event.trigger(mapInstance, "idle");
-        requestAnimationFrame(() =>
-          kakaoSDK.maps.event.trigger(mapInstance, "idle")
-        );
-
-        // 필요 시 살짝 위로 보정
-        if (panToWithOffset) panToWithOffset(coords, 180);
+        // ❌ 지도 이동/zoom 은 전부 제거
+        // const center = new kakaoSDK.maps.LatLng(lat, lng);
+        // mapInstance.setCenter(center);
+        // mapInstance.setLevel(Math.min(5, 11));
+        // kakaoSDK.maps.event.trigger(mapInstance, "idle");
+        // requestAnimationFrame(() =>
+        //   kakaoSDK.maps.event.trigger(mapInstance, "idle")
+        // );
+        // if (panToWithOffset) panToWithOffset(coords, 180);
       };
 
       await new Promise<void>((resolve) => {
         geocoder.addressSearch(
-          keyword,
+          trimmed,
           async (addrResult: any[], addrStatus: string) => {
             if (
               addrStatus === kakaoSDK.maps.services.Status.OK &&
@@ -85,16 +99,22 @@ export function useRunSearch({
               resolve();
             } else {
               places.keywordSearch(
-                keyword,
+                trimmed,
                 async (kwResult: any[], kwStatus: string) => {
                   if (
                     kwStatus === kakaoSDK.maps.services.Status.OK &&
                     kwResult?.length
                   ) {
                     const r0 = kwResult[0];
-                    await afterLocate(parseFloat(r0.y), parseFloat(r0.x));
+                    await afterLocate(
+                      parseFloat(r0.y as string),
+                      parseFloat(r0.x as string)
+                    );
                   } else {
-                    alert("검색 결과가 없습니다.");
+                    toast({
+                      title: "검색 결과가 없습니다.",
+                      description: "정확한 주소 또는 건물명을 입력해주세요.",
+                    });
                   }
                   resolve();
                 }
@@ -104,6 +124,6 @@ export function useRunSearch({
         );
       });
     },
-    [kakaoSDK, mapInstance, items, onMatchedPin, onNoMatch, panToWithOffset]
+    [kakaoSDK, mapInstance, items, onMatchedPin, onNoMatch, toast]
   );
 }
