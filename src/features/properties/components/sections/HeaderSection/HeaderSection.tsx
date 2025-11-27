@@ -117,7 +117,7 @@ export default function HeaderSection(
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
-      <div className="flex flex-wrap items-center gap-6 px-4 py-4 min-w-0">
+      <div className="flex flex-wrap items-center gap-6 px-5 md:px-6 py-4 min-w-0">
         {/* 1) 신축/구옥 — 답사예정일 때만 비활성화 */}
         <div
           className={cn(
@@ -140,6 +140,7 @@ export default function HeaderSection(
         </div>
 
         {/* 3) 매물평점 — 답사예정일 때만 비활성화 */}
+        {/* 3) 매물평점 — 답사예정일 때만 비활성화 */}
         <div className="order-3 flex items-center gap-2 min-w-[150px]">
           <span
             className={cn(
@@ -149,6 +150,7 @@ export default function HeaderSection(
           >
             매물평점
           </span>
+
           <div className="w-[140px] md:w-[200px] leading-none">
             <div
               className={cn(
@@ -187,6 +189,28 @@ export default function HeaderSection(
               )}
             </div>
           </div>
+
+          {/* 🔹 모바일 전용 리베이트: 매물평점 오른쪽 */}
+          <div
+            className={cn(
+              "flex items-center gap-1 md:hidden",
+              rebateDisabled && "pointer-events-none opacity-60"
+            )}
+          >
+            <span className="text-[18px] font-extrabold text-red-500 leading-none">
+              R
+            </span>
+            <input
+              value={rebateDisplay}
+              onChange={handleChangeRebate}
+              placeholder="10"
+              className={cn(
+                "w-14 h-9 rounded-md border px-2 text-xs text-right",
+                "outline-none focus:ring-2 focus:ring-red-200",
+                "text-red-500 font-semibold"
+              )}
+            />
+          </div>
         </div>
 
         {/* 4) 매물명 — 항상 입력 가능 */}
@@ -209,10 +233,10 @@ export default function HeaderSection(
           </div>
         </div>
 
-        {/* 5) 리베이트 R표시 — 답사예정일 때만 비활성화 */}
+        {/* 5) 리베이트 R표시 — 답사예정일 때만 비활성화 (md 이상에서만) */}
         <div
           className={cn(
-            "order-5 flex items-center gap-3",
+            "order-5 hidden md:flex items-center gap-3",
             rebateDisabled && "pointer-events-none opacity-60"
           )}
         >

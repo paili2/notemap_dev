@@ -9,7 +9,6 @@ import {
   useRef,
   WheelEventHandler,
 } from "react";
-import { Button } from "@/components/atoms/Button/Button";
 
 interface NumberFieldProps {
   label: string;
@@ -97,45 +96,52 @@ export default function NumberField({
       rowMinHeight={rowMinHeight}
       className={className}
     >
-      <div className="relative inline-flex items-center w-full">
+      {/* 인풋 + 커스텀 스피너를 한 컨테이너 안에 넣기 */}
+      <div className="relative inline-flex w-full max-w-[96px] items-center">
         <Input
           ref={inputRef}
-          type="number"
+          // 브라우저 기본 스피너는 안 쓰고, 숫자 키패드만 띄우기
+          type="text"
+          inputMode="numeric"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}
           onWheel={onWheel}
           placeholder={placeholder}
-          className="h-8 w-24 pr-7 text-right"
-          inputMode="numeric"
-          step={step}
-          min={min}
-          {...(typeof max === "number" ? { max } : {})}
+          className="
+            h-8 w-full pr-7 text-right
+            [appearance:textfield]
+            [&::-webkit-inner-spin-button]:appearance-none
+            [&::-webkit-outer-spin-button]:appearance-none
+          "
         />
 
-        <div className="absolute right-1 top-0 bottom-0 flex flex-col justify-center">
-          <Button
+        {/* 오른쪽 커스텀 ↑ / ↓ 버튼 스택 */}
+        <div className="pointer-events-none absolute inset-y-[2px] right-[2px] flex w-5 flex-col">
+          <button
             type="button"
             onClick={inc}
-            variant="plain"
-            size="tinyIcon"
-            className="flex items-center justify-center text-gray-400/70 hover:text-gray-700"
+            className="
+              pointer-events-auto flex-1 flex items-center justify-center
+              text-xs text-gray-400 hover:text-gray-700
+            "
             aria-label="증가"
             tabIndex={-1}
           >
             <ChevronUp className="w-3 h-3" strokeWidth={1.5} />
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             onClick={dec}
-            variant="plain"
-            size="tinyIcon"
-            className="flex items-center justify-center text-gray-400/70 hover:text-gray-700"
+            className="
+              pointer-events-auto flex-1 flex items-center justify-center
+              text-xs text-gray-400 hover:text-gray-700
+            "
             aria-label="감소"
             tabIndex={-1}
           >
             <ChevronDown className="w-3 h-3" strokeWidth={1.5} />
-          </Button>
+          </button>
         </div>
       </div>
     </Field>
