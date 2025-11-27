@@ -15,8 +15,9 @@ const API_BASE = (
 
 /**
  * 클라이언트에서 백엔드 /auth/me 로 실제 세션을 확인하고,
- * 401/419/440일 때만 로그아웃 후 redirectTo로 보냅니다.
- * (그 외 2xx/404/5xx 등은 세션 만료로 보지 않고 화면 진입 허용)
+ * 1) 401/419/440 같은 인증 에러이거나
+ * 2) 2xx라도 data 가 없으면
+ * => 로그인 안 된 것으로 보고 redirectTo 로 보낸다.
  */
 export default function ClientSessionGuard({
   children,
@@ -38,12 +39,19 @@ export default function ClientSessionGuard({
 
         if (!mounted) return;
 
-        // 인증 실패로 간주할 상태코드만 좁게 처리
-        const isAuthError =
+        const isAuthErrorStatus =
           res.status === 401 || res.status === 419 || res.status === 440;
 
-        if (isAuthError) {
-          // 세션 정리(실패해도 무시)
+        let hasUser = false;
+
+        // 2xx 인 경우에만 body 파싱 시도
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          hasUser = !!json?.data; // ← 로그인 여부 확정
+        }
+
+        // 🔥 상태코드가 인증 에러이거나, user 데이터가 없으면 → 비로그인으로 간주
+        if (isAuthErrorStatus || !hasUser) {
           try {
             await fetch(`${API_BASE}/auth/signout`, {
               method: "POST",
@@ -53,12 +61,11 @@ export default function ClientSessionGuard({
             // ignore
           }
 
-          // SSR이 새 쿠키 상태를 재판정하도록 하드 이동
           window.location.assign(redirectTo);
           return;
         }
 
-        // ✅ 그 외 상태코드는 세션 만료로 보지 않고 화면 진입 허용
+        // ✅ 로그인된 상태 → 화면 진입 허용
         setReady(true);
       } catch {
         // 네트워크 에러 등은 안전하게 로그인 화면으로
