@@ -27,7 +27,6 @@ import OptionsContainer from "./ui/OptionsContainer";
 import MemosContainer from "./ui/MemosContainer";
 import { mapPinKindToBadge } from "../../lib/badge";
 
-import { api } from "@/shared/api/api";
 import { createPin, createPinDraft, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 

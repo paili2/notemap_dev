@@ -1,8 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none">
-  <!-- 바깥 핀 모양: 색만 #FF69B4 로 변경 -->
-  <path d="M16 2C10.48 2 6.48 6 6.48 12C 6.48 18.5 16 30 16 30C16 30 26 18.5 26 12C26 6.4 21.52 2 16 2Z" fill="#FF69B4" stroke="black" stroke-width="1"></path>
-  
-  <!-- 가운데 점(2번 SVG 그대로) -->
-  <circle cx="16" cy="12" r="3" fill="#333"></circle>
-  <circle cx="16" cy="12" r="1.5" fill="white"></circle>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- 바깥 테두리 -->
+  <path d="M16 2C10.48 2 6 6.48 6 12C6 18.5 16 30 16 30C16 30 26 18.5 26 12C26 6.48 21.52 2 16 2Z" fill="#FF69B4" stroke="black" stroke-width="3"></path>
+
+  <!-- 안쪽 테두리 -->
+  <path d="M16 2C10.48 2 6 6.48 6 12C6 18.5 16 30 16 30C16 30 26 18.5 26 12C26 6.48 21.52 2 16 2Z" fill="none" stroke="white" stroke-width="1.5"></path>
+
+  <text x="16" y="17" text-anchor="middle" fill="white" font-size="12" font-weight="bold">복</text>
+
 </svg>

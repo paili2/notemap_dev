@@ -19,10 +19,20 @@ import townhouse from "@/../public/pins/townhouse-pin.svg";
 
 // 🔹 구옥용 아이콘들
 import oldOneRoom from "@/../public/pins/old-1room-pin.svg";
+import oldOneRoomTerrace from "@/../public/pins/old-1room-terrace-pin.svg";
+
 import oldTwoRoom from "@/../public/pins/old-2room-pin.svg";
+import oldTwoRoomTerrace from "@/../public/pins/old-2room-terrace-pin.svg";
+
 import oldThreeRoom from "@/../public/pins/old-3room-pin.svg";
+import oldThreeRoomTerrace from "@/../public/pins/old-3room-terrace-pin.svg";
+
 import oldFourRoom from "@/../public/pins/old-4room-pin.svg";
+import oldFourRoomTerrace from "@/../public/pins/old-4room-terrace-pin.svg";
+
 import oldDuplex from "@/../public/pins/old-duplex-pin.svg";
+import oldDuplexTerrace from "@/../public/pins/old-duplex-terrace-pin.svg";
+
 import oldTownhouse from "@/../public/pins/old-townhouse-pin.svg";
 
 import type { PinKind } from "@/features/pins/types";
@@ -69,33 +79,36 @@ function getIconFor(
     case "1room":
       return isOld ? oldOneRoom : oneRoom;
     case "1room-terrace":
-      // 구옥: 테라스 핀 따로 없음 → 일반 구옥핀 재사용
-      return isOld ? oldOneRoom : oneRoomTerrace;
+      // 🔹 구옥: 1룸 테라스 전용 아이콘
+      return isOld ? oldOneRoomTerrace : oneRoomTerrace;
 
     // 2룸 계열
     case "2room":
       return isOld ? oldTwoRoom : twoRoom;
     case "2room-terrace":
-      return isOld ? oldTwoRoom : twoRoomTerrace;
+      // 🔹 구옥: 2룸 테라스 전용 아이콘
+      return isOld ? oldTwoRoomTerrace : twoRoomTerrace;
 
     // 3룸 계열
     case "3room":
       return isOld ? oldThreeRoom : threeRoom;
     case "3room-terrace":
-      return isOld ? oldThreeRoom : threeRoomTerrace;
+      // 🔹 구옥: 3룸 테라스 전용 아이콘
+      return isOld ? oldThreeRoomTerrace : threeRoomTerrace;
 
     // 4룸 계열
     case "4room":
       return isOld ? oldFourRoom : fourRoom;
     case "4room-terrace":
-      return isOld ? oldFourRoom : fourRoomTerrace;
+      // 🔹 구옥: 4룸 테라스 전용 아이콘
+      return isOld ? oldFourRoomTerrace : fourRoomTerrace;
 
     // 복층 계열
     case "duplex":
       return isOld ? oldDuplex : duplex;
     case "duplex-terrace":
-      // 🔹 구옥: 복층 테라스도 일반 구옥 복층핀과 동일
-      return isOld ? oldDuplex : duplexTerrace;
+      // 🔹 구옥: 복층 테라스 전용 아이콘
+      return isOld ? oldDuplexTerrace : duplexTerrace;
 
     // 타운하우스
     case "townhouse":

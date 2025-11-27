@@ -41,8 +41,8 @@ import {
 } from "@/components/atoms/Dialog/Dialog";
 import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
 import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
+import { PinPhotoGroup } from "@/shared/api/photoGroups";
 
-/** Parking 슬라이스 타입 (✅ parkingTypeId 제거 버전) */
 type ParkingFormSlice = {
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
@@ -1812,6 +1812,33 @@ export default function PropertyEditModalBody({
       extraAreaTitlesOut,
     } = f.packAreas();
 
+    // --- (추가) 이미지 폴더 제목을 photo-group 기준으로 정규화해서 뷰 페이로드에 실어주기 ---
+    const groupsList = (groups ?? []) as PinPhotoGroup[];
+
+    // 0) 가로 그룹만 골라서 정렬 (ImagesContainer의 horizGroups 로직 그대로)
+    const horizGroupsForView = groupsList
+      .filter((g) => g.isDocument !== true)
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          String(a.title ?? "").localeCompare(String(b.title ?? ""))
+      );
+
+    // 1) imageFolders에 서버 그룹 title을 덮어쓴 뷰용 스냅샷
+    const imageFoldersForPayload = (imageFolders ?? []).map(
+      (folder: any, idx: number) => {
+        const g = horizGroupsForView[idx];
+        const groupTitle = typeof g?.title === "string" ? g.title.trim() : "";
+
+        return {
+          ...folder,
+          // 그룹의 title이 있으면 최우선, 없으면 기존 folder.title 유지
+          title: groupTitle || folder?.title || "",
+        };
+      }
+    );
+
     const payload = buildUpdatePayload(
       {
         title: f.title,
@@ -1863,7 +1890,7 @@ export default function PropertyEditModalBody({
         aspect3,
         unitLines: f.unitLines,
 
-        imageFolders,
+        imageFolders: imageFoldersForPayload,
         verticalImages,
 
         pinKind: f.pinKind,
@@ -1892,6 +1919,8 @@ export default function PropertyEditModalBody({
     onClose,
     imageFolders,
     verticalImages,
+    groups,
+
     commitImageChanges,
     commitPending,
     buildingGrade,
