@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
+import { broadcastAuth } from "./authChannel";
 
 /* ---------- types ---------- */
 type SignInBody = {
@@ -56,18 +57,24 @@ export async function signIn(body: SignInBody) {
     withCredentials: true,
   });
 
-  return data.data; // sessionUser
+  const sessionUser = data.data;
+
+  // 🔔 다른 탭들에게도 로그인/세션 갱신 알리기
+  broadcastAuth({ type: "LOGIN" });
+
+  return sessionUser; // sessionUser
 }
 
 // 로그아웃(세션 종료)
 export async function signOut() {
-  const { data } = await api.post<SignOutResp>(
-    "/auth/signout",
-    {},
-    { withCredentials: true }
-  );
+  try {
+    await api.post<SignOutResp>("/auth/signout", {}, { withCredentials: true });
+  } finally {
+    // 요청이 실패하든(이미 만료 등) 성공하든
+    // 모든 탭에서는 로그아웃 상태로 맞추는 게 안전
+    broadcastAuth({ type: "LOGOUT" });
+  }
 
-  // 마찬가지로 에러면 axios가 throw
   return true as const;
 }
 
