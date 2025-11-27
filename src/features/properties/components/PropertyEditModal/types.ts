@@ -8,6 +8,7 @@ import type {
 import type {
   CreatePayload,
   UpdatePayload,
+  CreatePinOptionsDto, // ✅ 옵션 DTO 타입 가져오기
 } from "@/features/properties/types/property-dto";
 
 import { AreaSet } from "../sections/AreaSetsSection/types";
@@ -152,11 +153,11 @@ function normalizeYearMonth(v?: string | Date | null): string | undefined {
   return undefined;
 }
 
-/** 옵션/기타 정리 */
+/** 옵션/기타 정리 → string[] */
 function normalizeOptions(
   options?: string[] | null,
   optionEtc?: string | null
-) {
+): string[] {
   const base = Array.isArray(options) ? options : [];
   const etc = optionEtc ? [optionEtc] : [];
   return [...base, ...etc].filter(Boolean);
@@ -245,6 +246,17 @@ function numericStringOrUndefined(v: string | number | null | undefined) {
   return undefined;
 }
 
+/** string[] → CreatePinOptionsDto 변환 */
+function toOptionsDto(
+  list: string[] | undefined
+): CreatePinOptionsDto | undefined {
+  if (!list || !list.length) return undefined;
+
+  // ⚠️ 여기서 필드명은 CreatePinOptionsDto 정의에 맞게 수정해야 함.
+  // 예: { names: list } / { options: list } / { values: list } 등
+  return { names: list } as CreatePinOptionsDto;
+}
+
 /* ────────────────────────────────────────────────────────────
  * 메인 빌더: UI 상태 → UpdatePayload(+Partial<CreatePayload>)
  * ──────────────────────────────────────────────────────────── */
@@ -274,9 +286,11 @@ export function mapEditItemToUpdatePayload(
   const dirs = (aspectRows?.map((r) => r.dir) ?? []) as string[];
   const [aspect1, aspect2, aspect3] = dirs;
 
+  // 5) 옵션 리스트 & DTO 변환
   const optionList = normalizeOptions(item.options, item.optionEtc);
+  const optionsDto = toOptionsDto(optionList);
 
-  // 5) 전송 페이로드
+  // 6) 전송 페이로드
   const payload: UpdatePayload & Partial<CreatePayload> = {
     // 텍스트 기본
     title: item.title?.trim() || undefined,
@@ -297,7 +311,7 @@ export function mapEditItemToUpdatePayload(
     ...(aspect1 ? { aspect1 } : {}),
     ...(aspect2 ? { aspect2 } : {}),
     ...(aspect3 ? { aspect3 } : {}),
-    options: optionList.length ? optionList : undefined,
+    options: optionsDto,
 
     // 주차
     parkingType: item.parkingType ?? undefined,
@@ -307,7 +321,7 @@ export function mapEditItemToUpdatePayload(
     completionDate: completionYm,
     salePrice: salePriceStr,
 
-    // ⚠️ 여기! 숫자 min/max 키들 제거하고 문자열 범위로만 보냄
+    // ⚠️ 숫자 min/max 키들 제거하고 문자열 범위로만 보냄
     exclusiveArea:
       typeof item.exclusiveArea === "string" && item.exclusiveArea.trim()
         ? item.exclusiveArea.trim()
