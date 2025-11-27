@@ -144,12 +144,12 @@ export function StaffAllocationSection({
     return availableOptions.sort((a, b) => a - b);
   };
 
-  // 리베이트 수당과 최종수당 자동 계산 (최종수당은 총합계에서 비율로 계산)
+  // 총합계 수당과 최종수당 자동 계산 (총합계는 원래 총합계, 최종수당은 총합계에서 비율로 계산)
   const calculateStaffAllocations = () => {
     return staffAllocations.map((staff) => {
       const percentage = staff.percentage || 0;
-      // 리베이트 수당은 입력된 리베이트 금액 그대로 표시
-      const rebateAllowance = totalRebate;
+      // 총합계는 원래 총합계 전체 값
+      const rebateAllowance = totalCalculation;
       // 최종수당은 총합계에서 비율에 따라 계산
       const finalAllowance = (totalCalculation * percentage) / 100;
 
@@ -161,12 +161,11 @@ export function StaffAllocationSection({
     });
   };
 
-  // totalRebate와 totalCalculation이 변경될 때마다 자동 계산
+  // totalCalculation이 변경될 때마다 자동 계산
   React.useEffect(() => {
     const updatedAllocations = calculateStaffAllocations();
     onStaffAllocationsChange(updatedAllocations);
   }, [
-    totalRebate,
     totalCalculation,
     staffAllocations.map((s) => s.percentage).join(","),
   ]);
@@ -353,7 +352,7 @@ export function StaffAllocationSection({
                     htmlFor={`rebate-allowance-${staff.id}`}
                     className="text-xs text-gray-600"
                   >
-                    리베이트 수당
+                    총합계
                   </Label>
                   <Input
                     id={`rebate-allowance-${staff.id}`}

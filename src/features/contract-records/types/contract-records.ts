@@ -45,7 +45,8 @@ export interface SalesContractData {
   staffAllocations: StaffAllocation[];
   contractImages: ContractImage[];
   totalCalculation: number;
-  contractDate?: string; // 계약일 (자동 생성)
+  contractDate?: string; // 계약일
+  balanceDate?: string; // 잔금일자
   status?: "ongoing" | "rejected" | "cancelled" | "completed"; // 계약 상태
   createdAt?: string; // 생성일
   updatedAt?: string; // 수정일

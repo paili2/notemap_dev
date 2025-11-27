@@ -9,6 +9,12 @@ import {
 } from "@/components/atoms/Dialog/Dialog";
 import { Button } from "@/components/atoms/Button/Button";
 import { Separator } from "@/components/atoms/Separator/Separator";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/atoms/Card/Card";
 import { PersonalInfoSection } from "./PersonalInfoSection";
 import { FinancialInfoSection } from "./FinancialInfoSection";
 import type {
@@ -29,6 +35,24 @@ import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "@/features/users/api/account";
 import { api } from "@/shared/api/api";
 import { getTeams } from "@/features/teams";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/atoms/Popover/Popover";
+import { statusConfigMap } from "@/components/contract-management/utils/contractUtils";
+import { Calendar } from "@/components/atoms/Calendar/Calendar";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
+import { Label } from "@/components/atoms/Label/Label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/atoms/Select/Select";
+import { ChevronDownIcon, X } from "lucide-react";
 
 // 기본 데이터
 const defaultData: SalesContractData = {
@@ -83,6 +107,10 @@ export function SalesContractRecordsModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(!initialData); // 초기 데이터가 없으면 편집 모드 (신규 생성)
   const { toast } = useToast();
+  
+  // 날짜 선택 Popover 상태
+  const [isContractDateOpen, setIsContractDateOpen] = useState(false);
+  const [isBalanceDateOpen, setIsBalanceDateOpen] = useState(false);
 
   // 프로필 정보 가져오기
   const { data: profile } = useQuery({
@@ -412,6 +440,192 @@ export function SalesContractRecordsModal({
         {/* 스크롤 가능한 콘텐츠 영역 */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="flex flex-col gap-2">
+            {/* 계약일자, 잔금일자, 계약 상태 */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-1 pt-2 px-3">
+                <CardTitle className="text-sm">계약 정보</CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-1">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="space-y-1 flex-1">
+                    <Label className="text-xs text-muted-foreground">계약일자</Label>
+                    <div className="relative">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            disabled={!isEditMode}
+                            className={`flex w-full items-center justify-between text-left font-normal h-7 text-xs ${
+                              !data.contractDate ? "text-muted-foreground" : ""
+                            }`}
+                          >
+                            {data.contractDate ? (
+                              format(new Date(data.contractDate), "PPP", {
+                                locale: ko,
+                              })
+                            ) : (
+                              <span>계약일자를 선택하세요</span>
+                            )}
+                            <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 !z-[2200]" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={
+                              data.contractDate
+                                ? new Date(data.contractDate)
+                                : undefined
+                            }
+                            locale={ko}
+                            i18nLocale="ko-KR"
+                            captionLayout="dropdown"
+                            onSelect={(date) => {
+                              if (date) {
+                                handleDataChange({
+                                  ...data,
+                                  contractDate: format(date, "yyyy-MM-dd"),
+                                });
+                                setIsContractDateOpen(false);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {data.contractDate && isEditMode && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-8 top-1/2 -translate-y-1/2 h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDataChange({
+                              ...data,
+                              contractDate: undefined,
+                            });
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 flex-1">
+                    <Label className="text-xs text-muted-foreground">잔금일자</Label>
+                    <div className="relative">
+                      <Popover
+                        open={isBalanceDateOpen}
+                        onOpenChange={setIsBalanceDateOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            disabled={!isEditMode}
+                            className={`flex w-full items-center justify-between text-left font-normal h-7 text-xs ${
+                              !data.balanceDate ? "text-muted-foreground" : ""
+                            }`}
+                          >
+                            {data.balanceDate ? (
+                              format(new Date(data.balanceDate), "PPP", {
+                                locale: ko,
+                              })
+                            ) : (
+                              <span>잔금일자를 선택하세요</span>
+                            )}
+                            <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 !z-[2200]" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={
+                              data.balanceDate
+                                ? new Date(data.balanceDate)
+                                : undefined
+                            }
+                            locale={ko}
+                            i18nLocale="ko-KR"
+                            captionLayout="dropdown"
+                            onSelect={(date) => {
+                              if (date) {
+                                handleDataChange({
+                                  ...data,
+                                  balanceDate: format(date, "yyyy-MM-dd"),
+                                });
+                                setIsBalanceDateOpen(false);
+                              }
+                            }}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {data.balanceDate && isEditMode && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-8 top-1/2 -translate-y-1/2 h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDataChange({
+                              ...data,
+                              balanceDate: undefined,
+                            });
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 flex-1">
+                    <Label className="text-xs text-muted-foreground">계약 상태</Label>
+                    <Select
+                      value={data.status || "ongoing"}
+                      onValueChange={(value) => {
+                        handleDataChange({
+                          ...data,
+                          status: value as
+                            | "ongoing"
+                            | "rejected"
+                            | "cancelled"
+                            | "completed",
+                        });
+                      }}
+                      disabled={!isEditMode}
+                    >
+                      <SelectTrigger
+                        className={`h-7 text-xs ${
+                          statusConfigMap[
+                            (data.status || "ongoing") as keyof typeof statusConfigMap
+                          ]?.className || ""
+                        }`}
+                        disabled={!isEditMode}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="!z-[2200]">
+                        <SelectItem value="ongoing" className="text-xs">
+                          계약중
+                        </SelectItem>
+                        <SelectItem value="rejected" className="text-xs">
+                          부결
+                        </SelectItem>
+                        <SelectItem value="cancelled" className="text-xs">
+                          해약
+                        </SelectItem>
+                        <SelectItem value="completed" className="text-xs">
+                          계약완료
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* 인적 정보 */}
             <PersonalInfoSection
               customerInfo={data.customerInfo}
