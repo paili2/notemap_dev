@@ -28,6 +28,9 @@ import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
 import MetaInfoContainer from "./components/MetaInfoContainer";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 import { useMe } from "@/shared/api/auth";
+import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
+import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
+import { useToast } from "@/hooks/use-toast";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
@@ -320,10 +323,17 @@ function ViewStage({
 
   // ✅ 현재 로그인 유저 정보
   const { data: me } = useMe();
+  const { toast } = useToast();
+
+  // ✅ 모바일 여부 & 모바일 수정 가능 여부
+  const isMobile = useIsMobileBreakpoint(768);
+  const canEditOnMobile = ALLOW_MOBILE_PROPERTY_EDIT;
+  const canEditProperty = !isMobile || canEditOnMobile;
+  const showEditButton = !isMobile || canEditOnMobile;
 
   // ✅ 삭제 버튼 노출 권한: 부장 / 팀장만
   const role = me?.role;
-  const canDelete = ["admin", "manager"].includes(role ?? ""); // 아직 백엔드 수정 안되어서 우선 최고관리자랑 manager = 팀장 넣음
+  const canDelete = ["admin", "manager"].includes(role ?? "");
 
   const hasData = !!data;
   const formInput = useMemo(
@@ -395,6 +405,15 @@ function ViewStage({
   }, []);
 
   const handleClickEdit = useCallback(() => {
+    // ✅ 모바일 + 토글 OFF면 수정 진입 막기
+    if (!canEditProperty) {
+      toast({
+        title: "모바일에서 수정이 제한됩니다",
+        description: "매물정보 수정은 PC 환경에서만 가능합니다.",
+      });
+      return;
+    }
+
     const imageCardCounts =
       (f as any).imageCardCounts ??
       (Array.isArray(f.cardsHydrated)
@@ -411,7 +430,7 @@ function ViewStage({
     };
 
     onRequestEdit(editSeed);
-  }, [data, f, onRequestEdit]);
+  }, [canEditProperty, toast, f, data, onRequestEdit]);
 
   const panelClass = cn(
     "bg-white shadow-xl overflow-hidden flex flex-col",
@@ -596,17 +615,20 @@ function ViewStage({
               )}
             >
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleClickEdit}
-                  data-pvm-initial
-                  className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
-                  aria-label="수정"
-                  title="수정"
-                >
-                  <Pencil className="h-4 w-4" />
-                  수정
-                </button>
+                {/* ✅ 모바일 + 토글 OFF면 아예 숨김 */}
+                {showEditButton && (
+                  <button
+                    type="button"
+                    onClick={handleClickEdit}
+                    data-pvm-initial
+                    className="inline-flex items-center gap-2 rounded-md border px-3 h-9 text-blue-600 hover:bg-blue-50"
+                    aria-label="수정"
+                    title="수정"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    수정
+                  </button>
+                )}
 
                 {/* ✅ 부장 / 팀장만 삭제 버튼 노출 */}
                 {canDelete && (

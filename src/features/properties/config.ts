@@ -1,2 +1,0 @@
-export const ALLOW_MOBILE_PROPERTY_EDIT =
-  process.env.NEXT_PUBLIC_ALLOW_MOBILE_PROPERTY_EDIT === "true";

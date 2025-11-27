@@ -39,6 +39,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/atoms/Dialog/Dialog";
+import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
+import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
 
 /** Parking 슬라이스 타입 */
 type ParkingFormSlice = {
@@ -1162,6 +1164,11 @@ export default function PropertyEditModalBody({
 }: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
   const queryClient = useQueryClient();
 
+  // ✅ 모바일 수정 제한 토글
+  const isMobile = useIsMobileBreakpoint(768);
+  const canEditOnMobile = ALLOW_MOBILE_PROPERTY_EDIT;
+  const canEditProperty = !isMobile || canEditOnMobile;
+
   // 🔔 공통 알림 모달 상태
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -1947,6 +1954,47 @@ export default function PropertyEditModalBody({
 
   /* embedded 레이아웃 */
   if (embedded) {
+    // ✅ 모바일 + 토글 OFF: 편집 UI 대신 안내만 표시
+    if (!canEditProperty) {
+      return (
+        <>
+          <div className="flex flex-col h-full">
+            <HeaderContainer form={headerForm as any} onClose={onClose} />
+
+            <div className="flex-1 grid place-items-center px-4 py-6 text-sm text-slate-700">
+              <p className="whitespace-pre-line text-center leading-relaxed">
+                {
+                  "모바일 환경에서는 매물정보 수정이 제한됩니다.\nPC 환경에서 다시 시도해 주세요."
+                }
+              </p>
+            </div>
+          </div>
+
+          <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>안내</DialogTitle>
+                <DialogDescription asChild>
+                  <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">
+                    {alertMessage}
+                  </p>
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setAlertOpen(false)}
+                  className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  확인
+                </button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      );
+    }
+
     return (
       <>
         <div className="flex flex-col h-full">
@@ -1976,6 +2024,64 @@ export default function PropertyEditModalBody({
         </div>
 
         {/* 공통 알림 모달 */}
+        <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>안내</DialogTitle>
+              <DialogDescription asChild>
+                <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">
+                  {alertMessage}
+                </p>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAlertOpen(false)}
+                className="rounded-lg px-4 py-2 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+              >
+                확인
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  /* 기본 모달 레이아웃 (포털) – 모바일 제한일 때는 안내만 */
+  if (!canEditProperty) {
+    return (
+      <>
+        <div className="fixed inset-0 z-[1000] isolate">
+          {/* 배경 딤 */}
+          <div
+            className="absolute inset-0 z-[1000] bg-black/40 pointer-events-auto"
+            onClick={onClose}
+            aria-hidden
+          />
+          {/* 안내 전용 패널 */}
+          <div className="absolute left-1/2 top-1/2 z-[1001] w-[420px] max-w-[95vw] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl flex flex-col pointer-events-auto overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h2 className="text-base font-semibold">매물정보 수정 제한</h2>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border px-3 h-8 text-xs hover:bg-muted"
+              >
+                닫기
+              </button>
+            </div>
+            <div className="p-5 text-sm text-slate-700 leading-relaxed">
+              <p className="whitespace-pre-line text-center">
+                {
+                  "모바일 환경에서는 매물정보 수정이 제한되어 있습니다.\nPC 환경에서 다시 시도해 주세요."
+                }
+              </p>
+            </div>
+          </div>
+        </div>
+
         <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
           <DialogContent>
             <DialogHeader>
