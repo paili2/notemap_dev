@@ -57,10 +57,10 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
     params.hasTerrace = true;
   }
 
+  // ✅ 실입주금 → DTO 필드 이름과 동일하게
   const depositAmount = Number(convertPriceToWon(ui.deposit));
   if (Number.isFinite(depositAmount) && depositAmount > 0) {
-    (params as any).minRealMoveInCost = depositAmount;
-    params.minRealMoveInCost = depositAmount;
+    params.minRealMoveInCostMax = depositAmount;
   }
 
   // 3) 매매가
@@ -105,7 +105,7 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
       .filter((v): v is BuildingType => !!v);
 
     if (mapped.length) {
-      (params as any).buildingTypes = Array.from(new Set(mapped));
+      params.buildingTypes = Array.from(new Set(mapped));
     }
   }
 

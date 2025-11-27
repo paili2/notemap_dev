@@ -15,7 +15,7 @@ export type PinSearchParams = {
   buildingTypes?: BuildingType[];
 
   /** ✅ 최저 실입주금(원 단위) */
-  minRealMoveInCost?: number;
+  minRealMoveInCostMax?: number;
 };
 
 /** 필터 없이 요청할 때만 함께 반환되는 draft */

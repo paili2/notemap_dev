@@ -700,19 +700,17 @@ function toPinPatch(
     (patch as any).parkingTypeId = nowParkingTypeId;
   }
 
-  // 3) parkingType: ✅ 무조건 dto에 실어 보낸다 (diff 실패 방지)
+  // 3) parkingType: ✅ 자유양식 텍스트 (최대 50자, 공백/커스텀은 null)
   {
     const raw = (f as any).parkingType;
+    const trimmed = raw == null ? "" : String(raw).trim();
     const value =
-      raw == null ||
-      String(raw).trim() === "" ||
-      String(raw).trim() === "custom"
-        ? null
-        : String(raw).trim();
+      trimmed === "" || trimmed === "custom" ? null : trimmed.slice(0, 50);
 
     console.log("[toPinPatch][parkingType]", {
       initParkingType: (initial as any)?.parkingType,
       nowRaw: raw,
+      trimmed,
       send: value,
     });
 

@@ -30,7 +30,7 @@ const toNum = (v: unknown) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-const toIntOrNull = (v: unknown) => {
+const toIntOrNullLocal = (v: unknown) => {
   if (v === "" || v === null || v === undefined) return null;
   const n = Number(v);
   return Number.isFinite(n) ? Math.trunc(n) : null;
@@ -92,6 +92,7 @@ type BuildArgs = {
   /** ✅ 매물평점: '1' ~ '5' | '' */
   parkingGrade: StarStr;
 
+  /** ✅ 주차 유형 문자열(프리셋/직접입력) */
   parkingType: string | null;
 
   /** ✅ 총 주차 대수 (0 허용) */
@@ -435,9 +436,9 @@ export function buildCreatePayload(args: BuildArgs) {
 
   /* 5) 최종 payload */
   const safeBadge = s(badge);
-  const normalizedTotalParkingSlots = toIntOrNull(totalParkingSlots);
+  const normalizedTotalParkingSlots = toIntOrNullLocal(totalParkingSlots);
 
-  const minRealMoveInCostValue = toIntOrNull(minRealMoveInCost);
+  const minRealMoveInCostValue = toIntOrNullLocal(minRealMoveInCost);
   const rebateTextSafe = s(rebateText);
 
   // ✅ 서버 전송용 units: 항상 포함(비어있으면 []), 타입은 배열
@@ -521,7 +522,7 @@ export function buildCreatePayload(args: BuildArgs) {
     orientations,
     ...(directions ? { directions } : {}),
 
-    // 주차 타입은 값 있을 때만 전송
+    // ✅ 주차 유형: 값 있을 때만 전송 (trim 후)
     ...(s(parkingType) ? { parkingType: s(parkingType) } : {}),
 
     // 총 주차 대수: null 제외(0 허용)

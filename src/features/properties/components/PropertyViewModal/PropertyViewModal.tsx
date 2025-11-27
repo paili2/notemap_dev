@@ -363,6 +363,16 @@ function ViewStage({
     return fromView ?? fromForm ?? fromMetaRoot ?? fromRaw ?? null;
   }, [data, f, metaDetails]);
 
+  /** ✅ parkingType도 여러 소스에서 안전하게 합쳐서 사용 */
+  const parkingTypeResolved = useMemo(() => {
+    const fromForm = (f as any)?.parkingType;
+    const fromView = (data as any)?.parkingType;
+    const fromMetaRoot = (metaDetails as any)?.parkingType;
+    const fromRaw = (metaDetails as any)?.raw?.parkingType;
+
+    return fromForm ?? fromView ?? fromMetaRoot ?? fromRaw ?? null;
+  }, [f, data, metaDetails]);
+
   // 🔁 전역 메모 보기 모드 (K&N / R)
   const memoViewMode = useMemoViewMode((s) => s.mode); // "public" | "secret"
   const isPublicMemoMode = memoViewMode === "public";
@@ -547,7 +557,7 @@ function ViewStage({
                 remainingHouseholds={f.remainingHouseholds}
               />
               <ParkingViewContainer
-                parkingType={f.parkingType}
+                parkingType={parkingTypeResolved}
                 totalParkingSlots={
                   (f as any).totalParkingSlots ??
                   (data as any)?.totalParkingSlots ??

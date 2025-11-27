@@ -28,7 +28,7 @@ import MemosContainer from "./ui/MemosContainer";
 import { mapPinKindToBadge } from "../../lib/badge";
 
 import { api } from "@/shared/api/api";
-import { createPin, CreatePinDto } from "@/shared/api/pins";
+import { createPin, createPinDraft, CreatePinDto } from "@/shared/api/pins";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
 import type { AreaSet as StrictAreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
@@ -68,17 +68,6 @@ const isValidIsoDateStrict = (s?: string | null): boolean => {
     dt.getUTCMonth() === m - 1 &&
     dt.getUTCDate() === d
   );
-};
-
-/* === 신축/구옥 보정 === */
-const toBoolUndef = (v: unknown): boolean | undefined => {
-  if (typeof v === "boolean") return v;
-  if (v == null) return undefined;
-  const s = String(v).trim().toLowerCase();
-  if (!s) return undefined;
-  if (["y", "yes", "1", "true", "o"].includes(s)) return true;
-  if (["n", "no", "0", "false", "x"].includes(s)) return false;
-  return undefined;
 };
 
 /** ✅ 실제 답사예정 핀 kind 값: PinKind 중 "question" 을 사용 */
@@ -319,10 +308,7 @@ export default function PropertyCreateModalBody({
   );
 
   // 예약/드래프트 정리
-  const {
-    removeByReservationId: removeReservation,
-    removeByPinDraftId: removeDraft,
-  } = useScheduledReservations();
+  const { removeByPinDraftId: removeDraft } = useScheduledReservations();
 
   const isSavingRef = useRef(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -687,22 +673,22 @@ export default function PropertyCreateModalBody({
           return;
         }
 
-        const res = await api.post("/pin-drafts", {
+        // addressLine 이 비어 있으면 매물명으로 대체
+        const addressLine = (f.address && f.address.trim()) || mainTitle;
+
+        // ✅ 공용 createPinDraft 사용 + name / contactMainPhone 같이 전송
+        const { id: pinDraftId } = await createPinDraft({
           lat: latNum,
           lng: lngNum,
-          addressLine: f.address,
+          addressLine,
+          name: mainTitle,
+          contactMainPhone: mainOfficePhone,
         });
-
-        const created = res?.data?.data ?? res?.data ?? null;
 
         await Promise.resolve(
           (onSubmit as any)?.({
             mode: "visit-plan-only",
-            pinDraftId:
-              created?.id ??
-              created?.pinDraftId ??
-              created?.pin_draft_id ??
-              null,
+            pinDraftId: pinDraftId ?? null,
             lat: latNum,
             lng: lngNum,
           })
@@ -931,11 +917,8 @@ export default function PropertyCreateModalBody({
     initialLng,
     persistOneCard,
     persistVerticalFiles,
-    removeReservation,
     removeDraft,
     pinDraftId,
-    asInner,
-    findGroupById,
     isVisitPlanPin,
     mainTitle,
     mainOfficePhone,

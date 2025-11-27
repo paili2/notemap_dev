@@ -9,7 +9,7 @@ import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-gro
 import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 import type { AxiosRequestConfig } from "axios";
-import { CreatePinOptionsDto } from "@/features/properties/types/property-dto";
+import type { CreatePinOptionsDto } from "@/features/properties/types/property-dto";
 
 /* 개발환경 플래그 */
 const DEV = process.env.NODE_ENV !== "production";
@@ -197,9 +197,8 @@ export type CreatePinDto = {
   totalParkingSlots?: number | string | null;
 
   registrationTypeId?: number | string | null;
-  parkingTypeId?: number | string | null;
 
-  /** 프론트 전용 라벨 (서버에는 보내지 않음) */
+  /** 주차유형 문자열 (백엔드 DTO에도 존재) */
   parkingType?: string | null;
 
   /** ✅ 서버 전달 시 "1"~"5" 문자열 또는 null 권장 (입력은 number|string|null 수용) */
@@ -476,8 +475,6 @@ export async function createPin(
       dto.totalParkingSlots === 0 || dto.totalParkingSlots
         ? Number(dto.totalParkingSlots)
         : undefined,
-    parkingTypeId:
-      dto.parkingTypeId == null ? undefined : Number(dto.parkingTypeId),
     registrationTypeId:
       dto.registrationTypeId == null
         ? undefined
@@ -571,8 +568,10 @@ export async function createPin(
     ...(dto.registrationTypeId != null
       ? { registrationTypeId: Number(dto.registrationTypeId) }
       : {}),
-    ...(dto.parkingTypeId != null
-      ? { parkingTypeId: Number(dto.parkingTypeId) }
+
+    // ✅ parkingType 문자열 전송
+    ...(dto.parkingType != null && String(dto.parkingType).trim() !== ""
+      ? { parkingType: String(dto.parkingType).trim() }
       : {}),
 
     /** ✅ parkingGrade: 문자열 또는 null만 전송 */
@@ -900,10 +899,12 @@ export async function updatePin(
               : Number(dto.registrationTypeId),
         }
       : {}),
-    ...(has("parkingTypeId")
+
+    // ✅ parkingType 문자열 PATCH
+    ...(has("parkingType")
       ? {
-          parkingTypeId:
-            dto.parkingTypeId == null ? null : Number(dto.parkingTypeId),
+          parkingType:
+            dto.parkingType == null ? null : String(dto.parkingType).trim(),
         }
       : {}),
 
@@ -1097,7 +1098,14 @@ type CreatePinDraftResponse = {
   success: boolean;
   path: string;
   message?: string;
-  data: { draftId: number; lat?: number; lng?: number } | null;
+  data: {
+    draftId?: number;
+    id?: number;
+    pinDraftId?: number;
+    pin_draft_id?: number;
+    lat?: number;
+    lng?: number;
+  } | null;
   statusCode?: number;
   messages?: string[];
 };
@@ -1178,7 +1186,15 @@ export async function createPinDraft(
     });
   }
 
-  let draftId: string | number | undefined = data?.data?.draftId ?? undefined;
+  // ✅ 다양한 키(draftId / id / pinDraftId / pin_draft_id) 대응
+  let draftId: string | number | undefined =
+    data?.data?.draftId ??
+    data?.data?.id ??
+    (data?.data as any)?.pinDraftId ??
+    (data?.data as any)?.pin_draft_id ??
+    undefined;
+
+  // Location 헤더 fallback
   if (draftId == null) {
     const loc = (headers as any)?.location || (headers as any)?.Location;
     if (typeof loc === "string") {
@@ -1186,6 +1202,7 @@ export async function createPinDraft(
       if (m) draftId = m[1];
     }
   }
+
   if (draftId == null || draftId === "") {
     const msg =
       data?.messages?.join("\n") || data?.message || "임시핀 생성 실패";
@@ -1213,4 +1230,38 @@ export async function searchPins(
     throw e;
   }
   return data.data;
+}
+
+/* ───────────── 임시핀 상세조회 (/pin-drafts/:id) ───────────── */
+
+export type PinDraftDetail = {
+  id: number;
+  lat: number;
+  lng: number;
+  addressLine: string | null;
+  name?: string | null;
+  contactMainPhone?: string | null;
+};
+
+export async function getPinDraftDetail(
+  id: number | string,
+  signal?: AbortSignal
+): Promise<PinDraftDetail> {
+  const { data } = await api.get<{
+    message?: string;
+    data: any;
+  }>(`/pin-drafts/${id}`, {
+    withCredentials: true,
+    signal,
+  });
+
+  const detail = data?.data ?? data;
+  return {
+    id: Number(detail.id ?? id),
+    lat: Number(detail.lat),
+    lng: Number(detail.lng),
+    addressLine: detail.addressLine ?? null,
+    name: detail.name ?? null,
+    contactMainPhone: detail.contactMainPhone ?? null,
+  };
 }

@@ -170,6 +170,10 @@ export default function MapHomePage() {
       jibunAddress: string | null;
       reservedDate?: string;
       dateISO?: string;
+
+      // 🔹 추가: 매물명 + 분양사무실 대표번호
+      name?: string | null;
+      contactMainPhone?: string | null;
     }) => {
       const addressLine =
         (payload.address && payload.address.trim()) ||
@@ -185,6 +189,10 @@ export default function MapHomePage() {
         lat: payload.lat,
         lng: payload.lng,
         addressLine,
+
+        // 🔹 여기서 같이 전송
+        name: payload.name ?? undefined,
+        contactMainPhone: payload.contactMainPhone ?? undefined,
       });
       if (draftId == null)
         throw new Error("Draft 생성에 실패했습니다. (id 없음)");

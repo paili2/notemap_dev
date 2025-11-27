@@ -7,6 +7,8 @@ import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
 import SafeSelect from "@/features/safe/SafeSelect";
 
+const PARKING_TYPE_MAX_LEN = 50;
+
 type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
   /** 상위는 number|null 로 내려줌 */
   totalParkingSlots?: number | null;
@@ -142,6 +144,15 @@ export default function ParkingSection({
     ]
   );
 
+  /** 커스텀 문자열 입력 (길이 제한 포함) */
+  const onChangeCustomInput = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value.slice(0, PARKING_TYPE_MAX_LEN);
+      setCustom(next);
+    },
+    []
+  );
+
   const onBlurCustom = useCallback(() => {
     const trimmed = custom.trim();
     if (trimmed === "") {
@@ -185,10 +196,11 @@ export default function ParkingSection({
             />
             <Input
               value={custom}
-              onChange={(e) => setCustom(e.target.value)}
+              onChange={onChangeCustomInput}
               onBlur={onBlurCustom}
               placeholder="예: 지상 병렬 10대"
               className="h-9 w-[160px] md:w-[200px]"
+              maxLength={PARKING_TYPE_MAX_LEN}
             />
           </div>
         </Field>

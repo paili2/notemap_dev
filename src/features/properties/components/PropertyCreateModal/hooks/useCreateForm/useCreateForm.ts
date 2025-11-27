@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import { useHeaderFields } from "./slices/useHeaderFields";
 import { useBasicInfo } from "./slices/useBasicInfo";
 import { useNumbers } from "./slices/useNumbers";
@@ -12,6 +12,7 @@ import { useUnitLines } from "./slices/useUnitLines";
 import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
 import { sanitizeAreaGroups } from "@/features/properties/lib/forms/dtoUtils";
+import { getPinDraftDetail } from "@/shared/api/pins";
 
 type Args = {
   initialAddress?: string;
@@ -29,6 +30,70 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
   const areas = useAreaSets();
   const units = useUnitLines();
   const opts = useOptionsMemos();
+
+  // ─────────────────────────────────────────────────────────
+  // ✅ pinDraftId로부터 매물명 / 분양사무실 번호 / 주소 프리필
+  //   - 한 번만 실행
+  //   - 폼에 이미 값이 있으면 덮어쓰지 않음
+  // ─────────────────────────────────────────────────────────
+  const didHydrateFromDraftRef = useRef(false);
+
+  useEffect(() => {
+    if (!pinDraftId || didHydrateFromDraftRef.current) return;
+
+    let aborted = false;
+
+    (async () => {
+      try {
+        const draft = await getPinDraftDetail(pinDraftId);
+        if (aborted || !draft) return;
+
+        const name = (draft.name ?? "").trim();
+        const phone = (draft.contactMainPhone ?? "").trim();
+        const addressLine = (draft.addressLine ?? "").trim();
+
+        const headerState: any = header.state;
+        const headerActions: any = header.actions;
+        const basicState: any = basic.state;
+        const basicActions: any = basic.actions;
+
+        // 매물명: 헤더 title이 비어 있을 때만 세팅
+        if (
+          name &&
+          !headerState.title &&
+          typeof headerActions.setTitle === "function"
+        ) {
+          headerActions.setTitle(name);
+        }
+
+        // 분양사무실 대표번호: officePhone 비어 있을 때만 세팅
+        if (
+          phone &&
+          !basicState.officePhone &&
+          typeof basicActions.setOfficePhone === "function"
+        ) {
+          basicActions.setOfficePhone(phone);
+        }
+
+        // 주소: address 비어 있을 때만 세팅
+        if (
+          addressLine &&
+          !basicState.address &&
+          typeof basicActions.setAddress === "function"
+        ) {
+          basicActions.setAddress(addressLine);
+        }
+
+        didHydrateFromDraftRef.current = true;
+      } catch (err) {
+        console.error("[useCreateForm] getPinDraftDetail failed", err);
+      }
+    })();
+
+    return () => {
+      aborted = true;
+    };
+  }, [pinDraftId, header.state, header.actions, basic.state, basic.actions]);
 
   // ─────────────────────────────────────────────────────────
   // ① 기본 저장 가능 여부 (전체 검증용)
@@ -102,10 +167,6 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
     const setRegistrationTypeId =
       (parking.actions as any).setRegistrationTypeId ?? noopLocal;
 
-    const parkingTypeId = (parking.state as any).parkingTypeId ?? null;
-    const setParkingTypeId =
-      (parking.actions as any).setParkingTypeId ?? noopLocal;
-
     return {
       // ── actions (헤더 + 나머지 전체)
       ...header.actions, // setTitle, setParkingGrade, setElevator, setPinKind, setBadge, setRebateRaw 포함
@@ -134,8 +195,6 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       setBuildingType,
       registrationTypeId,
       setRegistrationTypeId,
-      parkingTypeId,
-      setParkingTypeId,
 
       // 면적 파생
       areaSetsCombined,

@@ -247,7 +247,8 @@ type BuildUpdateArgs = {
 
   // 평점/주차/준공/매매
   parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
-  parkingType?: string | null; // UI 용도만, 서버로는 안 보냄
+  /** ✅ 주차유형 문자열(자유양식) */
+  parkingType?: string | null;
   parkingTypeId?: number | string | null;
   totalParkingSlots?: number | string | null;
   completionDate?: string;
@@ -497,23 +498,22 @@ export function buildUpdatePayload(
     (initial as any)?.parkingTypeId
   );
 
+  // ✅ parkingType 문자열 PATCH (trim + 최대 50자, 빈문자 → null)
+  if (defined(a.parkingType)) {
+    const raw = a.parkingType ?? "";
+    const trimmed = raw.toString().trim().slice(0, 50);
+    const nextParkingType =
+      trimmed.length === 0 ? null : (trimmed as string | null);
+    const prevParkingType = (initial as any)?.parkingType ?? null;
+
+    putAllowNull("parkingType", nextParkingType, prevParkingType);
+  }
+
   put(
     "salePrice",
     defined(a.salePrice) ? salePriceStr : undefined,
     prevSaleStr
   );
-
-  // ✅ parkingType 문자열은 이제 서버로 보내지 않음 (백엔드는 parkingTypeId 기준)
-  // 필요하면 여기 putAllowNull으로 다시 살릴 수 있음
-  // putAllowNull(
-  //   "parkingType",
-  //   defined(a.parkingType)
-  //     ? a.parkingType === ""
-  //       ? undefined
-  //       : a.parkingType
-  //     : undefined,
-  //   initial?.parkingType
-  // );
 
   putAllowNull(
     "totalParkingSlots",

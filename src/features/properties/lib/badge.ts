@@ -74,7 +74,6 @@ export function mapBadgeToPinKind(badge?: string | null): PinKind | undefined {
       return "duplex";
 
     case "LOFT_TERRACE":
-      // 🔹 복층 테라스 badge → duplex-terrace
       return "duplex-terrace";
 
     case "TOWNHOUSE":

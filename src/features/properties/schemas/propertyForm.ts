@@ -121,6 +121,14 @@ export const propertyFormSchema = z.object({
   /** ✅ 총 주차 대수 (백엔드 키와 일치) */
   totalParkingSlots: asIntOrNull.optional(),
 
+  /** ✅ 주차 유형 문자열(프리셋 + 자유입력, 최대 50자) */
+  parkingType: z
+    .string()
+    .max(50, "주차 유형은 50자 이내로 입력해주세요.")
+    .optional()
+    .nullable()
+    .default(null),
+
   /** ✅ 옵션: 백엔드에서 필수 배열 → 기본값 [] */
   options: z.array(z.string()).default([]),
 
@@ -155,6 +163,7 @@ export const defaultPropertyFormValues: Partial<PropertyFormValues> = {
   // status: "판매중",
   phone: "",
   totalParkingSlots: null,
+  parkingType: null,
   options: [],
   unitLines: [],
   imageUrls: [],

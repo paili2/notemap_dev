@@ -76,7 +76,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
   // ⭐ 매물평점(별 1~5, 공백 허용)
   const [parkingGrade, setParkingGrade] = useState<StarStr>("");
-  const [parkingTypeId, setParkingTypeId] = useState<number | null>(null);
 
   /** ✅ 주차유형: string | null 로 관리 */
   const [parkingType, setParkingType] = useState<string | null>(null);
@@ -202,7 +201,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setAspects(EMPTY_ASPECTS);
     setParkingGrade("");
     setParkingType(null);
-    setParkingTypeId(null);
     setTotalParkingSlots("");
     setCompletionDate("");
     setSalePrice("");
@@ -306,7 +304,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
         ? (normalized as any).parkingType
         : null
     );
-    setParkingTypeId((normalized as any)?.parkingTypeId ?? null);
 
     setTotalParkingSlots(
       (normalized as any).totalParkingSlots != null
@@ -592,7 +589,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspects,
       parkingGrade,
       parkingType,
-      parkingTypeId,
       totalParkingSlots,
       completionDate,
       salePrice: salePriceRaw,
@@ -633,7 +629,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspects,
       parkingGrade,
       parkingType,
-      parkingTypeId,
       totalParkingSlots,
       completionDate,
       salePriceRaw,
@@ -678,7 +673,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       setAspects,
       setParkingGrade,
       setParkingType,
-      setParkingTypeId,
       setTotalParkingSlots,
       setCompletionDate,
       setSalePrice,
