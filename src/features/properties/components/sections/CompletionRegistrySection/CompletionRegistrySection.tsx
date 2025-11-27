@@ -96,11 +96,10 @@ export default function CompletionRegistrySection({
   /** ── 건물유형 (등기) ── */
   const uiBuildingType = mapBackendToLabel(buildingType as any);
 
-  /** ── 최저실입: 항상 로컬 상태 하나 두고, 필요 시 위로도 올려줌 ── */
+  /** ── 최저실입 ── */
   const initialPrice = String(minRealMoveInCost ?? salePrice ?? "");
   const [localPrice, setLocalPrice] = useState<string>(initialPrice);
 
-  // props 쪽 값이 바뀌면 로컬도 동기화 (예: 편집모드 초기 로드)
   useEffect(() => {
     setLocalPrice(initialPrice);
   }, [initialPrice]);
@@ -147,18 +146,16 @@ export default function CompletionRegistrySection({
     [setStructureGrade]
   );
 
-  /** ✅ 일반핀 → 답사예정 전환 시, 준공일/최저실입/등기 초기화 */
+  /** ✅ 일반핀 → 답사예정 전환 시 초기화 */
   const prevIsVisitRef = useRef<boolean | undefined>(isVisitPlanPin);
   useEffect(() => {
     const prev = prevIsVisitRef.current;
 
     if (isVisitPlanPin && !prev) {
-      // 로컬 state
       setLocalDate("");
       setLocalPrice("");
       setLocalRebate("");
 
-      // 상위 폼 상태
       setCompletionDate("");
       if (typeof setMinRealMoveInCost === "function") {
         setMinRealMoveInCost(null);
@@ -168,11 +165,9 @@ export default function CompletionRegistrySection({
       }
 
       if (typeof setRebateText === "function") {
-        // ✅ 추가
         setRebateText(null);
       }
 
-      // 🔹 등기(건물유형)도 리셋
       if (typeof setBuildingType === "function") {
         setBuildingType(null);
       }
@@ -190,9 +185,17 @@ export default function CompletionRegistrySection({
 
   return (
     <div className="space-y-4">
-      {/* 1행: 경사도 / 구조 / 엘리베이터 */}
-      <div className="grid grid-cols-3 items-center gap-6 md:gap-10">
-        <Field label="경사도" align="center">
+      {/* 상단 블록: 경사도 / 구조 / 엘리베이터 / 준공일 / 등기 */}
+      {/* 모바일: 2열 grid
+          - 1행: 경사도 | 구조
+          - 2행: 엘리베이터 | 준공일
+          - 3행: 등기(2칸 전체)
+        PC(md+): 3열 grid
+          - 1행: 경사도 | 구조 | 엘리베이터
+          - 2행: 준공일 | 등기(2칸 전체)
+      */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3 md:gap-x-6 md:items-center">
+        <Field label="경사도" align="center" className="min-w-[120px]">
           <PillRadioGroup
             name="slopeGrade"
             options={GRADES}
@@ -201,7 +204,7 @@ export default function CompletionRegistrySection({
           />
         </Field>
 
-        <Field label="구조" align="center">
+        <Field label="구조" align="center" className="min-w-[120px]">
           <PillRadioGroup
             name="structureGrade"
             options={GRADES}
@@ -210,7 +213,7 @@ export default function CompletionRegistrySection({
           />
         </Field>
 
-        <Field label="엘리베이터" align="center">
+        <Field label="엘리베이터" align="center" className="min-w-[120px]">
           <ElevatorSegment
             value={elevator ?? null}
             onChange={(next) => {
@@ -218,10 +221,7 @@ export default function CompletionRegistrySection({
             }}
           />
         </Field>
-      </div>
 
-      {/* 2행: 준공일 / 건물유형(등기) */}
-      <div className="grid grid-cols-3 items-end gap-x-4 gap-y-2 md:gap-x-5">
         <Field label="준공일" align="center">
           <Input
             type="text"
@@ -239,12 +239,12 @@ export default function CompletionRegistrySection({
               }
             }}
             placeholder="예: 2024-04-14"
-            className="h-9 w-32 md:w-36"
+            className="h-9 w-36 max-w-full"
             aria-label="준공일 입력(YYYY-MM-DD)"
           />
         </Field>
 
-        <Field label="등기" align="center">
+        <Field label="등기" align="center" className="col-span-2 md:col-span-3">
           <PillRadioGroup
             name="buildingType"
             options={UI_BUILDING_TYPES}
@@ -258,7 +258,7 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
-      {/* 3행: 최저실입(만원) */}
+      {/* 최저실입(만원) */}
       <Field label="최저실입" align="center">
         <div className="flex items-center gap-3">
           <Input

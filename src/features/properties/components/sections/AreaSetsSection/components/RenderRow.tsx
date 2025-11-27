@@ -28,11 +28,12 @@ export default function RenderRow({
   onPyMax,
 }: RenderRowProps) {
   return (
-    <div className="flex items-center gap-8">
+    <div className="flex items-start gap-4">
       <Field label={label}>
-        <div className="flex items-center gap-1 md:gap-2">
+        {/* ───────── PC(>= md): 한 줄 레이아웃 ───────── */}
+        <div className="hidden md:flex items-center gap-2 flex-wrap">
           <Input
-            className="h-9 w-16 md:w-24"
+            className="h-9 w-24"
             value={m2Min}
             onChange={(e) => onM2Min(e.target.value)}
             placeholder="최소"
@@ -40,7 +41,7 @@ export default function RenderRow({
           />
           <span className="text-muted-foreground">m² ~</span>
           <Input
-            className="h-9 w-16 md:w-24"
+            className="h-9 w-24"
             value={m2Max}
             onChange={(e) => onM2Max(e.target.value)}
             placeholder="최대"
@@ -48,10 +49,10 @@ export default function RenderRow({
           />
           <span className="text-muted-foreground">m²</span>
 
-          <div className="w-3" />
+          <div className="w-4" />
 
           <Input
-            className="h-9 w-16 md:w-24"
+            className="h-9 w-24"
             value={pyMin}
             onChange={(e) => onPyMin(e.target.value)}
             placeholder="최소"
@@ -59,13 +60,56 @@ export default function RenderRow({
           />
           <span className="text-muted-foreground">평 ~</span>
           <Input
-            className="h-9 w-16 md:w-24"
+            className="h-9 w-24"
             value={pyMax}
             onChange={(e) => onPyMax(e.target.value)}
             placeholder="최대"
             inputMode="numeric"
           />
           <span className="text-muted-foreground">평</span>
+        </div>
+
+        {/* ───────── 모바일(< md): 두 줄 레이아웃 ───────── */}
+        <div className="flex flex-col gap-1 md:hidden">
+          {/* 1줄: m² */}
+          <div className="flex items-center gap-1">
+            <Input
+              className="h-9 w-20"
+              value={m2Min}
+              onChange={(e) => onM2Min(e.target.value)}
+              placeholder="최소"
+              inputMode="numeric"
+            />
+            <span className="text-muted-foreground text-xs">m² ~</span>
+            <Input
+              className="h-9 w-20"
+              value={m2Max}
+              onChange={(e) => onM2Max(e.target.value)}
+              placeholder="최대"
+              inputMode="numeric"
+            />
+            <span className="text-muted-foreground text-xs">m²</span>
+          </div>
+
+          {/* 2줄: 평 */}
+          <div className="flex items-center gap-1">
+            <Input
+              className="h-9 w-20"
+              value={pyMin}
+              onChange={(e) => onPyMin(e.target.value)}
+              placeholder="최소"
+              inputMode="numeric"
+            />
+            <span className="text-muted-foreground text-xs">평 ~</span>
+            <Input
+              className="h-9 w-20"
+              value={pyMax}
+              onChange={(e) => onPyMax(e.target.value)}
+              placeholder="최대"
+              inputMode="numeric"
+            />
+            <span className="text-muted-foreground text-xs">평</span>
+          </div>
         </div>
       </Field>
     </div>

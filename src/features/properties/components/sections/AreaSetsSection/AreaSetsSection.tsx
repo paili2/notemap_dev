@@ -14,7 +14,6 @@ export default function AreaSetsSection({
   setExtraAreaSets,
 }: AreaSetsSectionProps) {
   const addSet = () => {
-    const idx = extraAreaSets.length + 2;
     setExtraAreaSets([
       ...extraAreaSets,
       {
@@ -80,27 +79,44 @@ export default function AreaSetsSection({
           label="실평"
           m2Min={baseAreaSet.realMinM2}
           onM2Min={(v) =>
-            setBaseAreaSet({ ...baseAreaSet, realMinM2: v, realMinPy: toPy(v) })
+            setBaseAreaSet({
+              ...baseAreaSet,
+              realMinM2: v,
+              realMinPy: toPy(v),
+            })
           }
           m2Max={baseAreaSet.realMaxM2}
           onM2Max={(v) =>
-            setBaseAreaSet({ ...baseAreaSet, realMaxM2: v, realMaxPy: toPy(v) })
+            setBaseAreaSet({
+              ...baseAreaSet,
+              realMaxM2: v,
+              realMaxPy: toPy(v),
+            })
           }
           pyMin={baseAreaSet.realMinPy}
           onPyMin={(v) =>
-            setBaseAreaSet({ ...baseAreaSet, realMinPy: v, realMinM2: toM2(v) })
+            setBaseAreaSet({
+              ...baseAreaSet,
+              realMinPy: v,
+              realMinM2: toM2(v),
+            })
           }
           pyMax={baseAreaSet.realMaxPy}
           onPyMax={(v) =>
-            setBaseAreaSet({ ...baseAreaSet, realMaxPy: v, realMaxM2: toM2(v) })
+            setBaseAreaSet({
+              ...baseAreaSet,
+              realMaxPy: v,
+              realMaxM2: toM2(v),
+            })
           }
         />
       </div>
 
+      {/* 추가 세트들 */}
       {extraAreaSets.map((s, idx) => (
         <div
           key={idx}
-          className="rounded-xl border bg-muted/5 p-3 space-y-3 relative"
+          className="relative rounded-xl border bg-muted/5 p-3 space-y-3"
         >
           <div className="absolute right-3 top-3">
             <button
@@ -118,7 +134,7 @@ export default function AreaSetsSection({
               className="h-8 w-64"
               value={s.title ?? ""}
               onChange={(e) => patchSet(idx, { title: e.target.value })}
-              placeholder={"예) 2룸, 3룸, 3룸 복층"}
+              placeholder="예) 2룸, 3룸, 3룸 복층"
             />
           </div>
 

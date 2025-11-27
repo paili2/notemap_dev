@@ -27,9 +27,10 @@ export default function StructureLinesSection({
 }: StructureLinesProps) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-medium">{title}</div>
-        <div className="flex flex-wrap gap-1">
+      {/* 상단 헤더: 모바일 세로, sm 이상 가로 */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm font-medium shrink-0">{title}</div>
+        <div className="flex flex-wrap gap-1 sm:justify-end">
           {presets.map((p) => (
             <Button
               key={p}
@@ -66,13 +67,15 @@ export default function StructureLinesSection({
           <div
             key={idx}
             className={`
-            grid items-center
-            gap-x-1 gap-y-1 md:gap-x-2
-            grid-cols-[64px_max-content_max-content_minmax(170px,1fr)_32px]
-            md:grid-cols-[72px_max-content_max-content_minmax(240px,1fr)_40px]
-          `}
+              grid items-center
+              gap-x-2 gap-y-1 md:gap-x-2
+              /* 모바일: 구조 / 복층 / 테라스 / 가격 / 삭제 (4+1) */
+              grid-cols-[44px_max-content_max-content_minmax(0,1fr)_40px]
+              /* md 이상: 구조 / 복층 / 테라스 / 가격 / 삭제 */
+              md:grid-cols-[64px_max-content_max-content_minmax(240px,1fr)_40px]
+            `}
           >
-            {/* 구조 */}
+            {/* 구조 (1/1 등) */}
             <Input
               value={`${line.rooms || ""}/${line.baths || ""}`}
               onChange={(e) => {
@@ -84,13 +87,13 @@ export default function StructureLinesSection({
                 });
               }}
               placeholder="2/1"
-              className="h-8 md:h-9 text-center"
+              className="h-8 md:h-9 w-[38px] md:w-[64px] text-center"
               inputMode="numeric"
               pattern="[0-9/]*"
             />
 
             {/* 복층 */}
-            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pl-2">
+            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pl-1 md:pl-2">
               <Checkbox
                 checked={line.duplex}
                 onCheckedChange={(c) => onUpdate(idx, { duplex: !!c })}
@@ -99,7 +102,7 @@ export default function StructureLinesSection({
             </label>
 
             {/* 테라스 */}
-            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pr-2 md:pr-5">
+            <label className="inline-flex items-center gap-1 md:gap-2 text-xs md:text-sm pr-1 md:pr-5">
               <Checkbox
                 checked={line.terrace}
                 onCheckedChange={(c) => onUpdate(idx, { terrace: !!c })}
@@ -107,13 +110,13 @@ export default function StructureLinesSection({
               <span>테라스</span>
             </label>
 
-            {/* 매매가 범위 */}
+            {/* 🔹 매매가 범위: 모바일 = 세로 2줄, PC = 가로 1줄 */}
             <div
               className={`
-                grid w-full items-center justify-items-center
-                grid-cols-[minmax(92px,1fr)_auto_minmax(92px,1fr)]
-                md:grid-cols-[minmax(110px,1fr)_auto_minmax(110px,1fr)]
-                gap-1 md:gap-2
+                w-full
+                flex flex-col gap-1
+                md:grid md:grid-cols-[minmax(110px,1fr)_auto_minmax(110px,1fr)]
+                md:items-center md:justify-items-center md:gap-2
               `}
             >
               {/* 최소 */}
@@ -131,7 +134,8 @@ export default function StructureLinesSection({
                 </span>
               </div>
 
-              <span className="text-xs text-gray-500 justify-self-center px-1 md:px-2">
+              {/* 중간 ~ : PC에서만 표시 */}
+              <span className="hidden md:inline text-xs text-gray-500 justify-self-center px-2">
                 ~
               </span>
 
@@ -151,14 +155,14 @@ export default function StructureLinesSection({
               </div>
             </div>
 
-            {/* 삭제 버튼 */}
+            {/* 삭제 버튼 – 항상 같은 행, 오른쪽 끝 */}
             <Button
               variant="ghost"
               size="icon"
               type="button"
               onClick={() => onRemove(idx)}
               title="행 삭제"
-              className="shrink-0"
+              className="shrink-0 justify-self-end"
             >
               <Trash2 className="h-4 w-4" />
             </Button>

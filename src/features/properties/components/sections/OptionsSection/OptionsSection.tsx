@@ -266,7 +266,9 @@ export default function OptionsSection({
 
       {/* 직접입력 영역 */}
       <div className="space-y-2">
-        <div className="grid grid-cols-[auto_120px_120px_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-7 gap-y-2 items-center">
+        {/* 🔹 모바일: auto | 1fr | 1fr | auto (가변 폭)
+            🔹 데스크탑: auto | 220px | 220px | auto */}
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-4 md:gap-x-7 gap-y-2 items-center">
           {etcOn ? (
             <>
               {rows.length === 0 ? (
@@ -276,7 +278,7 @@ export default function OptionsSection({
                     <label className="inline-flex items-center gap-2 text-sm">
                       <Checkbox checked={etcOn} onCheckedChange={toggleEtc} />
                       <span
-                        className="text-sm select-none cursor-pointer"
+                        className="text-sm select-none cursor-pointer whitespace-nowrap"
                         onClick={() => toggleEtc(!etcOn)}
                       >
                         직접입력
@@ -328,7 +330,7 @@ export default function OptionsSection({
                               onCheckedChange={toggleEtc}
                             />
                             <span
-                              className="text-sm select-none cursor-pointer"
+                              className="text-sm select-none cursor-pointer whitespace-nowrap"
                               onClick={() => toggleEtc(!etcOn)}
                             >
                               직접입력
@@ -402,7 +404,7 @@ export default function OptionsSection({
                 <label className="inline-flex items-center gap-2 text-sm">
                   <Checkbox checked={etcOn} onCheckedChange={toggleEtc} />
                   <span
-                    className="text-sm select-none cursor-pointer"
+                    className="text-sm select-none cursor-pointer whitespace-nowrap"
                     onClick={() => toggleEtc(!etcOn)}
                   >
                     직접입력

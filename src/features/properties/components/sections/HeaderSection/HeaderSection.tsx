@@ -139,8 +139,7 @@ export default function HeaderSection(
           />
         </div>
 
-        {/* 3) 매물평점 — 답사예정일 때만 비활성화 */}
-        {/* 3) 매물평점 — 답사예정일 때만 비활성화 */}
+        {/* 3) 매물평점 + (모바일용) 리베이트: 전부 한 줄 */}
         <div className="order-3 flex items-center gap-2 min-w-[150px]">
           <span
             className={cn(
@@ -151,7 +150,7 @@ export default function HeaderSection(
             매물평점
           </span>
 
-          <div className="w-[140px] md:w-[200px] leading-none">
+          <div className="flex items-center gap-2">
             <div
               className={cn(
                 "flex items-center",
@@ -188,28 +187,28 @@ export default function HeaderSection(
                 </Button>
               )}
             </div>
-          </div>
 
-          {/* 🔹 모바일 전용 리베이트: 매물평점 오른쪽 */}
-          <div
-            className={cn(
-              "flex items-center gap-1 md:hidden",
-              rebateDisabled && "pointer-events-none opacity-60"
-            )}
-          >
-            <span className="text-[18px] font-extrabold text-red-500 leading-none">
-              R
-            </span>
-            <input
-              value={rebateDisplay}
-              onChange={handleChangeRebate}
-              placeholder="10"
+            {/* 🔹 모바일 전용 리베이트: 별점 바로 오른쪽 */}
+            <div
               className={cn(
-                "w-14 h-9 rounded-md border px-2 text-xs text-right",
-                "outline-none focus:ring-2 focus:ring-red-200",
-                "text-red-500 font-semibold"
+                "flex items-center gap-1 md:hidden ml-1",
+                rebateDisabled && "pointer-events-none opacity-60"
               )}
-            />
+            >
+              <span className="text-[18px] font-extrabold text-red-500 leading-none">
+                R
+              </span>
+              <input
+                value={rebateDisplay}
+                onChange={handleChangeRebate}
+                placeholder="10"
+                className={cn(
+                  "w-14 h-9 rounded-md border px-2 text-xs text-right",
+                  "outline-none focus:ring-2 focus:ring-red-200",
+                  "text-red-500 font-semibold"
+                )}
+              />
+            </div>
           </div>
         </div>
 

@@ -48,7 +48,7 @@ export default function AspectsSection({
 
   return (
     <Field label="향">
-      <div className="grid grid-cols-[1fr_1fr_auto] md:gap-x-3 gap-y-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-x-3 gap-y-2 items-center">
         {rows.map((pair, rowIdx) => {
           const isLastRow = rowIdx === rows.length - 1;
           const pairKey =
