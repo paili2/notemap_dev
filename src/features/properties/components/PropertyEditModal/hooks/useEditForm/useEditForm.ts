@@ -262,7 +262,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     console.log("[useEditForm] normalized =", n);
 
     return n;
-  }, [initKey]);
+  }, [initKey, sourceData]);
 
   const injectedOnceRef = useRef<null | string | number>(null);
 
@@ -314,11 +314,24 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setSalePrice(normalized.salePrice);
 
     // 🔥 서버에서 온 리베이트 값들을 최대한 안전하게 텍스트로 주입
-    setRebateText(
+    const rebateFromNormalized =
       (normalized as any).rebateText ??
-        (normalized as any).rebateMemo ??
-        (normalized as any).rebate ??
-        ""
+      (normalized as any).rebateMemo ??
+      (normalized as any).rebate ??
+      undefined;
+
+    const rebateFromSource =
+      (sourceData as any)?.rebateText ??
+      (sourceData as any)?.rebate ??
+      (sourceData as any)?.rebateMemo ??
+      undefined;
+
+    setRebateText(
+      rebateFromNormalized != null && rebateFromNormalized !== ""
+        ? String(rebateFromNormalized)
+        : rebateFromSource != null && rebateFromSource !== ""
+        ? String(rebateFromSource)
+        : ""
     );
 
     setBaseAreaSet(normalized.baseArea);
@@ -350,9 +363,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     const normRegRaw =
       (normalized as any).registry ??
       (normalized as any).registryOne ??
+      (sourceData as any)?.registry ??
       undefined;
     const regFromBT = toUIRegistryFromBuildingType(
-      (normalized as any).buildingType
+      (normalized as any).buildingType ??
+        (sourceData as any)?.buildingType ??
+        undefined
     );
     const finalRegistry =
       (normRegRaw && String(normRegRaw).trim() !== ""
@@ -381,7 +397,11 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     setAspects(normalized.aspects);
 
     /** ✅ 백엔드 buildingType 그대로 상태에 주입 */
-    setBuildingType((normalized as any).buildingType ?? null);
+    setBuildingType(
+      (normalized as any).buildingType ??
+        (sourceData as any)?.buildingType ??
+        null
+    );
 
     initialForPatchRef.current = {
       contactMainPhone: normalized.officePhone ?? "",
@@ -389,15 +409,18 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       minRealMoveInCost: normalized.salePrice ?? "",
       unitLines: (normalized.unitLines ?? []).map((u) => ({ ...u })),
     };
-  }, [initKey, normalized]);
+  }, [initKey, normalized, sourceData]);
 
   useEffect(() => {
     const normRegRaw =
       (normalized as any)?.registry ??
       (normalized as any)?.registryOne ??
+      (sourceData as any)?.registry ??
       undefined;
     const regFromBT = toUIRegistryFromBuildingType(
-      (normalized as any)?.buildingType
+      (normalized as any)?.buildingType ??
+        (sourceData as any)?.buildingType ??
+        undefined
     );
 
     const calculated =
@@ -414,6 +437,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     (normalized as any)?.registry,
     (normalized as any)?.registryOne,
     (normalized as any)?.buildingType,
+    sourceData,
   ]);
 
   // 🔎 디버그용: buildingType/parkingType 변화 로그

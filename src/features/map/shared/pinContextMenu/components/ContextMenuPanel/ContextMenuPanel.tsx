@@ -233,9 +233,16 @@ export default function ContextMenuPanel({
 
   const handleReserveClick = useCallback(() => {
     const payload: ReserveRequestPayload | undefined = undefined;
-    onReserve?.(payload);
+
+    if (onReserve) {
+      onReserve(payload);
+    } else if (onPlan) {
+      // 레거시: onReserve 미연결 시 기존 onPlan 로직으로 폴백
+      onPlan();
+    }
+
     onClose();
-  }, [onReserve, onClose]);
+  }, [onReserve, onPlan, onClose]);
 
   const handleViewClick = useCallback(() => {
     if (!canView) return;

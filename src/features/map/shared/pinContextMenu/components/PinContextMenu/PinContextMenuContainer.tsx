@@ -73,6 +73,61 @@ function findDraftIdByHeuristics(args: {
   return undefined;
 }
 
+// ✅ 예약(scheduled) 목록에서 draftId 찾기
+function findDraftIdFromScheduled(args: {
+  scheduled: any[];
+  lat: number;
+  lng: number;
+  roadAddress?: string | null;
+  jibunAddress?: string | null;
+}): number | undefined {
+  const { scheduled, lat, lng, roadAddress, jibunAddress } = args;
+  if (!scheduled?.length) return undefined;
+
+  const key = posKey(lat, lng);
+  const EPS = 1e-5;
+
+  // 1) posKey 기준
+  const byPosKey = scheduled.find((r: any) => r.posKey && r.posKey === key);
+  if (byPosKey) {
+    const raw = byPosKey.pinDraftId ?? byPosKey.pin_draft_id;
+    if (raw != null && Number.isFinite(Number(raw))) {
+      return Number(raw);
+    }
+  }
+
+  // 2) lat/lng 근사
+  const byLatLng = scheduled.find(
+    (r: any) =>
+      typeof r.lat === "number" &&
+      typeof r.lng === "number" &&
+      Math.abs(r.lat - lat) < EPS &&
+      Math.abs(r.lng - lng) < EPS
+  );
+  if (byLatLng) {
+    const raw = byLatLng.pinDraftId ?? byLatLng.pin_draft_id;
+    if (raw != null && Number.isFinite(Number(raw))) {
+      return Number(raw);
+    }
+  }
+
+  // 3) 주소 기준 (addressLine)
+  const addr = (roadAddress ?? jibunAddress ?? "").trim();
+  if (addr) {
+    const byAddr = scheduled.find(
+      (r: any) => (r.addressLine ?? "").trim() === addr
+    );
+    if (byAddr) {
+      const raw = byAddr.pinDraftId ?? byAddr.pin_draft_id;
+      if (raw != null && Number.isFinite(Number(raw))) {
+        return Number(raw);
+      }
+    }
+  }
+
+  return undefined;
+}
+
 /** ⭐ 낙관적 "답사예정" 표식을 좌표 기준으로 저장 (페이지 생명주기 동안 유지) */
 const optimisticPlannedPosSet = new Set<string>();
 
@@ -389,8 +444,14 @@ export default function PinContextMenuContainer(props: Props) {
   const handleReserveClick = async () => {
     try {
       setReserving(true);
+      // 디버그 로그
+      // eslint-disable-next-line no-console
+      console.log("[reserve] 클릭됨");
 
       const draftId = await getDraftIdForReservation();
+      // eslint-disable-next-line no-console
+      console.log("[reserve] resolved draftId:", draftId);
+
       if (draftId == null) {
         // eslint-disable-next-line no-console
         console.error("No pinDraftId resolved for reservation", {
@@ -398,6 +459,9 @@ export default function PinContextMenuContainer(props: Props) {
           propertyId,
           pos: [position.getLat(), position.getLng()],
         });
+        alert(
+          "이 위치에 연결된 '답사예정' 핀을 찾지 못해서 예약을 만들 수 없어요."
+        );
         return;
       }
 
@@ -410,13 +474,17 @@ export default function PinContextMenuContainer(props: Props) {
       // ✅ 2) 예약 리스트 동기화
       try {
         await refetchScheduledReservations();
-      } catch {}
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("[reserve] refetchScheduledReservations 실패:", e);
+      }
 
       // ✅ 3) 컨텍스트메뉴는 닫기
       onClose?.();
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.error(e);
+      console.error("[reserve] 에러:", e);
+      alert("답사지 예약 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.");
     } finally {
       setReserving(false);
     }
@@ -424,11 +492,10 @@ export default function PinContextMenuContainer(props: Props) {
 
   /** 신규 등록/정보 입력 */
   const handleCreateClick = React.useCallback(
-    (payloadFromPanel: CreateFromPinArgs) => {
+    async (payloadFromPanel: CreateFromPinArgs) => {
       const lat = position.getLat();
       const lng = position.getLng();
 
-      // Panel에서 내려준 값 우선 사용
       let {
         latFromPin,
         lngFromPin,
@@ -439,11 +506,10 @@ export default function PinContextMenuContainer(props: Props) {
         createMode,
       } = payloadFromPanel;
 
-      // 좌표가 비어있다면 현재 position 기준으로 채워주기
       latFromPin ||= lat;
       lngFromPin ||= lng;
 
-      // fromPinDraftId 없으면 기존 heuristic으로 보완
+      // 1차: 기존 heuristic
       let effectiveDraftId =
         fromPinDraftId ?? extractDraftIdFromPin(pin) ?? undefined;
 
@@ -461,13 +527,47 @@ export default function PinContextMenuContainer(props: Props) {
         }
       }
 
-      // 주소도 Panel → Container 순으로 fallback
       const roadAddressFinal = roadAddrFromPanel ?? roadAddress ?? null;
       const jibunAddressFinal = jibunAddrFromPanel ?? jibunAddress ?? null;
       const addressFinal =
         address ?? roadAddressFinal ?? jibunAddressFinal ?? null;
 
-      // 🔼 최종 payload를 상위 onCreate로 전달
+      // ✅ 2차: draftId 없으면 reserved 여부에 따라 분기
+      if (effectiveDraftId == null) {
+        if (reserved) {
+          // 이미 "답사지예약된 핀"에서 매물등록 → scheduled 리스트에서 찾기
+          const found = findDraftIdFromScheduled({
+            scheduled: scheduledReservations ?? [],
+            lat: latFromPin,
+            lng: lngFromPin,
+            roadAddress: roadAddressFinal,
+            jibunAddress: jibunAddressFinal,
+          });
+          if (found != null) {
+            effectiveDraftId = found;
+          }
+        } else {
+          // 예약 안 된 "답사예정지"에서 바로 매물등록 → before(unreserved)에서 찾기
+          try {
+            const before = await fetchUnreservedDrafts();
+            const found = findDraftIdByHeuristics({
+              before,
+              lat: latFromPin,
+              lng: lngFromPin,
+              roadAddress: roadAddressFinal,
+              jibunAddress: jibunAddressFinal,
+            });
+            if (found != null) {
+              effectiveDraftId = found;
+            }
+          } catch (e) {
+            // eslint-disable-next-line no-console
+            console.warn("[create] fetchUnreservedDrafts failed:", e);
+          }
+        }
+      }
+
+      // 🔼 최종 payload
       onCreate?.({
         ...payloadFromPanel,
         latFromPin,
@@ -476,7 +576,6 @@ export default function PinContextMenuContainer(props: Props) {
         address: addressFinal,
         roadAddress: roadAddressFinal,
         jibunAddress: jibunAddressFinal,
-        // createMode는 Panel에서 계산된 그대로 사용
         createMode,
       });
 
@@ -502,6 +601,8 @@ export default function PinContextMenuContainer(props: Props) {
       propertyId,
       roadAddress,
       jibunAddress,
+      reserved, // 🔥 추가
+      scheduledReservations, // 🔥 추가
     ]
   );
 
@@ -615,7 +716,6 @@ export default function PinContextMenuContainer(props: Props) {
 
   return (
     <CustomOverlay
-      key={overlayKey}
       kakao={kakao}
       map={map}
       position={position}

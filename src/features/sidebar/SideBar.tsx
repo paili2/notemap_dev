@@ -5,7 +5,7 @@ import { useMemo, useCallback, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ToggleSidebarProps } from "./types/sidebar";
-import type { ListItem } from "./types/sidebar";
+import type { ListItem, SubListItem } from "./types/sidebar"; // ✅ SubListItem 추가
 import { useSidebar } from "./SideBarProvider";
 import { SidebarSection } from "./components/SidebarSection";
 import { ContractRecordsButton } from "./components/ContractRecordsButton";
@@ -20,7 +20,20 @@ import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "../users/api/account";
 import { cn } from "@/lib/cn";
 
-export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
+/** ✅ MapHomeUI에서 내려줄 지도이동 콜백들을 포함한 Sidebar props */
+type SidebarProps = ToggleSidebarProps & {
+  /** 답사지 예약(위 flat 리스트) 클릭 시 지도 이동 */
+  onFocusItemMap?: (item: ListItem) => void;
+  /** 즐겨찾기 그룹 하위 매물 클릭 시 지도 이동 */
+  onFocusSubItemMap?: (subItem: SubListItem) => void;
+};
+
+export function Sidebar({
+  isSidebarOn,
+  onToggleSidebar,
+  onFocusItemMap, // ✅ 추가
+  onFocusSubItemMap, // ✅ 추가
+}: SidebarProps) {
   // 0) 안전 기본값
   const {
     nestedFavorites = [],
@@ -63,12 +76,15 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
         id: String(r.id),
         title: r.addressLine ?? (r.posKey ? `좌표 ${r.posKey}` : "주소 미확인"),
         dateISO: r.reservedDate ?? "",
+        // ✅ 있다면 lat/lng도 함께 내려서 지도 이동에 활용
+        lat: (r as any).lat,
+        lng: (r as any).lng,
       })),
     [items]
   );
 
   const handleListItemsChange = useCallback((_nextList: ListItem[]) => {
-    // no-op
+    // no-op (현재는 드래그 순서만 서버에 반영, 리스트 자체는 API 기준)
   }, []);
 
   /* ───────── 모바일 드래그-다운 닫기용 상태 ───────── */
@@ -169,6 +185,8 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onReorderIds={onReorder}
           expanded={openSection === "exploration"}
           onToggleExpanded={toggleExploration}
+          // ✅ 리스트 아이템 클릭 시 지도 이동 콜백 전달 (ExplorationItem에서 사용)
+          onFocusItemMap={onFocusItemMap}
         />
 
         {/* 즐겨찾기 */}
@@ -184,6 +202,8 @@ export function Sidebar({ isSidebarOn, onToggleSidebar }: ToggleSidebarProps) {
           onUpdateGroupTitle={updateFavoriteGroupTitle}
           expanded={openSection === "favorites"}
           onToggleExpanded={toggleFavorites}
+          // ✅ 즐겨찾기 하위 매물(SubListItem) 클릭 시 지도 이동 콜백 전달
+          onFocusSubItemMap={onFocusSubItemMap}
         />
 
         <ContractRecordsButton onClick={handleContractRecordsClick} />

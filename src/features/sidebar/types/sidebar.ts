@@ -1,6 +1,13 @@
 export interface SubListItem {
   id: string;
   title: string;
+
+  /** ✅ 지도 포커싱용 좌표 (즐겨찾기 하위 매물) */
+  lat?: number | null;
+  lng?: number | null;
+
+  /** (옵션) 예약일 등 표시용 */
+  dateISO?: string;
 }
 
 export interface FavorateListItem {
@@ -17,6 +24,10 @@ export interface ListItem {
 
   /** 좌표 보정키: 답사예정 핀의 위치 기반 예약 식별용 (id 변경 대비) */
   posKey?: string;
+
+  /** ✅ 지도 포커싱용 좌표 (답사지 예약 flat 리스트) */
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface PendingReservation {
@@ -45,4 +56,10 @@ export interface SidebarSectionProps {
 export interface ToggleSidebarProps {
   isSidebarOn: boolean;
   onToggleSidebar: () => void;
+
+  /** ✅ 답사지 예약(flat 리스트) 클릭 시 지도 포커싱 */
+  onFocusItemMap?: (item: ListItem) => void;
+
+  /** ✅ 즐겨찾기 그룹 하위 매물 클릭 시 지도 포커싱 */
+  onFocusSubItemMap?: (subItem: SubListItem) => void;
 }

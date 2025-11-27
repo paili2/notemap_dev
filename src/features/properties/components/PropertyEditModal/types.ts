@@ -58,6 +58,8 @@ export type PropertyEditItem = {
   completionDate?: string | Date | null; // YYYY-MM or Date
   salePrice?: string | number | null;
 
+  rebateText?: string | number | null;
+
   /** "a~b" 문자열 포맷 (㎡ 범위) */
   exclusiveArea?: string | null;
   realArea?: string | null;
@@ -267,6 +269,7 @@ export function mapEditItemToUpdatePayload(
   // 1) 기본 필드
   const completionYm = normalizeYearMonth(item.completionDate);
   const salePriceStr = numericStringOrUndefined(item.salePrice);
+  const rebateTextStr = numericStringOrUndefined(item.rebateText);
   const totalParkingSlots =
     typeof item.totalParkingSlots === "number" ||
     (typeof item.totalParkingSlots === "string" &&
@@ -320,6 +323,7 @@ export function mapEditItemToUpdatePayload(
     // 준공연월/가격
     completionDate: completionYm,
     salePrice: salePriceStr,
+    rebateText: rebateTextStr,
 
     // ⚠️ 숫자 min/max 키들 제거하고 문자열 범위로만 보냄
     exclusiveArea:

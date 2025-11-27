@@ -249,7 +249,6 @@ type BuildUpdateArgs = {
   parkingGrade?: "" | "1" | "2" | "3" | "4" | "5";
   /** ✅ 주차유형 문자열(자유양식) */
   parkingType?: string | null;
-  parkingTypeId?: number | string | null;
   totalParkingSlots?: number | string | null;
   completionDate?: string;
   salePrice?: string | number | null;
@@ -485,18 +484,6 @@ export function buildUpdatePayload(
     initial?.salePrice === undefined || initial?.salePrice === null
       ? undefined
       : String(initial!.salePrice as any);
-
-  // parkingTypeId 숫자 변환
-  const parkingTypeIdN = defined(a.parkingTypeId)
-    ? toIntOrNull(a.parkingTypeId)
-    : undefined;
-
-  // ✅ parkingTypeId: 변경 시 null도 전송 (삭제 의도)
-  putAllowNull(
-    "parkingTypeId",
-    parkingTypeIdN,
-    (initial as any)?.parkingTypeId
-  );
 
   // ✅ parkingType 문자열 PATCH (trim + 최대 50자, 빈문자 → null)
   if (defined(a.parkingType)) {

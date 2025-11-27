@@ -12,7 +12,7 @@ import { useUnitLines } from "./slices/useUnitLines";
 import { useOptionsMemos } from "./slices/useOptionsMemos";
 import { useCreateValidation } from "../useCreateValidation";
 import { sanitizeAreaGroups } from "@/features/properties/lib/forms/dtoUtils";
-import { getPinDraftDetail } from "@/shared/api/pins";
+import { getPinDraftDetailOnce } from "@/shared/api/pins"; // ✅ 변경된 import
 
 type Args = {
   initialAddress?: string;
@@ -33,19 +33,32 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
 
   // ─────────────────────────────────────────────────────────
   // ✅ pinDraftId로부터 매물명 / 분양사무실 번호 / 주소 프리필
-  //   - 한 번만 실행
-  //   - 폼에 이미 값이 있으면 덮어쓰지 않음
+  //   - 생성 모달이 처음 열렸을 때 한 번만 실행
   // ─────────────────────────────────────────────────────────
   const didHydrateFromDraftRef = useRef(false);
 
   useEffect(() => {
-    if (!pinDraftId || didHydrateFromDraftRef.current) return;
+    // 이미 한 번 채웠으면 다시 안 함
+    if (didHydrateFromDraftRef.current) return;
+
+    // id 없으면 아무 것도 안 함
+    if (pinDraftId == null || pinDraftId === "") return;
+
+    // 숫자로 변환 안 되면 방어
+    const idNum = Number(pinDraftId);
+    if (!Number.isFinite(idNum)) {
+      console.warn("[useCreateForm] invalid pinDraftId:", pinDraftId);
+      return;
+    }
+
+    // 🔑 여기서 바로 true 로 올려서 StrictMode 2회 실행 시 중복 호출 방지
+    didHydrateFromDraftRef.current = true;
 
     let aborted = false;
 
     (async () => {
       try {
-        const draft = await getPinDraftDetail(pinDraftId);
+        const draft = await getPinDraftDetailOnce(idNum);
         if (aborted || !draft) return;
 
         const name = (draft.name ?? "").trim();
@@ -83,23 +96,21 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
         ) {
           basicActions.setAddress(addressLine);
         }
-
-        didHydrateFromDraftRef.current = true;
       } catch (err) {
-        console.error("[useCreateForm] getPinDraftDetail failed", err);
+        if (aborted) return;
+        console.error("[useCreateForm] getPinDraftDetailOnce failed", err);
       }
     })();
 
     return () => {
       aborted = true;
     };
-  }, [pinDraftId, header.state, header.actions, basic.state, basic.actions]);
+  }, [pinDraftId, header, basic]);
 
   // ─────────────────────────────────────────────────────────
   // ① 기본 저장 가능 여부 (전체 검증용)
   // ─────────────────────────────────────────────────────────
   const { isSaveEnabled: rawIsSaveEnabled } = useCreateValidation({
-    // header 에는 title / parkingGrade / elevator / pinKind / badge / rebateRaw 등이 포함됨
     ...header.state,
     ...basic.state,
     ...nums.state,
@@ -127,9 +138,6 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
     [areaSetsCombined]
   );
 
-  // ─────────────────────────────────────────────────────────
-  // ✅ 신축/구옥 토글 액션 얻기 (자동 기본값은 세팅하지 않음)
-  // ─────────────────────────────────────────────────────────
   const noop = (() => {}) as any;
   const setIsNew =
     (grades.actions as any)?.setIsNew ??
@@ -140,7 +148,6 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
     (grades.actions as any)?.set_isOld ??
     noop;
 
-  // 상호배타 선택 유틸 (UI에서 바로 호출)
   const selectNew = useCallback(() => {
     setIsNew(true);
     setIsOld(false);
@@ -151,9 +158,6 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
     setIsOld(true);
   }, [setIsNew, setIsOld]);
 
-  // ─────────────────────────────────────────────────────────
-  // ✅ 저장 가능 여부: 답사예정 특수 로직은 Modal 쪽에서 처리
-  // ─────────────────────────────────────────────────────────
   const isSaveEnabled = rawIsSaveEnabled;
 
   return useMemo(() => {
@@ -168,8 +172,7 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       (parking.actions as any).setRegistrationTypeId ?? noopLocal;
 
     return {
-      // ── actions (헤더 + 나머지 전체)
-      ...header.actions, // setTitle, setParkingGrade, setElevator, setPinKind, setBadge, setRebateRaw 포함
+      ...header.actions,
       ...basic.actions,
       ...nums.actions,
       ...parking.actions,
@@ -179,8 +182,7 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       ...units.actions,
       ...opts.actions,
 
-      // ── state (헤더 + 나머지 전체)
-      ...header.state, // title, parkingGrade, elevator, pinKind, badge, rebateRaw 포함
+      ...header.state,
       ...basic.state,
       ...nums.state,
       ...parking.state,
@@ -190,22 +192,18 @@ export function useCreateForm({ initialAddress, pinDraftId }: Args) {
       ...units.state,
       ...opts.state,
 
-      // 호환 브릿지
       buildingType,
       setBuildingType,
       registrationTypeId,
       setRegistrationTypeId,
 
-      // 면적 파생
       areaSetsCombined,
       areaGroups,
       getAreaGroups,
 
-      // ✅ 상호배타 토글(신축/구옥)
       selectNew,
       selectOld,
 
-      // ✅ 최종 저장 가능 여부 (답사예정이면 완화된 조건은 Modal 쪽에서 별도 처리)
       isSaveEnabled,
     };
   }, [

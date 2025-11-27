@@ -22,17 +22,45 @@ type Props = {
   redirectTo?: string;
 };
 
-/**
- * 클라이언트에서 백엔드 /auth/me 로 실제 세션을 확인하고,
- * 1) 401/419/440 같은 인증 에러이거나
- * 2) 2xx라도 data 가 없으면
- * => 로그인 안 된 것으로 보고 redirectTo 로 보낸다.
- *
- * + 추가:
- * - BroadcastChannel("notemap-auth")의 LOGOUT 이벤트 수신 시에도 즉시 튕김
- * - window focus / visibilitychange 때도 /auth/me 재검증
- * - 백업용 폴링으로도 주기적 검증
- */
+/* ─────────────────────────────────────────────
+ * 📌 전역 세션 체크: 여러 Guard 인스턴스에서도 /me 한 번만
+ * ───────────────────────────────────────────── */
+
+let inFlightSessionCheck: Promise<boolean> | null = null;
+
+async function fetchSessionValid(): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    method: "GET",
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  const isAuthErrorStatus =
+    res.status === 401 || res.status === 419 || res.status === 440;
+
+  if (!res.ok) {
+    return !isAuthErrorStatus; // 5xx 같은 건 "모르겠음" 취급할 수도 있지만, 여기서는 false 로
+  }
+
+  const json = await res.json().catch(() => null);
+  const hasUser = !!json?.data;
+
+  if (isAuthErrorStatus || !hasUser) return false;
+  return true;
+}
+
+/** 여러 곳에서 동시에 호출돼도 실제 네트워크는 1번만 */
+function ensureSessionCheck(): Promise<boolean> {
+  if (!inFlightSessionCheck) {
+    inFlightSessionCheck = fetchSessionValid().finally(() => {
+      inFlightSessionCheck = null;
+    });
+  }
+  return inFlightSessionCheck;
+}
+
+/* ───────────────────────────────────────────── */
+
 export default function ClientSessionGuard({
   children,
   redirectTo = "/login",
@@ -44,14 +72,12 @@ export default function ClientSessionGuard({
 
     let mounted = true;
     let destroyed = false;
-    let isChecking = false;
     let timerId: number | undefined;
     let channel: BroadcastChannel | undefined;
 
     const handleForceLogout = async () => {
       if (!mounted) return;
 
-      // 가능하면 서버에도 세션 종료 시도 (실패해도 무시)
       try {
         await fetch(`${API_BASE}/auth/signout`, {
           method: "POST",
@@ -61,46 +87,24 @@ export default function ClientSessionGuard({
         // ignore
       }
 
-      // 로그인 가드 해제
       setReady(false);
       window.location.assign(redirectTo);
     };
 
     const checkSession = async () => {
-      if (isChecking || destroyed) return;
-      isChecking = true;
-      try {
-        const res = await fetch(`${API_BASE}/auth/me`, {
-          method: "GET",
-          credentials: "include", // ✅ 크로스 도메인 쿠키 포함
-          cache: "no-store",
-        });
+      if (destroyed) return;
 
-        if (!mounted) return;
+      const ok = await ensureSessionCheck();
 
-        const isAuthErrorStatus =
-          res.status === 401 || res.status === 419 || res.status === 440;
+      if (!mounted || destroyed) return;
 
-        let hasUser = false;
-
-        if (res.ok) {
-          const json = await res.json().catch(() => null);
-          hasUser = !!json?.data;
-        }
-
-        if (isAuthErrorStatus || !hasUser) {
-          await handleForceLogout();
-          return;
-        }
-
-        // ✅ 로그인된 상태
-        setReady(true);
-      } catch {
-        // 네트워크 에러 등은 안전하게 로그인 화면으로
+      if (!ok) {
         await handleForceLogout();
-      } finally {
-        isChecking = false;
+        return;
       }
+
+      // ✅ 로그인된 상태
+      setReady(true);
     };
 
     // 1) BroadcastChannel: 다른 탭에서 LOGOUT 브로드캐스트 수신
@@ -109,7 +113,6 @@ export default function ClientSessionGuard({
       channel.onmessage = (event: MessageEvent<AuthBroadcastMessage>) => {
         if (!event?.data) return;
         if (event.data.type === "LOGOUT") {
-          // 다른 탭에서 로그아웃 했음 → 현재 탭도 즉시 튕기기
           void handleForceLogout();
         }
       };
@@ -129,7 +132,7 @@ export default function ClientSessionGuard({
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
-    // 3) 백업용 폴링 (선택)
+    // 3) 백업용 폴링
     if (DEFAULT_POLL_INTERVAL_MS > 0) {
       timerId = window.setInterval(() => {
         void checkSession();

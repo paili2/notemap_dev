@@ -23,9 +23,11 @@ export type ApiPin = {
   totalBuildings?: number | null;
   totalFloors?: number | null;
   totalHouseholds?: number | null;
-  remainingHouseholds?: number | null;
   totalParkingSlots?: number | null;
-  parkingTypeId?: number | null;
+  remainingHouseholds?: number | null;
+
+  /** ✅ 주차유형: 서버에서 문자열로 받기 */
+  parkingType?: string | null;
 
   slopeGrade?: string | null;
   structureGrade?: string | null;
@@ -79,6 +81,9 @@ export type ApiPin = {
     maxPrice?: number | null;
     note?: string | null;
   }> | null;
+
+  /** 🔹 리베이트 텍스트(있다면) */
+  rebateText?: string | null;
 };
 
 /* ───────────── 유틸 ───────────── */
@@ -106,23 +111,13 @@ function boolToOX(b?: boolean | null): "O" | "X" | undefined {
   return undefined;
 }
 
-/** buildingType → 라벨 */
+/** buildingType → 라벨 (등기/용도 표기용) */
 const BUILDING_TYPE_LABEL: Record<string, string> = {
   APT: "아파트",
   OP: "오피스텔",
   주택: "주택",
   근생: "근생",
 };
-
-/** 주차유형 라벨 */
-const PARKING_TYPE_LABEL: Record<number, string> = {
-  1: "병렬",
-  2: "직렬",
-  3: "기계식",
-  4: "EV",
-};
-const mapParkingType = (id?: number | null): string | undefined =>
-  id != null && PARKING_TYPE_LABEL[id] ? PARKING_TYPE_LABEL[id] : undefined;
 
 /** "상/중/하" → Grade 유니온 */
 function toGrade(g?: string | null) {
@@ -311,7 +306,8 @@ export function toViewDetailsFromApi(
     totalParkingSlots: tps ?? null,
     parkingCount: tps ?? undefined,
 
-    parkingType: mapParkingType(api.parkingTypeId),
+    /** ✅ 주차유형은 서버에서 문자열로 바로 수용 */
+    parkingType: api.parkingType ?? undefined,
 
     /** 등급 */
     slopeGrade: toGrade(api.slopeGrade),
@@ -341,6 +337,9 @@ export function toViewDetailsFromApi(
 
     /** ✅ 최저 실입(정수 금액) */
     minRealMoveInCost: api.minRealMoveInCost ?? undefined,
+
+    /** 리베이트 텍스트 (있으면 뷰로 넘김) */
+    rebateText: api.rebateText ?? "",
 
     /** 미디어/기타 초기화 */
     images: [],

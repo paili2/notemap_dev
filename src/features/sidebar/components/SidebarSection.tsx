@@ -10,13 +10,19 @@ import { useDragAndDrop } from "../hooks/useDragAndDrop";
 import { ExplorationItem } from "./ExplorationItem";
 import { cn } from "@/lib/cn";
 
-/** ✅ 드래그 종료 후 최종 순서 id 배열을 알려주는 콜백 + 아코디언 제어 props */
+/** ✅ 드래그 종료 후 최종 순서 id 배열을 알려주는 콜백 + 아코디언 제어 + 지도 이동 콜백 */
 type SidebarSectionProps = BaseProps & {
   onReorderIds?: (orderedIds: string[]) => void;
 
   /** 상위에서 열림 상태를 제어하고 싶을 때 사용 (없으면 내부 state 사용) */
   expanded?: boolean;
   onToggleExpanded?: () => void;
+
+  /** ✅ 답사지 예약(평면 리스트) 아이템 클릭 → 지도 이동 */
+  onFocusItemMap?: (item: any) => void;
+
+  /** ✅ 즐겨찾기 그룹의 subItem 클릭 → 지도 이동 */
+  onFocusSubItemMap?: (subItem: any) => void;
 };
 
 const NOOP = () => {};
@@ -35,6 +41,9 @@ export function SidebarSection(props: SidebarSectionProps) {
     onUpdateGroupTitle,
     expanded: expandedProp,
     onToggleExpanded,
+
+    onFocusItemMap,
+    onFocusSubItemMap,
   } = props;
 
   // 🔹 내부 기본값: 접힌 상태
@@ -85,6 +94,8 @@ export function SidebarSection(props: SidebarSectionProps) {
           onDeleteItem={onDeleteNestedItem ?? NOOP}
           onDeleteSubItem={onDeleteSubItem ?? NOOP}
           onUpdateTitle={onUpdateGroupTitle}
+          // ✅ 즐겨찾기 하위 매물 클릭 → 상위 콜백
+          onFocusSubItemMap={onFocusSubItemMap}
         />
       )),
     [
@@ -93,6 +104,7 @@ export function SidebarSection(props: SidebarSectionProps) {
       onDeleteNestedItem,
       onDeleteSubItem,
       onUpdateGroupTitle,
+      onFocusSubItemMap,
     ]
   );
 
@@ -110,6 +122,8 @@ export function SidebarSection(props: SidebarSectionProps) {
           onDrop={handleDrop} // (e, targetId)
           onMoveItem={moveItem} // (item.id, "up"/"down")
           onDeleteItem={onDeleteItem}
+          // ✅ 답사지 예약 아이템 클릭 → 상위 콜백
+          onFocusMap={onFocusItemMap}
         />
       )),
     [
@@ -120,6 +134,7 @@ export function SidebarSection(props: SidebarSectionProps) {
       handleDrop,
       moveItem,
       onDeleteItem,
+      onFocusItemMap,
     ]
   );
 

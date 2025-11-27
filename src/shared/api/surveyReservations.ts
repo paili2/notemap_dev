@@ -215,12 +215,14 @@ export async function createSurveyReservation(
   return { id: String(inner.id), sortOrder: inner.sortOrder };
 }
 
-/**
- * 2) 내 예약 목록(개인 순서 반영) GET /survey-reservations/scheduled
- * - 좌표는 서버 값 그대로 숫자로 보존
- * - posKey는 프론트에서 매칭용 파생필드로 생성(역파싱 금지)
- */
-export async function fetchMySurveyReservations(
+/* ────────────────────────────────────────────
+ * 2) 내 예약 목록 GET /survey-reservations/scheduled
+ *    in-flight 요청 dedupe
+ * ──────────────────────────────────────────── */
+
+let inFlightScheduled: Promise<MyReservation[]> | null = null;
+
+async function fetchMySurveyReservationsRaw(
   signal?: AbortSignal
 ): Promise<MyReservation[]> {
   const res = await api.get<ApiWrap<any[]>>("/survey-reservations/scheduled", {
@@ -234,6 +236,27 @@ export async function fetchMySurveyReservations(
 
   // 서버가 정렬해줘도 방어적으로 한 번 더 보정
   return sortByServerRule(normalized);
+}
+
+/**
+ * - 여러 컴포넌트에서 동시에 호출해도 네트워크는 1번만 나가도록 in-flight dedupe
+ * - AbortSignal이 필요한 특수 케이스는 fetchMySurveyReservationsRaw를 직접 사용
+ */
+export function fetchMySurveyReservations(
+  signal?: AbortSignal
+): Promise<MyReservation[]> {
+  if (signal) {
+    // 별도 취소 제어가 필요하면 캐시 없이 raw 버전 사용
+    return fetchMySurveyReservationsRaw(signal);
+  }
+
+  if (!inFlightScheduled) {
+    inFlightScheduled = fetchMySurveyReservationsRaw().finally(() => {
+      inFlightScheduled = null;
+    });
+  }
+
+  return inFlightScheduled;
 }
 
 /**

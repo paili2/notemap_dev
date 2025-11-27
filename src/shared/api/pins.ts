@@ -4,7 +4,7 @@ import {
 } from "@/features/pins/types/pin-search";
 import { api } from "./api";
 import { ApiEnvelope } from "@/features/pins/pin";
-import { buildSearchQuery } from "./utils/query";
+import { buildSearchQuery } from "./utils/buildSearchQuery";
 import type { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dto";
 import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
@@ -1264,4 +1264,24 @@ export async function getPinDraftDetail(
     name: detail.name ?? null,
     contactMainPhone: detail.contactMainPhone ?? null,
   };
+}
+
+const inFlightDraftDetail = new Map<string, Promise<PinDraftDetail>>();
+
+export function getPinDraftDetailOnce(
+  id: number | string,
+  signal?: AbortSignal
+): Promise<PinDraftDetail> {
+  const key = String(id);
+
+  // 이미 요청 진행 중이면 그 Promise 재사용
+  const cached = inFlightDraftDetail.get(key);
+  if (cached) return cached;
+
+  const p = getPinDraftDetail(id, signal).finally(() => {
+    inFlightDraftDetail.delete(key);
+  });
+
+  inFlightDraftDetail.set(key, p);
+  return p;
 }

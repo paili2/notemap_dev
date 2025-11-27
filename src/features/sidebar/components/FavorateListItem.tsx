@@ -4,15 +4,20 @@ import { useState, useRef, useEffect } from "react";
 import { X, ChevronDown, ChevronRight, Pencil, Check } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
-import type { FavorateListItem } from "../types/sidebar";
+import type { FavorateListItem as FavorateListItemType } from "../types/sidebar";
 import { SubList } from "./SubList";
 
 interface FavorateListItemProps {
-  item: FavorateListItem;
-  onItemChange: (item: FavorateListItem) => void;
+  item: FavorateListItemType;
+  onItemChange: (item: FavorateListItemType) => void;
   onDeleteItem: (id: string) => void;
   onDeleteSubItem: (parentId: string, subId: string) => void;
   onUpdateTitle?: (groupId: string, newTitle: string) => Promise<void>;
+
+  /** ✅ 즐겨찾기 하위 매물 클릭 시 상위로 전달 */
+  onFocusSubItemMap?: (
+    subItem: FavorateListItemType["subItems"][number]
+  ) => void;
 }
 
 export function FavorateListItem({
@@ -21,6 +26,7 @@ export function FavorateListItem({
   onDeleteItem,
   onDeleteSubItem,
   onUpdateTitle,
+  onFocusSubItemMap,
 }: FavorateListItemProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -67,7 +73,7 @@ export function FavorateListItem({
 
     if (onUpdateTitle) {
       try {
-        isSavingRef.current = true; // 저장 중 플래그 설정
+        isSavingRef.current = true;
         await onUpdateTitle(item.id, trimmedValue);
         setIsEditing(false);
       } catch (error) {
@@ -82,19 +88,13 @@ export function FavorateListItem({
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    // 저장 중이거나 체크 버튼으로 포커스가 이동한 경우에는 취소하지 않음
-    if (isSavingRef.current) {
-      return;
-    }
-    
-    // 포커스가 체크 버튼으로 이동한 경우 확인
+    if (isSavingRef.current) return;
+
     const relatedTarget = e.relatedTarget as HTMLElement;
-    if (relatedTarget && relatedTarget.closest('button')) {
-      // 버튼 클릭으로 인한 blur는 무시
+    if (relatedTarget && relatedTarget.closest("button")) {
       return;
     }
-    
-    // blur 시에는 저장하지 않고 취소만 (버튼 클릭으로만 저장)
+
     handleCancelEdit();
   };
 
@@ -179,6 +179,8 @@ export function FavorateListItem({
           items={item.subItems}
           onItemsChange={handleSubItemsChange}
           onDeleteItem={handleDeleteSubItem}
+          // ✅ 각 subItem 클릭 시 상위 콜백
+          onClickItem={onFocusSubItemMap}
         />
       )}
     </div>

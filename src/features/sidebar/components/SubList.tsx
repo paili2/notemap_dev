@@ -11,9 +11,17 @@ interface SubListProps {
   items: SubListItem[];
   onItemsChange: (items: SubListItem[]) => void;
   onDeleteItem: (id: string) => void;
+
+  /** ✅ 각 subItem 클릭 시 호출되는 콜백 (지도 이동 등) */
+  onClickItem?: (item: SubListItem) => void;
 }
 
-export function SubList({ items, onItemsChange, onDeleteItem }: SubListProps) {
+export function SubList({
+  items,
+  onItemsChange,
+  onDeleteItem,
+  onClickItem,
+}: SubListProps) {
   const { draggedItem, handleDragStart, handleDragOver, handleDrop, moveItem } =
     useDragAndDrop(items, onItemsChange);
 
@@ -24,7 +32,11 @@ export function SubList({ items, onItemsChange, onDeleteItem }: SubListProps) {
           key={item.id}
           draggable
           onDragStart={(e) => handleDragStart(e, item.id)}
-          onDragOver={handleDragOver}
+          onDragOver={(e) => {
+            // 드롭 허용을 위해 기본 동작 막기
+            e.preventDefault();
+            handleDragOver(e);
+          }}
           onDrop={(e) => handleDrop(e, item.id)}
           className={cn(
             "group flex items-center gap-2 p-1 rounded-md border border-transparent transition-colors",
@@ -35,9 +47,14 @@ export function SubList({ items, onItemsChange, onDeleteItem }: SubListProps) {
           <div className="w-2 h-px bg-muted-foreground/30" />
           <GripVertical className="h-3 w-3 text-muted-foreground group-hover:text-gray-700" />
 
-          <span className="flex-1 text-xs text-gray-600 group-hover:text-gray-900 break-words leading-tight">
+          {/* ✅ 제목 영역 클릭 시 상위 콜백 (예: focusMapTo) 호출 */}
+          <button
+            type="button"
+            className="flex-1 text-left text-xs text-gray-600 group-hover:text-gray-900 break-words leading-tight"
+            onClick={() => onClickItem?.(item)}
+          >
             {item.title}
-          </span>
+          </button>
 
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button

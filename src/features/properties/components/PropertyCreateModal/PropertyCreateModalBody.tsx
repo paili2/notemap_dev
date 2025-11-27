@@ -576,14 +576,6 @@ export default function PropertyCreateModalBody({
   /* ── ParkingContainer 어댑터 ── */
   const parkingForm = useMemo(
     () => ({
-      parkingTypeId: (f as any).parkingTypeId ?? null,
-      setParkingTypeId: (v: number | null) => {
-        const setter = (f as any).setParkingTypeId as
-          | ((next: number | null) => void)
-          | undefined;
-        if (setter) setter(v);
-      },
-
       parkingType: f.parkingType ?? null,
       setParkingType: (v: string | null) => f.setParkingType(v ?? ""),
 
@@ -608,8 +600,6 @@ export default function PropertyCreateModalBody({
       f.totalParkingSlots,
       f.setParkingType,
       f.setTotalParkingSlots,
-      (f as any).parkingTypeId,
-      (f as any).setParkingTypeId,
     ]
   );
 
@@ -820,7 +810,6 @@ export default function PropertyCreateModalBody({
 
         buildingType: (f as any).buildingType ?? null,
         registrationTypeId: (f as any).registrationTypeId ?? null,
-        parkingTypeId: (f as any).parkingTypeId ?? null,
 
         options: f.options,
         etcChecked: f.etcChecked,
@@ -1031,7 +1020,6 @@ export default function PropertyCreateModalBody({
 
       anyForm.setTotalParkingSlots?.(null);
       anyForm.setParkingType?.("");
-      anyForm.setParkingTypeId?.(null);
 
       anyForm.setElevator?.(null);
 

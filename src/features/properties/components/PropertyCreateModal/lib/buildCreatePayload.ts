@@ -128,7 +128,6 @@ type BuildArgs = {
 
   buildingType?: string | null;
   registrationTypeId?: number | string | null;
-  parkingTypeId?: number | string | null;
 
   /** ✅ UI 에서 선택된 옵션 라벨/코드 목록 */
   options: string[];
@@ -216,7 +215,7 @@ function buildOptionsForServer(
   };
 
   if (etcChecked && etcText) {
-    out.extraOptionsText = etcText; // ← 요기!
+    out.extraOptionsText = etcText;
   }
 
   return out;
@@ -270,7 +269,6 @@ export function buildCreatePayload(args: BuildArgs) {
 
     buildingType,
     registrationTypeId,
-    parkingTypeId,
 
     options,
     etcChecked,
@@ -617,9 +615,6 @@ export function buildCreatePayload(args: BuildArgs) {
     ...(s(buildingType) ? { buildingType: s(buildingType) } : {}),
     ...(toNum(registrationTypeId) !== undefined
       ? { registrationTypeId: toNum(registrationTypeId)! }
-      : {}),
-    ...(toNum(parkingTypeId) !== undefined
-      ? { parkingTypeId: toNum(parkingTypeId)! }
       : {}),
 
     /* 좌표 */

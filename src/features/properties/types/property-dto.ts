@@ -60,10 +60,9 @@ export type CreatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 빌딩/등록/주차 타입 (id는 number 권장)
+  // ✅ 빌딩/등록 타입 (id는 number 권장)
   buildingType?: string;
   registrationTypeId?: number | null;
-  parkingTypeId?: number | null;
 
   // 향
   aspect?: string;
@@ -78,8 +77,16 @@ export type CreatePayload = {
   /** ✅ 서버 PATCH 키와 일치: 최저 실입비(정수/null) */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
-  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+
+  /**
+   * ✅ 리베이트 텍스트 (만원 단위, 자유 입력)
+   * 예: "500", "500~1000", "협의" 등
+   */
+  rebateText?: string | null;
+
+  /** @deprecated 금액 필드 (서버 이전 버전 호환용) */
   rebate?: number | null;
+
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;
@@ -160,10 +167,9 @@ export type UpdatePayload = {
   roomNo?: string;
   structure?: string;
 
-  // ✅ 빌딩/등록/주차 타입
+  // ✅ 빌딩/등록 타입
   buildingType?: string;
   registrationTypeId?: number | null;
-  parkingTypeId?: number | null;
 
   // 향
   aspect?: string;
@@ -180,8 +186,16 @@ export type UpdatePayload = {
   /** ✅ 서버 PATCH 키와 일치 */
   minRealMoveInCost?: number | null;
   listingStars?: number | null;
-  /** ✅ 리베이트 금액 (정수, 0 이상, 미입력 시 null) */
+
+  /**
+   * ✅ 리베이트 텍스트 (만원 단위, 자유 입력)
+   * 예: "500", "500~1000", "협의" 등
+   */
+  rebateText?: string | null;
+
+  /** @deprecated 금액 필드 (서버 이전 버전 호환용) */
   rebate?: number | null;
+
   parkingType?: string;
   /** ✅ 총 주차 대수 (int, 없으면 null) */
   totalParkingSlots?: number | null;

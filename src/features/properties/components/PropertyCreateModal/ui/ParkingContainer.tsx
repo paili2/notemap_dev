@@ -4,20 +4,13 @@ import ParkingSection from "../../sections/ParkingSection/ParkingSection";
 
 /** Body에서 내려오는 슬라이스(문자열 기반) */
 type ParkingFormSliceFromBody = {
-  /** 서버 enum id (number | null) */
-  parkingTypeId: number | null;
-  setParkingTypeId: (v: number | null) => void;
-
-  /** UI에 보이는 주차 유형 라벨 */
+  /** UI에 보이는 주차 유형 라벨 (문자열로만 관리) */
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
 
   /** 총 주차대수 — Body에서는 문자열로 관리 */
   totalParkingSlots: string | null;
   setTotalParkingSlots: (v: string | null) => void;
-
-  /** (옵션) name -> id 매핑 */
-  parkingTypeNameToId?: Record<string, number>;
 };
 
 type Props = {
@@ -26,13 +19,10 @@ type Props = {
 
 export default function ParkingContainer({ form }: Props) {
   const {
-    parkingTypeId,
-    setParkingTypeId,
     parkingType,
     setParkingType,
     totalParkingSlots,
     setTotalParkingSlots,
-    parkingTypeNameToId,
   } = form;
 
   // Body(문자열) ↔ Section(숫자) 변환 어댑터
@@ -53,11 +43,6 @@ export default function ParkingContainer({ form }: Props) {
       /** 총 주차대수는 Section이 number|null을 기대 */
       totalParkingSlots={toNum(totalParkingSlots)}
       setTotalParkingSlots={(v) => setTotalParkingSlots(toStr(v))}
-      /** 서버 enum id 동기화 */
-      parkingTypeId={parkingTypeId}
-      setParkingTypeId={setParkingTypeId}
-      /** (옵션) name -> id 매핑 (나중에 필요하면 사용) */
-      parkingTypeNameToId={parkingTypeNameToId}
     />
   );
 }

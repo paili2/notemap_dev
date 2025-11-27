@@ -545,11 +545,6 @@ export default function ContextMenuHost(props: {
 
   return (
     <PinContextMenuContainer
-      key={
-        effectiveTarget.id !== "__draft__"
-          ? `bubble:${version}:${effectiveTarget.id}`
-          : `bubble:draft:${version}:${anchorPosRO.lat},${anchorPosRO.lng}`
-      }
       kakao={kakaoSDK}
       map={mapInstance}
       position={overlayLatLng}

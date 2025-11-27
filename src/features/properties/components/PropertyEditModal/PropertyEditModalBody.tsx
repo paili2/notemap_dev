@@ -42,11 +42,8 @@ import {
 import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
 import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
 
-/** Parking 슬라이스 타입 */
+/** Parking 슬라이스 타입 (✅ parkingTypeId 제거 버전) */
 type ParkingFormSlice = {
-  parkingTypeId: number | null;
-  setParkingTypeId: (v: number | null) => void;
-
   parkingType: string | null;
   setParkingType: (v: string | null) => void;
 
@@ -90,7 +87,7 @@ const isValidPhoneKR = (raw?: string | null) => {
   return v.length === 10 || v.length === 11;
 };
 
-/* === 날짜 유틸 (추가) === */
+/* === 날짜 유틸 === */
 const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
 
 /** 8자리 숫자(YYYYMMDD)는 YYYY-MM-DD로 포맷, 그 외는 트림만 */
@@ -664,7 +661,7 @@ function toPinPatch(
   )
     (patch as any).structureGrade = (f as any).structureGrade ?? null;
 
-  /* ── 주차 관련 필드: parkingGrade / parkingType / parkingTypeId / totalParkingSlots ── */
+  /* ── 주차 관련 필드: parkingGrade / parkingType / totalParkingSlots ── */
 
   // 1) 별점(문자열 "1"~"5" 또는 null)
   const pgInitRaw = (initial as any)?.parkingGrade;
@@ -683,24 +680,7 @@ function toPinPatch(
     (patch as any).parkingGrade = pgNowNorm;
   }
 
-  // 2) parkingTypeId: number | null (diff 기반, 숫자로 변환)
-  const initParkingTypeIdRaw = (initial as any)?.parkingTypeId;
-  const initParkingTypeId =
-    initParkingTypeIdRaw == null || initParkingTypeIdRaw === ""
-      ? null
-      : Number(initParkingTypeIdRaw);
-
-  const nowParkingTypeIdForm = (f as any).parkingTypeId;
-  const nowParkingTypeId =
-    nowParkingTypeIdForm == null || nowParkingTypeIdForm === ""
-      ? null
-      : Number(nowParkingTypeIdForm);
-
-  if (!jsonEq2Local(initParkingTypeId, nowParkingTypeId)) {
-    (patch as any).parkingTypeId = nowParkingTypeId;
-  }
-
-  // 3) parkingType: ✅ 자유양식 텍스트 (최대 50자, 공백/커스텀은 null)
+  // 2) parkingType: ✅ 자유양식 텍스트 (최대 50자, 공백/커스텀은 null)
   {
     const raw = (f as any).parkingType;
     const trimmed = raw == null ? "" : String(raw).trim();
@@ -717,7 +697,7 @@ function toPinPatch(
     (patch as any).parkingType = value;
   }
 
-  // 4) totalParkingSlots: number | null (diff 기반)
+  // 3) totalParkingSlots: number | null (diff 기반)
   const slotsInitRaw = (initial as any)?.totalParkingSlots;
   const slotsInit =
     slotsInitRaw == null || String(slotsInitRaw).trim() === ""
@@ -1131,10 +1111,8 @@ const stripNoopNulls = (dto: any, initial: any) => {
       continue;
     }
 
-    // 🔴 여기에서 parkingTypeId 도 같이 지워져버릴 수 있었음
     if (v === null && norm(initial?.[k]) === undefined) {
-      // ✅ parkingTypeId 는 null 이라도 "의도적인 삭제"일 수 있으니 지우지 않는다
-      if (k === "parkingTypeId") continue;
+      // parkingTypeId는 더 이상 사용 안 함
       delete dto[k];
       continue;
     }
@@ -1490,7 +1468,7 @@ export default function PropertyEditModalBody({
     return () => cancelAnimationFrame(id);
   }, []);
 
-  // Parking setters 프록시
+  // Parking setters 프록시 (✅ parkingTypeId 관련 제거)
   const setParkingTypeProxy = useCallback(
     (v: string | null) => {
       console.log("[Parking] type change:", v);
@@ -1505,20 +1483,10 @@ export default function PropertyEditModalBody({
     },
     [f.setTotalParkingSlots]
   );
-  const setParkingTypeIdProxy = useCallback(
-    (v: number | null) => {
-      console.log("[Parking] typeId change:", v);
-      f.setParkingTypeId(v);
-    },
-    [f.setParkingTypeId]
-  );
 
-  // Parking form 어댑터 (parkingTypeId 포함)
+  // Parking form 어댑터 (parkingTypeId 제거 버전)
   const parkingForm: ParkingFormSlice = useMemo(
     () => ({
-      parkingTypeId: f.parkingTypeId,
-      setParkingTypeId: setParkingTypeIdProxy,
-
       parkingType: f.parkingType,
       setParkingType: setParkingTypeProxy,
 
@@ -1531,8 +1499,6 @@ export default function PropertyEditModalBody({
       setTotalParkingSlots: setTotalParkingSlotsProxy,
     }),
     [
-      f.parkingTypeId,
-      setParkingTypeIdProxy,
       f.parkingType,
       f.totalParkingSlots,
       setParkingTypeProxy,
@@ -1758,21 +1724,6 @@ export default function PropertyEditModalBody({
         (dto as any).areaGroups
       );
 
-      // ✅ 주차 유형: 폼 기준으로 항상 dto에 실어 보냄 (diff / prune 실패 방지)
-      {
-        const rawPt = (f as any).parkingTypeId;
-        const numPt =
-          rawPt == null || rawPt === ""
-            ? null
-            : Number(String(rawPt).replace(/[^\d.-]/g, ""));
-        (dto as any).parkingTypeId =
-          numPt === null || Number.isNaN(numPt) ? null : numPt;
-        console.log("[save] forced dto.parkingTypeId from form:", {
-          raw: rawPt,
-          num: (dto as any).parkingTypeId,
-        });
-      }
-
       if (
         (dto as any)?.areaGroups &&
         Array.isArray((dto as any).areaGroups) &&
@@ -1874,7 +1825,7 @@ export default function PropertyEditModalBody({
         structure: f.structure,
 
         parkingGrade: f.parkingGrade,
-        parkingTypeId: f.parkingTypeId,
+        // parkingTypeId 제거
         parkingType: f.parkingType,
         totalParkingSlots: f.totalParkingSlots,
         completionDate: f.completionDate,

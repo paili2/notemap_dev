@@ -47,6 +47,12 @@ export default function ModalsHost(props: {
   /** ✅ MapHomeUI에서 내려주는 생성용 기본 핀종류 */
   createPinKind?: PinKind | null;
 
+  /** ✅ 임시핀 헤더 프리필용 (매물명 / 분양사무실 전화번호) */
+  draftHeaderPrefill?: {
+    title?: string;
+    officePhone?: string;
+  };
+
   /** Roadview */
   roadviewVisible: boolean;
   roadviewContainerRef: any;
@@ -67,6 +73,7 @@ export default function ModalsHost(props: {
     createHostHandlers,
     pinDraftId,
     createPinKind,
+    draftHeaderPrefill,
     // roadview
     roadviewVisible,
     roadviewContainerRef,
@@ -111,6 +118,8 @@ export default function ModalsHost(props: {
               onAfterCreate={createHostHandlers.onAfterCreate}
               /* 생성 모달 기본 핀종류 */
               initialPinKind={createPinKind ?? undefined}
+              /* ✅ 임시핀에서 가져온 헤더 프리필 */
+              draftHeaderPrefill={draftHeaderPrefill}
               /* 뷰 단계 props */
               initialViewData={selectedViewItem ?? undefined}
               onSaveViewPatch={onSaveViewPatch}

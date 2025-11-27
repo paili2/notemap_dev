@@ -24,6 +24,9 @@ import type {
 } from "@/features/pins/types/pin-search";
 import { searchPins, togglePinDisabled } from "@/shared/api/pins";
 
+/* ✅ 사이드바 아이템 타입 import 추가 */
+import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
+
 /* ✅ 상세보기 데이터 패칭 & 뷰모델 변환 */
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
@@ -97,6 +100,7 @@ function pickBestExitStrict(
   const scored = pool.map((d) => {
     const no = extractExitNo(d.place_name);
     let score = 0;
+
     if (want != null && no === want) score += 1000;
     if (n(d.place_name).includes(sNorm)) score += 50;
 
@@ -279,21 +283,15 @@ export function MapHomeUI(props: MapHomeUIProps) {
     try {
       const apiPin = await getPinRaw(pinId);
 
-      // 🔥 get /pins 응답에서 실제 데이터 부분 추출
-      //    - getPinRaw가 이미 data만 반환하면 raw = apiPin
-      //    - envelope를 반환하면 raw = apiPin.data
       const raw = (apiPin as any)?.data ?? apiPin;
-
-      // 뷰모달에서 쓰는 view 모델
       const base = toViewDetailsFromApi(raw) as PropertyViewDetails;
 
-      // 🔥 여기서 바로 editInitial = { view, raw } 를 붙여준다
       const withEditInitial = {
         ...base,
         id: (base as any).id ?? pinId,
         editInitial: {
           view: { ...base },
-          raw, // ← 여기에 /pins/{id}의 전체 데이터 객체 들어감 (rebateText, options.extraOptionsText 포함)
+          raw,
         },
       } as PropertyViewDetails & { editInitial: any };
 
@@ -304,18 +302,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, []);
 
-  // ✅ 먼저 선언
   const handleViewFromMenu = useCallback(
     (id: string) => {
       if (typeof onViewFromMenu === "function") {
-        onViewFromMenu(id); // 기존 selection / 상태 업데이트 유지
+        onViewFromMenu(id);
       }
-      handleViewFromMenuLocal(id); // + 항상 /pins/{id} 로컬 패칭해서 viewDataLocal 채우기
+      handleViewFromMenuLocal(id);
     },
     [onViewFromMenu, handleViewFromMenuLocal]
   );
 
-  // ✅ 그 다음에 이 헬퍼
   const handleOpenViewAfterCreate = useCallback(
     (pinId: string | number) => {
       handleViewFromMenu(String(pinId));
@@ -345,15 +341,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const toServerPointsFromPins = useCallback(
     (pins: NonNullable<PinSearchResult["pins"]>) =>
       pins.map((p) => {
-        const displayName = (p.name ?? "").trim(); // ← 매물명
-
+        const displayName = (p.name ?? "").trim();
         return {
           id: String(p.id),
-          name: displayName, // ✅ 라벨에서 우선 사용
-          title: displayName, // ✅ 혹시 모를 fallback
+          name: displayName,
+          title: displayName,
           lat: p.lat,
           lng: p.lng,
-          badge: p.badge ?? null, // ✅ 뱃지도 있으면 같이 넘겨주기
+          badge: p.badge ?? null,
         };
       }),
     []
@@ -365,7 +360,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         const label = (d.title ?? "답사예정").trim();
 
         return {
-          id: d.id, // 여기서는 굳이 __draft__ 안 붙여도 돼
+          id: d.id,
           name: label,
           title: label,
           lat: d.lat,
@@ -444,15 +439,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
     []
   );
 
-  // 원래 createHostHandlers.onAfterCreate 백업
   const originalOnAfterCreate = createHostHandlers?.onAfterCreate;
 
-  /** ✅ 생성/답사예정 등록 후 후처리 */
   const handleAfterCreate = useCallback(
     (args: any) => {
       const { matchedDraftId, lat, lng, mode, pinId } = args || {};
 
-      // ✋ 답사예정만 한 경우: 모달 닫고 뷰도 닫기
       if (mode === "visit-plan-only") {
         createHostHandlers?.resetAfterCreate?.();
         createHostHandlers?.onClose?.();
@@ -461,7 +453,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         return;
       }
 
-      // 🔹 매물 등록 케이스: 임시핀 → 실핀 치환 정도만 처리
       if (matchedDraftId != null && pinId != null) {
         replaceTempByRealId(matchedDraftId, pinId);
       } else if (lat != null && lng != null && pinId != null) {
@@ -496,7 +487,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [filter]);
 
-  // 🔹 사이드바 필터를 /pins/map isNew / isOld 쿼리로 매핑
   const isNewFlag = useMemo(
     () => (filter === "new" ? true : undefined),
     [filter]
@@ -567,12 +557,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
     close,
   } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
 
-  // ✅ 지적편집도 상태는 여기서 선언 (로드뷰 토글보다 위)
   const [isDistrictOn, setIsDistrictOnState] = useState(false);
 
   const toggleRoadview = useCallback(() => {
     if (roadviewVisible) {
-      // ✅ 로드뷰가 켜져 있으면 끄기만
       close();
       return;
     }
@@ -588,14 +576,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
           }
         : null);
 
-    // ✅ 먼저 로드뷰를 연다
     if (anchor) {
       openAt(anchor, { face: anchor });
     } else {
       openAtCenter();
     }
 
-    // ✅ 그리고 바로 지적편집도를 끈다 (시각적으로는 거의 동시에 꺼짐)
     if (isDistrictOn) {
       setIsDistrictOnState(false);
     }
@@ -630,15 +616,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
 
-  // 🔵 로드뷰 도로(파란 라인) on/off 상태
   const [roadviewRoadOn, setRoadviewRoadOn] = useState(false);
 
-  // 🔵 토글 영역 refs (오른쪽 패널 / 필터 영역 / 사이드바)
   const rightAreaRef = useRef<HTMLDivElement | null>(null);
   const filterAreaRef = useRef<HTMLDivElement | null>(null);
   const sidebarAreaRef = useRef<HTMLDivElement | null>(null);
 
-  // 🔵 바깥 클릭 시 세 토글 모두 닫기
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (!rightOpen && !filterSearchOpen && !useSidebar) return;
@@ -646,13 +629,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const target = event.target as Node | null;
       if (!target) return;
 
-      // ✅ 1) 필터 검색 포탈 내부 클릭이면 무시
       const filterPortalRoot = document.getElementById("filter-search-root");
       if (filterPortalRoot && filterPortalRoot.contains(target)) {
         return;
       }
 
-      // ✅ 2) 오른쪽 토글 / 상단 필터영역 / 사이드바 안쪽 클릭이면 무시
       if (
         rightAreaRef.current?.contains(target) ||
         filterAreaRef.current?.contains(target) ||
@@ -661,7 +642,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         return;
       }
 
-      // ✅ 3) 그 외(지도, 다른 UI 등)를 클릭하면 세 토글 모두 닫기
       setRightOpen(false);
       setFilterSearchOpen(false);
       setUseSidebar(false);
@@ -673,12 +653,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     };
   }, [rightOpen, filterSearchOpen, useSidebar, setUseSidebar]);
 
-  // 🔁 오른쪽 토글과 필터검색, 사이드바 상호 배타 제어
   const handleSetDistrictOn = useCallback(
     (next: boolean) => {
       setIsDistrictOnState(next);
-
-      // ✅ 지적편집도 켜질 때 로드뷰가 켜져 있으면 끄기
       if (next && roadviewVisible) {
         close();
       }
@@ -690,7 +667,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     (expanded: boolean) => {
       setRightOpen(expanded);
       if (expanded) {
-        // 오른쪽 토글이 열릴 때 필터검색 닫기 + 사이드바 닫기
         setFilterSearchOpen(false);
         if (useSidebar) setUseSidebar(false);
       }
@@ -699,7 +675,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
   );
 
   const handleOpenFilterSearch = useCallback(() => {
-    // 필터검색을 열 때 오른쪽 토글, 사이드바 둘 다 닫기
     setFilterSearchOpen(true);
     setRightOpen(false);
     setUseSidebar(false);
@@ -718,9 +693,56 @@ export function MapHomeUI(props: MapHomeUIProps) {
     } catch {}
   }, [kakaoSDK, mapInstance]);
 
+  // 한 군데에서만 레벨 관리
+  const TARGET_FOCUS_LEVEL = 4;
+
+  // ✅ 답사지 예약(Flat 리스트) 클릭 시 지도 이동
+  const handleFocusItemMap = useCallback(
+    (item: ListItem | null) => {
+      if (!item || !kakaoSDK || !mapInstance) return;
+      if ((item as any).lat == null || (item as any).lng == null) return;
+
+      const ll = new kakaoSDK.maps.LatLng((item as any).lat, (item as any).lng);
+
+      try {
+        const current = mapInstance.getLevel?.();
+
+        if (typeof current === "number" && current !== TARGET_FOCUS_LEVEL) {
+          mapInstance.setLevel(TARGET_FOCUS_LEVEL, { animate: true });
+        }
+
+        mapInstance.panTo(ll);
+      } catch (e) {
+        console.error("[handleFocusItemMap] map 이동 실패:", e);
+      }
+    },
+    [kakaoSDK, mapInstance]
+  );
+
+  // ✅ 즐겨찾기 하위 매물 클릭 시 지도 이동
+  const handleFocusSubItemMap = useCallback(
+    (sub: SubListItem | null) => {
+      if (!sub || !kakaoSDK || !mapInstance) return;
+      if ((sub as any).lat == null || (sub as any).lng == null) return;
+
+      const ll = new kakaoSDK.maps.LatLng((sub as any).lat, (sub as any).lng);
+
+      try {
+        const current = mapInstance.getLevel?.();
+
+        if (typeof current === "number" && current !== TARGET_FOCUS_LEVEL) {
+          mapInstance.setLevel(TARGET_FOCUS_LEVEL, { animate: true });
+        }
+        mapInstance.panTo(ll);
+      } catch (e) {
+        console.error("[handleFocusSubItemMap] map 이동 실패:", e);
+      }
+    },
+    [kakaoSDK, mapInstance]
+  );
+
   const handleViewportChangeInternal = useCallback(
     (v: any) => {
-      // 🔹 현재 뷰포트 중심과 마지막 검색 중심의 거리가 멀어졌을 때만 검색 임시핀 제거
       if (lastSearchCenterRef.current) {
         const centerLat = (v.leftTop.lat + v.rightBottom.lat) / 2;
         const centerLng = (v.leftTop.lng + v.rightBottom.lng) / 2;
@@ -732,7 +754,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
           lastSearchCenterRef.current.lng
         );
 
-        const THRESHOLD_M = 300; // 300m 이상 벗어나면 검색핀 제거
+        const THRESHOLD_M = 300;
         if (d > THRESHOLD_M) {
           setLocalDraftMarkers((prev) =>
             prev.filter((m) => (m as any).source !== "search")
@@ -752,7 +774,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
       const query = text.trim();
       if (!query || !kakaoSDK || !mapInstance) return;
 
-      // 상위 상태/검색 로직 호출 (핀 검색 + geocode + 메뉴)
       onSubmitSearch?.(query);
 
       const setCenterOnly = (lat: number, lng: number) => {
@@ -765,8 +786,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         lng: number,
         label?: string | null
       ) => {
-        // 1️⃣ 먼저 근처에 기존 마커가 있는지 확인 (매물/임시핀/예약핀 다 포함)
-        const NEAR_THRESHOLD_M = 20; // 20m 안쪽이면 같은 위치로 본다
+        const NEAR_THRESHOLD_M = 20;
 
         const existing = visibleMarkers?.find((m) => {
           const pos = (m as any).position;
@@ -780,11 +800,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
           const title =
             (existing as any).title ?? label ?? query ?? "선택 위치";
 
-          // 🔹 기준 중심/좌표를 기존 마커로 통일
           lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
           setCenterOnly(pos.lat, pos.lng);
 
-          // 🔹 기존 마커 기준으로 메뉴만 열기 (새 임시핀 생성 X)
           onOpenMenu?.({
             position: { lat: pos.lat, lng: pos.lng },
             propertyTitle: title,
@@ -797,7 +815,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           return;
         }
 
-        // 2️⃣ 근처에 기존 마커가 없으면, 검색용 임시핀(__search__) 생성
         lastSearchCenterRef.current = { lat, lng };
         setCenterOnly(lat, lng);
 
@@ -812,8 +829,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           kind: "question",
         });
 
-        // ⛔️ 더 이상 projection으로 좌표를 위로 올리지 않고
-        //     핀 좌표 그대로 메뉴를 띄운다 (CSS에서 살짝 올려서 보이게 처리)
         onOpenMenu?.({
           position: { lat, lng },
           propertyTitle: label ?? query ?? "선택 위치",
@@ -852,7 +867,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
-          // 🚇 "신사역 3번 출구" 같이 출구까지 명시된 경우
           if (hasExit && stationName) {
             const station = pickBestStation(data, stationName);
             if (!station) {
@@ -905,7 +919,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
-          // 일반 역/장소 검색
           let target: any;
           if (stationName) {
             target = pickBestStation(data, stationName);
@@ -972,15 +985,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
   }, [closeView]);
 
   const selectedViewForModal = useMemo(() => {
-    // 🔥 raw를 포함한 viewDataLocal을 먼저 쓰고,
-    //    없을 때만 selectedViewItem으로 fallback
     const base = (viewDataLocal ??
       selectedViewItem ??
       null) as PropertyViewDetails | null;
     return ensureViewForEdit(base);
   }, [selectedViewItem, viewDataLocal]);
 
-  /* 👇 메뉴 열릴 때 라벨 숨김 / 닫힐 때 복구 */
   useEffect(() => {
     if (!mapInstance || !menuAnchor) return;
     if (menuOpen) {
@@ -993,25 +1003,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
 
-  /* ✅ selectedViewItem이 생기면 모달을 연다 */
   useEffect(() => {
     if (selectedViewItem) setViewOpenLocal(true);
   }, [selectedViewItem]);
 
-  /* 🔍 메뉴가 닫힐 때 검색 임시핀(__search__) 제거 */
   useEffect(() => {
     if (!menuOpen) {
-      // 검색으로 생성된 임시핀만 제거 (source === "search")
       setLocalDraftMarkers((prev) =>
         prev.filter((m) => (m as any).source !== "search")
       );
 
-      // 검색핀 때문에 숨겨둔 라벨 풀어주기
       if (hideLabelForId === "__search__") {
         onChangeHideLabelForId?.(undefined);
       }
 
-      // 검색 기준 중심도 초기화
       lastSearchCenterRef.current = null;
     }
   }, [menuOpen, hideLabelForId, onChangeHideLabelForId]);
@@ -1058,7 +1063,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onPlanFromMenu={onPlanFromMenu}
         onReserveFromMenu={onReserveFromMenu}
         onAddFav={onAddFav}
-        /* onOpenMenu는 ContextMenuHost 타입에 없음 */
         onChangeHideLabelForId={onChangeHideLabelForId}
         upsertDraftMarker={(m) =>
           upsertDraftMarker({
@@ -1082,21 +1086,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
         role="region"
         aria-label="지도 상단 검색 및 토글"
       >
-        {/* 🔍 검색창 - 모바일에서 꽉 차게 */}
         <div className="pointer-events-auto w-full md:w-auto">
           <SearchForm
             value={q}
             onChange={onChangeQ}
             onSubmit={handleSubmitSearch}
             placeholder="장소, 주소, 버스 검색"
-            // ✅ 모바일: 가로 꽉 차게, 데스크탑: 최대 360px
             className="w-full md:max-w-[360px]"
           />
         </div>
 
-        {/* 2줄째: 왼쪽 필터검색 / 오른쪽 토글버튼들 */}
         <div className="pointer-events-auto flex items-center justify-between">
-          {/* 토글 버튼들 (로드뷰도로 / K&N / R / 메뉴 / 사이드바) */}
           <div
             ref={rightAreaRef}
             className="flex flex-col md:flex-row items-center gap-2"
@@ -1152,16 +1152,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
             const next = !useSidebar;
             setUseSidebar(next);
             if (next) {
-              // 사이드바가 열리는 순간 다른 두 개 닫기
               setRightOpen(false);
               setFilterSearchOpen(false);
             }
           }}
+          onFocusItemMap={handleFocusItemMap}
+          onFocusSubItemMap={handleFocusSubItemMap}
         />
       </div>
 
       <ModalsHost
-        /* ✅ 모달 열림 여부는 로컬 뷰 상태 + 상위에서 내려온 createOpen */
         viewOpen={viewOpenLocal}
         selectedViewItem={selectedViewForModal}
         onCloseView={handleCloseView}

@@ -104,8 +104,8 @@ type Normalized = {
 
   listingStars: number;
   parkingGrade: StarStr;
+  /** 주차 유형 (문자열) */
   parkingType: string | null;
-  parkingTypeId: number | null;
   totalParkingSlots: string;
   completionDate: string;
   salePrice: string;
@@ -198,12 +198,6 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     d.parkingType ?? d.parkingTypeName ?? d.parkingTypeLabel ?? d.parking?.type
   ).trim();
   const parkingType: string | null = rawParkingType ? rawParkingType : null;
-
-  const parkingTypeId: number | null =
-    asOptionalNum(d.parkingTypeId) ??
-    asOptionalNum(d.parking?.typeId) ??
-    asOptionalNum(d.parkingTypeCode) ??
-    null;
 
   const totalParkingSlots = asStr(
     d.totalParkingSlots ?? d.parking?.totalSlots ?? ""
@@ -306,7 +300,6 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     listingStars,
     parkingGrade,
     parkingType,
-    parkingTypeId,
     totalParkingSlots,
     completionDate: asYMD(d.completionDate),
     salePrice: asStr(d.salePrice ?? d.minRealMoveInCost),

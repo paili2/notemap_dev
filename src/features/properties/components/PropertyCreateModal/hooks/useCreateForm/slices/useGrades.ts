@@ -28,8 +28,8 @@ export function useGrades() {
     () => ({
       completionDate,
       salePrice,
-      minRealMoveInCost, // ✅ 추가
-      rebateText, // ✅ 추가
+      minRealMoveInCost,
+      rebateText,
       registryOne,
       slopeGrade,
       structureGrade,
@@ -39,8 +39,8 @@ export function useGrades() {
     [
       completionDate,
       salePrice,
-      minRealMoveInCost, // ✅ 추가
-      rebateText, // ✅ 추가
+      minRealMoveInCost,
+      rebateText,
       registryOne,
       slopeGrade,
       structureGrade,

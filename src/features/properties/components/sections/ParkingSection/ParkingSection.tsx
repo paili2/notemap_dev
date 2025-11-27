@@ -13,12 +13,6 @@ type Props = Omit<ParkingSectionProps, "parkingCount" | "setParkingCount"> & {
   /** 상위는 number|null 로 내려줌 */
   totalParkingSlots?: number | null;
   setTotalParkingSlots?: (v: number | null) => void;
-
-  /** (옵션) 서버 enum id 동기화가 필요할 때만 사용 */
-  parkingTypeId?: number | null;
-  setParkingTypeId?: (v: number | null) => void;
-  /** name -> id 매핑 (예: { 지하: 1, 지상: 2 }) */
-  parkingTypeNameToId?: Record<string, number>;
 };
 
 export default function ParkingSection({
@@ -27,10 +21,6 @@ export default function ParkingSection({
 
   totalParkingSlots,
   setTotalParkingSlots,
-
-  parkingTypeId,
-  setParkingTypeId,
-  parkingTypeNameToId = {},
 }: Props) {
   const isPreset = (v: string): v is Preset =>
     (PRESETS as readonly string[]).includes(v);
@@ -38,15 +28,6 @@ export default function ParkingSection({
   /** 내부 UI 상태(셀렉트 값/커스텀 입력) — 내부에서는 문자열로 관리 */
   const [selectValue, setSelectValue] = useState<string>(""); // "" | Preset | "custom"
   const [custom, setCustom] = useState<string>("");
-
-  /** id -> name 역매핑 */
-  const idToName = useMemo(() => {
-    const map: Record<number, string> = {};
-    Object.entries(parkingTypeNameToId).forEach(([name, id]) => {
-      if (typeof id === "number") map[id] = name;
-    });
-    return map;
-  }, [parkingTypeNameToId]);
 
   /** 셀렉트 아이템 */
   const selectItems = useMemo(
@@ -65,48 +46,27 @@ export default function ParkingSection({
 
   /* ───────── prop → 내부 상태 동기화 ───────── */
   useEffect(() => {
+    // 커스텀 입력 중일 때는 사용자가 타이핑하는 걸 우선시
     if (selectValue === "custom") return;
 
-    if (!parkingType && parkingTypeId != null) {
-      const name = idToName[parkingTypeId];
-      if (name) {
-        if (selectValue !== name) setSelectValue(name);
-        if (custom !== "") setCustom("");
-        setParkingType?.(name);
-        return;
-      }
-    }
-
+    // 값이 없는 경우 리셋
     if (!parkingType) {
       if (selectValue !== "") setSelectValue("");
       if (custom !== "") setCustom("");
       return;
     }
 
-    if (parkingType === "custom") {
-      if (selectValue !== "") setSelectValue("");
-      if (custom !== "") setCustom("");
-      setParkingType?.(null);
-      return;
-    }
-
+    // 프리셋 값인 경우
     if (isPreset(parkingType)) {
       if (selectValue !== parkingType) setSelectValue(parkingType);
       if (custom !== "") setCustom("");
       return;
     }
 
+    // 프리셋이 아니면 "직접입력" 모드로
     if (selectValue !== "custom") setSelectValue("custom");
     if (custom !== parkingType) setCustom(parkingType);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    parkingType,
-    parkingTypeId,
-    idToName,
-    selectValue,
-    custom,
-    setParkingType,
-  ]);
+  }, [parkingType, selectValue, custom]);
 
   /* ───────── 이벤트 → 상위 반영 ───────── */
 
@@ -116,32 +76,22 @@ export default function ParkingSection({
       if (next === selectValue) return;
       setSelectValue(next);
 
+      // 미선택
       if (next === "") {
         setParkingType?.(null);
-        setParkingTypeId?.(null);
         return;
       }
 
+      // 직접입력 모드일 때는 parkingType는 커스텀 인풋 blur 시에만 반영
       if (next === "custom") {
         if (parkingType !== null) setParkingType?.(null);
-        setParkingTypeId?.(null);
         return;
       }
 
+      // 프리셋 선택
       if (parkingType !== next) setParkingType?.(next);
-      if (setParkingTypeId) {
-        const id = parkingTypeNameToId[next] ?? null;
-        if ((id ?? null) !== (parkingTypeId ?? null)) setParkingTypeId(id);
-      }
     },
-    [
-      selectValue,
-      parkingType,
-      parkingTypeId,
-      setParkingType,
-      setParkingTypeId,
-      parkingTypeNameToId,
-    ]
+    [selectValue, parkingType, setParkingType]
   );
 
   /** 커스텀 문자열 입력 (길이 제한 포함) */
@@ -161,8 +111,7 @@ export default function ParkingSection({
     } else {
       setParkingType?.(trimmed);
     }
-    if (setParkingTypeId && parkingTypeId !== null) setParkingTypeId(null);
-  }, [custom, setParkingType, setParkingTypeId, parkingTypeId]);
+  }, [custom, setParkingType]);
 
   const onChangeCount = useCallback(
     (raw: string) => {

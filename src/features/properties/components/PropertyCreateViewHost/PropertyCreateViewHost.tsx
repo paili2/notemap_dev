@@ -41,6 +41,11 @@ type Props = {
   /** ✅ MapHomeUI에서 내려오는 기본 핀 종류 */
   initialPinKind?: PinKind | null;
 
+  draftHeaderPrefill?: {
+    title?: string;
+    officePhone?: string;
+  };
+
   // 뷰 쪽
   initialViewData?: PropertyViewDetails | null;
   onSaveViewPatch?: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
@@ -58,6 +63,7 @@ export default function PropertyCreateViewHost({
   resetAfterCreate,
   onAfterCreate,
   initialPinKind,
+  draftHeaderPrefill,
   initialViewData,
   onSaveViewPatch,
   onDeleteFromView,

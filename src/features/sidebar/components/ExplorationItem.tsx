@@ -26,6 +26,9 @@ interface ExplorationItemProps {
   onDrop: (e: React.DragEvent, itemId: string) => void;
   onMoveItem: (itemId: string, direction: "up" | "down") => void;
   onDeleteItem: (id: string) => void;
+
+  /** ✅ 아이템 클릭 시 지도 이동 등 상위에서 처리하고 싶을 때 */
+  onFocusMap?: (item: ListItem) => void;
 }
 
 export function ExplorationItem({
@@ -38,18 +41,23 @@ export function ExplorationItem({
   onDrop,
   onMoveItem,
   onDeleteItem,
+  onFocusMap,
 }: ExplorationItemProps) {
   const isDragging = draggedItem === item.id;
 
+  const handleClickRow = () => {
+    // 드래그 중에는 클릭 액션 무시
+    if (isDragging) return;
+    onFocusMap?.(item);
+  };
+
   return (
     <div
-      // ✅ key 제거 (map 호출하는 부모에서만 필요)
       role="listitem"
       aria-grabbed={isDragging}
       draggable
       onDragStart={(e) => onDragStart(e, item.id)}
       onDragOver={(e) => {
-        // ✅ 드롭 허용을 위해 기본동작 억제
         e.preventDefault();
         onDragOver(e);
       }}
@@ -63,16 +71,20 @@ export function ExplorationItem({
       <GripVertical
         className={cn(
           "mt-0.5 h-3 w-3 text-muted-foreground group-hover:text-gray-700",
-          "cursor-grab active:cursor-grabbing" // ✅ UX
+          "cursor-grab active:cursor-grabbing"
         )}
         aria-hidden="true"
       />
 
-      {/* 제목 + 날짜 */}
-      <div className="flex-1 min-w-0 leading-tight">
+      {/* 제목 + 날짜 (👈 이 영역 클릭 시 지도 이동 콜백 호출) */}
+      <button
+        type="button"
+        className="flex-1 min-w-0 text-left leading-tight cursor-pointer"
+        onClick={handleClickRow}
+      >
         <div
           className="text-xs text-gray-700 group-hover:text-gray-900 truncate"
-          title={item.title} // ✅ 전체 텍스트 툴팁
+          title={item.title}
         >
           {item.title}
         </div>
@@ -81,7 +93,7 @@ export function ExplorationItem({
             {formatISODate(item.dateISO)}
           </div>
         )}
-      </div>
+      </button>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button

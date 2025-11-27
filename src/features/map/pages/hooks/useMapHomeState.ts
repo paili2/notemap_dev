@@ -436,6 +436,51 @@ export function useMapHomeState() {
     [mapInstance, kakaoSDK, openMenuAt]
   );
 
+  /**
+   * ✅ 외부(답사 예약 리스트, 즐겨찾기 등)에서 호출해서
+   *    "지도만 해당 위치로 이동" 시키는 유틸
+   *
+   *  - openMenu: true 이면 메뉴까지 같이 열어줌
+   *  - propertyId: 메뉴 열 때 사용할 id (__draft__ 기본값)
+   */
+  const focusMapTo = useCallback(
+    async (
+      pos: LatLng | { lat: number; lng: number } | any,
+      opts?: {
+        openMenu?: boolean;
+        propertyId?: string | "__draft__";
+        level?: number;
+      }
+    ) => {
+      const p = normalizeLL(pos);
+      const map = mapInstance;
+      if (!map) return;
+
+      const targetLevel =
+        typeof opts?.level === "number" ? opts.level : PIN_MENU_MAX_LEVEL;
+
+      const currentLevel = map.getLevel?.();
+      const needsZoom =
+        typeof currentLevel === "number" && currentLevel > targetLevel;
+
+      if (needsZoom) {
+        map.setLevel(targetLevel, { animate: true });
+      }
+
+      // 지도만 이동
+      panToWithOffset(p, 180);
+
+      // 필요하면 메뉴까지 같이 열기
+      if (opts?.openMenu) {
+        await focusAndOpenAt(
+          p,
+          (opts.propertyId as "__draft__" | string) ?? "__draft__"
+        );
+      }
+    },
+    [mapInstance, panToWithOffset, focusAndOpenAt]
+  );
+
   const geocodeAddress = useCallback(
     async (q: string): Promise<LatLng | null> => {
       const keyword = q?.trim();
@@ -1122,5 +1167,8 @@ export function useMapHomeState() {
     hideDraft,
     clearHiddenDraft,
     createFromDraftId,
+
+    // ⭐ 외부에서 지도 포커스 이동용
+    focusMapTo,
   } as const;
 }
