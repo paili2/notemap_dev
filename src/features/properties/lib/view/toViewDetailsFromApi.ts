@@ -12,10 +12,11 @@ export type ApiPin = {
   addressLine?: string | null;
   completionDate?: string | null;
 
-  /** ✅ 연식 플래그 (백엔드 그대로 수용) */
-  isNew?: boolean | null;
-  isOld?: boolean | null;
-  buildingAgeType?: "NEW" | "OLD" | "" | null;
+  ageType?: "NEW" | "OLD" | null;
+
+  // isNew?: boolean | null;
+  // isOld?: boolean | null;
+  // buildingAgeType?: "NEW" | "OLD" | "" | null;
 
   buildingType?: "APT" | "OP" | "주택" | "근생" | string | null;
 
@@ -287,10 +288,8 @@ export function toViewDetailsFromApi(
 
     elevator: boolToOX(api.hasElevator),
 
-    /** ✅ 연식 플래그(백엔드 값 그대로) */
-    isNew: api.isNew ?? null,
-    isOld: api.isOld ?? null,
-    buildingAgeType: api.buildingAgeType ?? null,
+    /** ✅ 연식 타입(백엔드 ageType 그대로) */
+    ageType: api.ageType ?? null,
 
     /** 준공/등기 */
     completionDate: toYmd(api.completionDate),

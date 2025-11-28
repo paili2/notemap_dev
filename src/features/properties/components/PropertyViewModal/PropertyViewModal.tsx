@@ -42,7 +42,7 @@ function eat(e: any) {
   } catch {}
 }
 
-/** ✅ 로컬 뷰 동기화용 패치에 isNew/isOld 반영 추가 */
+/** ✅ 로컬 뷰 동기화용 패치에 ageType 반영 */
 function toViewPatchFromEdit(
   p: UpdatePayload & Partial<CreatePayload>
 ): Partial<PropertyViewDetails> {
@@ -56,14 +56,17 @@ function toViewPatchFromEdit(
     minRealMoveInCost: toUndef(anyP.minRealMoveInCost),
   };
 
-  // 서버로 보낸 토글이 있다면 그대로 반영
-  if ("isNew" in anyP) patch.isNew = anyP.isNew;
-  if ("isOld" in anyP) patch.isOld = anyP.isOld;
+  // age 관련 필드를 수정했으면 ageType 계산해서 반영
+  const touchedAgeKey =
+    "ageType" in anyP ||
+    "isNew" in anyP ||
+    "isOld" in anyP ||
+    "buildingAgeType" in anyP ||
+    "buildingGrade" in anyP;
 
-  // 헤더에서 buildingGrade만 넘어온 경우도 커버
-  if ("buildingGrade" in anyP && anyP.buildingGrade) {
-    patch.isNew = String(anyP.buildingGrade).toLowerCase() === "new";
-    patch.isOld = String(anyP.buildingGrade).toLowerCase() === "old";
+  if (touchedAgeKey) {
+    const ageType = deriveAgeTypeFrom(anyP);
+    patch.ageType = ageType;
   }
 
   return patch;
@@ -108,7 +111,7 @@ function ensureInitialForEdit(args: {
   return { view: ensuredView };
 }
 
-/* === 연식 플래그 유도 유틸 === */
+/* === 연식 관련 유틸 === */
 function normalizeBoolLoose(v: unknown): boolean | undefined {
   if (v === true || v === false) return v;
   if (typeof v === "string") {
@@ -120,24 +123,28 @@ function normalizeBoolLoose(v: unknown): boolean | undefined {
   return undefined;
 }
 
-/** ✅ 우선순위: isNew/isOld → buildingAgeType → buildingGrade(레거시) */
-function deriveAgeFlagsFrom(src: any): { isNew: boolean; isOld: boolean } {
+/** ✅ 우선순위: ageType → isNew/isOld → buildingAgeType → buildingGrade(레거시) */
+function deriveAgeTypeFrom(src: any): "NEW" | "OLD" | null {
+  // 1) 신규 필드: ageType 우선
+  const t0 = (src?.ageType ?? "").toString().toUpperCase();
+  if (t0 === "NEW" || t0 === "OLD") return t0 as "NEW" | "OLD";
+
+  // 2) 레거시 bool 플래그
   const nIsNew = normalizeBoolLoose(src?.isNew);
   const nIsOld = normalizeBoolLoose(src?.isOld);
+  if (nIsNew === true && nIsOld !== true) return "NEW";
+  if (nIsOld === true && nIsNew !== true) return "OLD";
 
-  if (nIsNew === true && nIsOld !== true) return { isNew: true, isOld: false };
-  if (nIsOld === true && nIsNew !== true) return { isNew: false, isOld: true };
-
+  // 3) 레거시 buildingAgeType 문자열
   const t = (src?.buildingAgeType ?? "").toString().toUpperCase();
-  if (t === "NEW") return { isNew: true, isOld: false };
-  if (t === "OLD") return { isNew: false, isOld: true };
+  if (t === "NEW" || t === "OLD") return t as "NEW" | "OLD";
 
+  // 4) 레거시 buildingGrade(new/old) 문자열
   const g = (src?.buildingGrade ?? "").toString().toLowerCase();
-  if (g === "new") return { isNew: true, isOld: false };
-  if (g === "old") return { isNew: false, isOld: true };
+  if (g === "new") return "NEW";
+  if (g === "old") return "OLD";
 
-  // 4) 아무 정보 없으면 기본값(신축)
-  return { isNew: true, isOld: false };
+  return null;
 }
 
 export default function PropertyViewModal({
@@ -342,11 +349,12 @@ function ViewStage({
   );
   const f = useViewForm(formInput);
 
-  const ageFlags = useMemo(() => {
+  // ✅ ageType은 뷰데이터 + 폼 상태 합쳐서 계산
+  const ageType = useMemo<"NEW" | "OLD" | null>(() => {
     const src = { ...(data as any), ...(f as any) };
-    const resolved = deriveAgeFlagsFrom(src);
+    const resolved = deriveAgeTypeFrom(src);
 
-    console.log("[PropertyViewModal/ViewStage] age flags", {
+    console.log("[PropertyViewModal/ViewStage] ageType", {
       src,
       resolved,
     });
@@ -514,9 +522,7 @@ function ViewStage({
               pinKind={f.pinKind}
               headingId={headingId}
               descId={descId}
-              isNew={ageFlags.isNew}
-              isOld={ageFlags.isOld}
-              buildingAgeType={(data as any)?.buildingAgeType ?? undefined}
+              ageType={ageType}
               completionDate={
                 (data as any)?.completionDate ??
                 (f as any)?.completionDate ??
@@ -530,7 +536,7 @@ function ViewStage({
 
           <div
             className={cn(
-              "flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
+              "flex-1 min_h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain",
               "px-4 py-4 md:px-5 md:py-4",
               "grid gap-4 md:gap-6",
               "grid-cols-1 md:grid-cols-[300px_1fr]"

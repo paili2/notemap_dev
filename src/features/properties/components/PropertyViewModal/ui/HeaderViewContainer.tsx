@@ -23,16 +23,10 @@ export type HeaderViewContainerProps = {
   descId?: string;
 
   // ====== ⬇️ 신축/구옥 표기를 위한 조회 전용 필드들 ======
-  /** 서버에서 신축 여부(Boolean) — 있으면 그대로 표시 */
-  isNew?: boolean | null;
+  /** 서버에서 내려오는 연식 타입: "NEW" | "OLD" | null */
+  ageType?: "NEW" | "OLD" | null;
 
-  /** 서버에서 구옥 여부(Boolean) — 있으면 그대로 표시 */
-  isOld?: boolean | null;
-
-  /** 서버가 문자열로 제공할 때 대비: "NEW" | "OLD" | "" */
-  buildingAgeType?: "NEW" | "OLD" | "" | null;
-
-  /** 완공일(서버 값). isNew/isOld 없을 때 보정용 */
+  /** 완공일(서버 값). ageType 없을 때 보정용 */
   completionDate?: string | Date | null;
 
   /** 완공일 보정 기준(최근 N년 이내면 신축으로 간주). 기본 5 */
@@ -50,9 +44,7 @@ export default function HeaderViewContainer({
   closeButtonRef,
   headingId,
   descId,
-  isNew,
-  isOld,
-  buildingAgeType,
+  ageType,
   completionDate,
   newYearsThreshold = 5,
   rebateText,
@@ -68,9 +60,7 @@ export default function HeaderViewContainer({
   if (process.env.NODE_ENV !== "production") {
     // eslint-disable-next-line no-console
     console.log("[HeaderViewContainer] → HeaderSectionView props", {
-      isNew,
-      isOld,
-      buildingAgeType,
+      ageType,
       completionDate,
       newYearsThreshold,
       rebateText,
@@ -86,9 +76,7 @@ export default function HeaderViewContainer({
       closeButtonRef={closeButtonRef}
       headingId={headingId}
       descId={descId}
-      isNew={isNew ?? undefined}
-      isOld={isOld ?? undefined}
-      buildingAgeType={buildingAgeType ?? undefined}
+      ageType={ageType ?? null}
       completionDate={completionDate ?? null}
       newYearsThreshold={newYearsThreshold}
       rebateText={rebateText}

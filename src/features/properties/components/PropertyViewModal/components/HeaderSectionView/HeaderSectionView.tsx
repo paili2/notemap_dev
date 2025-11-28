@@ -9,57 +9,6 @@ import { getPinUrl } from "@/features/pins/lib/assets";
 import StarMeter from "../../ui/StarMeter";
 import { getAgeLabel } from "@/features/properties/lib/ageLabel";
 
-/* ───────────── 유틸: 안전 불리언 정규화 ───────────── */
-function normalizeBool(v: unknown): boolean | null {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "boolean") return v;
-  if (typeof v === "string") {
-    const s = v.trim().toLowerCase();
-    if (s === "true") return true;
-    if (s === "false") return false;
-  }
-  if (typeof v === "number") return v !== 0;
-  return null;
-}
-
-function fromBuildingAgeType(t: "NEW" | "OLD" | "" | null | undefined): {
-  isNew: boolean | null;
-  isOld: boolean | null;
-} {
-  if (t === "NEW") return { isNew: true, isOld: false };
-  if (t === "OLD") return { isNew: false, isOld: true };
-  return { isNew: null, isOld: null };
-}
-
-function resolveAgeFlags(opts: {
-  isNewRaw?: boolean | null | string | number;
-  isOldRaw?: boolean | null | string | number;
-  buildingAgeType?: "NEW" | "OLD" | "" | null;
-}): { isNew: boolean | undefined; isOld: boolean | undefined } {
-  const nIsNew = normalizeBool(opts.isNewRaw);
-  const nIsOld = normalizeBool(opts.isOldRaw);
-
-  if (nIsOld === true && nIsNew !== true) {
-    return { isNew: false, isOld: true };
-  }
-  if (nIsNew === true && nIsOld !== true) {
-    return { isNew: true, isOld: false };
-  }
-  if (nIsOld === true && nIsNew === true) {
-    return { isNew: false, isOld: true };
-  }
-
-  const byType = fromBuildingAgeType(opts.buildingAgeType);
-  if (byType.isNew !== null || byType.isOld !== null) {
-    return {
-      isNew: byType.isNew === null ? undefined : byType.isNew,
-      isOld: byType.isOld === null ? undefined : byType.isOld,
-    };
-  }
-
-  return { isNew: undefined, isOld: undefined };
-}
-
 export default function HeaderSectionView({
   title,
   parkingGrade,
@@ -69,9 +18,7 @@ export default function HeaderSectionView({
   headingId,
   descId,
   // 연식
-  isNew,
-  isOld,
-  buildingAgeType,
+  ageType,
   completionDate,
   newYearsThreshold = 5,
   // ⭐ 리베이트 텍스트(만원 단위)
@@ -93,24 +40,19 @@ export default function HeaderSectionView({
   }, [title]);
 
   const ageLabel = useMemo<"신축" | "구옥" | "-">(() => {
-    const { isNew: finalIsNew, isOld: finalIsOld } = resolveAgeFlags({
-      isNewRaw: isNew,
-      isOldRaw: isOld,
-      buildingAgeType:
-        typeof buildingAgeType === "string"
-          ? (buildingAgeType.toUpperCase() as "NEW" | "OLD" | "")
-          : undefined,
-    });
+    // 서버 ageType → getAgeLabel 에서 쓰는 isNew/isOld 플래그로 변환
+    const isNewFlag =
+      ageType === "NEW" ? true : ageType === "OLD" ? false : null;
+    const isOldFlag =
+      ageType === "OLD" ? true : ageType === "NEW" ? false : null;
 
-    const label = getAgeLabel({
-      isNew: finalIsNew,
-      isOld: finalIsOld,
+    return getAgeLabel({
+      isNew: isNewFlag,
+      isOld: isOldFlag,
       completionDate: completionDate ?? null,
       newYearsThreshold,
     });
-
-    return label;
-  }, [isNew, isOld, buildingAgeType, completionDate, newYearsThreshold]);
+  }, [ageType, completionDate, newYearsThreshold]);
 
   const ageClass =
     ageLabel === "신축"
@@ -175,15 +117,12 @@ export default function HeaderSectionView({
         {/* 구분선 */}
         <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
 
-        {/* 🔥 리베이트 표시: 입력 헤더처럼 R + 박스, 인풋 없는 읽기 전용 */}
+        {/* 🔥 리베이트 표시 */}
         {rebateDisplay && (
           <div className="shrink-0 flex items-center gap-3">
-            {/* ✅ R: h-9 + flex items-center 로 숫자와 동일 높이/정렬 */}
             <span className="flex items-center h-9 text-[20px] md:text-[22px] font-extrabold text-red-500">
               R
             </span>
-
-            {/* 값 박스 – 인풋 대신 읽기 전용 박스 */}
             <div
               className={cn(
                 "min-w-[2rem] h-9 px-2 text-right",

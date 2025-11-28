@@ -1131,6 +1131,26 @@ const stripNoopNulls = (dto: any, initial: any) => {
   return dto;
 };
 
+/* 🔎 신축/구옥 초기값 유도: ageType / buildingAgeType / isNew/isOld / buildingGrade 모두 고려 */
+function deriveInitialBuildingGradeFrom(src: any): "new" | "old" {
+  if (!src) return "new";
+
+  const t = (src?.ageType ?? src?.buildingAgeType ?? "")
+    .toString()
+    .toUpperCase();
+  if (t === "NEW") return "new";
+  if (t === "OLD") return "old";
+
+  if (src?.isNew === true && src?.isOld !== true) return "new";
+  if (src?.isOld === true && src?.isNew !== true) return "old";
+
+  const g = (src?.buildingGrade ?? "").toString().toLowerCase();
+  if (g === "new") return "new";
+  if (g === "old") return "old";
+
+  return "new";
+}
+
 /* ───────── component ───────── */
 export default function PropertyEditModalBody({
   onClose,
@@ -1189,6 +1209,9 @@ export default function PropertyEditModalBody({
     };
     console.log("[init] bridgedInitial:", {
       id: out?.id,
+      ageType: out?.ageType,
+      buildingAgeType: out?.buildingAgeType,
+      buildingGrade: out?.buildingGrade,
       isNew: out?.isNew,
       isOld: out?.isOld,
       pinKind: out?.pinKind,
@@ -1359,21 +1382,30 @@ export default function PropertyEditModalBody({
     console.log("[form] pinKind changed:", f.pinKind);
   }, [f.pinKind]);
 
-  /** 신축/구옥: 초기값은 isNew/isOld에서 유도, 기본 "new" */
+  /** 신축/구옥: 초기값은 ageType/건물연식 관련 필드에서 유도, 기본 "new" */
   const initialBuildingGrade = useMemo<"new" | "old">(() => {
     const src = bridgedInitial as any;
-    if (src?.isNew === true) return "new";
-    if (src?.isOld === true) return "old";
-    return "new";
+    return deriveInitialBuildingGradeFrom(src);
   }, [bridgedInitial]);
 
-  /** ✅ 초기 서버 응답에 isNew/isOld 존재했는지 추적 */
+  /** ✅ 초기 서버 응답에 연식 관련 플래그가 있었는지 추적 */
   const hadAgeFlags = useMemo(() => {
     const src = bridgedInitial as any;
     if (!src) return false;
+
     const hasNew = Object.prototype.hasOwnProperty.call(src, "isNew");
     const hasOld = Object.prototype.hasOwnProperty.call(src, "isOld");
-    return hasNew || hasOld;
+
+    const ageStr = (src?.ageType ?? src?.buildingAgeType ?? "")
+      .toString()
+      .trim()
+      .toUpperCase();
+    const hasAgeType = ageStr === "NEW" || ageStr === "OLD";
+
+    const gradeStr = (src?.buildingGrade ?? "").toString().trim().toLowerCase();
+    const hasGrade = gradeStr === "new" || gradeStr === "old";
+
+    return hasNew || hasOld || hasAgeType || hasGrade;
   }, [bridgedInitial]);
 
   const [buildingGrade, _setBuildingGrade] = useState<"new" | "old">(
@@ -1920,7 +1952,6 @@ export default function PropertyEditModalBody({
     imageFolders,
     verticalImages,
     groups,
-
     commitImageChanges,
     commitPending,
     buildingGrade,
