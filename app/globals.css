@@ -94,8 +94,7 @@ body {
 
 /* 카카오 CustomOverlay 기본 컨테이너 */
 .notemap-map-root [data-overlay-container="true"] {
-  pointer-events: none !important; /* 클릭 방지 */
-  z-index: auto !important; /* 핀 위로 올라오지 않게 */
+  z-index: auto; /* 핀 위로 올라오지 않게 */
 }
 
 /* label은 클릭 방지 */

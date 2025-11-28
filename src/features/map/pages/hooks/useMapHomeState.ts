@@ -703,21 +703,8 @@ export function useMapHomeState() {
         });
         refetch();
       } catch {}
-
-      /** ⭐ 지도 드래그/줌 시작할 때 임시 검색핀 & 메뉴 제거 */
-      const clearDraftAndMenu = () => {
-        setDraftPinSafe(null);
-        setMenuOpen(false);
-        setMenuTargetId(null);
-        setMenuAnchor(null);
-        setMenuRoadAddr(null);
-        setMenuJibunAddr(null);
-        onChangeHideLabelForId(null);
-      };
-
-      kakao.maps.event.addListener(map, "dragstart", clearDraftAndMenu);
     },
-    [refetch, setBounds, setDraftPinSafe, onChangeHideLabelForId]
+    [refetch, setBounds]
   );
 
   // ViewModal 패치/삭제 핸들러

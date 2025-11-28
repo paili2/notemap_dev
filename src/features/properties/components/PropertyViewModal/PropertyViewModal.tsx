@@ -242,13 +242,28 @@ export default function PropertyViewModal({
     async (payload: UpdatePayload & Partial<CreatePayload>) => {
       try {
         const viewPatch = toViewPatchFromEdit(payload);
-        await onSave?.(viewPatch);
+
+        // ✅ 어떤 매물인지 id를 최대한 안전하게 찾기
+        const idFromPayload = (payload as any)?.id;
+        const patchId =
+          idFromPayload ??
+          (viewData as any)?.id ??
+          (metaDetails as any)?.raw?.id ??
+          idForActions ??
+          null;
+
+        const finalPatch =
+          patchId != null ? { ...viewPatch, id: patchId } : viewPatch;
+
+        // ✅ 부모에 패치 전달 (리스트/선택된 매물 갱신용)
+        await onSave?.(finalPatch);
       } finally {
+        // ✅ 무조건 뷰 스테이지로 복귀
         setStage("view");
         setEditInitial(null);
       }
     },
-    [onSave]
+    [onSave, viewData, metaDetails, idForActions]
   );
 
   if (!open) return null;

@@ -1832,116 +1832,131 @@ export default function PropertyEditModalBody({
       console.log("[save] no form changes → skip PATCH");
     }
 
-    // 3) 로컬 view 갱신
-    const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
-      f.buildOrientation();
-    const {
-      exclusiveArea,
-      realArea,
-      extraExclusiveAreas,
-      extraRealAreas,
-      baseAreaTitleOut,
-      extraAreaTitlesOut,
-    } = f.packAreas();
+    // 3) 로컬 view 갱신 + 뷰 모달로 복귀
+    try {
+      // --- (추가) 이미지 폴더 제목을 photo-group 기준으로 정규화해서 뷰 페이로드에 실어주기 ---
+      const groupsList = (groups ?? []) as PinPhotoGroup[];
 
-    // --- (추가) 이미지 폴더 제목을 photo-group 기준으로 정규화해서 뷰 페이로드에 실어주기 ---
-    const groupsList = (groups ?? []) as PinPhotoGroup[];
+      // 0) 가로 그룹만 골라서 정렬 (ImagesContainer의 horizGroups 로직 그대로)
+      const horizGroupsForView = groupsList
+        .filter((g) => g.isDocument !== true)
+        .slice()
+        .sort(
+          (a, b) =>
+            (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+            String(a.title ?? "").localeCompare(String(b.title ?? ""))
+        );
 
-    // 0) 가로 그룹만 골라서 정렬 (ImagesContainer의 horizGroups 로직 그대로)
-    const horizGroupsForView = groupsList
-      .filter((g) => g.isDocument !== true)
-      .slice()
-      .sort(
-        (a, b) =>
-          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-          String(a.title ?? "").localeCompare(String(b.title ?? ""))
+      // 1) imageFolders에 서버 그룹 title을 덮어쓴 뷰용 스냅샷
+      const imageFoldersForPayload = (imageFolders ?? []).map(
+        (folder: any, idx: number) => {
+          const g = horizGroupsForView[idx];
+          const groupTitle = typeof g?.title === "string" ? g.title.trim() : "";
+
+          return {
+            ...folder,
+            // 그룹의 title이 있으면 최우선, 없으면 기존 folder.title 유지
+            title: groupTitle || folder?.title || "",
+          };
+        }
       );
 
-    // 1) imageFolders에 서버 그룹 title을 덮어쓴 뷰용 스냅샷
-    const imageFoldersForPayload = (imageFolders ?? []).map(
-      (folder: any, idx: number) => {
-        const g = horizGroupsForView[idx];
-        const groupTitle = typeof g?.title === "string" ? g.title.trim() : "";
-
-        return {
-          ...folder,
-          // 그룹의 title이 있으면 최우선, 없으면 기존 folder.title 유지
-          title: groupTitle || folder?.title || "",
-        };
-      }
-    );
-
-    const payload = buildUpdatePayload(
-      {
-        title: f.title,
-        address: f.address,
-        officeName: f.officeName,
-        officePhone: f.officePhone,
-        officePhone2: f.officePhone2,
-        moveIn: f.moveIn,
-        floor: f.floor,
-        roomNo: f.roomNo,
-        structure: f.structure,
-
-        parkingGrade: f.parkingGrade,
-        // parkingTypeId 제거
-        parkingType: f.parkingType,
-        totalParkingSlots: f.totalParkingSlots,
-        completionDate: f.completionDate,
-        salePrice: f.salePrice,
-
-        baseAreaSet: f.baseAreaSet,
-        extraAreaSets: f.extraAreaSets,
+      // 2) 향/면적 등 현재 폼 스냅샷 얻기
+      const { orientations, aspect, aspectNo, aspect1, aspect2, aspect3 } =
+        f.buildOrientation();
+      const {
         exclusiveArea,
         realArea,
         extraExclusiveAreas,
         extraRealAreas,
         baseAreaTitleOut,
         extraAreaTitlesOut,
+      } = f.packAreas();
 
-        elevator: f.elevator,
-        slopeGrade: f.slopeGrade,
-        structureGrade: f.structureGrade,
+      // 3) 뷰모달에 넘길 payload 구성
+      const payload = buildUpdatePayload(
+        {
+          title: f.title,
+          address: f.address,
+          officeName: f.officeName,
+          officePhone: f.officePhone,
+          officePhone2: f.officePhone2,
+          moveIn: f.moveIn,
+          floor: f.floor,
+          roomNo: f.roomNo,
+          structure: f.structure,
 
-        totalBuildings: f.totalBuildings,
-        totalFloors: f.totalFloors,
-        totalHouseholds: f.totalHouseholds,
-        remainingHouseholds: f.remainingHouseholds,
+          parkingGrade: f.parkingGrade,
+          // parkingTypeId 제거
+          parkingType: f.parkingType,
+          totalParkingSlots: f.totalParkingSlots,
+          completionDate: f.completionDate,
+          salePrice: f.salePrice,
 
-        options: f.options,
-        etcChecked: f.etcChecked,
-        optionEtc: f.optionEtc,
-        publicMemo: f.publicMemo,
-        secretMemo: f.secretMemo,
+          baseAreaSet: f.baseAreaSet,
+          extraAreaSets: f.extraAreaSets,
+          exclusiveArea,
+          realArea,
+          extraExclusiveAreas,
+          extraRealAreas,
+          baseAreaTitleOut,
+          extraAreaTitlesOut,
 
-        orientations, // 로컬 뷰용
-        aspect: aspect ?? "",
-        aspectNo: Number(aspectNo ?? 0),
-        aspect1,
-        aspect2,
-        aspect3,
-        unitLines: f.unitLines,
+          elevator: f.elevator,
+          slopeGrade: f.slopeGrade,
+          structureGrade: f.structureGrade,
 
-        imageFolders: imageFoldersForPayload,
-        verticalImages,
+          totalBuildings: f.totalBuildings,
+          totalFloors: f.totalFloors,
+          totalHouseholds: f.totalHouseholds,
+          remainingHouseholds: f.remainingHouseholds,
 
+          options: f.options,
+          etcChecked: f.etcChecked,
+          optionEtc: f.optionEtc,
+          publicMemo: f.publicMemo,
+          secretMemo: f.secretMemo,
+
+          orientations, // 로컬 뷰용
+          aspect: aspect ?? "",
+          aspectNo: Number(aspectNo ?? 0),
+          aspect1,
+          aspect2,
+          aspect3,
+          unitLines: f.unitLines,
+
+          imageFolders: imageFoldersForPayload,
+          verticalImages,
+
+          pinKind: f.pinKind,
+          buildingGrade, // "new" | "old"
+          buildingType: f.buildingType as BuildingType | null,
+        },
+        // ✅ 이전 뷰 스냅샷 – buildUpdatePayload가 필요하다면 쓸 수 있게 전달
+        (bridgedInitial as any) ?? {}
+      );
+
+      console.log("[save] onSubmit payload (view sync):", {
+        buildingGrade,
         pinKind: f.pinKind,
-        buildingGrade, // "new" | "old"
-        buildingType: f.buildingType as BuildingType | null,
-      },
-      // initial은 여기선 안 넣어서 "뷰용 payload"는 diff 안 쓰고 그대로 씀
-      undefined
-    );
+        title: payload.title,
+      });
 
-    console.log("[save] onSubmit payload (view sync):", {
-      buildingGrade,
-      pinKind: f.pinKind,
-      title: payload.title,
-    });
-
-    await onSubmit?.(payload as any);
-    console.groupEnd();
-    onClose();
+      if (onSubmit) {
+        await onSubmit(payload as any);
+      }
+    } catch (e: any) {
+      console.error("[save] view sync/buildUpdatePayload 실패:", e);
+      // 서버 저장(PATCH)은 이미 끝났고, 여기서는 화면 갱신만 실패한 상태
+      showAlert(
+        e?.message ||
+          "화면 갱신 중 오류가 발생했지만,\n서버에는 변경 사항이 저장되었습니다."
+      );
+    } finally {
+      // 🔥 여기서는 어떤 경우에도 편집 모달을 닫고 뷰모달로 돌아가게
+      console.groupEnd();
+      onClose();
+    }
   }, [
     f,
     bridgedInitial,

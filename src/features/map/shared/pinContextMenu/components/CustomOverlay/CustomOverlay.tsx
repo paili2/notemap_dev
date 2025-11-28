@@ -82,6 +82,7 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
         xAnchor,
         yAnchor,
         zIndex,
+        // clickable: true면 카카오가 지도 드래그/클릭을 적당히 막아줌
         clickable: peEnabled,
       });
 
@@ -156,6 +157,8 @@ const CustomOverlay = forwardRef<CustomOverlayHandle, CustomOverlayProps>(
       }),
       [map]
     );
+
+    // 🔥 여기 있던 포인터 이벤트 stopPropagation + preventDefault useEffect는 제거
 
     if (!containerRef.current) return null;
     return createPortal(children, containerRef.current);

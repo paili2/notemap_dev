@@ -76,7 +76,7 @@ export default function ContextMenuPanel({
   onClose,
   onView,
   onCreate,
-  onPlan, // NOTE: 현재 버튼 UI에서는 사용 안 하지만, 타입 호환 위해 props는 유지
+  onPlan,
   onReserve,
   /** ✅ 컨테이너에서 내려주는 현재 좌표 */
   position,
@@ -214,21 +214,10 @@ export default function ContextMenuPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  /** 바깥 클릭 닫기 */
-  useEffect(() => {
-    const onDocPointerDown = (e: PointerEvent) => {
-      const target = e.target as Node | null;
-      if (!panelRef.current || !target) return;
-      if (!panelRef.current.contains(target)) onClose();
-    };
-    document.addEventListener("pointerdown", onDocPointerDown, true);
-    return () =>
-      document.removeEventListener("pointerdown", onDocPointerDown, true);
-  }, [onClose]);
-
-  /** 패널 내부 포인터 이벤트는 바깥 클릭 닫기 방지 */
-  const stopPointerDown = useCallback((e: React.PointerEvent) => {
+  /** 🔹 패널 안쪽에서만 상위로의 버블링 차단 (지도/부모 React 핸들러로 안 올라가게만) */
+  const stopAll = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
+    // ⚠️ 여기서 nativeEvent.stopImmediatePropagation은 더 이상 쓰지 않는다.
   }, []);
 
   const handleReserveClick = useCallback(() => {
@@ -310,7 +299,10 @@ export default function ContextMenuPanel({
       aria-labelledby={headingId}
       aria-describedby={descId}
       tabIndex={-1}
-      onPointerDown={stopPointerDown}
+      // 🔹 패널 루트에서만 버블링 차단
+      onPointerDown={stopAll}
+      onMouseDown={stopAll}
+      onClick={stopAll}
       className="rounded-2xl bg-white shadow-xl border border-gray-200 p-3 min-w-[260px] max-w-[320px] outline-none"
     >
       {/* 헤더 */}
