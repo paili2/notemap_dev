@@ -14,10 +14,6 @@ export type ApiPin = {
 
   ageType?: "NEW" | "OLD" | null;
 
-  // isNew?: boolean | null;
-  // isOld?: boolean | null;
-  // buildingAgeType?: "NEW" | "OLD" | "" | null;
-
   buildingType?: "APT" | "OP" | "주택" | "근생" | string | null;
 
   /** ✅ 숫자 필드들 */

@@ -3,6 +3,7 @@
 import type { MutableRefObject } from "react";
 import type { PinKind } from "@/features/pins/types";
 import HeaderSectionView from "../components/HeaderSectionView/HeaderSectionView";
+import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
 
 export type HeaderViewContainerProps = {
   /** 헤더 제목(매물명) */
@@ -57,6 +58,9 @@ export default function HeaderViewContainer({
       ? Math.max(0, Math.min(5, Math.round(Number(parkingGrade))))
       : undefined;
 
+  // ⭐ ageType을 반영해서 실제로 화면에 보여줄 핀 종류 결정
+  const displayPinKind = getDisplayPinKind(pinKind, ageType ?? null);
+
   if (process.env.NODE_ENV !== "production") {
     // eslint-disable-next-line no-console
     console.log("[HeaderViewContainer] → HeaderSectionView props", {
@@ -64,6 +68,8 @@ export default function HeaderViewContainer({
       completionDate,
       newYearsThreshold,
       rebateText,
+      pinKind,
+      displayPinKind,
     });
   }
 
@@ -72,7 +78,7 @@ export default function HeaderViewContainer({
       title={title}
       parkingGrade={safeGrade}
       elevator={elevator}
-      pinKind={pinKind}
+      pinKind={displayPinKind}
       closeButtonRef={closeButtonRef}
       headingId={headingId}
       descId={descId}
