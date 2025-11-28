@@ -5,6 +5,7 @@ import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
+import { distM } from "@/features/map/shared/hooks/poi/geometry";
 
 /** kakao LatLng/Point 등 다양한 포맷을 좌표 객체로 정규화 */
 function toNumericPos(pos: any) {
@@ -64,6 +65,8 @@ export function useMergedMarkers(params: {
   menuAnchor?: { lat: number; lng: number } | null;
   /** 🔹 MapMenu 필터 키 (예: "all" | "new" | "old" | "plannedOnly" | "planned") */
   filterKey?: string;
+  /** 🔹 이번 메뉴가 어떤 마커 기준으로 열렸는지 (실제 핀 id / "__draft__" / "__search__") */
+  menuTargetId?: string | number | null;
 }) {
   const {
     localMarkers,
@@ -72,6 +75,7 @@ export function useMergedMarkers(params: {
     menuOpen,
     menuAnchor,
     filterKey,
+    menuTargetId,
   } = params;
 
   const isBeforeMode = filterKey === "plannedOnly";
@@ -215,6 +219,36 @@ export function useMergedMarkers(params: {
   const mergedWithTempDraft: MapMarker[] = useMemo(() => {
     if (!(menuOpen && menuAnchor)) return mergedMarkers;
 
+    // 🔹 0) 이번 메뉴가 "실제 핀" 기준으로 열린 경우라면
+    //      (예: propertyId: "28" 같은 상황) → 임시 question 핀은 절대 만들지 않는다.
+    const targetIdStr = menuTargetId != null ? String(menuTargetId) : undefined;
+
+    if (
+      targetIdStr &&
+      targetIdStr !== "__draft__" &&
+      targetIdStr !== "__search__"
+    ) {
+      return mergedMarkers;
+    }
+
+    // 🔹 1) 먼저, 메뉴 앵커 근처에 "실제 매물 핀(point)" 이 있는지 거리로 확인
+    const NEAR_THRESHOLD_M_FOR_MENU = 500; // 대략 500m 이내면 같은 위치로 간주
+
+    const hasRealPointNearAnchor = mergedMeta.some((mm) => {
+      if (mm.source !== "point") return false; // 실매물만 대상
+      return (
+        distM(menuAnchor.lat, menuAnchor.lng, mm.lat, mm.lng) <=
+        NEAR_THRESHOLD_M_FOR_MENU
+      );
+    });
+
+    // 👉 근처에 실매물 핀이 하나라도 있으면
+    //    임시 question 핀(__draft__)은 만들지 않는다.
+    if (hasRealPointNearAnchor) {
+      return mergedMarkers;
+    }
+
+    // 🔹 2) 기존 로직: 같은 좌표에 이미 마커가 있으면 임시핀 추가 안 함
     const targetKey = posKey(menuAnchor.lat, menuAnchor.lng);
 
     const hasSamePosKey = mergedMarkers.some((m) => {
@@ -241,6 +275,7 @@ export function useMergedMarkers(params: {
 
     if (overlapWithDraft) return mergedMarkers;
 
+    // 🔹 3) 진짜 맵 빈 곳을 클릭해서 메뉴를 연 경우에만 임시핀 추가
     return [
       ...mergedMarkers,
       {
@@ -250,7 +285,7 @@ export function useMergedMarkers(params: {
         kind: "question" as PinKind,
       },
     ];
-  }, [mergedMarkers, menuOpen, menuAnchor]);
+  }, [mergedMarkers, mergedMeta, menuOpen, menuAnchor, menuTargetId]);
 
   return { mergedMarkers, mergedWithTempDraft, mergedMeta };
 }

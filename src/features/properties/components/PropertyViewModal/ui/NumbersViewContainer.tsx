@@ -1,5 +1,5 @@
 "use client";
-import NumbersView from "../components/NumbersView/NumbersView";
+import NumbersView from "../sections/NumbersView/NumbersView";
 
 // null 가능성까지 받아주기
 type MaybeNumStr = string | number | null | undefined;

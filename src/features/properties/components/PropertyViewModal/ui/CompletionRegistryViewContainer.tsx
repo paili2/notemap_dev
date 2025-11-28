@@ -1,7 +1,7 @@
 "use client";
 
 import { toYMDFlexible } from "@/lib/dateUtils";
-import CompletionRegistryView from "../components/CompletionRegistryView/CompletionRegistryView";
+import CompletionRegistryView from "../sections/CompletionRegistryView/CompletionRegistryView";
 
 /** 뷰모달의 준공/등기/최저실입 표시 컨테이너 */
 type Props = {

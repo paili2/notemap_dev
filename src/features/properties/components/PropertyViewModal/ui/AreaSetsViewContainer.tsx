@@ -1,6 +1,6 @@
 "use client";
 
-import AreaSetsView from "../components/AreaSetsView/AreaSetsView";
+import AreaSetsView from "../sections/AreaSetsView/AreaSetsView";
 
 export default function AreaSetsViewContainer({
   exclusiveArea,

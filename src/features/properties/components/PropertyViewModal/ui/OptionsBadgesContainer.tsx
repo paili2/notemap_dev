@@ -1,5 +1,5 @@
 "use client";
-import OptionsBadges from "../components/OptionsBadges";
+import OptionsBadges from "../sections/OptionsBadges";
 
 export default function OptionsBadgesContainer({
   options = [], // ✅ 기본값

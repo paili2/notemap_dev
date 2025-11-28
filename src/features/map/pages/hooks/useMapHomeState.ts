@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
-import { LatLng } from "@/lib/geo/types";
+import type { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import type { ViewSource } from "@/features/properties/lib/view/types";
@@ -249,6 +249,19 @@ export function useMapHomeState() {
   // 서버 핀
   const { points, drafts, setBounds, refetch } = usePinsMap();
 
+  const searchItems = useMemo(
+    () =>
+      (points ?? []).map((p: any) => ({
+        id: String(p.id),
+        position: { lat: p.lat, lng: p.lng },
+        // 이름/타이틀
+        name: p.name ?? p.propertyName ?? "",
+        // 주소 후보
+        address: p.addressLine ?? p.address ?? null,
+      })),
+    [points]
+  );
+
   // 방금 등록된 draft 숨김 관리
   const [hiddenDraftIds, setHiddenDraftIds] = useState<Set<string>>(new Set());
   const hideDraft = useCallback(
@@ -481,36 +494,6 @@ export function useMapHomeState() {
     [mapInstance, panToWithOffset, focusAndOpenAt]
   );
 
-  const geocodeAddress = useCallback(
-    async (q: string): Promise<LatLng | null> => {
-      const keyword = q?.trim();
-      if (!keyword) return null;
-
-      // ⚠️ services 아직 준비 전이면 → 현재 지도 중심 좌표라도 반환해서
-      // 최소한 메뉴/임시핀 로직은 동작하게 해 줌
-      if (!kakaoSDK?.maps?.services) {
-        const center = mapInstance?.getCenter?.();
-        if (center) {
-          return { lat: center.getLat(), lng: center.getLng() };
-        }
-        return null;
-      }
-
-      const geocoder = new kakaoSDK.maps.services.Geocoder();
-      return await new Promise<LatLng | null>((resolve) => {
-        geocoder.addressSearch(keyword, (result: any[], status: string) => {
-          if (status !== kakaoSDK.maps.services.Status.OK || !result?.length) {
-            resolve(null);
-            return;
-          }
-          const { x, y } = result[0];
-          resolve({ lat: Number(y), lng: Number(x) });
-        });
-      });
-    },
-    [kakaoSDK, mapInstance]
-  );
-
   const openMenuForExistingPin = useCallback(
     async (p: PropertyItem) => {
       const pos = normalizeLL(p.position);
@@ -558,17 +541,33 @@ export function useMapHomeState() {
   const runSearchRaw = useRunSearch({
     kakaoSDK,
     mapInstance,
-    items,
-    onMatchedPin: (p: PropertyItem) => openMenuForExistingPin(p),
+    items: searchItems as any,
+    onMatchedPin: async (p: any) => {
+      // ✅ 혹시 이전에 떠 있던 draft 말풍선/임시핀은 무조건 제거
+      setDraftPinSafe(null);
+      setCreateFromDraftId(null);
 
-    onNoMatch: (coords: LatLng) => {
-      // 검색 결과 핀이 없을 때도 자동 확대 + 강제 메뉴 오픈
-      return focusAndOpenAt(coords, "__draft__");
+      const pos = { lat: p.position.lat, lng: p.position.lng };
+
+      console.log("[runSearchRaw] matched pin by search:", {
+        id: p.id,
+        name: (p as any).name,
+        address: (p as any).address,
+        pos,
+      });
+
+      // ✅ 여기서는 항상 "실제 핀 id"로만 오픈 (임시핀 금지)
+      await focusAndOpenAt(pos, String(p.id));
     },
+    onNoMatch: async (coords: LatLng) => {
+      // ✅ 매칭 핀이 없을 때만 진짜 draft 모드로 전환
+      setCreateFromDraftId(null);
 
-    panToWithOffset,
-    poiKinds,
-  } as any);
+      console.log("[runSearchRaw] no matched pin, open draft at:", coords);
+
+      await focusAndOpenAt(coords, "__draft__");
+    },
+  });
 
   const runSearch = useCallback(
     (keyword?: string) => runSearchRaw(keyword ?? q),
@@ -580,26 +579,17 @@ export function useMapHomeState() {
       const keyword = (kw ?? q).trim();
       if (!keyword) return;
 
-      // ✅ 0. 제일 먼저 광역 키워드 컷
       if (isTooBroadKeyword(keyword)) {
         toast({
           title: "검색 범위가 너무 넓어요",
           description: "정확한 주소 또는 건물명을 입력해주세요.",
         });
-        console.log("[handleSearchSubmit] blocked broad keyword:", keyword);
-        return; // ⬅️ 여기서 바로 종료 (runSearch / geocode 전부 안 감)
+        return;
       }
 
-      // ✅ 1. 여기까지 왔으면 세부 주소/건물명 → 내부 runSearch 실행
-      await runSearch(keyword);
-
-      // ✅ 2. 지오코딩 + 자동 확대 + 메뉴 오픈
-      const pos = await geocodeAddress(keyword);
-      if (pos) {
-        await focusAndOpenAt(pos, "__draft__");
-      }
+      await runSearch(keyword); // ✅ 이 한 줄만
     },
-    [q, runSearch, geocodeAddress, focusAndOpenAt, toast]
+    [q, runSearch, toast]
   );
 
   const onSubmitSearch = useCallback(
@@ -661,8 +651,6 @@ export function useMapHomeState() {
         if (draft) {
           const pos = { lat: draft.lat, lng: draft.lng };
 
-          // ⬇️ 여기! 더 이상 "__draft__"로 바꾸지 말고,
-          //    원래 visit-id 그대로 넘겨서 openMenuAt 에서도 __visit__... 를 받게 한다
           await focusAndOpenAt(pos, `__visit__${rawId}`);
           return;
         }
@@ -781,22 +769,10 @@ export function useMapHomeState() {
       let anchor: LatLng | null = null;
 
       // ✅ 1) 여기서 모드 결정
-      //    - 답사예정지 등록 버튼 → visitPlanOnly: true 로 호출
-      //    - 일반 매물등록 / 답사예정핀에서 "매물정보입력" → visitPlanOnly 안 넘김
       const isVisitPlanOnly = !!args?.visitPlanOnly;
-
-      console.log("[openCreateFromMenu] args =", args);
-      console.log("[openCreateFromMenu] isVisitPlanOnly =", isVisitPlanOnly);
-
-      //  답사예정 전용 모드면 "question" 으로, 나머지는 일반(1룸 기본값)
       setCreatePinKind(isVisitPlanOnly ? "question" : null);
 
-      console.log(
-        "[openCreateFromMenu] createPinKind set to",
-        isVisitPlanOnly ? "question" : null
-      );
-
-      // ✅ 2) 좌표 결정 (기존 코드 그대로 유지)
+      // ✅ 2) 좌표 결정
       if (args) {
         const lat = (args as any).lat ?? (args as any).latFromPin ?? null;
         const lng = (args as any).lng ?? (args as any).lngFromPin ?? null;
@@ -869,7 +845,6 @@ export function useMapHomeState() {
     );
 
     // 1) 필터 모드 판별
-    //    plannedOnly = 답사예정 탭 (답사 전 드래프트만 보고 싶을 때)
     const isPlannedOnlyMode = filter === "plannedOnly";
 
     // 2) 매물핀: plannedOnly 모드에서는 안 보이게
@@ -877,10 +852,9 @@ export function useMapHomeState() {
 
     // 3) 임시핀: plannedOnly 모드일 때는 draftState === "BEFORE" 만 남기기
     const visibleDrafts = visibleDraftsRaw.filter((d: any) => {
-      if (!isPlannedOnlyMode) return true; // 평소에는 전부 사용
-
+      if (!isPlannedOnlyMode) return true;
       const state = d.draftState as "BEFORE" | "SCHEDULED" | undefined;
-      return state === "BEFORE"; // ⇐ 답사 전 드래프트만
+      return state === "BEFORE";
     });
 
     // 4) 매물핀 마커 변환
@@ -900,7 +874,7 @@ export function useMapHomeState() {
       isFav: false,
     }));
 
-    // 6) 화면에서 선택한 임시 draftPin (메뉴 열릴 때 생기는 말풍선용)
+    // 6) 화면에서 선택한 임시 draftPin
     const draftPinMarker = draftPin
       ? [
           {
@@ -924,7 +898,7 @@ export function useMapHomeState() {
         setPrefillAddress(undefined);
         setMenuOpen(false);
         setCreateFromDraftId(null);
-        setCreatePos(null); // ✅ 생성 좌표 초기화
+        setCreatePos(null);
         setCreatePinKind(null);
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
@@ -939,7 +913,7 @@ export function useMapHomeState() {
         setPrefillAddress(undefined);
         setCreateOpen(false);
         setCreateFromDraftId(null);
-        setCreatePos(null); // ✅ 생성 좌표 초기화
+        setCreatePos(null);
         setCreatePinKind(null);
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
@@ -967,7 +941,7 @@ export function useMapHomeState() {
     setPrefillAddress(undefined);
     setMenuOpen(false);
     setCreateFromDraftId(null);
-    setCreatePos(null); // ✅ 생성 좌표 초기화
+    setCreatePos(null);
     setCreatePinKind(null);
   }, [setDraftPinSafe, setCreatePos]);
 
@@ -1011,7 +985,6 @@ export function useMapHomeState() {
   }, [selected]);
 
   const selectedPos = useMemo<LatLng | null>(() => {
-    // ✅ 매물등록을 눌렀을 때 캡쳐한 좌표가 있으면 최우선 사용
     if (createPos) return createPos;
     if (menuAnchor) return menuAnchor;
     if (draftPin) return draftPin;

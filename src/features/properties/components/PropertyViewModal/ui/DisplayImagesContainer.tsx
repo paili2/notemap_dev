@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import DisplayImagesSection from "../components/DisplayImagesSection/DisplayImagesSection";
+import DisplayImagesSection from "../sections/DisplayImagesSection/DisplayImagesSection";
 import type {
   AnyImg,
   ImagesGroup,
-} from "../components/DisplayImagesSection/types";
+} from "../sections/DisplayImagesSection/types";
 
 /** 최소 표시용 타입들 */
 export type DisplayImage = {

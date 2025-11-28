@@ -1,5 +1,5 @@
 "use client";
-import AspectsView from "../components/AspectsView/AspectsView";
+import AspectsView from "../sections/AspectsView/AspectsView";
 import { PropertyViewDetails } from "../types";
 
 export default function AspectsViewContainer({

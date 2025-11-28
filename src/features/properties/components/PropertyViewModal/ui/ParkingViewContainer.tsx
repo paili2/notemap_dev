@@ -1,6 +1,6 @@
 "use client";
 
-import ParkingView from "../components/ParkingView";
+import ParkingView from "../sections/ParkingView";
 
 export default function ParkingViewContainer({
   parkingType = "",

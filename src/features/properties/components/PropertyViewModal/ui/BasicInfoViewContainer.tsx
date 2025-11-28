@@ -1,6 +1,6 @@
 "use client";
 
-import BasicInfoView from "../components/BasicInfoView";
+import BasicInfoView from "../sections/BasicInfoView";
 
 export default function BasicInfoViewContainer({
   address,

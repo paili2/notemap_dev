@@ -2,7 +2,7 @@
 
 import type { MutableRefObject } from "react";
 import type { PinKind } from "@/features/pins/types";
-import HeaderSectionView from "../components/HeaderSectionView/HeaderSectionView";
+import HeaderSectionView from "../sections/HeaderSectionView/HeaderSectionView";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
 
 export type HeaderViewContainerProps = {

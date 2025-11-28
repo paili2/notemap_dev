@@ -1,6 +1,6 @@
 "use client";
 
-import MemoPanel from "../components/MemoPanel";
+import MemoPanel from "../sections/MemoPanel";
 import { MemoTab } from "../types";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 

@@ -74,6 +74,9 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     }
   };
 
+  // ⭐ 면적 세트(base/extra) 편집 여부
+  const [areaSetsTouched, setAreaSetsTouched] = useState(false);
+
   // ⭐ 매물평점(별 1~5, 공백 허용)
   const [parkingGrade, setParkingGrade] = useState<StarStr>("");
 
@@ -93,7 +96,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   /** 🔥 헤더 R 인풋과 연결될 리베이트 텍스트(만원 단위) */
   const [rebateText, setRebateText] = useState<string>("");
 
-  const [baseAreaSet, setBaseAreaSet] = useState<AreaSet>({
+  const [baseAreaSet, _setBaseAreaSet] = useState<AreaSet>({
     title: "",
     exMinM2: "",
     exMaxM2: "",
@@ -104,7 +107,24 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     realMinPy: "",
     realMaxPy: "",
   });
-  const [extraAreaSets, setExtraAreaSets] = useState<AreaSet[]>([]);
+  const [extraAreaSets, _setExtraAreaSets] = useState<AreaSet[]>([]);
+
+  // 면적 세트 변경 시 터치 플래그 올리는 setter 래퍼
+  const setBaseAreaSet = useCallback(
+    (v: AreaSet | ((prev: AreaSet) => AreaSet)) => {
+      setAreaSetsTouched(true);
+      _setBaseAreaSet(v as any);
+    },
+    []
+  );
+
+  const setExtraAreaSets = useCallback(
+    (v: AreaSet[] | ((prev: AreaSet[]) => AreaSet[])) => {
+      setAreaSetsTouched(true);
+      _setExtraAreaSets(v as any);
+    },
+    []
+  );
 
   /** ✅ 엘리베이터: "O" | "X" (기본값 "O") */
   const [elevator, setElevator] = useState<"O" | "X">("O");
@@ -187,6 +207,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   const reset = useCallback(() => {
     aspectsTouchedRef.current = false;
     setAspectsTouched(false);
+    setAreaSetsTouched(false);
 
     setPinKind("1room");
     setTitle("");
@@ -284,6 +305,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
     aspectsTouchedRef.current = false;
     setAspectsTouched(false);
+    setAreaSetsTouched(false);
 
     setPinKind(normalized.pinKind);
     setTitle(normalized.title);
@@ -507,52 +529,12 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   );
 
   const isSaveEnabled = useMemo<boolean>(() => {
-    const numbersOk =
-      filled(totalBuildings) &&
-      filled(totalFloors) &&
-      filled(totalHouseholds) &&
-      filled(remainingHouseholds);
+    // ✅ 수정 모달은 "부분 수정" 허용: 최소 조건만 체크
+    const hasTitle = filled(title);
+    const hasMainPhone = filled(officePhone);
 
-    const salePriceOk = filled(String(salePriceRaw ?? ""));
-
-    const basicOk =
-      filled(title) &&
-      filled(address) &&
-      filled(officePhone) &&
-      filled(parkingType ?? "") &&
-      filled(completionDate) &&
-      salePriceOk &&
-      hasExclusiveAny &&
-      hasRealAny;
-
-    const gradeOk = parkingGrade !== "";
-
-    return (
-      basicOk &&
-      numbersOk &&
-      optionsValid &&
-      unitLines.length > 0 &&
-      gradeOk &&
-      aspectsValid
-    );
-  }, [
-    title,
-    address,
-    officePhone,
-    parkingType,
-    completionDate,
-    salePriceRaw,
-    hasExclusiveAny,
-    hasRealAny,
-    totalBuildings,
-    totalFloors,
-    totalHouseholds,
-    remainingHouseholds,
-    optionsValid,
-    unitLines.length,
-    parkingGrade,
-    aspectsValid,
-  ]);
+    return hasTitle && hasMainPhone;
+  }, [title, officePhone]);
 
   /* ========== 저장 헬퍼 ========== */
   const buildOrientation = useCallback(
@@ -636,6 +618,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingGrade,
       aspectsTouched,
       rebateText,
+      areaSetsTouched,
       // 🔥 HeaderForm에서 바로 쓸 수 있게 alias 제공
       rebateRaw: rebateText,
     }),
@@ -676,6 +659,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingGrade,
       aspectsTouched,
       rebateText,
+      areaSetsTouched,
     ]
   );
 

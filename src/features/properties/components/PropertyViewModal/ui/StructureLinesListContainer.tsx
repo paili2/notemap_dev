@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import StructureLinesList from "../components/StructureLinesList";
+import StructureLinesList from "../sections/StructureLinesList";
 
 type UnitView = {
   rooms: number;

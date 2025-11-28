@@ -25,7 +25,7 @@ import { cn } from "@/lib/cn";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 import { deletePin } from "@/shared/api/pins";
 import { usePinDetail } from "../../hooks/useEditForm/usePinDetail";
-import MetaInfoContainer from "./components/MetaInfoContainer";
+import MetaInfoContainer from "./sections/MetaInfoContainer";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 import { useMe } from "@/shared/api/auth";
 import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";

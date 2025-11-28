@@ -9,6 +9,9 @@ import { distanceMeters } from "@/lib/geo/distance";
 import { useToast } from "@/hooks/use-toast";
 import { isTooBroadKeyword } from "../utils/isTooBroadKeyword";
 
+// 👉 검색 주소랑 기존 핀 간 거리 허용치(조금 넉넉하게 3km까지)
+const SEARCH_NEAR_THRESHOLD_M = Math.max(NEAR_THRESHOLD_M, 3000);
+
 type Args = {
   kakaoSDK: any;
   mapInstance: any;
@@ -23,12 +26,25 @@ type Args = {
 
 export function useRunSearch({
   kakaoSDK,
-  mapInstance, // ← 이제 사실상 안 써도 되지만, 타입만 남겨둬도 됨
+  mapInstance,
   items,
   onMatchedPin,
   onNoMatch,
 }: Args) {
   const { toast } = useToast();
+
+  // 🧹 주소 정규화 + 비교 유틸
+  const normalizeAddress = (addr?: string | null) => {
+    if (!addr) return "";
+    return String(addr)
+      .replace(/\s+/g, "") // 공백 제거
+      .replace(/[()-]/g, "") // 괄호/하이픈 제거
+      .replace("특별자치시", "시") // 흔한 패턴 정규화
+      .trim();
+  };
+
+  const isSameAddress = (a?: string | null, b?: string | null) =>
+    normalizeAddress(a) === normalizeAddress(b);
 
   return useCallback(
     async (keyword: string) => {
@@ -37,7 +53,7 @@ export function useRunSearch({
       const trimmed = keyword.trim();
       if (!trimmed) return;
 
-      // 1) 광역 키워드 컷
+      // 0) 광역 키워드 컷
       if (isTooBroadKeyword(trimmed)) {
         toast({
           title: "검색 범위가 너무 넓어요",
@@ -46,38 +62,106 @@ export function useRunSearch({
         return;
       }
 
+      const trimmedLower = trimmed.toLowerCase();
+
+      // ✅ 1단계: "이름"으로만 먼저 매칭 시도
+      //    (지오코딩 좌표와 상관 없이, 지도에 떠 있는 핀 중 이름이 같은 게 있으면 그걸 우선 선택)
+      const byName = items.find((p: any) => {
+        const raw =
+          p.name ??
+          p.propertyName ??
+          p.title ??
+          p.address ??
+          p.addressLine ??
+          "";
+        const pName = String(raw).trim();
+        if (!pName) return false;
+        const lower = pName.toLowerCase();
+        return lower === trimmedLower || lower.includes(trimmedLower);
+      });
+
+      if (byName) {
+        console.log("[useRunSearch] matched by name:", byName);
+        await onMatchedPin(byName);
+        return;
+      }
+
+      // ✅ 2단계: 지오코딩 + 주소/거리 기반 매칭
       const geocoder = new kakaoSDK.maps.services.Geocoder();
       const places = new kakaoSDK.maps.services.Places();
 
-      const afterLocate = async (lat: number, lng: number) => {
+      const afterLocate = async (
+        lat: number,
+        lng: number,
+        addrInfo?: { road?: string | null; jibun?: string | null }
+      ) => {
         const coords: LatLng = { lat, lng };
 
-        // 가까운 기존 핀 매칭
+        let bestByNameOrAddr: PropertyItem | null = null;
+        let bestByNameOrAddrDist = Infinity;
+
         let nearest: PropertyItem | null = null;
-        let best = Infinity;
+        let nearestDist = Infinity;
+
         for (const p of items) {
+          const anyP = p as any;
           const d = distanceMeters(coords, p.position);
-          if (d < NEAR_THRESHOLD_M && d < best) {
-            best = d;
+
+          const pAddr = anyP.address ?? anyP.addressLine ?? null;
+          const road = addrInfo?.road ?? null;
+          const jibun = addrInfo?.jibun ?? null;
+
+          const rawName = anyP.name ?? anyP.propertyName ?? anyP.title ?? "";
+          const pName = String(rawName).trim();
+          const lower = pName.toLowerCase();
+
+          const matchByName =
+            !!pName && (lower === trimmedLower || lower.includes(trimmedLower));
+          const matchByAddr =
+            isSameAddress(pAddr, road) || isSameAddress(pAddr, jibun);
+
+          // 1) 이름/주소가 어느 정도라도 맞으면, 거리 상관 없이 "우선 후보"로 본다
+          if (matchByName || matchByAddr) {
+            if (d < bestByNameOrAddrDist) {
+              bestByNameOrAddr = p;
+              bestByNameOrAddrDist = d;
+            }
+          } else {
+            // 2) 이름/주소 둘 다 안 맞을 때만 거리 컷 적용
+            if (d >= SEARCH_NEAR_THRESHOLD_M) {
+              continue;
+            }
+          }
+
+          // 3) 순수 거리 기준 "가장 가까운 핀"도 한 개 저장해 둔다
+          if (d < nearestDist) {
             nearest = p;
+            nearestDist = d;
           }
         }
 
-        if (nearest) {
-          await onMatchedPin(nearest); // ← 지도 이동은 여기서(= 상위) 처리
-        } else {
-          await onNoMatch(coords); // ← 여기서도 상위에서 처리
+        // 최종 우선순위:
+        //   1) 이름/주소 후보 중 가장 가까운 핀
+        //   2) (없으면) 거리 기준으로도 충분히 가까운 핀
+        //   3) (둘 다 없으면) 진짜로 매칭 X → draft 모드
+        let picked: PropertyItem | null = null;
+
+        if (bestByNameOrAddr) {
+          picked = bestByNameOrAddr;
+        } else if (nearest && nearestDist < SEARCH_NEAR_THRESHOLD_M) {
+          picked = nearest;
         }
 
-        // ❌ 지도 이동/zoom 은 전부 제거
-        // const center = new kakaoSDK.maps.LatLng(lat, lng);
-        // mapInstance.setCenter(center);
-        // mapInstance.setLevel(Math.min(5, 11));
-        // kakaoSDK.maps.event.trigger(mapInstance, "idle");
-        // requestAnimationFrame(() =>
-        //   kakaoSDK.maps.event.trigger(mapInstance, "idle")
-        // );
-        // if (panToWithOffset) panToWithOffset(coords, 180);
+        console.log("[useRunSearch] picked (geo) =", picked, {
+          bestByNameOrAddrDist,
+          nearestDist,
+        });
+
+        if (picked) {
+          await onMatchedPin(picked);
+        } else {
+          await onNoMatch(coords);
+        }
       };
 
       await new Promise<void>((resolve) => {
@@ -95,9 +179,18 @@ export function useRunSearch({
               const lng = parseFloat(
                 (r0.road_address?.x ?? r0.address?.x ?? r0.x) as string
               );
-              await afterLocate(lat, lng);
+
+              const roadName =
+                (r0.road_address && r0.road_address.address_name) ?? null;
+              const jibunName = (r0.address && r0.address.address_name) ?? null;
+
+              await afterLocate(lat, lng, {
+                road: roadName,
+                jibun: jibunName,
+              });
               resolve();
             } else {
+              // 주소검색 실패 → 키워드 검색
               places.keywordSearch(
                 trimmed,
                 async (kwResult: any[], kwStatus: string) => {
@@ -106,10 +199,13 @@ export function useRunSearch({
                     kwResult?.length
                   ) {
                     const r0 = kwResult[0];
-                    await afterLocate(
-                      parseFloat(r0.y as string),
-                      parseFloat(r0.x as string)
-                    );
+                    const lat = parseFloat(r0.y as string);
+                    const lng = parseFloat(r0.x as string);
+
+                    await afterLocate(lat, lng, {
+                      road: (r0 as any).road_address_name ?? null,
+                      jibun: (r0 as any).address_name ?? null,
+                    });
                   } else {
                     toast({
                       title: "검색 결과가 없습니다.",

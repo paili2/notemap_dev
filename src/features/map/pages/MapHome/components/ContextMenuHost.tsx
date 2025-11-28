@@ -283,12 +283,26 @@ export default function ContextMenuHost(props: {
 
   /** 3) effective target: 클릭된 핀 있으면 그것, 없으면 underlying 등록핀, 없으면 draft */
   const effectiveTarget = useMemo((): { id: string; marker?: MapMarker } => {
+    const isDraftLike = (id: any) =>
+      typeof id === "string" && id.startsWith("__");
+
+    // 3-1) 클릭된 핀인데 "진짜 매물핀"(id 가 숫자/일반 문자열) 이면 그대로 사용
+    if (menuTargetId && targetPin && !isDraftLike(menuTargetId)) {
+      return { id: String(menuTargetId), marker: targetPin as MapMarker };
+    }
+
+    // 3-2) 클릭된 게 임시핀(__draft__, __search__, __visit__) 이고,
+    //      같은 위치에 실제 등록핀(underlyingMarker)이 있으면 그걸 우선 사용
+    if (underlyingMarker && !isDraftLike(underlyingMarker.id)) {
+      return { id: String(underlyingMarker.id), marker: underlyingMarker };
+    }
+
+    // 3-3) 그래도 없으면 원래 targetPin(임시핀) 사용
     if (menuTargetId && targetPin) {
       return { id: String(menuTargetId), marker: targetPin as MapMarker };
     }
-    if (underlyingMarker && !String(underlyingMarker.id).startsWith("__")) {
-      return { id: String(underlyingMarker.id), marker: underlyingMarker };
-    }
+
+    // 3-4) 아무것도 없으면 새 드래프트
     return { id: "__new__", marker: undefined };
   }, [menuTargetId, targetPin, underlyingMarker]);
 

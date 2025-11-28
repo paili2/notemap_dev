@@ -78,10 +78,7 @@ export default function ContextMenuPanel({
   onCreate,
   onPlan,
   onReserve,
-  /** ✅ 컨테이너에서 내려주는 현재 좌표 */
   position,
-
-  /** ✅ 새로 추가: 매물 삭제 가능 여부 & 핸들러 */
   canDelete,
   onDelete,
 }: ContextMenuPanelProps) {
@@ -93,12 +90,11 @@ export default function ContextMenuPanel({
   const firstFocusableRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
 
-  /** ✅ 제목 로컬 상태: 컨테이너에서 title이 없을 때 보완 */
+  /** 제목 로컬 상태: 컨테이너에서 title이 없을 때 보완 */
   const [displayTitle, setDisplayTitle] = useState(
     (propertyTitle ?? "").trim()
   );
 
-  // propertyTitle이 바뀌면 displayTitle도 맞춰줌
   useEffect(() => {
     setDisplayTitle((propertyTitle ?? "").trim());
   }, [propertyTitle]);
@@ -151,7 +147,7 @@ export default function ContextMenuPanel({
     return true;
   }, [propertyId]);
 
-  /** ✅ 제목이 비어 있고 조회 가능한 등록핀이라면 1회 조회 후 제목 채우기 */
+  /** 제목이 비어 있고 조회 가능한 등록핀이라면 1회 조회 후 제목 채우기 */
   useEffect(() => {
     if (displayTitle) return;
     if (!canView) return;
@@ -179,20 +175,16 @@ export default function ContextMenuPanel({
     };
   }, [displayTitle, canView, propertyId]);
 
-  /** 최종 헤더 타이틀: draft는 "선택 위치", 그 외엔 매물명 우선 */
+  /** 최종 헤더 타이틀 */
   const headerTitle = useMemo(() => {
-    // 1️⃣ 드래프트 핀은 항상 "선택 위치"
     if (draft) return "선택 위치";
 
-    // 2️⃣ 매물명이 하나라도 있으면 무조건 그걸 사용
     const name = (displayTitle || propertyTitle || "").trim();
     if (name) return name;
 
-    // 3️⃣ 임시핀인데 제목이 없으면 상태 라벨 사용
     if (reserved) return "답사지예약";
     if (planned) return "답사예정";
 
-    // 4️⃣ 그 외는 그냥 선택 위치
     return "선택 위치";
   }, [draft, reserved, planned, displayTitle, propertyTitle]);
 
@@ -214,10 +206,9 @@ export default function ContextMenuPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  /** 🔹 패널 안쪽에서만 상위로의 버블링 차단 (지도/부모 React 핸들러로 안 올라가게만) */
+  /** 패널 안쪽에서만 상위 버블링 차단 */
   const stopAll = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
-    // ⚠️ 여기서 nativeEvent.stopImmediatePropagation은 더 이상 쓰지 않는다.
   }, []);
 
   const handleReserveClick = useCallback(() => {
@@ -226,7 +217,6 @@ export default function ContextMenuPanel({
     if (onReserve) {
       onReserve(payload);
     } else if (onPlan) {
-      // 레거시: onReserve 미연결 시 기존 onPlan 로직으로 폴백
       onPlan();
     }
 
@@ -239,18 +229,17 @@ export default function ContextMenuPanel({
     Promise.resolve().then(() => onClose());
   }, [onView, onClose, propertyId, canView]);
 
-  // ✅ 신규 등록/정보 입력 시 pinDraftId + lat/lng 함께 전달
+  // 신규 등록/정보 입력
   const handleCreateClick = useCallback(() => {
     const pinDraftId = extractDraftIdFromPropertyId(propertyId);
     const { lat, lng } = getLatLng(position);
 
     const createMode: CreateMode = draft
-      ? "PLAN_FROM_DRAFT" // 신규핀 → 답사예정지 등록 클릭
+      ? "PLAN_FROM_DRAFT"
       : reserved
-      ? "FULL_PROPERTY_FROM_RESERVED" // 답사지 예약핀 → 매물 정보 입력
+      ? "FULL_PROPERTY_FROM_RESERVED"
       : "NORMAL";
 
-    // 🔹 기본 payload
     const basePayload = {
       latFromPin: lat,
       lngFromPin: lng,
@@ -261,13 +250,11 @@ export default function ContextMenuPanel({
       createMode,
     };
 
-    // 🔥 draft(검색 임시핀)일 때만 visitPlanOnly: true 추가
     const payload = draft
       ? { ...basePayload, visitPlanOnly: true }
       : basePayload;
 
     onCreate?.(payload);
-
     onClose();
   }, [
     onCreate,
@@ -280,7 +267,7 @@ export default function ContextMenuPanel({
     reserved,
   ]);
 
-  // ✅ Hover 시 프리페치
+  // Hover 시 프리페치
   const handleHoverPrefetch = useCallback(() => {
     if (!canView) return;
     const idStr = String(propertyId);
@@ -299,7 +286,6 @@ export default function ContextMenuPanel({
       aria-labelledby={headingId}
       aria-describedby={descId}
       tabIndex={-1}
-      // 🔹 패널 루트에서만 버블링 차단
       onPointerDown={stopAll}
       onMouseDown={stopAll}
       onClick={stopAll}
@@ -401,7 +387,6 @@ export default function ContextMenuPanel({
           </Button>
         </div>
       ) : draft ? (
-        // ✅ 임시핀: 답사예정 버튼 제거, '이 위치로 신규 등록'만 사용
         <div className="flex items-center gap-2">
           <Button
             type="button"

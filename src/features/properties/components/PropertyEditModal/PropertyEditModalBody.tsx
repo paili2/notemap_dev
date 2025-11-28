@@ -687,14 +687,19 @@ function toPinPatch(
     const value =
       trimmed === "" || trimmed === "custom" ? null : trimmed.slice(0, 50);
 
+    const initParkingType = (initial as any)?.parkingType ?? null; // 서버 초기값
+
     console.log("[toPinPatch][parkingType]", {
-      initParkingType: (initial as any)?.parkingType,
+      initParkingType,
       nowRaw: raw,
       trimmed,
       send: value,
     });
 
-    (patch as any).parkingType = value;
+    // 🔥 변경된 경우에만 patch에 포함
+    if (value !== initParkingType) {
+      (patch as any).parkingType = value;
+    }
   }
 
   // 3) totalParkingSlots: number | null (diff 기반)
@@ -906,62 +911,31 @@ function toPinPatch(
       nowGroupsRaw = [];
     }
 
-    const normalizeArr = (arr: any[]) =>
-      arr
-        .map(toStrictAreaSet)
-        .sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-
-    const initialBaseStrict = strictOf((initial as any)?.baseAreaSet);
-    const initialExtraStrict = normalizeArr(
-      (initial as any)?.extraAreaSets ?? []
-    );
-    const nowBaseStrict = strictOf((f as any).baseAreaSet);
-    const nowExtraStrict = normalizeArr((f as any).extraAreaSets ?? []);
-
-    const baseChanged =
-      JSON.stringify(initialBaseStrict) !== JSON.stringify(nowBaseStrict);
-    const extrasChanged =
-      JSON.stringify(initialExtraStrict) !== JSON.stringify(nowExtraStrict);
-    const userEditedAreaSets = baseChanged || extrasChanged;
-
     const initNorm = sortForCmp(pickMeaningful(initGroupsRaw));
     const nowNorm = sortForCmp(pickMeaningful(nowGroupsRaw));
     const hasAreaGroupsDelta =
       JSON.stringify(initNorm) !== JSON.stringify(nowNorm);
 
-    console.log("[areaGroups] 폼스냅샷 비교", {
-      initialBaseStrict,
-      nowBaseStrict,
-      baseChanged,
-      initialExtraStrict,
-      nowExtraStrict,
-      extrasChanged,
-      userEditedAreaSets,
-    });
+    // 🔥 핵심: "실제로 폼에서 면적 세트를 건드렸는지" 플래그만 신뢰
+    const areaSetsTouched = !!(f as any).areaSetsTouched;
 
-    console.log("[areaGroups] 결과 비교", {
-      initRaw: initGroupsRaw,
-      nowRaw: nowGroupsRaw,
+    console.log("[areaGroups] 상태", {
+      areaSetsTouched,
+      hasAreaGroupsDelta,
       initNorm,
       nowNorm,
-      hasAreaGroupsDelta,
     });
 
-    console.log("[toPinPatch] patch.areaGroups 존재?", {
-      hasKey: Object.prototype.hasOwnProperty.call(patch, "areaGroups"),
-      value: (patch as any).areaGroups,
-    });
-
-    if (userEditedAreaSets && hasAreaGroupsDelta) {
+    if (areaSetsTouched && hasAreaGroupsDelta) {
       (patch as any).areaGroups = nowGroupsRaw.length ? nowGroupsRaw : [];
       console.log(
-        "[areaGroups] ✅ areaGroups 넣음 (userEditedAreaSets && hasAreaGroupsDelta)"
+        "[areaGroups] ✅ areaGroups 넣음 (areaSetsTouched && hasAreaGroupsDelta)"
       );
     } else {
       console.log(
         "[areaGroups] ❌ areaGroups 넣지 않음",
-        "(userEditedAreaSets:",
-        userEditedAreaSets,
+        "(areaSetsTouched:",
+        areaSetsTouched,
         ", hasAreaGroupsDelta:",
         hasAreaGroupsDelta,
         ")"
