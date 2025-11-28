@@ -73,7 +73,7 @@ function pickBestStation(data: any[], stationName: string) {
 function extractExitNo(name: string): number | null {
   const n1 = name.match(/(\d+)\s*번\s*출구/);
   const n2 = name.match(/(\d+)\s*번출구/);
-  const n3 = name.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
+  const n3 = name.match(/[①②③④⑤⑥⑦⑩]/);
   if (n1) return Number(n1[1]);
   if (n2) return Number(n2[1]);
   if (n3) return "①②③④⑤⑥⑦⑧⑨⑩".indexOf(n3[0]) + 1;
@@ -545,7 +545,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       return;
     }
 
-    const NEAR_THRESHOLD_M = 3000; // 근처 판정 거리 (검색 임시핀 정리용)
+    const NEAR_THRESHOLD_M = 30; // 근처 판정 거리 (대략 30m)
 
     setLocalDraftMarkers((prev) => {
       if (!prev.length) return prev;
@@ -593,7 +593,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     menuOpen,
     menuAnchor,
     filterKey: filter,
-    menuTargetId,
   });
 
   usePlannedDrafts({ filter, getBounds: getBoundsRaw });
@@ -837,67 +836,29 @@ export function MapHomeUI(props: MapHomeUIProps) {
         lng: number,
         label?: string | null
       ) => {
-        const NEAR_THRESHOLD_M = 1500;
+        // 시청/구청/도청은 건물이 커서 약간 어긋나도 잡히게 threshold 좀 넉넉히
+        const NEAR_THRESHOLD_M = 80;
 
-        const normText = (s: string | null | undefined) =>
-          (s ?? "").replace(/\s+/g, "");
+        // 1️⃣ 먼저 "실제 매물핀/답사예정 draft" 가 근처에 있는지부터 찾기
+        const existing = visibleMarkers?.find((m) => {
+          const idStr = String((m as any).id ?? "");
 
-        const addrFromQuery = normText(label ?? query ?? "");
-        const queryNorm = normText(query);
+          // ⛔ 진짜로 제외해야 할 건 "__draft__", "__search__" 뿐
+          if (idStr === "__draft__" || idStr === "__search__") return false;
+          // "__visit__41" 같은 답사예정 핀은 여기서 통과시킨다
 
-        console.log(
-          "[debug] query:",
-          query,
-          "marker titles:",
-          visibleMarkers?.map((m) => ({
-            id: (m as any).id,
-            title: (m as any).title,
-            name: (m as any).name,
-          }))
-        );
+          const pos = (m as any).position;
+          if (!pos) return false;
 
-        // 1️⃣ 거리 기준으로 먼저 기존 핀 찾기
-        let existing =
-          visibleMarkers?.find((m) => {
-            const idStr = String((m as any).id ?? "");
-            if (idStr === "__draft__" || idStr === "__search__") return false;
-
-            const pos = (m as any).position;
-            if (!pos || pos.lat == null || pos.lng == null) return false;
-
-            const d = distM(lat, lng, pos.lat, pos.lng);
-            return d <= NEAR_THRESHOLD_M;
-          }) ?? null;
-
-        // 2️⃣ 주소/이름 텍스트로 한 번 더 시도
-        if (!existing) {
-          existing =
-            visibleMarkers?.find((m) => {
-              const idStr = String((m as any).id ?? "");
-              if (idStr === "__draft__" || idStr === "__search__") return false;
-
-              const textNorm = normText(
-                (m as any).title ?? (m as any).name ?? ""
-              );
-              if (!textNorm) return false;
-
-              return (
-                textNorm.includes(queryNorm) ||
-                queryNorm.includes(textNorm) ||
-                textNorm.includes(addrFromQuery) ||
-                addrFromQuery.includes(textNorm)
-              );
-            }) ?? null;
-        }
+          const d = distM(lat, lng, pos.lat, pos.lng);
+          return d <= NEAR_THRESHOLD_M;
+        });
 
         if (existing) {
+          // ✅ 근처에 실제 핀/답사예정 draft가 있으면, 그걸 기준으로만 메뉴 열기
           const pos = (existing as any).position;
           const title =
-            (existing as any).title ??
-            (existing as any).name ??
-            label ??
-            query ??
-            "선택 위치";
+            (existing as any).title ?? label ?? query ?? "선택 위치";
 
           lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
           setCenterOnly(pos.lat, pos.lng);
@@ -906,19 +867,21 @@ export function MapHomeUI(props: MapHomeUIProps) {
             position: { lat: pos.lat, lng: pos.lng },
             propertyId: String((existing as any).id),
             propertyTitle: title,
+            // pin: 생략해도 됨 (기존 핀으로 인식)
           });
 
           return;
         }
 
-        // 3️⃣ 기존 핀이 전혀 없고, 시청/구청/도청 검색이면 임시핀 없이 이동만
+        // 2️⃣ 기존 핀이 없고, 검색어가 시청/구청/도청 계열이면
+        //    👉 카메라만 이동시키고, ❌ 임시핀은 만들지 않는다
         if (isCityHallQuery) {
           lastSearchCenterRef.current = { lat, lng };
           setCenterOnly(lat, lng);
           return;
         }
 
-        // 4️⃣ 일반 검색 → 임시 검색핀 생성 + 메뉴
+        // 3️⃣ 그 밖의 일반 검색어만 __search__ 임시핀 생성
         lastSearchCenterRef.current = { lat, lng };
         setCenterOnly(lat, lng);
 
@@ -958,17 +921,20 @@ export function MapHomeUI(props: MapHomeUIProps) {
             query ||
             null;
 
+          // ✅ fallback 도 shouldCreateSearchPin 규칙을 같이 쓰도록
           const pseudoItem = {
             place_name: query,
             road_address_name: label,
             address_name: label,
             address: { address_name: label },
-            category_group_code: "",
+            category_group_code: "", // 공공기관 코드 없어도 상관없음
           };
 
           if (shouldCreateSearchPin(pseudoItem, query)) {
+            // → 일반 장소/아파트 등: 검색핀 + 메뉴
             setCenterWithMarker(lat, lng, label);
           } else {
+            // → 시청/구청/도청/○○시 단독 등: 이동만, 물음표핀 X
             setCenterOnly(lat, lng);
           }
         });
@@ -1074,6 +1040,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       onOpenMenu,
       onChangeHideLabelForId,
       visibleMarkers,
+      favById,
     ]
   );
 

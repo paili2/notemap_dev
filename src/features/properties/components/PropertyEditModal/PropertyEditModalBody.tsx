@@ -589,6 +589,24 @@ function toPinPatch(
   if (!jsonEq2Local(initMinCost, nowMinCostNum))
     (patch as any).minRealMoveInCost = nowMinCostNum ?? null;
 
+  // ⭐ 리베이트 텍스트 diff
+  {
+    const initRebateRaw =
+      (initial as any)?.rebateText ??
+      (initial as any)?.rebate ??
+      (initial as any)?.rebateMemo ??
+      "";
+
+    const nowRebateRaw = (f as any)?.rebateText ?? (f as any)?.rebateRaw ?? "";
+
+    const prev = initRebateRaw == null ? "" : String(initRebateRaw).trim();
+    const next = nowRebateRaw == null ? "" : String(nowRebateRaw).trim();
+
+    if (prev !== next) {
+      (patch as any).rebateText = next;
+    }
+  }
+
   // --- 등기/건물타입 diff (변경시에만; 추가 매핑 없이 그대로 비교) ---
   const pickRegistryString = (src: any): string | undefined => {
     if (!src) return undefined;
@@ -1866,6 +1884,7 @@ export default function PropertyEditModalBody({
           totalParkingSlots: f.totalParkingSlots,
           completionDate: f.completionDate,
           salePrice: f.salePrice,
+          rebateText: f.rebateText,
 
           baseAreaSet: f.baseAreaSet,
           extraAreaSets: f.extraAreaSets,
