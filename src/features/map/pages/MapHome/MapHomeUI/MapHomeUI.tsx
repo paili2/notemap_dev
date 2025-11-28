@@ -342,6 +342,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     (pins: NonNullable<PinSearchResult["pins"]>) =>
       pins.map((p) => {
         const displayName = (p.name ?? "").trim();
+
         return {
           id: String(p.id),
           name: displayName,
@@ -349,6 +350,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
           lat: p.lat,
           lng: p.lng,
           badge: p.badge ?? null,
+
+          /** ⭐ 신축/구옥 정보 그대로 전달 */
+          ageType: p.ageType ?? null,
         };
       }),
     []

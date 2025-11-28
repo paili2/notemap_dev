@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
+import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
 
 /** kakao LatLng/Point 등 다양한 포맷을 좌표 객체로 정규화 */
 function toNumericPos(pos: any) {
@@ -35,6 +36,8 @@ export type MergedMarker = {
   source: "point" | "draft";
   /** 임시핀일 때 상태 */
   draftState?: "BEFORE" | "SCHEDULED";
+  /** 🔹 신축/구옥 정보 (실매물에만 사용) */
+  ageType?: "NEW" | "OLD" | null;
 };
 
 export function useMergedMarkers(params: {
@@ -46,6 +49,8 @@ export function useMergedMarkers(params: {
     lat: number;
     lng: number;
     badge?: string | null;
+    /** 🔹 서버에서 내려주는 신축/구옥 정보 */
+    ageType?: "NEW" | "OLD" | null;
   }>;
   serverDrafts?: Array<{
     id: string | number;
@@ -75,7 +80,7 @@ export function useMergedMarkers(params: {
   /** 🔸 신축/구옥 필터일 때는 draft(답사예정핀) 자체를 숨김 */
   const hideDraftsForAgeFilter = filterKey === "new" || filterKey === "old";
 
-  // 1) 판정용 메타 배열 (id/좌표/출처/상태)
+  // 1) 판정용 메타 배열 (id/좌표/출처/상태/ageType)
   const mergedMeta: MergedMarker[] = useMemo(() => {
     const effectivePoints =
       isBeforeMode || isPlannedMode ? [] : serverPoints ?? [];
@@ -101,6 +106,7 @@ export function useMergedMarkers(params: {
         lat: p.lat,
         lng: p.lng,
         source: "point",
+        ageType: p.ageType ?? null,
       };
     });
 
@@ -142,8 +148,9 @@ export function useMergedMarkers(params: {
           });
 
     const normals: MapMarker[] = effectivePoints.map((p) => {
-      const kindFromBadge = mapBadgeToPinKind(p.badge);
-      const kind: PinKind = (kindFromBadge ?? "1room") as PinKind;
+      const baseKind = mapBadgeToPinKind(p.badge);
+      const displayKind = getDisplayPinKind(baseKind, p.ageType ?? null);
+      const kind: PinKind = (displayKind ?? baseKind ?? "1room") as PinKind;
 
       const name = (p.name ?? "").trim();
       const title = (p.title ?? "").trim();

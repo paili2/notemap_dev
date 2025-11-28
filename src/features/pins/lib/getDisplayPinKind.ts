@@ -1,4 +1,3 @@
-// src/features/pins/lib/getDisplayPinKind.ts
 import type { PinKind } from "@/features/pins/types";
 
 /**

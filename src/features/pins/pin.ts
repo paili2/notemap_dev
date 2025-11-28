@@ -36,6 +36,9 @@ export type PinDetail = {
   lat: number;
   lng: number;
 
+  /** ⭐ 신축/구옥 구분: 서버에서 "NEW" | "OLD" 내려줌 */
+  ageType?: "NEW" | "OLD" | null;
+
   addressLine?: string | null;
   province?: string | null;
   city?: string | null;
@@ -48,7 +51,8 @@ export type PinDetail = {
   contactSubLabel?: string | null;
   contactSubPhone?: string | null;
 
-  name?: string | null; // 매물명 (검색/라벨용)
+  /** 매물명 (검색/라벨용) */
+  name?: string | null;
   badge?: string | null;
 
   options?: PinOption | null;
