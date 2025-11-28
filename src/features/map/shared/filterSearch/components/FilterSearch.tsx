@@ -49,12 +49,15 @@ function buildPinSearchParams(ui: FilterState): PinSearchParams {
     params.rooms = rooms;
   }
 
-  // 2) 복층 / 테라스
+  // 2) 복층 / 테라스 / 타운하우스
   if (ui.rooms?.includes("복층")) {
     params.hasLoft = true;
   }
   if (ui.rooms?.includes("테라스")) {
     params.hasTerrace = true;
+  }
+  if (ui.rooms?.includes("타운하우스")) {
+    params.hasTownhouse = true;
   }
 
   // ✅ 실입주금 → DTO 필드 이름과 동일하게

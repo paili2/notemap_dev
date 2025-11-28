@@ -5,9 +5,17 @@ export type PinSearchParams = {
   rooms?: number[];
   hasLoft?: boolean;
   hasTerrace?: boolean;
+
+  /** ✅ 타운하우스 여부 */
+  hasTownhouse?: boolean;
+
   hasElevator?: boolean;
+
+  /** ✅ 매매가 범위 (원 단위) */
   salePriceMin?: number;
   salePriceMax?: number;
+
+  /** ✅ 면적 범위 (㎡ 단위) */
   areaMinM2?: number;
   areaMaxM2?: number;
 
