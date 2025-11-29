@@ -1,7 +1,7 @@
 "use client";
 
 import type { Bounds } from "@/features/map/shared/types/bounds";
-import { useBounds } from "../../hooks/useBounds";
+import { useBounds } from "./useBounds";
 import { boundsToRaw } from "@/features/map/shared/utils/boundsToRaw";
 
 // Bounds(raw) 반환

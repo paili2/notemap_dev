@@ -17,13 +17,13 @@ import {
   TreePine,
 } from "lucide-react";
 
-import type { MapMenuKey } from "./types/types";
+import type { MapMenuKey } from "./types";
 import { PoiKind, POI_LABEL } from "@/features/map/shared/overlays/poiOverlays";
+import { FilterSection } from "./FilterSection";
+import RoadviewToggleButton from "./RoadviewToggleButton";
+import DistrictToggleButton from "./DistrictToggleButton";
 
 // top 모듈에 있는 로드뷰 토글 (기존 default export 유지)
-import DistrictToggleButton from "../DistrictToggleButton";
-import RoadviewToggleButton from "./RoadviewToggleButton";
-import { FilterSection } from "./FilterSection";
 
 interface ExpandedMenuProps {
   active: MapMenuKey;

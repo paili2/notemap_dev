@@ -4,13 +4,9 @@ import * as React from "react";
 import { Map } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import {
-  MapMenuKey,
-  MapMenuProps,
-  MapMenuSubmenu,
-} from "../top/components/types/types";
-import { ExpandedMenu } from "../top/components/ExpandedMenu";
-import { useMapMenuState } from "../top/hooks/useMapMenuState";
+import { MapMenuKey, MapMenuProps, MapMenuSubmenu } from "./components/types";
+import { useMapMenuState } from "../../hooks/useMapMenuState";
+import { ExpandedMenu } from "./components/ExpandedMenu";
 
 export default function MapMenu(props: MapMenuProps) {
   const {

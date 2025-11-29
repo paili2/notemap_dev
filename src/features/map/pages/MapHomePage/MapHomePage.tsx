@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useEffect } from "react";
-import { useMapHomeState } from "../hooks/useMapHomeState";
+import { useMapHomeState } from "../MapHome/hooks/useMapHomeState";
 import { MapHomeUI } from "../MapHome/MapHomeUI/MapHomeUI";
 
 import { useSidebar } from "@/features/sidebar/SideBarProvider";

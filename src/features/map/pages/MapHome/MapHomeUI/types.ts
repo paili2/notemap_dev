@@ -72,8 +72,7 @@ export type MapHomeUIProps = {
   onMapReady: (api: any) => void;
   onViewportChange: (vp: any, opts?: { force?: boolean }) => void;
 
-  // modals (create/edit는 유지)
-  // ✅ 아래 3개도 컨트롤드가 필요할 때만 넘기는 옵션으로 변경
+  // modals
   viewOpen?: boolean;
   editOpen: boolean;
   createOpen: boolean;

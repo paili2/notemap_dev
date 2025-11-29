@@ -601,8 +601,8 @@ export default function PinContextMenuContainer(props: Props) {
       propertyId,
       roadAddress,
       jibunAddress,
-      reserved, // 🔥 추가
-      scheduledReservations, // 🔥 추가
+      reserved,
+      scheduledReservations,
     ]
   );
 

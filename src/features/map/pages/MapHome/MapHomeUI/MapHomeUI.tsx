@@ -8,14 +8,12 @@ import { MapHomeUIProps } from "./types";
 import { useMergedMarkers } from "../hooks/useMergedMarkers";
 import MapCanvas from "../components/MapCanvas";
 import ContextMenuHost from "../components/ContextMenuHost";
-import TopRightControls from "../components/TopRightControls";
 import FilterFab from "../components/FilterFab";
 import ModalsHost from "../components/ModalsHost";
-import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
-import { useBounds } from "../hooks/useBounds";
-import { useBoundsRaw } from "./hooks/useBoundsRaw";
+import { usePlannedDrafts } from "../../../hooks/usePlannedDrafts";
+import { useBoundsRaw } from "../../../hooks/useBoundsRaw";
 import { cn } from "@/lib/cn";
-import SearchForm from "@/features/map/components/top/SearchForm/SearchForm";
+
 import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import type {
@@ -40,8 +38,11 @@ import {
 import { distM } from "@/features/map/hooks/poi/geometry";
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
-import { MapMenuKey } from "@/features/map/components/top/components/types/types";
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
+import { useBounds } from "@/features/map/hooks/useBounds";
+import { MapMenuKey } from "@/features/map/components/menu/components/types";
+import TopRightControls from "@/features/map/components/TopRightControls";
+import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -72,7 +73,7 @@ function pickBestStation(data: any[], stationName: string) {
 function extractExitNo(name: string): number | null {
   const n1 = name.match(/(\d+)\s*번\s*출구/);
   const n2 = name.match(/(\d+)\s*번출구/);
-  const n3 = name.match(/[①②③④⑤⑥⑦⑩]/);
+  const n3 = name.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
   if (n1) return Number(n1[1]);
   if (n2) return Number(n2[1]);
   if (n3) return "①②③④⑤⑥⑦⑧⑨⑩".indexOf(n3[0]) + 1;
@@ -821,15 +822,15 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const handleSubmitSearch = useCallback(
     (text: string) => {
       const query = text.trim();
-      const isCityHallQuery = /(시청|구청|도청)\s*$/.test(
-        query.replace(/\s+/g, "")
-      );
       if (!query || !kakaoSDK || !mapInstance) return;
 
+      // 상위 상태 훅(useMapHomeState)에도 검색어 전달
       onSubmitSearch?.(query);
 
+      // ✅ 메뉴 없이 단순 이동만 할 때(시청/구청/도청 등)
       const setCenterOnly = (lat: number, lng: number) => {
-        mapInstance.setCenter(new kakaoSDK.maps.LatLng(lat, lng));
+        const ll = new kakaoSDK.maps.LatLng(lat, lng);
+        mapInstance.setCenter(ll);
         mapInstance.setLevel(3);
       };
 
@@ -838,16 +839,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
         lng: number,
         label?: string | null
       ) => {
-        // 시청/구청/도청은 건물이 커서 약간 어긋나도 잡히게 threshold 좀 넉넉히
         const NEAR_THRESHOLD_M = 80;
 
-        // 1️⃣ 먼저 "실제 매물핀/답사예정 draft" 가 근처에 있는지부터 찾기
         const existing = visibleMarkers?.find((m) => {
           const idStr = String((m as any).id ?? "");
 
-          // ⛔ 진짜로 제외해야 할 건 "__draft__", "__search__" 뿐
           if (idStr === "__draft__" || idStr === "__search__") return false;
-          // "__visit__41" 같은 답사예정 핀은 여기서 통과시킨다
 
           const pos = (m as any).position;
           if (!pos) return false;
@@ -857,35 +854,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
         });
 
         if (existing) {
-          // ✅ 근처에 실제 핀/답사예정 draft가 있으면, 그걸 기준으로만 메뉴 열기
           const pos = (existing as any).position;
           const title =
             (existing as any).title ?? label ?? query ?? "선택 위치";
 
           lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
-          setCenterOnly(pos.lat, pos.lng);
 
+          // ✅ center/pan은 하지 않고, onOpenMenu 쪽에 맡김
           onOpenMenu?.({
             position: { lat: pos.lat, lng: pos.lng },
             propertyId: String((existing as any).id),
             propertyTitle: title,
-            // pin: 생략해도 됨 (기존 핀으로 인식)
           });
 
           return;
         }
 
-        // 2️⃣ 기존 핀이 없고, 검색어가 시청/구청/도청 계열이면
-        //    👉 카메라만 이동시키고, ❌ 임시핀은 만들지 않는다
-        if (isCityHallQuery) {
-          lastSearchCenterRef.current = { lat, lng };
-          setCenterOnly(lat, lng);
-          return;
-        }
-
-        // 3️⃣ 그 밖의 일반 검색어만 __search__ 임시핀 생성
+        // 새 임시핀 + 메뉴
         lastSearchCenterRef.current = { lat, lng };
-        setCenterOnly(lat, lng);
 
         const id = "__search__";
 
@@ -923,20 +909,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
             query ||
             null;
 
-          // ✅ fallback 도 shouldCreateSearchPin 규칙을 같이 쓰도록
           const pseudoItem = {
             place_name: query,
             road_address_name: label,
             address_name: label,
             address: { address_name: label },
-            category_group_code: "", // 공공기관 코드 없어도 상관없음
+            category_group_code: "",
           };
 
           if (shouldCreateSearchPin(pseudoItem, query)) {
-            // → 일반 장소/아파트 등: 검색핀 + 메뉴
             setCenterWithMarker(lat, lng, label);
           } else {
-            // → 시청/구청/도청/○○시 단독 등: 이동만, 물음표핀 X
             setCenterOnly(lat, lng);
           }
         });
@@ -952,6 +935,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
+          // 🚇 역 + 출구 검색
           if (hasExit && stationName) {
             const station = pickBestStation(data, stationName);
             if (!station) {
@@ -1004,6 +988,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
+          // 🚇 역 이름만 / 일반 장소 검색
           let target: any;
           if (stationName) {
             target = pickBestStation(data, stationName);
@@ -1038,11 +1023,10 @@ export function MapHomeUI(props: MapHomeUIProps) {
       kakaoSDK,
       mapInstance,
       onSubmitSearch,
+      visibleMarkers,
       upsertDraftMarker,
       onOpenMenu,
       onChangeHideLabelForId,
-      visibleMarkers,
-      favById,
     ]
   );
 
@@ -1188,8 +1172,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
           >
             <TopRightControls
               activeMenu={activeMenu}
-              onChangeFilter={(next) => {
-                const resolved = next === activeMenu ? "all" : next;
+              onChangeFilter={(next: MapMenuKey) => {
+                const resolved: MapMenuKey = next === activeMenu ? "all" : next;
                 (onChangeFilter as any)(resolved);
               }}
               isDistrictOn={isDistrictOn}
@@ -1199,9 +1183,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
               roadviewVisible={roadviewVisible}
               onToggleRoadview={toggleRoadview}
               rightOpen={rightOpen}
-              setRightOpen={handleSetRightOpen}
+              setRightOpen={(open: boolean) => handleSetRightOpen(open)}
               sidebarOpen={useSidebar}
-              setSidebarOpen={(open) => {
+              setSidebarOpen={(open: boolean) => {
                 setUseSidebar(open);
                 if (open) {
                   setRightOpen(false);
