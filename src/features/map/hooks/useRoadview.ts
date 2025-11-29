@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 type LatLng = { lat: number; lng: number };
 
@@ -58,6 +59,7 @@ const SEARCH_RADII = [30, 60, 120, 240];
 
 export function useRoadview(opts: Options = {}): UseRoadview {
   const { kakaoSDK, map, autoSync = true } = opts;
+  const { toast } = useToast();
 
   const roadviewContainerRef = useRef<HTMLDivElement>(null);
   const roadviewRef = useRef<any>(null);
@@ -188,7 +190,6 @@ export function useRoadview(opts: Options = {}): UseRoadview {
         if (found) break;
       }
 
-      // 여기서는 패널 열고 난 뒤의 세팅만 담당 (열지 말지 결정은 openAt/openAtCenter에서)
       setLoading(false);
     },
     [ensureInstance, kakaoSDK]
@@ -221,12 +222,16 @@ export function useRoadview(opts: Options = {}): UseRoadview {
     (async () => {
       const ok = await hasPanoNearby(base!, face);
       if (!ok) {
-        // 로드뷰 데이터 없으면 패널 안 열고 종료 (회색 화면 방지)
+        toast({
+          title: "로드뷰를 열 수 없어요",
+          description:
+            "해당 축척 또는 위치에는 로드뷰 데이터가 없어요.\n파란 도로가 보일 정도로 확대해서 다시 시도해 주세요.",
+        });
         return;
       }
       setVisible(true); // 실제 Kakao Roadview 세팅은 effect에서
     })();
-  }, [autoSync, map, hasPanoNearby]);
+  }, [autoSync, map, hasPanoNearby, toast]);
 
   /** 특정 좌표에서 열기 */
   const openAt = useCallback(
@@ -239,12 +244,17 @@ export function useRoadview(opts: Options = {}): UseRoadview {
       (async () => {
         const ok = await hasPanoNearby(pos, face);
         if (!ok) {
+          toast({
+            title: "로드뷰를 열 수 없어요",
+            description:
+              "해당 위치 주변에는 로드뷰 데이터가 없어요.\n다른 지점이나 축척에서 다시 시도해 주세요.",
+          });
           return;
         }
         setVisible(true); // 실제 Kakao Roadview 세팅은 effect에서
       })();
     },
-    [hasPanoNearby]
+    [hasPanoNearby, toast]
   );
 
   const close = useCallback(() => {
