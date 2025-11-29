@@ -29,7 +29,7 @@ type InitialForPatch = {
   unitLines: UnitLine[];
 };
 
-/** 서버 buildingType → UI 용도 표기 (도/생/근생 라벨) */
+/** 서버 buildingType / registry 문자열 → UI 용도 표기 (도/생/근생 라벨 포함) */
 const toUIRegistryFromBuildingType = (v: any): RegistryUi => {
   const s = String(v ?? "")
     .trim()
@@ -46,6 +46,24 @@ const toUIRegistryFromBuildingType = (v: any): RegistryUi => {
     return "도/생";
   if (["근생", "근/생", "근린생활시설", "nearlife", "commercial"].includes(s))
     return "근/생";
+  return undefined;
+};
+
+/** registry / buildingType 원본들에서 최종 UI Registry 값을 계산 */
+const resolveRegistryUi = (opts: {
+  registryRaw?: unknown;
+  buildingTypeRaw?: unknown;
+}): RegistryUi => {
+  const { registryRaw, buildingTypeRaw } = opts;
+
+  // ✅ 1순위: buildingType 기반 해석 (실제 저장되는 서버 enum)
+  const fromBT = toUIRegistryFromBuildingType(buildingTypeRaw);
+  if (fromBT) return fromBT;
+
+  // ✅ 2순위: registry 문자열(레거시/리스트 데이터 등)
+  const fromRegistry = toUIRegistryFromBuildingType(registryRaw);
+  if (fromRegistry) return fromRegistry;
+
   return undefined;
 };
 
@@ -275,12 +293,20 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     initId ?? (sourceData ? "__NOID__" : null);
 
   const normalized = useMemo(() => {
-    // 🔍 2차: sourceData → normalized 흐름 확인용
+    // 🔍 sourceData / buildingType 로그
     console.log("[useEditForm] sourceData(flattened) =", sourceData);
+    console.log(
+      "[useEditForm] sourceData.buildingType =",
+      (sourceData as any)?.buildingType
+    );
 
     const n = normalizeInitialData(sourceData);
 
     console.log("[useEditForm] normalized =", n);
+    console.log(
+      "[useEditForm] normalized.buildingType =",
+      (n as any)?.buildingType
+    );
 
     return n;
   }, [initKey, sourceData]);
@@ -382,21 +408,32 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       normGrade === "new" || normGrade === "old" ? normGrade : ""
     );
 
-    const normRegRaw =
-      (normalized as any).registry ??
-      (normalized as any).registryOne ??
-      (sourceData as any)?.registry ??
-      undefined;
-    const regFromBT = toUIRegistryFromBuildingType(
-      (normalized as any).buildingType ??
+    // ✅ registry / buildingType 원본에서 UI용 Registry 계산
+    {
+      const normRegRaw =
+        (normalized as any).registry ??
+        (normalized as any).registryOne ??
+        (sourceData as any)?.registry ??
+        undefined;
+
+      const buildingTypeRaw =
+        (normalized as any).buildingType ??
         (sourceData as any)?.buildingType ??
-        undefined
-    );
-    const finalRegistry =
-      (normRegRaw && String(normRegRaw).trim() !== ""
-        ? (normRegRaw as RegistryUi)
-        : undefined) ?? regFromBT;
-    setRegistry(finalRegistry);
+        undefined;
+
+      const finalRegistry = resolveRegistryUi({
+        registryRaw: normRegRaw,
+        buildingTypeRaw,
+      });
+
+      console.log("[useEditForm][init registry]", {
+        normRegRaw,
+        buildingTypeRaw,
+        finalRegistry,
+      });
+
+      setRegistry(finalRegistry);
+    }
 
     setSlopeGrade(normalized.slopeGrade);
     setStructureGrade(normalized.structureGrade);
@@ -439,7 +476,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
     const mergedOptionEtc = extraCandidates.join(", ");
 
-    // 디버그 필요 없으면 아래 로그는 나중에 지워도 됨
     console.log("[useEditForm][options init]", {
       presetOptions,
       extraCandidates,
@@ -480,28 +516,37 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     };
   }, [initKey, normalized, sourceData]);
 
+  // registry / buildingType 변경 시에도 UI Registry를 재계산해서 동기화
   useEffect(() => {
     const normRegRaw =
       (normalized as any)?.registry ??
       (normalized as any)?.registryOne ??
       (sourceData as any)?.registry ??
       undefined;
-    const regFromBT = toUIRegistryFromBuildingType(
-      (normalized as any)?.buildingType ??
-        (sourceData as any)?.buildingType ??
-        undefined
-    );
 
-    const calculated =
-      (normRegRaw && String(normRegRaw).trim() !== ""
-        ? (normRegRaw as RegistryUi)
-        : undefined) ?? regFromBT;
+    const buildingTypeRaw =
+      (normalized as any)?.buildingType ??
+      (sourceData as any)?.buildingType ??
+      undefined;
+
+    const calculated = resolveRegistryUi({
+      registryRaw: normRegRaw,
+      buildingTypeRaw,
+    });
+
+    console.log("[useEditForm][sync registry]", {
+      normRegRaw,
+      buildingTypeRaw,
+      calculated,
+      prevRegistry: registry,
+    });
 
     setRegistry((prev) => {
       if (prev && calculated && String(prev) === String(calculated))
         return prev;
       return calculated;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     (normalized as any)?.registry,
     (normalized as any)?.registryOne,
@@ -512,7 +557,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   // 🔎 디버그용: buildingType/parkingType 변화 로그
   useEffect(() => {
     // eslint-disable-next-line no-console
-    console.log("[useEditForm] buildingType =", buildingType);
+    console.log("[useEditForm] buildingType (state) =", buildingType);
   }, [buildingType]);
 
   useEffect(() => {

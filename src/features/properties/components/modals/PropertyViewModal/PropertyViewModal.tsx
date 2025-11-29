@@ -457,17 +457,35 @@ function ViewStage({
         ? (f.cardsHydrated as any[]).map((c: any[]) => c.length)
         : undefined);
 
-    const editSeed = {
-      view: {
-        ...(data ?? {}),
-        imageFolders: f.cardsHydrated ?? undefined,
-        verticalImages: f.filesHydrated ?? undefined,
-        imageCardCounts,
-      },
+    // ✅ metaDetails에서 raw/view 최대한 그대로 가져오기
+    const root = metaDetails as any;
+    const rawForEdit = root?.raw ?? null;
+
+    const viewBase =
+      (root?.view as any) ?? // 쿼리에서 내려온 view
+      (data as any) ?? // 부모에서 내려온 data(viewData)
+      root ??
+      {}; // 혹시 모를 fallback
+
+    const viewForEdit = {
+      ...viewBase,
+      imageFolders: f.cardsHydrated ?? undefined,
+      verticalImages: f.filesHydrated ?? undefined,
+      imageCardCounts,
     };
 
+    const editSeed = rawForEdit
+      ? { raw: rawForEdit, view: viewForEdit }
+      : { view: viewForEdit };
+
+    // 디버그용
+    console.log("[PropertyViewModal] editSeed for edit =", {
+      raw: rawForEdit,
+      view: viewForEdit,
+    });
+
     onRequestEdit(editSeed);
-  }, [canEditProperty, toast, f, data, onRequestEdit]);
+  }, [canEditProperty, toast, f, data, metaDetails, onRequestEdit]);
 
   const panelClass = cn(
     "bg-white shadow-xl overflow-hidden flex flex-col",
