@@ -18,7 +18,6 @@ export async function fetchPinsByBBox(params: {
   isOld?: boolean;
   favoriteOnly?: boolean;
 }) {
-  // 🛡 NaN 방어 — 좌표는 절대 자르지 않음
   const toNum = (v: number) => {
     const n = Number(v);
     if (!Number.isFinite(n)) {
