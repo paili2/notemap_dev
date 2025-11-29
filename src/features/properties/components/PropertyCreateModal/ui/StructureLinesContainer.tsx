@@ -1,4 +1,6 @@
+// StructureLinesContainer.tsx
 "use client";
+
 import StructureLinesSection from "../../sections/StructureLinesSection/StructureLinesSection";
 import type { UnitLine } from "@/features/properties/types/property-domain";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ChangeEvent } from "react";
 import { MAX_FILES, MAX_PER_CARD } from "../../constants";
 import type { AnyImageRef, ImageItem } from "../../../types/media";
 import {
@@ -522,7 +521,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           pinId,
           title,
           sortOrder: sortOrder ?? null,
-          // 여기서는 일반 가로 폴더 생성 용도만 사용 (세로는 ensureVerticalGroup에서 따로 생성)
         });
         const photos = files ? await uploadToGroup(group.id, files) : [];
         return { group, photos };
@@ -579,7 +577,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         pinId,
         title,
         sortOrder,
-        // 가로 폴더 → isDocument 기본 false
       });
 
       // 가짜 키는 더 이상 필요 없으니 제거
@@ -663,8 +660,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
 
   /* 카드형 파일 추가/삭제 */
   const onPickFilesToFolder = useCallback(
-    async (idx: number, e: ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
+    async (idx: number, files: FileList | null) => {
       if (!files || files.length === 0) return;
 
       const fileArr = Array.from(files);
@@ -680,8 +676,6 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           i === idx ? [...folder, ...tempItems].slice(0, MAX_PER_CARD) : folder
         )
       );
-
-      e.target.value = "";
     },
     []
   );
@@ -838,8 +832,8 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
     // 🔹 2) 실제 서버 id만 남기고, 가짜 id(folder-*, __vertical__)는 제외
     const groupChanges = groupChangesRaw.filter((g) => {
       const idStr = String(g.id);
-      if (idStr.startsWith("folder-")) return false; // 생성모달에서 쓰는 가짜 id
-      if (idStr === "__vertical__") return false; // 세로 폴더 가짜 id
+      if (idStr.startsWith("folder-")) return false;
+      if (idStr === "__vertical__") return false;
       return true;
     });
 

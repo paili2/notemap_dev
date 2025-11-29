@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback, useEffect, useRef } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { useHeaderFields } from "./slices/useHeaderFields";
 import { useBasicInfo } from "./slices/useBasicInfo";
 import { useNumbers } from "./slices/useNumbers";
@@ -41,57 +41,31 @@ export function useCreateForm({
   const opts = useOptionsMemos();
 
   // ─────────────────────────────────────────────────────────
-  // ✅ pinDraftId로부터 매물명 / 분양사무실 번호 / 주소 프리필
-  //   - 생성 모달이 처음 열렸을 때 한 번만 실행
+  // ✅ pinDraftId / draftHeaderPrefill 기반 헤더 프리필
+  //   - 조건 너무 복잡해서 꼬였을 가능성 → 최대한 단순하게 재구성
+  //   - 상위에서 내려준 값 먼저 적용, 그다음 서버에서 보충
   // ─────────────────────────────────────────────────────────
-  const didHydrateFromDraftRef = useRef(false);
-
   useEffect(() => {
+    const headerActions: any = header.actions;
+    const basicActions: any = basic.actions;
+
     console.log("[useCreateForm] effect start", {
       pinDraftId,
       draftHeaderPrefill,
-      headerState: header.state,
-      basicState: basic.state,
     });
 
-    if (didHydrateFromDraftRef.current) return;
-
-    const headerState: any = header.state;
-    const headerActions: any = header.actions;
-    const basicState: any = basic.state;
-    const basicActions: any = basic.actions;
-
-    // 1) 우선, 상위에서 직접 내려준 프리필 값 사용
+    // 1) 상위(MapHome)에서 직접 내려준 값 우선 적용
     const titleFromProps = String(draftHeaderPrefill?.title ?? "").trim();
     const phoneFromProps = String(draftHeaderPrefill?.officePhone ?? "").trim();
 
-    let appliedFromProps = false;
-
-    if (
-      titleFromProps &&
-      !headerState.title &&
-      typeof headerActions.setTitle === "function"
-    ) {
+    if (titleFromProps && typeof headerActions.setTitle === "function") {
       headerActions.setTitle(titleFromProps);
-      appliedFromProps = true;
     }
-
-    if (
-      phoneFromProps &&
-      !basicState.officePhone &&
-      typeof basicActions.setOfficePhone === "function"
-    ) {
+    if (phoneFromProps && typeof basicActions.setOfficePhone === "function") {
       basicActions.setOfficePhone(phoneFromProps);
-      appliedFromProps = true;
     }
 
-    // props 만으로 충분하고, 별도 조회 id 가 없으면 여기서 끝
-    if (appliedFromProps && (pinDraftId == null || pinDraftId === "")) {
-      didHydrateFromDraftRef.current = true;
-      return;
-    }
-
-    // 2) pinDraftId 가 없으면 더 할 게 없음
+    // pinDraftId 없으면 여기서 끝
     if (pinDraftId == null || pinDraftId === "") return;
 
     const idNum = Number(pinDraftId);
@@ -100,40 +74,34 @@ export function useCreateForm({
       return;
     }
 
-    didHydrateFromDraftRef.current = true;
-
     let aborted = false;
 
     (async () => {
       try {
-        const draft = await getPinDraftDetailOnce(idNum);
-        if (aborted || !draft) return;
+        const draftRaw = await getPinDraftDetailOnce(idNum);
+        if (aborted || !draftRaw) return;
 
-        const name = (draft.name ?? "").trim();
-        const phone = (draft.contactMainPhone ?? "").trim();
-        const addressLine = (draft.addressLine ?? "").trim();
+        // 🔍 /pin-drafts/:id 응답이 { path, data } 또는 그냥 { ... } 둘 다 대응
+        const anyDraft: any = draftRaw;
+        const draft = anyDraft.data ?? anyDraft;
 
-        if (
-          name &&
-          !headerState.title &&
-          typeof headerActions.setTitle === "function"
-        ) {
+        console.log("[useCreateForm] fetched draft =", draft);
+
+        const name = String(draft.name ?? "").trim();
+        const phone = String(draft.contactMainPhone ?? "").trim();
+        const addressLine = String(
+          draft.addressLine ?? draft.address ?? ""
+        ).trim();
+
+        if (name && typeof headerActions.setTitle === "function") {
           headerActions.setTitle(name);
         }
 
-        if (
-          phone &&
-          !basicState.officePhone &&
-          typeof basicActions.setOfficePhone === "function"
-        ) {
+        if (phone && typeof basicActions.setOfficePhone === "function") {
           basicActions.setOfficePhone(phone);
         }
 
-        if (
-          addressLine &&
-          !basicState.address &&
-          typeof basicActions.setAddress === "function"
-        ) {
+        if (addressLine && typeof basicActions.setAddress === "function") {
           basicActions.setAddress(addressLine);
         }
       } catch (err) {
@@ -145,7 +113,7 @@ export function useCreateForm({
     return () => {
       aborted = true;
     };
-  }, [pinDraftId, draftHeaderPrefill, header, basic]);
+  }, [pinDraftId, draftHeaderPrefill, header.actions, basic.actions]);
 
   // ─────────────────────────────────────────────────────────
   // ① 기본 저장 가능 여부 (전체 검증용)
@@ -212,6 +180,7 @@ export function useCreateForm({
       (parking.actions as any).setRegistrationTypeId ?? noopLocal;
 
     return {
+      // actions
       ...header.actions,
       ...basic.actions,
       ...nums.actions,
@@ -222,6 +191,7 @@ export function useCreateForm({
       ...units.actions,
       ...opts.actions,
 
+      // state
       ...header.state,
       ...basic.state,
       ...nums.state,

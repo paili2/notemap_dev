@@ -1,3 +1,4 @@
+// StructureLinesSection.tsx
 "use client";
 
 import { Button } from "@/components/atoms/Button/Button";
@@ -27,9 +28,12 @@ export default function StructureLinesSection({
 }: StructureLinesProps) {
   return (
     <div className="space-y-2">
-      {/* 상단 헤더: 모바일 세로, sm 이상 가로 */}
+      {/* 상단 헤더 */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm font-medium shrink-0">{title}</div>
+        <div className="flex items-center gap-1 text-sm font-medium shrink-0">
+          <span>{title}</span>
+        </div>
+
         <div className="flex flex-wrap gap-1 sm:justify-end">
           {presets.map((p) => (
             <Button
@@ -69,13 +73,11 @@ export default function StructureLinesSection({
             className={`
               grid items-center
               gap-x-2 gap-y-1 md:gap-x-2
-              /* 모바일: 구조 / 복층 / 테라스 / 가격 / 삭제 (4+1) */
               grid-cols-[44px_max-content_max-content_minmax(0,1fr)_40px]
-              /* md 이상: 구조 / 복층 / 테라스 / 가격 / 삭제 */
               md:grid-cols-[64px_max-content_max-content_minmax(240px,1fr)_40px]
             `}
           >
-            {/* 구조 (1/1 등) */}
+            {/* 구조 */}
             <Input
               value={`${line.rooms || ""}/${line.baths || ""}`}
               onChange={(e) => {
@@ -110,7 +112,7 @@ export default function StructureLinesSection({
               <span>테라스</span>
             </label>
 
-            {/* 🔹 매매가 범위: 모바일 = 세로 2줄, PC = 가로 1줄 */}
+            {/* 가격 범위 */}
             <div
               className={`
                 w-full
@@ -128,13 +130,14 @@ export default function StructureLinesSection({
                   className="h-8 md:h-9 flex-1 min-w-0"
                   inputMode="numeric"
                   inputClassName="placeholder:text-[11px] md:placeholder:text-xs"
+                  required
+                  aria-required="true"
                 />
                 <span className="text-[11px] md:text-xs text-gray-500 shrink-0 leading-none">
                   만원
                 </span>
               </div>
 
-              {/* 중간 ~ : PC에서만 표시 */}
               <span className="hidden md:inline text-xs text-gray-500 justify-self-center px-2">
                 ~
               </span>
@@ -148,6 +151,8 @@ export default function StructureLinesSection({
                   className="h-8 md:h-9 flex-1 min-w-0"
                   inputMode="numeric"
                   inputClassName="placeholder:text-[11px] md:placeholder:text-xs"
+                  required
+                  aria-required="true"
                 />
                 <span className="text-[11px] md:text-xs text-gray-500 shrink-0 leading-none">
                   만원
@@ -155,7 +160,7 @@ export default function StructureLinesSection({
               </div>
             </div>
 
-            {/* 삭제 버튼 – 항상 같은 행, 오른쪽 끝 */}
+            {/* 삭제버튼 */}
             <Button
               variant="ghost"
               size="icon"

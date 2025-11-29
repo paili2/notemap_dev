@@ -51,7 +51,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const horizGroups = useMemo<PinPhotoGroup[]>(() => {
     const list = (groups ?? []) as PinPhotoGroup[];
     return list
-      .filter((g) => g.isDocument !== true) // ✅ isDocument 아닌 것만 가로 폴더
+      .filter((g) => g.isDocument !== true)
       .slice()
       .sort(
         (a, b) =>
@@ -94,7 +94,6 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
 
         return {
           id: g?.id != null ? String(g.id) : `folder-${idx}`,
-          // 입력칸 기본값: 서버에서 내려준 제목, 없으면 빈 문자열
           title: rawTitle,
           items,
         };
@@ -130,12 +129,9 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     [verticalImages]
   );
 
-  /** 5) 새 시그니처 어댑터: (idx, FileList|null) -> 기존 onPickFilesToFolder 호출 */
+  /** 5) (idx, FileList|null) → 훅 onPickFilesToFolder (그냥 FileList 전달) */
   const addToFolder = (folderIdx: number, files: FileList | null) => {
-    const evt = {
-      target: { files },
-    } as unknown as React.ChangeEvent<HTMLInputElement>;
-    return onPickFilesToFolder(folderIdx, evt);
+    onPickFilesToFolder(folderIdx, files);
   };
 
   // 가로 폴더 제목 수정 → 해당 그룹 title 큐잉
@@ -146,19 +142,19 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     queueGroupTitle(g.id, normalized);
   };
 
-  // 🔥 세로 폴더 제목 수정 → verticalGroup title 큐잉
+  // 세로 폴더 제목 수정
   const onChangeVerticalFolderTitle = (title: string) => {
     if (!verticalGroup) return;
     const normalized = title.trim() || null;
     queueGroupTitle(verticalGroup.id, normalized);
   };
 
-  // 세로 파일 개별 캡션은 그대로 훅으로 위임 (폴더 제목이랑 분리!)
+  // 세로 파일 캡션
   const handleChangeVerticalCaption = (index: number, text: string) => {
     onChangeFileItemCaption(index, text);
   };
 
-  // 정렬/커버 → 훅 큐잉
+  // 정렬/커버
   const onReorder = (photoId: number | string | undefined, to: number) => {
     if (photoId == null) return;
     reorder(String(photoId), to);

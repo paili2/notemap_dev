@@ -82,6 +82,7 @@ type Props = Omit<PropertyCreateModalProps, "open"> & {
   /** 상위에서 내려주는 기본 핀종류 (없으면 그대로 둠) */
   initialPinKind?: PinKind | null;
 
+  /** 임시핀에서 가져온 헤더 프리필 (매물명 / 분양사무실 전화번호) */
   draftHeaderPrefill?: {
     title?: string;
     officePhone?: string;
@@ -374,14 +375,18 @@ export default function PropertyCreateModalBody({
       const u = units[i] ?? {};
       const min = priceOrNull(u?.minPrice ?? u?.primary);
       const max = priceOrNull(u?.maxPrice ?? u?.secondary);
+      const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
+
+      // 🔹 최소/최대 하나라도 비어 있으면 에러
+      if (min == null || max == null) {
+        return `${label}: 최소·최대 매매가를 모두 입력해 주세요.`;
+      }
 
       if (min === 0 || max === 0) {
-        const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
         return `${label}: 0원은 입력할 수 없습니다.`;
       }
 
-      if (min != null && max != null && max <= min) {
-        const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
+      if (max <= min) {
         return `${label}: 최대매매가는 최소매매가보다 커야 합니다.`;
       }
     }
@@ -674,22 +679,13 @@ export default function PropertyCreateModalBody({
         const addressLine = (f.address && f.address.trim()) || mainTitle;
 
         // ✅ 공용 createPinDraft 사용 + name / contactMainPhone 같이 전송
-        const { id: pinDraftId } = await createPinDraft({
+        await createPinDraft({
           lat: latNum,
           lng: lngNum,
           addressLine,
           name: mainTitle,
           contactMainPhone: mainOfficePhone,
         });
-
-        await Promise.resolve(
-          (onSubmit as any)?.({
-            mode: "visit-plan-only",
-            pinDraftId: pinDraftId ?? null,
-            lat: latNum,
-            lng: lngNum,
-          })
-        );
 
         onClose?.();
         return;
@@ -887,9 +883,17 @@ export default function PropertyCreateModalBody({
         removeDraft(pinDraftId);
       }
 
+      // ✅ PropertyCreateResult 타입에 맞게 전달
       await Promise.resolve(
-        (onSubmit as any)?.({ mode: "create", pin: createdData })
+        onSubmit?.({
+          pinId: String(pinId),
+          matchedDraftId: pinDraftId ?? null,
+          lat: latNum,
+          lng: lngNum,
+          payload,
+        } as any)
       );
+
       onClose?.();
     } catch (e) {
       console.error("[PropertyCreate] save error:", e);
@@ -906,7 +910,6 @@ export default function PropertyCreateModalBody({
     f,
     imageFolders,
     fileItems,
-    groups,
     onSubmit,
     onClose,
     initialLat,
@@ -978,6 +981,11 @@ export default function PropertyCreateModalBody({
   ).trim();
   const rebateFilled = rawRebateForCanSave.replace(/[^\d]/g, "").length > 0;
 
+  // 🔹 구조별 최소/최대 매매가도 canSave 조건에 포함
+  const unitLinesPriceError = validateUnitPriceRanges(
+    Array.isArray((f as any).unitLines) ? ((f as any).unitLines as any[]) : []
+  );
+
   // 🔹 버튼 활성에 필요한 추가 필수들
   const extraRequiredFilled =
     hasBuildingGradeForCanSave && elevatorSelected && rebateFilled;
@@ -987,13 +995,17 @@ export default function PropertyCreateModalBody({
     hasBuildingGradeForCanSave,
     elevatorSelected,
     rebateFilled,
+    unitLinesPriceError,
     isVisitPlanPin,
     minimalForVisitPlan,
   });
 
   const canSave = isVisitPlanPin
     ? minimalForVisitPlan && !isSaving
-    : f.isSaveEnabled && extraRequiredFilled && !isSaving;
+    : f.isSaveEnabled &&
+      extraRequiredFilled &&
+      !unitLinesPriceError &&
+      !isSaving;
 
   /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값 초기화 */
   const prevIsVisitPlanRef = useRef(isVisitPlanPin);
