@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import ToggleSidebar from "../../../view/top/ToggleSidebar/ToggleSidebar";
+import ToggleSidebar from "../../../components/top/ToggleSidebar/ToggleSidebar";
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
-import { MapMenu, MapMenuKey } from "@/features/map/menu";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/hooks/use-toast";
+import { MapMenuKey } from "@/features/map/components/top/components/types/types";
+import MapMenu from "@/features/map/components/menu/MapMenu";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned";

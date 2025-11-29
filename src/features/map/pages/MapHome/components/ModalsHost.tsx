@@ -1,11 +1,11 @@
 "use client";
 
 import RoadviewHost from "../../../view/roadview/RoadviewHost";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
-import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost/PropertyCreateViewHost";
+import PropertyCreateViewHost from "@/features/properties/components/modals/PropertyCreateViewHost/PropertyCreateViewHost";
 import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import type { PinKind } from "@/features/pins/types";
+import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 
 export default function ModalsHost(props: {
   /** View Modal */

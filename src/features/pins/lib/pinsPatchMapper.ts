@@ -1,5 +1,5 @@
+import { PropertyEditItem } from "@/features/properties/components/modals/PropertyEditModal/types";
 import type { OrientationValue } from "@/features/properties/types/property-domain";
-import type { PropertyEditItem } from "@/features/properties/components/PropertyEditModal/types";
 
 // ---- helpers ----
 const toNum = (v: unknown) => {
@@ -41,15 +41,19 @@ function aspectsToDirections(
   return rows.length ? rows : undefined;
 }
 
-type AreaSet = {
+/**
+ * ⚠️ 도메인 AreaSet(string 기반)과 헷갈리지 않도록
+ * 이 파일 내부 전용 타입 이름을 AreaGroupInput 으로 사용
+ */
+type AreaGroupInput = {
   title?: string;
   exclusive?: { minM2?: number; maxM2?: number };
   real?: { minM2?: number; maxM2?: number };
 };
 
 function areaSetsToPinGroups(
-  base?: AreaSet,
-  extras?: AreaSet[]
+  base?: AreaGroupInput,
+  extras?: AreaGroupInput[]
 ):
   | {
       title: string;
@@ -60,11 +64,14 @@ function areaSetsToPinGroups(
       sortOrder: number;
     }[]
   | undefined {
-  const items: AreaSet[] = [
+  const items: AreaGroupInput[] = [
     ...(base ? [base] : []),
-    ...((Array.isArray(extras) ? extras : []).filter(Boolean) as AreaSet[]),
+    ...((Array.isArray(extras) ? extras : []).filter(
+      Boolean
+    ) as AreaGroupInput[]),
   ];
   if (!items.length) return undefined;
+
   return items.map((s, idx) => ({
     title: String(s?.title ?? "").slice(0, 50),
     exclusiveMinM2: toNum(s?.exclusive?.minM2),
@@ -148,7 +155,10 @@ export function buildPinPatchBody(item: PropertyEditItem) {
   // body.directions = [];
 
   // areaGroups (전체 교체)
-  const areaGroups = areaSetsToPinGroups(item.baseAreaSet, item.extraAreaSets);
+  const areaGroups = areaSetsToPinGroups(
+    item.baseAreaSet as AreaGroupInput | undefined,
+    item.extraAreaSets as AreaGroupInput[] | undefined
+  );
   if (areaGroups) body.areaGroups = areaGroups;
   // 전부 삭제하려면 [] 전송
 

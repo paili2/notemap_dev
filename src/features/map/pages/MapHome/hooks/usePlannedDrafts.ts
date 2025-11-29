@@ -7,7 +7,7 @@ import {
 } from "@/shared/api/surveyReservations";
 
 import { Bounds } from "@/features/map/shared/types/bounds";
-import { MapMenuKey } from "@/features/map/menu";
+import { MapMenuKey } from "@/features/map/components/top/components/types/types";
 
 export function usePlannedDrafts({
   filter,

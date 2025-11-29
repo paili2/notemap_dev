@@ -1,4 +1,4 @@
-import { MapMenuKey } from "../../menu";
+import { MapMenuKey } from "../../components/top/components/types/types";
 
 type Pin = {
   id: string | number;

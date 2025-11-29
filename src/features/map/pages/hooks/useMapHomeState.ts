@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
 import type { LatLng } from "@/lib/geo/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import type { ViewSource } from "@/features/properties/lib/view/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
-import { buildEditPatchWithMedia } from "@/features/properties/components/PropertyEditModal/lib/buildEditPatch";
 import { PoiKind } from "../../shared/overlays/poiOverlays";
 
 /* ⬇️ 라벨 숨김/복원 유틸 */
@@ -27,6 +25,8 @@ import { usePinsMap } from "../../hooks/usePinsMap";
 import { usePanToWithOffset } from "../../hooks/useKakaoTools";
 import { useRunSearch } from "../../hooks/useRunSearch";
 import { useResolveAddress } from "@/hooks/useResolveAddress";
+import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
+import { buildEditPatchWithMedia } from "@/features/properties/components/modals/PropertyEditModal/lib/buildEditPatch";
 
 type LocalCreateFromPinArgs = CreateFromPinArgs & {
   /** 답사예정지 '간단등록' 모드인지 여부 */

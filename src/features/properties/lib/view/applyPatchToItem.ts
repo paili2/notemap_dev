@@ -1,10 +1,10 @@
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import {
   normalizeImageCards,
   normalizeImages,
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
+import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
 
 /**
  * View에서 넘어온 patch(Partial<PropertyViewDetails>)를 기존 PropertyItem에 병합.

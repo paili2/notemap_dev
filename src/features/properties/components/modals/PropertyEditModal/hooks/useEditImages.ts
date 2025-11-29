@@ -1,0 +1,1113 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+
+import {
+  hydrateCards,
+  hydrateFlatToCards,
+  hydrateFlatUsingCounts,
+  hydrateVertical,
+} from "@/features/properties/lib/media/hydrate";
+
+/* ───────── 서버 연동 import ───────── */
+import {
+  listGroupPhotos,
+  createPhotosInGroup,
+  batchPatchPhotoGroups,
+  batchPatchPhotos,
+  deletePhotos as apiDeletePhotos,
+} from "@/shared/api/photos";
+import {
+  listPhotoGroupsByPin as apiListPhotoGroupsByPin,
+  createPhotoGroup as apiCreatePhotoGroup,
+} from "@/shared/api/photoGroups";
+import type {
+  IdLike,
+  PinPhoto,
+  PinPhotoGroup,
+} from "@/shared/api/types/pinPhotos";
+import { AnyImageRef, ImageItem } from "@/features/properties/types/media";
+import { MAX_FILES, MAX_PER_CARD } from "../../../constants";
+
+/* 파일 시그니처 */
+const filesSignature = (files: File[] | FileList) =>
+  Array.from(files as File[])
+    .map((f) => `${f.name}:${f.size}:${(f as any).lastModified ?? ""}`)
+    .join("|");
+
+/* 서버 photoId 추출 */
+function getServerPhotoId(
+  item?: Partial<ImageItem> | null
+): IdLike | undefined {
+  if (!item) return undefined as any;
+  const cand =
+    (item as any)?.id ??
+    (item as any)?.photoId ??
+    (item as any)?.serverId ??
+    (item as any)?.pinPhotoId;
+  if (cand === 0 || !!cand) return cand as IdLike;
+  return undefined as any;
+}
+
+/* 입력 정규화 헬퍼 */
+function looksLikeImageRef(v: any): boolean {
+  if (!v || typeof v !== "object") return false;
+  return (
+    typeof (v as any).url === "string" ||
+    typeof (v as any).idbKey === "string" ||
+    typeof (v as any).id === "number" ||
+    typeof (v as any).id === "string"
+  );
+}
+
+function normalizeCardsInput(v: any): AnyImageRef[][] | null {
+  if (!v) return null;
+  if (Array.isArray(v) && v.every((x) => Array.isArray(x)))
+    return v as AnyImageRef[][];
+  if (Array.isArray(v) && v.some(looksLikeImageRef))
+    return [v as AnyImageRef[]];
+  if (typeof v === "object") {
+    const entries = Object.entries(v)
+      .filter(([k]) => /^\d+$/.test(k))
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([, val]) => val)
+      .filter((arr) => Array.isArray(arr));
+    if (entries.length > 0) return entries as AnyImageRef[][];
+    if (looksLikeImageRef(v)) return [[v as AnyImageRef]];
+  }
+  return null;
+}
+
+function normalizeVerticalInput(v: any): AnyImageRef[] | null {
+  if (!v) return null;
+  if (Array.isArray(v) && v.length && v.every(looksLikeImageRef))
+    return v as AnyImageRef[];
+  if (typeof v === "object") {
+    const numKeyVals = Object.entries(v)
+      .filter(([k]) => /^\d+$/.test(k))
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([, val]) => val);
+    if (numKeyVals.length && numKeyVals.every(looksLikeImageRef)) {
+      return numKeyVals as AnyImageRef[];
+    }
+    if (looksLikeImageRef(v)) return [v as AnyImageRef];
+  }
+  return null;
+}
+
+/* 빈 카드 제거 */
+const dropEmptyCards = (cards: ImageItem[][]) =>
+  (cards ?? []).filter(
+    (card) => Array.isArray(card) && card.some((it) => !!(it as any)?.url)
+  );
+
+type UseEditImagesArgs = {
+  propertyId: string;
+  initial: {
+    _imageCardRefs?: AnyImageRef[][];
+    _fileItemRefs?: AnyImageRef[];
+    imageFolders?:
+      | AnyImageRef[]
+      | AnyImageRef[][]
+      | Record<string, AnyImageRef[]>;
+    imageCards?: AnyImageRef[][] | Record<string, AnyImageRef[]>;
+    images?: AnyImageRef[];
+    imageCardCounts?: number[];
+    verticalImages?: AnyImageRef[] | Record<string, AnyImageRef>;
+    imagesVertical?: AnyImageRef[] | Record<string, AnyImageRef>;
+    fileItems?: AnyImageRef[] | Record<string, AnyImageRef>;
+  } | null;
+};
+
+export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
+  /* 로컬 미리보기 상태 */
+  const [imageFolders, setImageFolders] = useState<ImageItem[][]>([[]]);
+  const [verticalImages, setVerticalImages] = useState<ImageItem[]>([]);
+
+  /* 서버 상태(선택) */
+  const [groups, setGroups] = useState<PinPhotoGroup[] | null>(null);
+  const [photosByGroup, setPhotosByGroup] = useState<
+    Record<string, PinPhoto[]>
+  >({});
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+
+  const hasServerHydratedRef = useRef(false);
+
+  const groupsRef = useRef<PinPhotoGroup[] | null>(null);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
+
+  const imageFoldersRef = useRef<ImageItem[][]>([]);
+  const verticalImagesRef = useRef<ImageItem[]>([]);
+  useEffect(() => {
+    imageFoldersRef.current = imageFolders;
+  }, [imageFolders]);
+  useEffect(() => {
+    verticalImagesRef.current = verticalImages;
+  }, [verticalImages]);
+
+  /* 초기 하이드레이션 */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!initial) {
+        if (hasServerHydratedRef.current) return;
+        if (mounted) {
+          setImageFolders([[]]);
+          setVerticalImages([]);
+        }
+        return;
+      }
+
+      // 1) 카드형
+      const cardRefs = initial._imageCardRefs;
+      if (Array.isArray(cardRefs) && cardRefs.length > 0) {
+        if (hasServerHydratedRef.current) return;
+        const safe = cardRefs.map((c: any) => (Array.isArray(c) ? c : [c]));
+        const hydrated = await hydrateCards(safe, MAX_PER_CARD);
+        if (mounted) {
+          const cleaned = dropEmptyCards(hydrated);
+          setImageFolders(cleaned.length ? cleaned : [[]]);
+        }
+      } else {
+        const foldersRaw =
+          normalizeCardsInput(initial.imageFolders ?? initial.imageCards) ??
+          null;
+
+        if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
+          if (hasServerHydratedRef.current) return;
+          const safe = (foldersRaw as any[]).map((c) =>
+            Array.isArray(c) ? c : [c]
+          );
+          const hydrated = await hydrateCards(
+            safe as AnyImageRef[][],
+            MAX_PER_CARD
+          );
+          if (mounted) {
+            const cleaned = dropEmptyCards(hydrated);
+            setImageFolders(cleaned.length ? cleaned : [[]]);
+          }
+        } else {
+          const flat =
+            normalizeVerticalInput(initial.images)?.filter(Boolean) ?? null;
+          const counts: number[] | undefined = initial.imageCardCounts;
+
+          if (flat && flat.length > 0) {
+            if (hasServerHydratedRef.current) return;
+            const hydrated =
+              Array.isArray(counts) && counts.length > 0
+                ? await hydrateFlatUsingCounts(flat, counts)
+                : await hydrateFlatToCards(flat, MAX_PER_CARD);
+            if (mounted) {
+              const cleaned = dropEmptyCards(hydrated);
+              setImageFolders(cleaned.length ? cleaned : [[]]);
+            }
+          } else {
+            if (hasServerHydratedRef.current) return;
+            if (mounted) setImageFolders([[]]);
+          }
+        }
+
+        // 2) 세로형
+        const fileRefs = initial._fileItemRefs;
+        if (Array.isArray(fileRefs) && fileRefs.length > 0) {
+          if (hasServerHydratedRef.current) return;
+          const hydrated = await hydrateVertical(
+            fileRefs as AnyImageRef[],
+            MAX_FILES
+          );
+          if (mounted) setVerticalImages(hydrated);
+        } else {
+          const verticalRaw =
+            normalizeVerticalInput(
+              initial.verticalImages ??
+                initial.imagesVertical ??
+                initial.fileItems
+            ) ?? null;
+
+          if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
+            if (hasServerHydratedRef.current) return;
+            const hydrated = await hydrateVertical(
+              verticalRaw as AnyImageRef[],
+              MAX_FILES
+            );
+            if (mounted) setVerticalImages(hydrated);
+          } else {
+            if (hasServerHydratedRef.current) return;
+            if (mounted) setVerticalImages([]);
+          }
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [initial]);
+
+  /* input refs */
+  const imageInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const inputRefCallbacks = useRef<
+    Array<((el: HTMLInputElement | null) => void) | null>
+  >([]);
+
+  const getRegisterImageInput = useCallback((idx: number) => {
+    if (inputRefCallbacks.current[idx]) return inputRefCallbacks.current[idx]!;
+    const cb = (el: HTMLInputElement | null) => {
+      if (imageInputRefs.current[idx] === el) return;
+      imageInputRefs.current[idx] = el;
+    };
+    inputRefCallbacks.current[idx] = cb;
+    return cb;
+  }, []);
+
+  const registerImageInput = useCallback(
+    (idx: number, el?: HTMLInputElement | null) => {
+      if (arguments.length >= 2) {
+        if (imageInputRefs.current[idx] !== el) {
+          imageInputRefs.current[idx] = el ?? null;
+        }
+        return;
+      }
+      return getRegisterImageInput(idx);
+    },
+    [getRegisterImageInput]
+  ) as unknown as {
+    (idx: number): (el: HTMLInputElement | null) => void;
+    (idx: number, el: HTMLInputElement | null): void;
+  };
+
+  const openImagePicker = useCallback(
+    (idx: number) => imageInputRefs.current[idx]?.click(),
+    []
+  );
+
+  /* 변경 의도 큐 */
+  type PendingGroupChange = {
+    id: IdLike;
+    title?: string | null;
+    sortOrder?: number | null;
+  };
+  type PendingPhotoChange = {
+    id: IdLike;
+    caption?: string | null;
+    groupId?: IdLike | null;
+    sortOrder?: number | null;
+    isCover?: boolean | null;
+    name?: string | null;
+  };
+  const pendingGroupMap = useRef<Map<string, PendingGroupChange>>(new Map());
+  const pendingPhotoMap = useRef<Map<string, PendingPhotoChange>>(new Map());
+  const pendingDeleteSet = useRef<Set<string>>(new Set());
+
+  const queueDeleteIfServer = (item?: ImageItem) => {
+    const id = getServerPhotoId(item);
+    if (id != null) pendingDeleteSet.current.add(String(id));
+  };
+
+  const queuePhotoCaption = useCallback(
+    (photoId: IdLike, text: string | null) => {
+      const key = String(photoId);
+      const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
+      pendingPhotoMap.current.set(key, { ...prev, caption: text ?? null });
+    },
+    []
+  );
+  const queuePhotoSort = useCallback(
+    (photoId: IdLike, sortOrder: number | null) => {
+      const key = String(photoId);
+      const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
+      pendingPhotoMap.current.set(key, { ...prev, sortOrder });
+    },
+    []
+  );
+  const queuePhotoMove = useCallback(
+    (photoId: IdLike, destGroupId: IdLike | null) => {
+      const key = String(photoId);
+      const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
+      pendingPhotoMap.current.set(key, { ...prev, groupId: destGroupId });
+    },
+    []
+  );
+
+  const onChangeImageCaption = useCallback(
+    (folderIdx: number, imageIdx: number, text: string) => {
+      let target: ImageItem | undefined;
+
+      setImageFolders((prev) => {
+        const next = prev.map((arr, i) => {
+          if (i !== folderIdx) return arr;
+          return arr.map((img, j) => {
+            if (j !== imageIdx) return img;
+            const updated = { ...img, caption: text };
+            target = updated;
+            return updated;
+          });
+        });
+
+        const pid = getServerPhotoId(target);
+        if (pid != null) queuePhotoCaption(pid, text ?? null);
+
+        return next;
+      });
+    },
+    [queuePhotoCaption]
+  );
+
+  /* 서버 연동 유틸 */
+  const reloadMapRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  const reloadGroups = useCallback(async (pinId: IdLike) => {
+    const key = String(pinId);
+    const existing = reloadMapRef.current.get(key);
+    if (existing) return existing;
+
+    const work = (async () => {
+      setMediaLoading(true);
+      setMediaError(null);
+      try {
+        const list = await apiListPhotoGroupsByPin(pinId);
+        const mapped: Record<string, PinPhoto[]> = {};
+        await Promise.all(
+          (list ?? []).map(async (g) => {
+            const ps = await listGroupPhotos(g.id);
+            mapped[String(g.id)] = ps ?? [];
+          })
+        );
+
+        setGroups(list ?? []);
+        groupsRef.current = list ?? [];
+        setPhotosByGroup(mapped);
+
+        hasServerHydratedRef.current = true;
+
+        // ✅ isDocument 기반으로 세로/가로 그룹 구분
+        const isVerticalGroup = (g: PinPhotoGroup) => g.isDocument === true;
+
+        const horizGroups = (list ?? []).filter((g) => !isVerticalGroup(g));
+        const vertGroups = (list ?? []).filter(isVerticalGroup);
+
+        const folders: ImageItem[][] = horizGroups
+          .slice()
+          .sort(
+            (a, b) =>
+              (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+              String(a.title ?? "").localeCompare(String(b.title ?? ""))
+          )
+          .map((g) =>
+            (mapped[String(g.id)] ?? [])
+              .slice()
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map((p) => {
+                const caption =
+                  (p as any).caption ??
+                  (p as any).title ??
+                  (p as any).name ??
+                  "";
+                return {
+                  id: p.id as any,
+                  url: p.url,
+                  caption,
+                  name: (p as any).name ?? "",
+                } as ImageItem;
+              })
+          );
+
+        const cleaned = dropEmptyCards(folders);
+
+        const verticalFlat: ImageItem[] = vertGroups
+          .slice()
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+          .flatMap((g) =>
+            (mapped[String(g.id)] ?? [])
+              .slice()
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+              .map((p) => {
+                const caption =
+                  (p as any).caption ??
+                  (p as any).title ??
+                  (p as any).name ??
+                  "";
+                return {
+                  id: p.id as any,
+                  url: p.url,
+                  caption,
+                  name: (p as any).name ?? "",
+                } as ImageItem;
+              })
+          );
+
+        const hasPendingLocal =
+          pendingGroupMap.current.size > 0 ||
+          pendingPhotoMap.current.size > 0 ||
+          pendingDeleteSet.current.size > 0;
+
+        if (!hasPendingLocal) {
+          setImageFolders(cleaned.length ? cleaned : [[]]);
+          setVerticalImages(verticalFlat);
+        }
+      } catch (e: any) {
+        setMediaError(e?.message || "사진 그룹 로딩 실패");
+      } finally {
+        setMediaLoading(false);
+        reloadMapRef.current.delete(key);
+      }
+    })();
+
+    reloadMapRef.current.set(key, work);
+    return work;
+  }, []);
+
+  const uploadInFlightRef = useRef<Map<string, Promise<PinPhoto[]>>>(new Map());
+
+  const uploadToGroup = useCallback(
+    async (
+      groupId: IdLike,
+      files: File[] | FileList,
+      opts?: { domain?: "map" | "contracts" | "board" | "profile" | "etc" }
+    ) => {
+      if (!files || Array.from(files as File[]).length === 0) return [];
+
+      const sig = filesSignature(files);
+      const key = `${String(groupId)}::${sig}`;
+      const existed = uploadInFlightRef.current.get(key);
+      if (existed) return existed;
+
+      const work = (async () => {
+        const { uploadPhotosAndGetUrls } = await import(
+          "@/shared/api/photoUpload"
+        );
+        const urls = await uploadPhotosAndGetUrls(files, {
+          domain: opts?.domain ?? "map",
+        });
+        if (!urls.length) return [];
+        const created = await createPhotosInGroup(groupId, {
+          urls,
+          sortOrders: urls.map((_, i: number) => i),
+        });
+        return created;
+      })();
+
+      uploadInFlightRef.current.set(key, work);
+      try {
+        return await work;
+      } finally {
+        uploadInFlightRef.current.delete(key);
+      }
+    },
+    []
+  );
+
+  const createAndUploadRef = useRef<
+    Map<string, Promise<{ group: PinPhotoGroup; photos: PinPhoto[] }>>
+  >(new Map());
+
+  const createGroupAndUpload = useCallback(
+    async (
+      pinId: IdLike,
+      title: string,
+      files: File[] | FileList,
+      sortOrder?: number | null
+    ) => {
+      const sig = files ? filesSignature(files) : "";
+      const key = `${String(pinId)}::${title}::${String(
+        sortOrder ?? ""
+      )}::${sig}`;
+      const existed = createAndUploadRef.current.get(key);
+      if (existed) return existed;
+
+      const work = (async () => {
+        const group = await apiCreatePhotoGroup({
+          pinId,
+          title,
+          sortOrder: sortOrder ?? null,
+        });
+        const photos = files ? await uploadToGroup(group.id, files) : [];
+        return { group, photos };
+      })();
+
+      createAndUploadRef.current.set(key, work);
+      try {
+        return await work;
+      } finally {
+        createAndUploadRef.current.delete(key);
+      }
+    },
+    [uploadToGroup]
+  );
+
+  /* 폴더/세로 그룹 보장 헬퍼 */
+
+  // ✅ 가로 그룹: isDocument !== true 인 그룹만
+  const getHorizGroupsSorted = (list: PinPhotoGroup[]) =>
+    list
+      .filter((g) => g.isDocument !== true)
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+          String(a.title ?? "").localeCompare(String(b.title ?? ""))
+      );
+
+  const ensureFolderGroup = useCallback(
+    async (
+      pinId: IdLike,
+      folderIdx: number,
+      preferredTitle?: string | null
+    ) => {
+      const list = (groupsRef.current ?? []) as PinPhotoGroup[];
+      const horiz = getHorizGroupsSorted(list);
+      const existing = horiz[folderIdx];
+      if (existing) return existing;
+
+      const fallback = `사진 폴더 ${folderIdx + 1}`;
+
+      // 🔥 1순위: queueGroupTitle 에서 들어온 제목
+      const queued = getQueuedFolderTitle(folderIdx);
+      // 2순위: 캡션에서 온 preferredTitle
+      const fromPreferred =
+        (preferredTitle ?? "").toString().trim().length > 0
+          ? (preferredTitle as string).trim()
+          : null;
+
+      const title = queued ?? fromPreferred ?? fallback;
+      const sortOrder = folderIdx;
+
+      const group = await apiCreatePhotoGroup({
+        pinId,
+        title,
+        sortOrder,
+      });
+
+      // 가짜 키는 더 이상 필요 없으니 제거
+      consumeQueuedFolderTitle(folderIdx);
+
+      setGroups((prev) => {
+        const base = prev ?? [];
+        const next = [...base, group];
+        groupsRef.current = next;
+        return next;
+      });
+
+      return group;
+    },
+    []
+  );
+
+  // 🔹 가짜 키("folder-0" 같은 것)로 큐에 쌓인 제목 읽기
+  const getQueuedFolderTitle = (folderIdx: number): string | null => {
+    const pseudoKey = `folder-${folderIdx}`;
+    const pending = pendingGroupMap.current.get(pseudoKey);
+    const t = pending?.title;
+    if (typeof t === "string" && t.trim().length > 0) return t.trim();
+    return null;
+  };
+
+  const consumeQueuedFolderTitle = (folderIdx: number) => {
+    const pseudoKey = `folder-${folderIdx}`;
+    pendingGroupMap.current.delete(pseudoKey);
+  };
+
+  // 🔹 세로 폴더용 가짜 키("__vertical__") 읽기
+  const getQueuedVerticalTitle = (): string | null => {
+    const pending = pendingGroupMap.current.get("__vertical__");
+    const t = pending?.title;
+    if (typeof t === "string" && t.trim().length > 0) return t.trim();
+    return null;
+  };
+
+  const consumeQueuedVerticalTitle = () => {
+    pendingGroupMap.current.delete("__vertical__");
+  };
+
+  // ✅ 세로 파일폴더: isDocument === true 인 그룹 하나 보장
+  const ensureVerticalGroup = useCallback(
+    async (pinId: IdLike, preferredTitle?: string | null) => {
+      const list = (groupsRef.current ?? []) as PinPhotoGroup[];
+      const vertical = list.find((g) => g.isDocument === true);
+      if (vertical) return vertical;
+
+      const fallback = "파일 폴더";
+
+      const queued = getQueuedVerticalTitle();
+      const fromPreferred =
+        (preferredTitle ?? "").toString().trim().length > 0
+          ? (preferredTitle as string).trim()
+          : null;
+
+      const title = queued ?? fromPreferred ?? fallback;
+
+      const group = await apiCreatePhotoGroup({
+        pinId,
+        title,
+        sortOrder: 9999,
+        isDocument: true,
+      });
+
+      consumeQueuedVerticalTitle();
+
+      setGroups((prev) => {
+        const base = prev ?? [];
+        const next = [...base, group];
+        groupsRef.current = next;
+        return next;
+      });
+
+      return group;
+    },
+    []
+  );
+
+  /* 카드형 파일 추가/삭제 */
+  const onPickFilesToFolder = useCallback(
+    async (idx: number, files: FileList | null) => {
+      if (!files || files.length === 0) return;
+
+      const fileArr = Array.from(files);
+
+      const tempItems: ImageItem[] = fileArr.map((f) => ({
+        file: f,
+        name: f.name,
+        url: URL.createObjectURL(f),
+      }));
+
+      setImageFolders((prev) =>
+        prev.map((folder, i) =>
+          i === idx ? [...folder, ...tempItems].slice(0, MAX_PER_CARD) : folder
+        )
+      );
+    },
+    []
+  );
+
+  const addPhotoFolder = useCallback(() => {
+    setImageFolders((prev) => [...prev, []]);
+  }, []);
+
+  const removePhotoFolder = useCallback(
+    (folderIdx: number, opts?: { keepAtLeastOne?: boolean }) => {
+      const keepAtLeastOne = opts?.keepAtLeastOne ?? true;
+
+      setImageFolders((prev) => {
+        const target = prev[folderIdx] ?? [];
+
+        target.forEach((img) => queueDeleteIfServer(img));
+
+        target.forEach((img) => {
+          if (img?.url?.startsWith("blob:")) {
+            try {
+              URL.revokeObjectURL(img.url);
+            } catch {}
+          }
+        });
+
+        const next = prev.map((arr) => [...arr]);
+        next.splice(folderIdx, 1);
+
+        if (next.length === 0 && keepAtLeastOne) next.push([]);
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleRemoveImage = useCallback(
+    (folderIdx: number, imageIdx: number) => {
+      setImageFolders((prev) => {
+        const next = prev.map((arr) => [...arr]);
+        const removed = next[folderIdx]?.splice(imageIdx, 1)?.[0];
+
+        queueDeleteIfServer(removed);
+
+        if (removed?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(removed.url);
+          } catch {}
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  /* 세로형 삭제/추가/캡션 */
+
+  const handleRemoveFileItem = useCallback((index: number) => {
+    setVerticalImages((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(index, 1);
+
+      queueDeleteIfServer(removed);
+
+      if (removed?.url?.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(removed.url);
+        } catch {}
+      }
+      return next;
+    });
+  }, []);
+
+  // 🔥 세로: file + blob url 로만 관리, 저장 시 업로드
+  const onAddFiles = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const items: ImageItem[] = [];
+    for (const f of Array.from(files)) {
+      items.push({
+        file: f,
+        url: URL.createObjectURL(f),
+        name: f.name,
+      });
+    }
+    setVerticalImages((prev) => [...prev, ...items].slice(0, MAX_FILES));
+  }, []);
+
+  const onChangeFileItemCaption = useCallback(
+    (index: number, text: string) => {
+      let target: ImageItem | undefined;
+
+      setVerticalImages((prev) => {
+        const next = prev.map((f, i) => {
+          if (i !== index) return f;
+          const updated = { ...f, caption: text };
+          target = updated;
+          return updated;
+        });
+
+        const pid = getServerPhotoId(target);
+        if (pid != null) queuePhotoCaption(pid, text ?? null);
+
+        return next;
+      });
+    },
+    [queuePhotoCaption]
+  );
+
+  /* 언마운트 시 blob URL 정리 */
+  useEffect(() => {
+    return () => {
+      imageFoldersRef.current.flat().forEach((f) => {
+        if (f?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(f.url);
+          } catch {}
+        }
+      });
+      verticalImagesRef.current.forEach((f) => {
+        if (f?.url?.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(f.url);
+          } catch {}
+        }
+      });
+    };
+  }, []);
+
+  /* 변경 여부 */
+  const hasImageChanges = useCallback(() => {
+    const hasPending =
+      pendingGroupMap.current.size > 0 ||
+      pendingPhotoMap.current.size > 0 ||
+      pendingDeleteSet.current.size > 0;
+
+    const hasNewFolderFiles = imageFoldersRef.current.some((folder) =>
+      (folder ?? []).some(
+        (it: any) => !getServerPhotoId(it) && it.file instanceof File
+      )
+    );
+
+    const hasNewVerticalFiles = verticalImagesRef.current.some(
+      (it: any) => !getServerPhotoId(it)
+    );
+
+    return hasPending || hasNewFolderFiles || hasNewVerticalFiles;
+  }, []);
+
+  /* 저장 시 모든 변경 커밋 */
+  const commitImageChanges = useCallback(async (): Promise<boolean> => {
+    // 🔹 1) 그룹 변경 큐 가져오기 (raw)
+    const groupChangesRaw = Array.from(pendingGroupMap.current.values());
+
+    // 🔹 2) 실제 서버 id만 남기고, 가짜 id(folder-*, __vertical__)는 제외
+    const groupChanges = groupChangesRaw.filter((g) => {
+      const idStr = String(g.id);
+      if (idStr.startsWith("folder-")) return false;
+      if (idStr === "__vertical__") return false;
+      return true;
+    });
+
+    const photoChangesPending = Array.from(pendingPhotoMap.current.values());
+    const deleteIds = Array.from(pendingDeleteSet.current.values());
+
+    const foldersSnapshot = imageFoldersRef.current;
+    type NewUploadPlan = {
+      folderIdx: number;
+      files: File[];
+      captions: (string | undefined)[];
+    };
+    const newUploadPlans: NewUploadPlan[] = [];
+
+    foldersSnapshot.forEach((folder, idx) => {
+      const newItems = (folder ?? []).filter(
+        (it: any) => !getServerPhotoId(it) && it.file instanceof File
+      );
+
+      if (!newItems.length) return;
+
+      newUploadPlans.push({
+        folderIdx: idx,
+        files: newItems.map((it: any) => it.file as File),
+        captions: newItems.map((it: any) =>
+          typeof it.caption === "string" ? it.caption : undefined
+        ),
+      });
+    });
+
+    // 세로 새 아이템(서버 id 없는 모든 항목)
+    const verticalNewItems = verticalImagesRef.current
+      .map((img, idx) => ({ img, idx }))
+      .filter(({ img }) => !getServerPhotoId(img));
+
+    // 🔹 3) 진짜 변경이 하나도 없으면 바로 종료
+    if (
+      groupChanges.length === 0 &&
+      photoChangesPending.length === 0 &&
+      deleteIds.length === 0 &&
+      newUploadPlans.length === 0 &&
+      verticalNewItems.length === 0
+    ) {
+      return false;
+    }
+
+    try {
+      const extraPhotoPatches: {
+        id: IdLike;
+        caption?: string | null;
+      }[] = [];
+
+      // 1) 가로 신규 파일 업로드
+      for (const plan of newUploadPlans) {
+        const { folderIdx, files, captions } = plan;
+
+        // 🔥 첫 번째 non-empty 캡션을 그룹 제목 후보로 사용
+        const firstCaption =
+          captions.find((c) => typeof c === "string" && c.trim().length > 0) ??
+          null;
+
+        const group = await ensureFolderGroup(
+          propertyId,
+          folderIdx,
+          firstCaption
+        );
+        const created = await uploadToGroup(group.id, files, { domain: "map" });
+
+        created.forEach((p, i) => {
+          const cap = captions[i];
+          if (!cap) return;
+          extraPhotoPatches.push({
+            id: p.id as IdLike,
+            caption: cap,
+          });
+        });
+      }
+
+      // 2) 세로 신규 파일 업로드
+      if (verticalNewItems.length) {
+        const files: File[] = [];
+        const captions: (string | undefined)[] = [];
+
+        for (const { img } of verticalNewItems) {
+          let file: File | null = null;
+
+          if ((img as any).file instanceof File) {
+            file = (img as any).file as File;
+          } else if (img.url && img.url.startsWith("blob:")) {
+            try {
+              const res = await fetch(img.url);
+              const blob = await res.blob();
+              file = new File([blob], img.name || "image.jpg", {
+                type: blob.type || "image/jpeg",
+              });
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.warn("[useEditImages] blob→File 변환 실패:", e);
+            }
+          }
+
+          if (!file) continue;
+          files.push(file);
+          captions.push(
+            typeof (img as any).caption === "string"
+              ? ((img as any).caption as string)
+              : undefined
+          );
+        }
+
+        if (files.length) {
+          // 🔥 세로 그룹 제목 후보: 첫 번째 non-empty 캡션
+          const firstCaption =
+            captions.find(
+              (c) => typeof c === "string" && c.trim().length > 0
+            ) ?? null;
+
+          const vGroup = await ensureVerticalGroup(propertyId, firstCaption);
+
+          const created = await uploadToGroup(vGroup.id, files, {
+            domain: "map",
+          });
+
+          created.forEach((p, i) => {
+            const cap = captions[i];
+            if (!cap) return;
+            extraPhotoPatches.push({
+              id: p.id as IdLike,
+              caption: cap,
+            });
+          });
+        }
+      }
+
+      // 3) 기존 pending + 신규 생성분 캡션 패치 합치기
+      const photoChanges = [
+        ...photoChangesPending,
+        ...extraPhotoPatches.map((p) => ({
+          id: p.id,
+          caption: p.caption ?? null,
+        })),
+      ];
+
+      // 4) 그룹 변경 커밋 (isDocument는 여기서 건드리지 않음)
+      if (groupChanges.length) {
+        await batchPatchPhotoGroups(
+          groupChanges.map((g) => ({
+            id: g.id,
+            dto: { title: g.title, sortOrder: g.sortOrder },
+          }))
+        );
+      }
+
+      // 5) 사진 변경 커밋
+      if (photoChanges.length) {
+        await batchPatchPhotos(
+          photoChanges.map((p: any) => ({
+            id: p.id,
+            dto: {
+              caption: p.caption,
+              groupId:
+                p.groupId !== undefined ? (p.groupId as IdLike) : undefined,
+              sortOrder:
+                p.sortOrder !== undefined ? (p.sortOrder as number) : undefined,
+              isCover:
+                p.isCover !== undefined ? (p.isCover as boolean) : undefined,
+              name: p.name,
+            },
+          }))
+        );
+      }
+
+      // 6) 삭제 커밋
+      if (deleteIds.length) {
+        await apiDeletePhotos(deleteIds);
+      }
+
+      pendingGroupMap.current.clear();
+      pendingPhotoMap.current.clear();
+      pendingDeleteSet.current.clear();
+
+      return true;
+    } catch (e) {
+      throw e;
+    }
+  }, [ensureFolderGroup, ensureVerticalGroup, uploadToGroup, propertyId]);
+
+  const commitPending = commitImageChanges;
+
+  /* 기타 API */
+  const makeCover = useCallback((photoId: IdLike) => {
+    const key = String(photoId);
+    const prev = pendingPhotoMap.current.get(key) ?? { id: photoId };
+    pendingPhotoMap.current.set(key, { ...prev, isCover: true });
+  }, []);
+
+  const reorder = useCallback(
+    (photoId: IdLike, sortOrder: number) => {
+      queuePhotoSort(photoId, sortOrder);
+    },
+    [queuePhotoSort]
+  );
+
+  const moveToGroup = useCallback(
+    async (photoIds: IdLike[], destGroupId: IdLike) => {
+      for (const pid of photoIds) queuePhotoMove(pid, destGroupId);
+    },
+    [queuePhotoMove]
+  );
+
+  const deletePhotos = useCallback(async (photoIds: IdLike[]) => {
+    for (const pid of photoIds) pendingDeleteSet.current.add(String(pid));
+  }, []);
+
+  const queueGroupTitle = useCallback(
+    (groupId: IdLike, title: string | null) => {
+      const key = String(groupId);
+      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
+      pendingGroupMap.current.set(key, { ...prev, title });
+    },
+    []
+  );
+  const queueGroupSortOrder = useCallback(
+    (groupId: IdLike, sortOrder: number | null) => {
+      const key = String(groupId);
+      const prev = pendingGroupMap.current.get(key) ?? { id: groupId };
+      pendingGroupMap.current.set(key, { ...prev, sortOrder });
+    },
+    []
+  );
+
+  return {
+    /* 로컬 상태/액션 */
+    imageFolders,
+    verticalImages,
+    registerImageInput,
+    openImagePicker,
+    onPickFilesToFolder,
+    addPhotoFolder,
+    removePhotoFolder,
+    onChangeImageCaption,
+    handleRemoveImage,
+    onAddFiles,
+    onChangeFileItemCaption,
+    handleRemoveFileItem,
+
+    /* 서버 상태 */
+    groups,
+    photosByGroup,
+    mediaLoading,
+    mediaError,
+
+    /* 서버 액션 */
+    reloadGroups,
+    uploadToGroup,
+    createGroupAndUpload,
+
+    /* 큐잉 액션 */
+    makeCover,
+    reorder,
+    moveToGroup,
+    deletePhotos,
+    queueGroupTitle,
+    queueGroupSortOrder,
+    queuePhotoCaption,
+    queuePhotoSort,
+    queuePhotoMove,
+
+    /* 변경 여부/커밋 */
+    hasImageChanges,
+    commitImageChanges,
+    commitPending,
+  };
+}
+
+export type EditImagesAPI = ReturnType<typeof useEditImages>;

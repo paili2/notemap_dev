@@ -1,4 +1,3 @@
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 import type { ImageItem } from "@/features/properties/types/media";
 import {
   normalizeImageCards,
@@ -7,6 +6,7 @@ import {
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
 import type { ViewSource } from "@/features/properties/lib/view/types";
+import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
 
 /** 안전 변환 유틸 */
 const toNumOr = (v: any, fallback: number) =>

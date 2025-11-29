@@ -15,7 +15,7 @@ import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useBounds } from "../hooks/useBounds";
 import { useBoundsRaw } from "./hooks/useBoundsRaw";
 import { cn } from "@/lib/cn";
-import SearchForm from "@/features/map/view/top/SearchForm/SearchForm";
+import SearchForm from "@/features/map/components/top/SearchForm/SearchForm";
 import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import type {
@@ -30,17 +30,18 @@ import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 /* ✅ 상세보기 데이터 패칭 & 뷰모델 변환 */
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
-import type { PropertyViewDetails } from "@/features/properties/components/PropertyViewModal/types";
 
 /* 라벨 숨김/복원 */
 import {
   hideLabelsAround,
   showLabelsAround,
 } from "@/features/map/shared/overlays/labelRegistry";
-import { MapMenuKey } from "@/features/map/menu";
+
 import { distM } from "@/features/map/hooks/poi/geometry";
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
+import { MapMenuKey } from "@/features/map/components/top/components/types/types";
+import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {

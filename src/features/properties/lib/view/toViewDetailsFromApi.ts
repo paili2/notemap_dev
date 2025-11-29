@@ -1,4 +1,4 @@
-import { PropertyViewDetails } from "../../components/PropertyViewModal/types";
+import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
 import { mapBadgeToPinKind } from "../badge";
 
