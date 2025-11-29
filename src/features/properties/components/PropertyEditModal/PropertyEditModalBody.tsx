@@ -698,7 +698,7 @@ function toPinPatch(
     (patch as any).parkingGrade = pgNowNorm;
   }
 
-  // 2) parkingType: ✅ 자유양식 텍스트 (최대 50자, 공백/커스텀은 null)
+  // 2) parkingType: 자유양식 텍스트 (최대 50자, 공백/커스텀은 null)
   {
     const raw = (f as any).parkingType;
     const trimmed = raw == null ? "" : String(raw).trim();

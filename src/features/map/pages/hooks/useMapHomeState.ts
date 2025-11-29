@@ -17,17 +17,16 @@ import {
   hideLabelsAround,
   showLabelsAround,
 } from "@/features/map/shared/overlays/labelRegistry";
-import { useViewportPost } from "../../shared/hooks/useViewportPost";
-import { usePinsMap } from "../../shared/hooks/usePinsMap";
-import {
-  usePanToWithOffset,
-  useResolveAddress,
-} from "../../shared/hooks/useKakaoTools";
-import { useRunSearch } from "../../shared/hooks/useRunSearch";
+
 import { useToast } from "@/hooks/use-toast";
 import { PinKind } from "@/features/pins/types";
 import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
 import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
+import { useViewportPost } from "../../hooks/useViewportPost";
+import { usePinsMap } from "../../hooks/usePinsMap";
+import { usePanToWithOffset } from "../../hooks/useKakaoTools";
+import { useRunSearch } from "../../hooks/useRunSearch";
+import { useResolveAddress } from "@/hooks/useResolveAddress";
 
 type LocalCreateFromPinArgs = CreateFromPinArgs & {
   /** 답사예정지 '간단등록' 모드인지 여부 */
@@ -139,7 +138,13 @@ export function useMapHomeState() {
 
   const [createPinKind, setCreatePinKind] = useState<PinKind | null>(null);
 
-  // ✅ 매물등록용 좌표 캡쳐
+  // 임시핀에서 가져온 헤더 프리필 (매물명 / 분양사무실 전화번호)
+  const [draftHeaderPrefill, setDraftHeaderPrefill] = useState<{
+    title?: string;
+    officePhone?: string;
+  } | null>(null);
+
+  // 매물등록용 좌표 캡쳐
   const [createPos, setCreatePos] = useState<LatLng | null>(null);
 
   // 좌표 세터(정규화만)
@@ -768,21 +773,76 @@ export function useMapHomeState() {
     (args?: LocalCreateFromPinArgs) => {
       let anchor: LatLng | null = null;
 
-      // ✅ 1) 여기서 모드 결정
+      // ✅ 1) 모드 결정
       const isVisitPlanOnly = !!args?.visitPlanOnly;
       setCreatePinKind(isVisitPlanOnly ? "question" : null);
 
-      // ✅ 2) 좌표 결정
+      // ✅ 2) 헤더 프리필 초기화
+      setDraftHeaderPrefill(null);
+
+      // 2-1) args에서 타이틀/전화 우선 추출
+      const titleFromArgs =
+        (args as any)?.name ??
+        (args as any)?.title ??
+        (args as any)?.propertyTitle ??
+        undefined;
+
+      const officePhoneFromArgs =
+        (args as any)?.officePhone ??
+        (args as any)?.contactMainPhone ??
+        undefined;
+
+      if (titleFromArgs || officePhoneFromArgs) {
+        setDraftHeaderPrefill({
+          title: titleFromArgs,
+          officePhone: officePhoneFromArgs,
+        });
+      }
+
+      // ✅ 3) draftId 결정: args.fromPinDraftId → 없으면 기존 createFromDraftId 사용
+      const explicitDraftId =
+        args?.fromPinDraftId != null ? String(args.fromPinDraftId) : null;
+      const effectiveDraftId = explicitDraftId ?? createFromDraftId;
+
+      if (effectiveDraftId != null) {
+        setCreateFromDraftId(effectiveDraftId);
+
+        const matchedDraft = (drafts ?? []).find(
+          (d: any) => String(d.id) === effectiveDraftId
+        );
+
+        if (matchedDraft) {
+          const title =
+            (matchedDraft as any).title ??
+            (matchedDraft as any).name ??
+            titleFromArgs ??
+            undefined;
+
+          const officePhone =
+            (matchedDraft as any).officePhone ??
+            (matchedDraft as any).contactMainPhone ??
+            officePhoneFromArgs ??
+            undefined;
+
+          if (title || officePhone) {
+            setDraftHeaderPrefill({
+              title,
+              officePhone,
+            });
+          }
+        }
+      } else {
+        // 진짜로 draftId가 하나도 없을 때만 null
+        setCreateFromDraftId(null);
+      }
+
+      // ✅ 4) 좌표 결정 (기존 로직 그대로)
       if (args) {
         const lat = (args as any).lat ?? (args as any).latFromPin ?? null;
         const lng = (args as any).lng ?? (args as any).lngFromPin ?? null;
 
         if (lat != null && lng != null) {
           anchor = normalizeLL({ lat, lng });
-        }
-
-        if (args.fromPinDraftId != null) {
-          setCreateFromDraftId(String(args.fromPinDraftId));
         }
       }
 
@@ -798,22 +858,29 @@ export function useMapHomeState() {
 
       const prefill =
         args?.address ??
-        args?.roadAddress ??
-        args?.jibunAddress ??
+        (args as any)?.roadAddress ??
+        (args as any)?.jibunAddress ??
         menuRoadAddr ??
         menuJibunAddr ??
         undefined;
 
       setPrefillAddress(prefill);
       setCreateOpen(true);
+
+      console.debug("[openCreateFromMenu]", {
+        args,
+        effectiveDraftId,
+      });
     },
     [
+      drafts,
       menuAnchor,
       draftPin,
       selected,
       menuRoadAddr,
       menuJibunAddr,
       closeMenu,
+      createFromDraftId, // 🔹 이거 의존성 배열에 추가!
       setCreateFromDraftId,
     ]
   );
@@ -900,6 +967,7 @@ export function useMapHomeState() {
         setCreateFromDraftId(null);
         setCreatePos(null);
         setCreatePinKind(null);
+        setDraftHeaderPrefill(null);
       },
       appendItem: (item: PropertyItem) => setItems((prev) => [item, ...prev]),
       selectAndOpenView: (id: string | number) => {
@@ -915,6 +983,7 @@ export function useMapHomeState() {
         setCreateFromDraftId(null);
         setCreatePos(null);
         setCreatePinKind(null);
+        setDraftHeaderPrefill(null);
       },
       onAfterCreate: (res: { matchedDraftId?: string | number | null }) => {
         if (res?.matchedDraftId != null) {
@@ -943,6 +1012,7 @@ export function useMapHomeState() {
     setCreateFromDraftId(null);
     setCreatePos(null);
     setCreatePinKind(null);
+    setDraftHeaderPrefill(null);
   }, [setDraftPinSafe, setCreatePos]);
 
   // POI 변경 즉시 반영
@@ -1130,5 +1200,6 @@ export function useMapHomeState() {
 
     // ⭐ 외부에서 지도 포커스 이동용
     focusMapTo,
+    draftHeaderPrefill,
   } as const;
 }

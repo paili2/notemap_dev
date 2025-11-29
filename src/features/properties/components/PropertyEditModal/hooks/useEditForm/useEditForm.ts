@@ -408,10 +408,57 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       (normalized.remainingHouseholds ?? "") as unknown as string
     );
 
-    // ✅ 옵션/직접입력도 서버 값 주입
-    setOptions(normalized.options);
-    setOptionEtc(normalized.optionEtc);
-    setEtcChecked(normalized.etcChecked);
+    // ✅ 옵션/직접입력도 서버 값 주입 (+ extraOptionsText 브릿지)
+    const normalizedOptions: any = (normalized as any).options;
+
+    // 1) 프리셋 옵션 배열 만들기
+    const presetOptions: string[] = Array.isArray(normalizedOptions)
+      ? normalizedOptions
+      : Array.isArray(normalizedOptions?.presetOptions)
+      ? normalizedOptions.presetOptions
+      : [];
+
+    // 2) extra 옵션 텍스트 후보들을 한 번에 모아서 merge (중복 제거)
+    const extraCandidatesRaw: unknown[] = [
+      (normalized as any).optionEtc,
+      (normalized as any).extraOptionsText,
+      normalizedOptions?.extraOptionsText,
+      (sourceData as any)?.optionEtc,
+      (sourceData as any)?.extraOptionsText,
+      (sourceData as any)?.options?.extraOptionsText,
+    ];
+
+    // 공백 제거 + 빈 문자열 제거 + 중복 제거
+    const extraCandidates = Array.from(
+      new Set(
+        extraCandidatesRaw
+          .map((v) => (v == null ? "" : String(v).trim()))
+          .filter((v) => v.length > 0)
+      )
+    );
+
+    const mergedOptionEtc = extraCandidates.join(", ");
+
+    // 디버그 필요 없으면 아래 로그는 나중에 지워도 됨
+    console.log("[useEditForm][options init]", {
+      presetOptions,
+      extraCandidates,
+      mergedOptionEtc,
+    });
+
+    // 3) 최종 상태에 주입
+    setOptions(presetOptions);
+    setOptionEtc(mergedOptionEtc);
+
+    // ✅ 체크 여부는 서버 etcChecked OR 텍스트 유무 기준으로
+    setEtcChecked(
+      Boolean(
+        (normalized as any).etcChecked ||
+          (mergedOptionEtc && mergedOptionEtc.trim().length > 0)
+      )
+    );
+
+    // ✅ 메모 / 유닛 라인
     setPublicMemo(normalized.publicMemo);
     setSecretMemo(normalized.secretMemo);
     setUnitLines(normalized.unitLines);

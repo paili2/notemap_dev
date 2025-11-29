@@ -6,7 +6,7 @@ import {
   type PinsMapDraft,
   type PinsMapPoint,
 } from "@/shared/api/pinsMap";
-import { Bounds } from "../types/bounds";
+import { Bounds } from "../shared/types/bounds";
 
 /** 간단 디바운스 */
 function debounce<T extends (...a: any[]) => void>(fn: T, ms = 250) {

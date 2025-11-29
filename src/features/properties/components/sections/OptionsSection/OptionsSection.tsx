@@ -76,6 +76,42 @@ export default function OptionsSection({
     return Boolean(etcChecked || hasLegacy || hasCustom);
   });
 
+  // 🔥 부모(useEditForm)에서 옵션/직접입력 초기값을 나중에 채워줬을 때 한 번 더 동기화
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+
+    const latestLegacy = (optionEtc ?? "")
+      .split(SPLIT_RE)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const presetSetLocal = new Set(
+      PRESET_OPTIONS.filter((op) => !isEtcLabel(op)).map((v) => normalize(v))
+    );
+
+    const latestCustomFromOptions = safeOptions.filter(
+      (v) => !presetSetLocal.has(normalize(v))
+    );
+
+    const hasLegacy = latestLegacy.length > 0;
+    const hasCustom = latestCustomFromOptions.length > 0;
+    const shouldHydrate = Boolean(etcChecked || hasLegacy || hasCustom);
+
+    if (!shouldHydrate) return;
+
+    const merged = dedupNormalized([
+      ...latestCustomFromOptions,
+      ...latestLegacy,
+    ]);
+
+    setCustomInputs(merged.length > 0 ? merged : [""]);
+    setEtcOn(true);
+    safeSetEtcChecked(true);
+
+    hydratedRef.current = true;
+  }, [optionEtc, etcChecked, safeOptions, PRESET_OPTIONS, safeSetEtcChecked]);
+
   // ref로 현재 customInputs 보관 (commitSync에서 사용)
   const customInputsRef = useRef<string[]>(customInputs);
   useEffect(() => {

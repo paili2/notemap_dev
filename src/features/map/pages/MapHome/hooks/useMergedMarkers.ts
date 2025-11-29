@@ -5,7 +5,7 @@ import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
-import { distM } from "@/features/map/shared/hooks/poi/geometry";
+import { distM } from "@/features/map/hooks/poi/geometry";
 
 /** kakao LatLng/Point 등 다양한 포맷을 좌표 객체로 정규화 */
 function toNumericPos(pos: any) {

@@ -10,9 +10,9 @@ import useKakaoMap from "./hooks/useKakaoMap";
 import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
-import usePoiLayer from "../shared/hooks/poi/usePoiLayer";
 import { PoiKind } from "../shared/overlays/poiOverlays";
 import { PoiLayerToggle } from "./top/components/PoiLayerToggle";
+import usePoiLayer from "../hooks/poi/usePoiLayer";
 
 type Props = MapViewProps;
 

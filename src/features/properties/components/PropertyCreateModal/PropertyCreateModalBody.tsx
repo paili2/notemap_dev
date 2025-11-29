@@ -81,6 +81,11 @@ type Props = Omit<PropertyCreateModalProps, "open"> & {
   asInner?: boolean;
   /** 상위에서 내려주는 기본 핀종류 (없으면 그대로 둠) */
   initialPinKind?: PinKind | null;
+
+  draftHeaderPrefill?: {
+    title?: string;
+    officePhone?: string;
+  } | null;
 };
 
 export default function PropertyCreateModalBody({
@@ -92,8 +97,11 @@ export default function PropertyCreateModalBody({
   pinDraftId,
   asInner,
   initialPinKind,
+  draftHeaderPrefill,
 }: Props) {
-  const f = useCreateForm({ initialAddress, pinDraftId });
+  console.debug("[PropertyCreateModalBody props]", { draftHeaderPrefill });
+
+  const f = useCreateForm({ initialAddress, pinDraftId, draftHeaderPrefill });
 
   /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부 */
   const isVisitPlanPin = !pinDraftId && isVisitPlanPinKind(initialPinKind);

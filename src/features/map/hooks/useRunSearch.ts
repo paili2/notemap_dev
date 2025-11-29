@@ -7,7 +7,7 @@ import { NEAR_THRESHOLD_M } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import { distanceMeters } from "@/lib/geo/distance";
 import { useToast } from "@/hooks/use-toast";
-import { isTooBroadKeyword } from "../utils/isTooBroadKeyword";
+import { isTooBroadKeyword } from "../shared/utils/isTooBroadKeyword";
 
 // 👉 검색 주소랑 기존 핀 간 거리 허용치(조금 넉넉하게 3km까지)
 const SEARCH_NEAR_THRESHOLD_M = Math.max(NEAR_THRESHOLD_M, 3000);

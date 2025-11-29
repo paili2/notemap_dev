@@ -134,4 +134,9 @@ export type MapHomeUIProps = {
   createFromDraftId?: string | null;
 
   createPinKind?: PinKind | null;
+
+  draftHeaderPrefill?: {
+    title?: string;
+    officePhone?: string;
+  } | null;
 };

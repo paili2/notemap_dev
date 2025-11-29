@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
-import { FilterSearch } from "../../../shared/filterSearch";
+import { FilterSearch } from "../../../components/filterSearch";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 import { MapHomeUIProps } from "./types";
@@ -38,11 +38,9 @@ import {
   showLabelsAround,
 } from "@/features/map/shared/overlays/labelRegistry";
 import { MapMenuKey } from "@/features/map/menu";
-import { usePinsFromViewport } from "@/features/map/shared/hooks/usePinsFromViewport";
-import { useRoadview } from "@/features/map/shared/hooks/useRoadview";
-
-/* 검색 위치와 현재 뷰 중앙 거리 계산용 */
-import { distM } from "@/features/map/shared/hooks/poi/geometry";
+import { distM } from "@/features/map/hooks/poi/geometry";
+import { useRoadview } from "@/features/map/hooks/useRoadview";
+import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -243,6 +241,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onViewportChange,
     createOpen,
     createPinKind,
+    draftHeaderPrefill,
     selectedViewItem,
     prefillAddress,
     draftPin,
@@ -260,6 +259,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     closeView,
     createFromDraftId,
   } = props;
+
+  console.debug("[MapHomeUI] draftHeaderPrefill prop =", draftHeaderPrefill);
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
   const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
@@ -1266,6 +1267,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}
         createPinKind={createPinKind ?? null}
+        draftHeaderPrefill={draftHeaderPrefill ?? undefined}
       />
     </div>
   );

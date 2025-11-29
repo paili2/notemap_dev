@@ -32,11 +32,12 @@ export default function ModalsHost(props: {
      *  - (이제는) 마커 정리 등 MapHomeUI 쪽 후처리
      */
     onAfterCreate: (args: {
-      pinId: string;
+      pinId?: string;
       matchedDraftId?: string | number | null;
       lat: number;
       lng: number;
       payload?: any;
+      mode?: "visit-plan-only" | "create";
     }) => void;
     onOpenViewAfterCreate?: (pinId: string | number) => void;
   };
@@ -79,6 +80,8 @@ export default function ModalsHost(props: {
     roadviewContainerRef,
     onCloseRoadview,
   } = props;
+
+  console.debug("[ModalsHost] draftHeaderPrefill =", draftHeaderPrefill);
 
   // 뷰 진입 가능 여부
   const canShowView = !!viewOpen && !!selectedViewItem;

@@ -58,6 +58,9 @@ export type CreateFromPinArgs = {
   jibunAddress?: string | null;
   pinDraftId?: number;
 
+  nameFromDraft?: string | null;
+  contactMainPhoneFromDraft?: string | null;
+
   /** 어떤 버튼에서 열린 생성 모달인지 */
   createMode?: CreateMode;
   visitPlanOnly?: boolean;

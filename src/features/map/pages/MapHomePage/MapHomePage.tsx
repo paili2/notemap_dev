@@ -287,6 +287,7 @@ export default function MapHomePage() {
       onReserveFromMenu,
       createFromDraftId: s.createFromDraftId,
       createPinKind: (s as any).createPinKind ?? null,
+      draftHeaderPrefill: (s as any).draftHeaderPrefill ?? null,
     }),
     [
       KAKAO_MAP_KEY,

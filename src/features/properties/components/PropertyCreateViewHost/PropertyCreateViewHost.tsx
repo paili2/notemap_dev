@@ -31,11 +31,12 @@ type Props = {
   resetAfterCreate: () => void;
   /** 리스트/MapHomeUI와 동기화용 (지금 onAfterCreate 그대로 넘기면 됨) */
   onAfterCreate?: (args: {
-    pinId: string;
+    pinId?: string;
     matchedDraftId?: string | number | null;
     lat: number;
     lng: number;
     payload?: any;
+    mode?: "visit-plan-only" | "create";
   }) => void;
 
   /** ✅ MapHomeUI에서 내려오는 기본 핀 종류 */
@@ -78,29 +79,38 @@ export default function PropertyCreateViewHost({
   const resolvedPinDraftId: string | number | undefined =
     pinDraftId == null ? undefined : pinDraftId;
 
-  // 생성 쪽 onSubmit: 성공하면 stage를 view로 전환
+  // 생성 쪽 onSubmit: 성공하면 mode에 따라 처리
   const handleCreateSubmit = useCallback(
-    async ({
-      pinId,
-      matchedDraftId,
-      payload,
-      lat,
-      lng,
-    }: PropertyCreateResult) => {
+    async (
+      result: PropertyCreateResult & {
+        mode?: "visit-plan-only" | "create" | string;
+      }
+    ) => {
+      const { pinId, matchedDraftId, payload, lat, lng } = result;
+      const mode = result.mode;
+
       // 상위(MapHomeUI) 동기화 로직
       onAfterCreate?.({
-        pinId: String(pinId),
+        pinId: pinId ? String(pinId) : undefined,
         matchedDraftId,
         lat,
         lng,
         payload,
+        mode:
+          mode === "visit-plan-only" || mode === "create" ? mode : undefined,
       });
 
-      // 생성 직후 뷰로 전환
+      // 🔥 답사예정 간단등록(visit-plan-only) 이거나 pinId가 없으면 → 그냥 닫기
+      if (mode === "visit-plan-only" || !pinId) {
+        onClose();
+        return;
+      }
+
+      // 일반 매물 생성: 생성 직후 뷰로 전환
       setCreatedPinId(pinId);
       setStage("view");
     },
-    [onAfterCreate]
+    [onAfterCreate, onClose]
   );
 
   if (!open) return null;
@@ -145,6 +155,7 @@ export default function PropertyCreateViewHost({
         initialLng={initialPos.lng}
         pinDraftId={resolvedPinDraftId}
         initialPinKind={initialPinKind ?? undefined}
+        draftHeaderPrefill={draftHeaderPrefill ?? null}
       />
     );
   } else {
