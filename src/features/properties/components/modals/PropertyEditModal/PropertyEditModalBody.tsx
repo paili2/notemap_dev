@@ -1170,10 +1170,12 @@ export default function PropertyEditModalBody({
   }, []);
 
   // initialData 평탄화
+  // 🔥 향/개별평수 등은 view 쪽에 가공된 형태로 담겨 있으므로,
+  //    raw보다 view 를 우선 사용하고, 없을 때만 raw를 fallback 으로 사용
   const normalizedInitial = useMemo(() => {
     const src = initialData as any;
-    const v = src?.raw ?? src?.view ?? src ?? null;
-    console.log("[init] normalizedInitial:", v);
+    const v = src?.view ?? src?.raw ?? src ?? null;
+    console.log("[init] normalizedInitial(view-first):", v);
     return v;
   }, [initialData]);
 

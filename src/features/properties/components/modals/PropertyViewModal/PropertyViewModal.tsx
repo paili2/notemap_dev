@@ -175,6 +175,9 @@ export default function PropertyViewModal({
 
   const [editInitial, setEditInitial] = useState<any | null>(null);
 
+  /** ✅ 마지막으로 저장한 UpdatePayload (향/개별평수 등 포함) */
+  const [lastEditPayload, setLastEditPayload] = useState<any | null>(null);
+
   const effectiveId =
     pinId ?? (data as any)?.id ?? (data as any)?.propertyId ?? undefined;
 
@@ -204,6 +207,11 @@ export default function PropertyViewModal({
     (data as any)?.id ??
     (data as any)?.propertyId ??
     effectiveId;
+
+  /** 핀이 바뀌면 마지막 payload 리셋 */
+  useEffect(() => {
+    setLastEditPayload(null);
+  }, [pinId]);
 
   /** ✅ DELETE /pins/:id 사용 */
   const handleDelete = useCallback(async () => {
@@ -244,6 +252,7 @@ export default function PropertyViewModal({
 
   const onEditSubmit = useCallback(
     async (payload: UpdatePayload & Partial<CreatePayload>) => {
+      console.log("[PropertyViewModal] onEditSubmit payload =", payload);
       try {
         const viewPatch = toViewPatchFromEdit(payload);
 
@@ -258,6 +267,9 @@ export default function PropertyViewModal({
 
         const finalPatch =
           patchId != null ? { ...viewPatch, id: patchId } : viewPatch;
+
+        /** ✅ 다음 수정 모달 초기값으로 쓰기 위해 payload 저장 */
+        setLastEditPayload(payload);
 
         // ✅ 부모에 패치 전달 (리스트/선택된 매물 갱신용)
         await onSave?.(finalPatch);
@@ -305,6 +317,8 @@ export default function PropertyViewModal({
         }}
         onClickEdit={() => {}}
         asInner={asInner}
+        initialForEdit={initialForEdit}
+        lastEditPayload={lastEditPayload}
       />
     );
 
@@ -332,6 +346,8 @@ function ViewStage({
   loading,
   onRequestEdit,
   asInner,
+  initialForEdit,
+  lastEditPayload,
 }: {
   data: PropertyViewDetails | null;
   metaDetails: any;
@@ -344,6 +360,10 @@ function ViewStage({
   loading?: boolean;
   onRequestEdit: (seed: any) => void;
   asInner?: boolean;
+  /** ✅ 쿼리 결과/부모 prop 기반 최초 initialForEdit(raw+view) */
+  initialForEdit: any | null;
+  /** ✅ 마지막으로 저장한 payload (있으면 이걸 우선 사용) */
+  lastEditPayload: any | null;
 }) {
   console.log("[PropertyViewModal/ViewStage] render", { data });
 
@@ -457,35 +477,47 @@ function ViewStage({
         ? (f.cardsHydrated as any[]).map((c: any[]) => c.length)
         : undefined);
 
-    // ✅ metaDetails에서 raw/view 최대한 그대로 가져오기
-    const root = metaDetails as any;
-    const rawForEdit = root?.raw ?? null;
+    /** ✅ raw/view가 들어있는 최초 initialForEdit 를 베이스로 쓰되,
+     *     view 쪽은 항상 최신 data 로 덮어써서(= merge) 향/개별평수 등 수정값을 반영
+     */
+    const baseInitial = (initialForEdit as any) ?? {};
 
-    const viewBase =
-      (root?.view as any) ?? // 쿼리에서 내려온 view
-      (data as any) ?? // 부모에서 내려온 data(viewData)
-      root ??
-      {}; // 혹시 모를 fallback
-
-    const viewForEdit = {
-      ...viewBase,
-      imageFolders: f.cardsHydrated ?? undefined,
-      verticalImages: f.filesHydrated ?? undefined,
-      imageCardCounts,
+    const prevView: Partial<PropertyViewDetails> = {
+      // 1) 최초 진입 시 쿼리 결과/부모 prop 으로 만들어진 view
+      ...(baseInitial.view ?? {}),
+      // 2) 뷰 모달이 지금 보고 있는 최신 data (수정 저장 후의 값들 포함)
+      ...(data ?? {}),
     };
 
-    const editSeed = rawForEdit
-      ? { raw: rawForEdit, view: viewForEdit }
-      : { view: viewForEdit };
+    /** ✅ raw 는 그대로 두고, view 에만 이미지/향/개별평수 등을 최신 상태로 덮어쓰기 */
+    const editSeed = {
+      ...baseInitial,
+      view: {
+        ...prevView,
+        // 이미지(폴더/세로사진)
+        imageFolders: f.cardsHydrated ?? undefined,
+        verticalImages: f.filesHydrated ?? undefined,
+        imageCardCounts,
+        // 향 / 면적 / 개별평수 등도 최신 뷰 폼 상태로 덮어쓰기 (혹시라도 누락 방지용)
+        aspects: (f as any).aspects,
+        exclusiveArea: (f as any).exclusiveArea,
+        realArea: (f as any).realArea,
+        extraExclusiveAreas: (f as any).extraExclusiveAreas,
+        extraRealAreas: (f as any).extraRealAreas,
+        baseAreaTitle: (f as any).baseAreaTitleView,
+        extraAreaTitles: (f as any).extraAreaTitlesView,
+        unitLines: (f as any).unitLines,
+      },
+    };
 
-    // 디버그용
-    console.log("[PropertyViewModal] editSeed for edit =", {
-      raw: rawForEdit,
-      view: viewForEdit,
+    console.log("[PropertyViewModal/ViewStage] editSeed for EditModal", {
+      baseInitial,
+      data,
+      editSeed,
     });
 
     onRequestEdit(editSeed);
-  }, [canEditProperty, toast, f, data, metaDetails, onRequestEdit]);
+  }, [canEditProperty, toast, f, data, onRequestEdit, initialForEdit]);
 
   const panelClass = cn(
     "bg-white shadow-xl overflow-hidden flex flex-col",
