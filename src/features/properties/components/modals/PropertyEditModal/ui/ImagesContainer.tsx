@@ -77,16 +77,28 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const folders: PhotoFolder[] = useMemo(
     () =>
       imageFolders.map((folder, idx) => {
-        const items: ImageItem[] = folder.map((it) => {
+        const items: ImageItem[] = folder.flatMap((it) => {
+          const url =
+            it.url ??
+            it.dataUrl ??
+            (it.file ? URL.createObjectURL(it.file) : undefined);
+
+          if (!url) return []; // url 없으면 표시 X
+
+          // 새 blob URL이면 언마운트 시 revoke 위해 저장
+          if (!it.url && !it.dataUrl && it.file) {
+            objectURLsRef.current.push(url);
+          }
+
           const base: ImageItem = {
-            url: it.url ?? it.dataUrl ?? "",
+            url,
             name: it.name ?? it.file?.name ?? "",
             caption: it.caption ?? "",
           };
           if ((it as any).id != null) {
             (base as any).id = (it as any).id;
           }
-          return base;
+          return [base];
         });
 
         const g = horizGroups[idx] as any | undefined;
@@ -132,22 +144,35 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
 
   /** 5) (idx, FileList|null) → 훅 onPickFilesToFolder (그냥 FileList 전달) */
   const addToFolder = (folderIdx: number, files: FileList | null) => {
+    console.log("addToFolder", folderIdx, files?.length);
     onPickFilesToFolder(folderIdx, files);
   };
 
   // 가로 폴더 제목 수정 → 해당 그룹 title 큐잉
   const onChangeFolderTitle = (folderIdx: number, title: string) => {
-    const g = horizGroups[folderIdx];
-    if (!g) return;
     const normalized = title?.trim() || null;
-    queueGroupTitle(g.id, normalized);
+    const g = horizGroups[folderIdx];
+
+    if (g) {
+      // 이미 서버에 있는 그룹 → 진짜 id로 패치 큐잉
+      queueGroupTitle(g.id, normalized);
+    } else {
+      // 아직 서버 그룹 없는 새 폴더 → 가짜 키로 제목만 미리 저장
+      queueGroupTitle(`folder-${folderIdx}` as any, normalized);
+    }
   };
 
   // 세로 폴더 제목 수정
   const onChangeVerticalFolderTitle = (title: string) => {
-    if (!verticalGroup) return;
     const normalized = title.trim() || null;
-    queueGroupTitle(verticalGroup.id, normalized);
+
+    if (verticalGroup) {
+      // 이미 존재하는 세로 그룹
+      queueGroupTitle(verticalGroup.id, normalized);
+    } else {
+      // 아직 없는 세로 그룹 제목은 "__vertical__" 가짜 키로 큐에 저장
+      queueGroupTitle("__vertical__" as any, normalized);
+    }
   };
 
   // 세로 파일 캡션

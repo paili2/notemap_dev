@@ -327,6 +327,16 @@ export function useRebuildScene(args: Args) {
         });
         markerObjsRef.current[key] = mk;
 
+        // 🔥 임시 question 핀 / 답사예정 placeholder 들은 항상 맨 뒤로
+        if (
+          key === "__draft__" || // 지도 빈 곳 클릭해서 생기는 임시핀
+          key === DRAFT_ID || // DRAFT_ID 상수 (보통 "__draft__")
+          key.startsWith("__visit__") // serverDrafts에서 온 답사예정핀
+        ) {
+          mk.setZIndex(-99999);
+        }
+
+        // 클릭 핸들러
         const handler = () => onMarkerClickRef.current?.(key);
         kakao.maps.event.addListener(mk, "click", handler);
         markerClickHandlersRef.current[key] = handler;

@@ -16,51 +16,73 @@ export function useUpdateZIndexAndLabels(
 
     const markerMap = markerObjsRef.current ?? {};
     const labelMap = labelOvRef.current ?? {};
-    const BASE_Z = 1000;
 
-    // zIndex 갱신
+    const BASE_Z = 1000;
+    const DRAFT_Z = -99999; // 🔥 임시/답사예정 핀은 항상 맨 뒤로
+
+    // ───────── zIndex 갱신 ─────────
     try {
       Object.entries(markerMap).forEach(([id, mk]) => {
-        if (id === DRAFT_ID) return;
-        const order = reservationOrderMap?.[id];
-        const z = typeof order === "number" ? BASE_Z + (1000 - order) : BASE_Z;
-        if (selectedKey && id === selectedKey) mk?.setZIndex?.(SELECTED_Z);
-        else mk?.setZIndex?.(z);
-      });
-    } catch {}
+        if (!mk) return;
 
-    // 라벨(배지 포함) 갱신
+        const idStr = String(id);
+
+        // ✅ 1) "선택 위치" 임시 question 핀
+        if (idStr === DRAFT_ID || idStr === "__draft__") {
+          mk.setZIndex?.(DRAFT_Z);
+          return;
+        }
+
+        // ✅ 2) 서버 드래프트(답사예정) 핀도 뒤로 보내고 싶으면
+        //     "__visit__" prefix 도 같이 내리기
+        if (idStr.startsWith("__visit__")) {
+          mk.setZIndex?.(DRAFT_Z);
+          return;
+        }
+
+        // ✅ 3) 그 외(실매물 핀)는 기존 규칙 유지
+        const order = reservationOrderMap?.[idStr];
+        const z = typeof order === "number" ? BASE_Z + (1000 - order) : BASE_Z;
+
+        if (selectedKey && idStr === selectedKey) {
+          mk.setZIndex?.(SELECTED_Z);
+        } else {
+          mk.setZIndex?.(z);
+        }
+      });
+    } catch {
+      // ignore
+    }
+
+    // ───────── 라벨(배지 포함) 갱신 ─────────
     try {
       Object.entries(labelMap).forEach(([id, ov]) => {
         const el = ov?.getContent?.() as HTMLDivElement | null;
         if (!el) return;
 
-        // ✅ 주소 임시 라벨은 절대 건드리지 않음
-        // (useRebuildScene에서 el.dataset.labelType = "address"로 세팅됨)
-        if ((el as any).dataset?.labelType === "address") {
-          return;
-        }
+        // ✅ 주소 임시 라벨은 건드리지 않음
+        if ((el as any).dataset?.labelType === "address") return;
 
-        // 1) rawLabel 확보(없으면 textContent를 원본으로 승격)
         const ds = (el as any).dataset ?? ((el as any).dataset = {});
         if (!ds.rawLabel || ds.rawLabel.trim() === "") {
           ds.rawLabel = el.textContent ?? "";
         }
         const raw = ds.rawLabel ?? "";
 
-        // 2) 배지 반영 필요 여부 체크
-        const order = reservationOrderMap?.[id];
+        const order = reservationOrderMap?.[String(id)];
         const desiredOrder = typeof order === "number" ? order : null;
         const currentText = el.textContent ?? "";
         const desiredText =
           (typeof desiredOrder === "number" ? String(desiredOrder + 1) : "") +
           raw;
+
         if (currentText === desiredText) return;
 
-        // 3) 재합성
         el.textContent = "";
         applyOrderBadgeToLabel(el, raw, desiredOrder);
       });
-    } catch {}
+    } catch {
+      // ignore
+    }
   }, [isReady, reservationOrderMap, selectedKey]);
 }

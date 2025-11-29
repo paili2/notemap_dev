@@ -82,10 +82,12 @@ export default function ImagesSection({
   onAddFolder,
   onRemoveFolder,
   maxPerCard,
+  onChangeCaption,
   onRemoveImage,
   fileItems,
   onAddFiles,
   onChangeVerticalFolderTitle,
+  onChangeFileItemCaption,
   onRemoveFileItem,
   maxFiles,
   verticalFolderTitle,
@@ -104,7 +106,7 @@ export default function ImagesSection({
     onRemoveImage?.(folderIdx, imageIdx);
   };
 
-  /* 가로 폴더 input refs */
+  /* 가로 폴더 input refs (ImageCarouselUpload 에 넘길 RefObject) */
   const cardInputRefs = useRef<Array<React.RefObject<HTMLInputElement>>>([]);
   if (cardInputRefs.current.length !== renderFolders.length) {
     cardInputRefs.current = Array.from(
@@ -113,6 +115,7 @@ export default function ImagesSection({
     );
   }
 
+  // registerInputRef 와 실제 DOM 노드를 동기화
   const prevNodesRef = useRef<Array<HTMLInputElement | null>>([]);
   useEffect(() => {
     if (!registerInputRef) return;
@@ -123,8 +126,11 @@ export default function ImagesSection({
       if (prevNodes[i] !== nextNodes[i]) {
         try {
           const maybeCb = (registerInputRef as any)(i);
-          if (typeof maybeCb === "function") maybeCb(nextNodes[i]);
-          else (registerInputRef as any)(i, nextNodes[i]);
+          if (typeof maybeCb === "function") {
+            maybeCb(nextNodes[i]);
+          } else {
+            (registerInputRef as any)(i, nextNodes[i]);
+          }
         } catch {
           (registerInputRef as any)(i, nextNodes[i]);
         }
@@ -145,7 +151,6 @@ export default function ImagesSection({
       {/* 가로 폴더들 */}
       {renderFolders.map((folder, idx) => {
         const fallbackLabel = `사진 폴더 ${idx + 1}`;
-        // 인풋에 들어갈 진짜 제목: 기본 라벨(사진 폴더 N)이면 비워두기
         const titleForInput =
           !folder.title || /^사진\s*폴더\s*\d+$/i.test(folder.title.trim())
             ? ""
@@ -157,7 +162,6 @@ export default function ImagesSection({
             className="image-card rounded-xl border p-3"
           >
             <div className="mb-2 flex items-center justify-between gap-2">
-              {/* 화면에는 항상 '사진 폴더 N'만 표시 */}
               <div className="text-sm font-medium text-slate-700">
                 {fallbackLabel}
               </div>
@@ -187,9 +191,15 @@ export default function ImagesSection({
               inputRef={cardInputRefs.current[idx]}
               onChangeFiles={(e) => {
                 const files = e?.target?.files ?? null;
-                if (onAddToFolder) void onAddToFolder(idx, files);
-                else if (onChangeFiles) void onChangeFiles(idx, e);
+                if (onAddToFolder) {
+                  void onAddToFolder(idx, files);
+                } else if (onChangeFiles) {
+                  void onChangeFiles(idx, e);
+                }
               }}
+              onChangeCaption={(imageIdx, text) =>
+                onChangeCaption?.(idx, imageIdx, text)
+              }
             />
           </div>
         );
@@ -210,6 +220,9 @@ export default function ImagesSection({
           onOpenPicker={() => fileInputRef.current?.click()}
           inputRef={fileInputRef}
           onChangeFiles={(e) => onAddFiles(e.target.files)}
+          onChangeCaption={(index, text) =>
+            onChangeFileItemCaption?.(index, text)
+          }
         />
       </div>
 

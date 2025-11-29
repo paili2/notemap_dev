@@ -353,7 +353,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           lat: p.lat,
           lng: p.lng,
           badge: p.badge ?? null,
-
           /** ⭐ 신축/구옥 정보 그대로 전달 */
           ageType: p.ageType ?? null,
         };
@@ -414,6 +413,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       source?: "geocode" | "search" | "draft";
       kind?: PinKind;
     }) => {
+      console.log("[upsertDraftMarker] input", m);
       setLocalDraftMarkers((prev) => {
         const list = prev.slice();
         const id = String(m.id);
@@ -427,6 +427,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         };
         if (idx >= 0) list[idx] = { ...list[idx], ...next };
         else list.push(next);
+        console.log("[upsertDraftMarker] next list", list);
         return list;
       });
     },
@@ -542,50 +543,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [searchRes?.drafts, normServerDrafts, toServerDraftsFromDrafts]
   );
 
-  useEffect(() => {
-    // 서버에서 핀이 안 들어온 상태면 굳이 손댈 필요 없음
-    if (!effectiveServerPoints?.length && !effectiveServerDrafts?.length) {
-      return;
-    }
-
-    const NEAR_THRESHOLD_M = 30; // 근처 판정 거리 (대략 30m)
-
-    setLocalDraftMarkers((prev) => {
-      if (!prev.length) return prev;
-
-      let changed = false;
-
-      const next = prev.filter((m) => {
-        const src = (m as any).source;
-        // 검색으로 생긴 임시핀만 대상
-        if (src !== "search") return true;
-
-        const pos = (m as any).position;
-        if (!pos || pos.lat == null || pos.lng == null) return false;
-
-        const lat = pos.lat;
-        const lng = pos.lng;
-
-        const hasRealPoint = effectiveServerPoints?.some((p) => {
-          return distM(lat, lng, p.lat, p.lng) <= NEAR_THRESHOLD_M;
-        });
-
-        const hasRealDraft = effectiveServerDrafts?.some((d) => {
-          return distM(lat, lng, d.lat, d.lng) <= NEAR_THRESHOLD_M;
-        });
-
-        // 근처에 실제 핀/드래프트가 있으면 이 search 임시핀은 제거
-        if (hasRealPoint || hasRealDraft) {
-          changed = true;
-          return false;
-        }
-        return true;
-      });
-
-      return changed ? next : prev;
-    });
-  }, [effectiveServerPoints, effectiveServerDrafts]);
-
   const { mergedWithTempDraft, mergedMeta } = useMergedMarkers({
     localMarkers: useMemo(
       () => [...(markers ?? []), ...localDraftMarkers],
@@ -612,9 +569,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const handleRoadviewClickOnMap = useCallback(
     (pos: { lat: number; lng: number }) => {
-      // 그냥 이 좌표 기준으로 로드뷰 열기
       openAt(pos, { face: pos });
-      // 필요하면 행정구역 / 다른 모드 끄기도 여기서 할 수 있음
       if (isDistrictOn) {
         setIsDistrictOnState(false);
       }
@@ -806,6 +761,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const handleViewportChangeInternal = useCallback(
     (v: any) => {
+      console.log("[viewportChange] fired", {
+        lastSearchCenter: lastSearchCenterRef.current,
+        v,
+      });
+
       if (lastSearchCenterRef.current) {
         const centerLat = (v.leftTop.lat + v.rightBottom.lat) / 2;
         const centerLng = (v.leftTop.lng + v.rightBottom.lng) / 2;
@@ -817,8 +777,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
           lastSearchCenterRef.current.lng
         );
 
+        console.log("[viewportChange] distance from lastSearchCenter", { d });
+
         const THRESHOLD_M = 300;
         if (d > THRESHOLD_M) {
+          console.log(
+            "[viewportChange] over threshold → clear search markers",
+            { THRESHOLD_M }
+          );
           setLocalDraftMarkers((prev) =>
             prev.filter((m) => (m as any).source !== "search")
           );
@@ -841,6 +807,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       // ✅ 메뉴 없이 단순 이동만 할 때(시청/구청/도청 등)
       const setCenterOnly = (lat: number, lng: number) => {
+        console.log("[setCenterOnly]", { lat, lng, query });
         const ll = new kakaoSDK.maps.LatLng(lat, lng);
         mapInstance.setCenter(ll);
         mapInstance.setLevel(3);
@@ -851,18 +818,131 @@ export function MapHomeUI(props: MapHomeUIProps) {
         lng: number,
         label?: string | null
       ) => {
-        const NEAR_THRESHOLD_M = 80;
+        console.log("[setCenterWithMarker] START", {
+          lat,
+          lng,
+          label,
+          query,
+          serverPointsCount: effectiveServerPoints?.length ?? 0,
+          serverDraftsCount: effectiveServerDrafts?.length ?? 0,
+          localDraftCount: localDraftMarkers.length,
+        });
 
-        const existing = visibleMarkers?.find((m) => {
-          const idStr = String((m as any).id ?? "");
+        const NEAR_THRESHOLD_M = 120; // 매물/답사예정 판정 거리
 
+        // 1️⃣ 서버에서 내려온 "진짜 매물/답사예정" 먼저 찾기
+        type RealAroundPin = {
+          id: string;
+          lat: number;
+          lng: number;
+          title?: string | null;
+        };
+
+        let bestReal: RealAroundPin | null = null;
+        let bestDist = Infinity;
+
+        const tryReal = (
+          id: string | number,
+          plat: number,
+          plng: number,
+          title?: string | null
+        ) => {
+          const d = distM(lat, lng, plat, plng);
+          if (d <= NEAR_THRESHOLD_M && d < bestDist) {
+            bestDist = d;
+            bestReal = {
+              id: String(id),
+              lat: plat,
+              lng: plng,
+              title,
+            };
+          }
+        };
+
+        // 서버 points (매물)
+        (effectiveServerPoints ?? []).forEach((p: any) => {
+          tryReal(
+            p.id,
+            p.lat,
+            p.lng,
+            (p as any).title ?? (p as any).name ?? null
+          );
+        });
+
+        // 서버 drafts (답사예정)
+        (effectiveServerDrafts ?? []).forEach((d: any) => {
+          tryReal(
+            d.id,
+            d.lat,
+            d.lng,
+            (d as any).title ?? (d as any).name ?? "답사예정"
+          );
+        });
+
+        // localDraftMarkers 중 "__visit__" (클라이언트 쪽 답사예정)
+        localDraftMarkers.forEach((m: any) => {
+          const idStr = String(m.id);
+          if (!idStr.startsWith("__visit__")) return;
+          const pos = m.position;
+          if (!pos) return;
+          tryReal(idStr, pos.lat, pos.lng, m.title ?? null);
+        });
+
+        console.log("[setCenterWithMarker] bestReal result", {
+          bestReal,
+          bestDist,
+          NEAR_THRESHOLD_M,
+        });
+
+        // 🔹 주변에 "진짜 매물/답사예정" 있으면 → 임시핀 만들지 말고 그걸로 메뉴만 연다
+        if (bestReal) {
+          const {
+            id,
+            lat: realLat,
+            lng: realLng,
+            title: realTitle,
+          } = bestReal as RealAroundPin;
+
+          const title = realTitle ?? label ?? "선택 위치";
+
+          lastSearchCenterRef.current = {
+            lat: realLat,
+            lng: realLng,
+          };
+
+          console.log("[setCenterWithMarker] use bestReal and open menu", {
+            bestReal,
+            title,
+          });
+
+          onOpenMenu?.({
+            position: { lat: realLat, lng: realLng },
+            propertyId: id,
+            propertyTitle: title,
+          });
+          return;
+        }
+
+        // 2️⃣ 그 다음에야, 이미 떠 있는 다른 마커(클러스터 결과 등) 있는지 검사
+        const EXISTING_THRESHOLD_M = 80;
+
+        const existing = visibleMarkers?.find((m: any) => {
+          const idStr = String(m.id ?? "");
+
+          // "__draft__", "__search__" 같은 임시 ID는 제외하고,
+          // 실제 매물/답사예정/즐겨찾기만 본다.
           if (idStr === "__draft__" || idStr === "__search__") return false;
 
-          const pos = (m as any).position;
+          const pos = m.position;
           if (!pos) return false;
 
           const d = distM(lat, lng, pos.lat, pos.lng);
-          return d <= NEAR_THRESHOLD_M;
+          return d <= EXISTING_THRESHOLD_M;
+        });
+
+        console.log("[setCenterWithMarker] existing marker near?", {
+          existing,
+          EXISTING_THRESHOLD_M,
         });
 
         if (existing) {
@@ -872,7 +952,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
           lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
 
-          // ✅ center/pan은 하지 않고, onOpenMenu 쪽에 맡김
           onOpenMenu?.({
             position: { lat: pos.lat, lng: pos.lng },
             propertyId: String((existing as any).id),
@@ -882,10 +961,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
           return;
         }
 
-        // 새 임시핀 + 메뉴
+        // 3️⃣ 여기까지 왔으면 진짜 매물/답사예정/기존마커가 없으니
+        //    새 "검색 임시핀"을 만든다.
         lastSearchCenterRef.current = { lat, lng };
 
         const id = "__search__";
+
+        console.log("[setCenterWithMarker] create TEMP SEARCH PIN", {
+          id,
+          lat,
+          lng,
+          label,
+        });
 
         upsertDraftMarker({
           id,
@@ -942,6 +1029,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
       places.keywordSearch(
         query,
         (data: any[], status: string) => {
+          console.log("[keywordSearch] result", {
+            query,
+            status,
+            count: data?.length ?? 0,
+          });
+
           if (status !== Status.OK || !data?.length) {
             doAddressFallback();
             return;
@@ -963,6 +1056,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
             places.keywordSearch(
               `${station.place_name} 출구`,
               (exitData: any[], exitStatus: string) => {
+                console.log("[keywordSearch exit]", {
+                  query,
+                  exitStatus,
+                  exitCount: exitData?.length ?? 0,
+                });
+
                 if (exitStatus !== Status.OK || !exitData?.length) {
                   const lat = stationLL.getLat();
                   const lng = stationLL.getLng();
@@ -1039,6 +1138,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
       upsertDraftMarker,
       onOpenMenu,
       onChangeHideLabelForId,
+      effectiveServerPoints,
+      effectiveServerDrafts,
+      localDraftMarkers,
     ]
   );
 
@@ -1090,17 +1192,22 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   useEffect(() => {
     if (!menuOpen) {
-      setLocalDraftMarkers((prev) =>
-        prev.filter((m) => (m as any).source !== "search")
-      );
-
+      // 검색 임시핀에 가려서 숨겨놓은 라벨이 있으면 해제
       if (hideLabelForId === "__search__") {
         onChangeHideLabelForId?.(undefined);
       }
-
-      lastSearchCenterRef.current = null;
+      // 🔸 더 이상 여기서 search 임시핀/lastSearchCenterRef 를 건드리지 않는다.
+      return;
     }
-  }, [menuOpen, hideLabelForId, onChangeHideLabelForId]);
+
+    // 메뉴가 열린 시점의 앵커를 기준 검색 중심으로 기억 (선택사항)
+    if (menuAnchor) {
+      lastSearchCenterRef.current = {
+        lat: menuAnchor.lat,
+        lng: menuAnchor.lng,
+      };
+    }
+  }, [menuOpen, menuAnchor, hideLabelForId, onChangeHideLabelForId]);
 
   return (
     <div className="fixed inset-0">
