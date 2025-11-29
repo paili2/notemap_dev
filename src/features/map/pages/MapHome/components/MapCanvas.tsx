@@ -28,6 +28,9 @@ export default function MapCanvas(props: {
 
   /** 🔵 로드뷰 도로(파란 라인) 오버레이 표시 여부 */
   showRoadviewOverlay?: boolean;
+
+  /** 🔵 로드뷰 도로 위 클릭 시 호출 */
+  onRoadviewClick?: (pos: { lat: number; lng: number }) => void;
 }) {
   const {
     appKey,
@@ -46,6 +49,7 @@ export default function MapCanvas(props: {
     onViewportChange,
     isDistrictOn,
     showRoadviewOverlay,
+    onRoadviewClick,
   } = props;
 
   // ✅ 전역 라벨 레지스트리 이벤트 핸들러 1회 연결
@@ -153,6 +157,9 @@ export default function MapCanvas(props: {
         }}
         poiKinds={poiKinds}
         showPoiToolbar={false}
+        // 🔵 로드뷰 관련
+        showRoadviewOverlay={showRoadviewOverlay}
+        onRoadviewClick={onRoadviewClick}
       />
 
       {pinsLoading && (

@@ -53,6 +53,10 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     poiKinds = [],
     showPoiToolbar = false,
     onOpenMenu,
+
+    // 🔵 로드뷰 관련 신규 props
+    showRoadviewOverlay = false,
+    onRoadviewClick,
   },
   ref
 ) {
@@ -92,7 +96,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     showAtOrBelowLevel: 6,
   });
 
-  // 지도 클릭 (디버그 로그 + 조건부 콜백)
+  // 지도 클릭 (로드뷰/임시핀 클릭 처리)
   useEffect(() => {
     if (!kakao || !map) return;
 
@@ -100,14 +104,21 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
       const latlng = e?.latLng;
       if (!latlng) return;
 
-      // 디버그: 좌표 확인용
-      console.log("map clicked", latlng.getLat(), latlng.getLng());
+      const pos = {
+        lat: latlng.getLat(),
+        lng: latlng.getLng(),
+      };
 
+      console.log("map clicked", pos.lat, pos.lng);
+
+      // 1) 지도 클릭으로 임시핀 생성 (옵션)
       if (allowCreateOnMapClick && onMapClick) {
-        onMapClick({
-          lat: latlng.getLat(),
-          lng: latlng.getLng(),
-        });
+        onMapClick(pos);
+      }
+
+      // 2) 로드뷰 도로(파란선) 모드일 때 → 로드뷰 열기 콜백
+      if (showRoadviewOverlay && onRoadviewClick) {
+        onRoadviewClick(pos);
       }
     };
 
@@ -115,7 +126,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     return () => {
       kakao.maps.event.removeListener(map, "click", handler);
     };
-  }, [kakao, map, allowCreateOnMapClick, onMapClick]);
+  }, [kakao, map, allowCreateOnMapClick, onMapClick, showRoadviewOverlay, onRoadviewClick]);
 
   // 마커 클릭 핸들러
   const handleMarkerClick = useCallback(
@@ -141,7 +152,6 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
       // 2) 너무 멀리서 클릭한 경우 → 먼저 250m(레벨 5)로 "점프" 줌
       if (level > PIN_MENU_MAX_LEVEL && map) {
         try {
-          // 애니메이션 없이 바로 레벨 변경 → 클릭 한 번에 "쑥" 들어온 느낌
           map.setLevel(PIN_MENU_MAX_LEVEL);
         } catch {
           /* noop */

@@ -610,6 +610,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const [isDistrictOn, setIsDistrictOnState] = useState(false);
 
+  const handleRoadviewClickOnMap = useCallback(
+    (pos: { lat: number; lng: number }) => {
+      // 그냥 이 좌표 기준으로 로드뷰 열기
+      openAt(pos, { face: pos });
+      // 필요하면 행정구역 / 다른 모드 끄기도 여기서 할 수 있음
+      if (isDistrictOn) {
+        setIsDistrictOnState(false);
+      }
+    },
+    [openAt, isDistrictOn]
+  );
+
   const toggleRoadview = useCallback(() => {
     if (roadviewVisible) {
       close();
@@ -1111,6 +1123,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onViewportChange={handleViewportChangeInternal}
         isDistrictOn={isDistrictOn}
         showRoadviewOverlay={roadviewRoadOn}
+        onRoadviewClick={roadviewRoadOn ? handleRoadviewClickOnMap : undefined}
       />
 
       <ContextMenuHost

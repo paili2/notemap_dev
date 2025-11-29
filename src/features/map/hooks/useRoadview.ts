@@ -53,6 +53,9 @@ function heading(from: LatLng, to: LatLng) {
   return deg0_360 > 180 ? deg0_360 - 360 : deg0_360; // -180~180
 }
 
+/** 로드뷰 검색 반경 단계 */
+const SEARCH_RADII = [30, 60, 120, 240];
+
 export function useRoadview(opts: Options = {}): UseRoadview {
   const { kakaoSDK, map, autoSync = true } = opts;
 
@@ -62,7 +65,10 @@ export function useRoadview(opts: Options = {}): UseRoadview {
 
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  /** 마지막으로 열려고 했던 위치/시선 */
   const lastPosRef = useRef<LatLng | null>(null);
+  const lastFaceRef = useRef<LatLng | null>(null);
 
   const getKakao = () =>
     kakaoSDK ?? (typeof window !== "undefined" ? window.kakao : undefined);
@@ -77,20 +83,48 @@ export function useRoadview(opts: Options = {}): UseRoadview {
     return true;
   }, [kakaoSDK]);
 
+  /** pos 주변에 로드뷰 파노라마가 있는지 미리 검사 */
+  const hasPanoNearby = useCallback(
+    async (pos: LatLng, face?: LatLng): Promise<boolean> => {
+      const kakao = getKakao();
+      if (!kakao?.maps) return false;
+
+      const searchPoint = face ?? pos;
+      const target = new kakao.maps.LatLng(
+        searchPoint.lat,
+        searchPoint.lng
+      ) as any;
+
+      const rvClient = new kakao.maps.RoadviewClient();
+
+      for (const r of SEARCH_RADII) {
+        // eslint-disable-next-line no-await-in-loop
+        const panoId = await new Promise<number | null>((resolve) => {
+          rvClient.getNearestPanoId(target, r, (id: number | null) =>
+            resolve(id)
+          );
+        });
+        if (panoId) return true;
+      }
+
+      return false;
+    },
+    [kakaoSDK]
+  );
+
   /** pos 주변에서 가장 가까운 파노라마를 찾아 로드뷰 세팅 + face 방향으로 카메라 회전 */
   const renderAt = useCallback(
     async (pos: LatLng, face?: LatLng) => {
       const kakao = getKakao();
       if (!kakao?.maps) return;
       if (!ensureInstance()) return;
+      if (!pos) return;
 
       setLoading(true);
       lastPosRef.current = pos;
 
       const searchPoint = face ?? pos;
       const target = new kakao.maps.LatLng(searchPoint.lat, searchPoint.lng);
-
-      const radii = [30, 60, 120, 240];
 
       const rvClient = new kakao.maps.RoadviewClient();
 
@@ -106,13 +140,16 @@ export function useRoadview(opts: Options = {}): UseRoadview {
         initListenerRef.current = null;
       }
 
-      for (const r of radii) {
+      for (const r of SEARCH_RADII) {
         // eslint-disable-next-line no-await-in-loop
         await new Promise<void>((done) => {
           rvClient.getNearestPanoId(target, r, (panoId: number | null) => {
             if (panoId) {
-              roadviewRef.current.setPanoId(panoId, target);
-              setVisible(true);
+              try {
+                roadviewRef.current.setPanoId(panoId, target);
+              } catch (e) {
+                console.error("[useRoadview] setPanoId 실패:", e);
+              }
 
               // pano 변경 후 초기화 시점에 카메라 방향 설정
               const listener = kakao.maps.event.addListener(
@@ -136,7 +173,9 @@ export function useRoadview(opts: Options = {}): UseRoadview {
                     setTimeout(() => {
                       roadviewRef.current?.relayout?.();
                     }, 150);
-                  } catch {}
+                  } catch (err) {
+                    console.error("[useRoadview] init handler error:", err);
+                  }
                 }
               );
               initListenerRef.current = listener;
@@ -149,30 +188,63 @@ export function useRoadview(opts: Options = {}): UseRoadview {
         if (found) break;
       }
 
-      if (!found) setVisible(false);
+      // 여기서는 패널 열고 난 뒤의 세팅만 담당 (열지 말지 결정은 openAt/openAtCenter에서)
       setLoading(false);
     },
     [ensureInstance, kakaoSDK]
   );
 
+  /** 맵 중심(또는 마지막 위치)에서 열기 */
   const openAtCenter = useCallback(() => {
+    let base: LatLng | null = null;
+
     if (autoSync && map?.getCenter) {
       try {
         const c = map.getCenter();
-        const pos = { lat: c.getLat(), lng: c.getLng() };
-        return renderAt(pos, pos); // 중심을 바라보게
-      } catch {}
+        base = { lat: c.getLat(), lng: c.getLng() };
+      } catch {
+        // ignore
+      }
     }
-    if (lastPosRef.current)
-      return renderAt(lastPosRef.current, lastPosRef.current);
-  }, [autoSync, map, renderAt]);
 
+    if (!base && lastPosRef.current) {
+      base = lastPosRef.current;
+    }
+
+    if (!base) return;
+
+    const face = base;
+    lastPosRef.current = base;
+    lastFaceRef.current = face;
+
+    // 먼저 로드뷰 가능 여부 체크 후, 있을 때만 패널 열기
+    (async () => {
+      const ok = await hasPanoNearby(base!, face);
+      if (!ok) {
+        // 로드뷰 데이터 없으면 패널 안 열고 종료 (회색 화면 방지)
+        return;
+      }
+      setVisible(true); // 실제 Kakao Roadview 세팅은 effect에서
+    })();
+  }, [autoSync, map, hasPanoNearby]);
+
+  /** 특정 좌표에서 열기 */
   const openAt = useCallback(
     (pos: LatLng, opts?: { face?: LatLng }) => {
       const face = opts?.face ?? pos;
-      renderAt(pos, face);
+      lastPosRef.current = pos;
+      lastFaceRef.current = face;
+
+      // 먼저 로드뷰 가능 여부 체크 후, 있을 때만 패널 열기
+      (async () => {
+        const ok = await hasPanoNearby(pos, face);
+        if (!ok) {
+          return;
+        }
+        setVisible(true); // 실제 Kakao Roadview 세팅은 effect에서
+      })();
     },
-    [renderAt]
+    [hasPanoNearby]
   );
 
   const close = useCallback(() => {
@@ -182,8 +254,22 @@ export function useRoadview(opts: Options = {}): UseRoadview {
   const resize = useCallback(() => {
     try {
       roadviewRef.current?.relayout?.();
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  /** visible + containerRef 준비된 뒤에 실제 Kakao Roadview 생성/이동 */
+  useEffect(() => {
+    if (!visible) return;
+    if (!roadviewContainerRef.current) return;
+    if (!lastPosRef.current) return;
+
+    const pos = lastPosRef.current;
+    const face = lastFaceRef.current ?? lastPosRef.current;
+
+    renderAt(pos, face);
+  }, [visible, renderAt]);
 
   // ESC로 닫기
   useEffect(() => {

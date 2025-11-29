@@ -89,4 +89,10 @@ export type MapViewProps = {
 
   /** (옵션) 탭 간 지도 동기화 채널명. 지정 시 BroadcastChannel 활성화 */
   syncChannelName?: string;
+
+  /** 🔵 로드뷰 도로(파란선) 오버레이 표시 여부 */
+  showRoadviewOverlay?: boolean;
+
+  /** 🔵 로드뷰 도로 모드에서 지도 클릭 시 호출 */
+  onRoadviewClick?: (pos: LatLng) => void;
 };
