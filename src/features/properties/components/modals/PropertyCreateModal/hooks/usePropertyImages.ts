@@ -80,12 +80,8 @@ export function usePropertyImages(opts?: SeedOpts) {
   };
 
   /** 선택 파일을 카드에 추가 + IDB 저장 + File 보존 */
-  const onPickFilesToFolder = async (
-    idx: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const files = e.target.files;
-    if (!files) return;
+  const onPickFilesToFolder = async (idx: number, files: FileList | null) => {
+    if (!files || files.length === 0) return;
 
     const newItems: UploaderImageItem[] = [];
     for (const f of Array.from(files)) {
@@ -95,7 +91,7 @@ export function usePropertyImages(opts?: SeedOpts) {
         idbKey: key,
         url: URL.createObjectURL(f),
         name: f.name,
-        file: f, // ✅ 핵심: File 보존
+        file: f, // File 보존
       });
     }
 
@@ -106,7 +102,11 @@ export function usePropertyImages(opts?: SeedOpts) {
       return next;
     });
 
-    e.target.value = ""; // 같은 파일 재선택 허용
+    // 🔥 input value 초기화(같은 파일 재선택 허용)
+    const input = imageInputRefs.current[idx];
+    if (input) {
+      input.value = "";
+    }
   };
 
   const addPhotoFolder = () => {

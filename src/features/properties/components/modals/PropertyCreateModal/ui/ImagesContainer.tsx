@@ -20,15 +20,17 @@ export default function ImagesContainer({
     verticalImages?: ImageItem[];
     fileItems?: ImageItem[];
 
-    /** ref 연결 & 파일 열기/선택 */
+    /** ref 연결 & 파일 열기/선택 (지금은 ImagesSection이 직접 관리하므로 여기서는 사용 X) */
     registerImageInput: {
       (idx: number): (el: HTMLInputElement | null) => void;
       (idx: number, el: HTMLInputElement | null): void;
     };
     openImagePicker: (folderIndex: number) => void;
+
+    /** ✅ 새 시그니처: (idx, FileList|null) */
     onPickFilesToFolder: (
       folderIndex: number,
-      e: React.ChangeEvent<HTMLInputElement>
+      files: FileList | null
     ) => void | Promise<void>;
 
     /** 카드 폴더 조작 & 편집 */
@@ -120,9 +122,6 @@ export default function ImagesContainer({
   const maxPerCard = images.maxPerCard ?? 20;
   const maxFiles = images.maxFiles ?? 200;
 
-  /** 6) ref 래퍼 */
-  const registerInputRef = images.registerImageInput;
-
   /** 7) 가로 폴더 제목 변경 → folder-idx 가짜 id로 큐잉 */
   const handleChangeFolderTitle = React.useCallback(
     (folderIdx: number, nextTitle: string) => {
@@ -140,15 +139,21 @@ export default function ImagesContainer({
     [images.queueGroupTitle]
   );
 
+  /** 9) 가로 폴더에 파일 추가 → 새 시그니처 사용 */
+  const handleAddToFolder = React.useCallback(
+    (folderIdx: number, files: FileList | null) => {
+      images.onPickFilesToFolder(folderIdx, files);
+    },
+    [images]
+  );
+
   return (
     <div className="relative z-0" data-images-root>
       <ImagesSection
         /** 가로 폴더 */
         folders={folders}
         onChangeFolderTitle={handleChangeFolderTitle}
-        onOpenPicker={images.openImagePicker}
-        onChangeFiles={images.onPickFilesToFolder}
-        registerInputRef={registerInputRef}
+        onAddToFolder={handleAddToFolder}
         onAddFolder={images.addPhotoFolder}
         onRemoveFolder={images.removePhotoFolder}
         maxPerCard={maxPerCard}

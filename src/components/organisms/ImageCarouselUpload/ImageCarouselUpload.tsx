@@ -184,7 +184,8 @@ export default function ImageCarouselUpload({
 
   // 파일 선택 후 value 초기화(같은 파일 재선택 허용)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChangeFiles?.(e);
+    console.log("[ImageCarouselUpload] selected files:", e.target.files);
+    onChangeFiles?.(e.target.files);
     e.currentTarget.value = "";
   };
 

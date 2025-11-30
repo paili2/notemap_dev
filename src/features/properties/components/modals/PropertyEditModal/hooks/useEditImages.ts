@@ -151,8 +151,13 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   /* 초기 하이드레이션 */
   useEffect(() => {
     let mounted = true;
+
+    // 🔥 initial 이 { raw, view } 형태면 view 만 뽑아서 사용
+    const effectiveInitial: any =
+      initial && (initial as any).view ? (initial as any).view : initial;
+
     (async () => {
-      if (!initial) {
+      if (!effectiveInitial) {
         if (hasServerHydratedRef.current) return;
         if (mounted) {
           setImageFolders([[]]);
@@ -162,7 +167,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
       }
 
       // 1) 카드형
-      const cardRefs = initial._imageCardRefs;
+      const cardRefs = effectiveInitial._imageCardRefs;
       if (Array.isArray(cardRefs) && cardRefs.length > 0) {
         if (hasServerHydratedRef.current) return;
         const safe = cardRefs.map((c: any) => (Array.isArray(c) ? c : [c]));
@@ -173,8 +178,9 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         }
       } else {
         const foldersRaw =
-          normalizeCardsInput(initial.imageFolders ?? initial.imageCards) ??
-          null;
+          normalizeCardsInput(
+            effectiveInitial.imageFolders ?? effectiveInitial.imageCards
+          ) ?? null;
 
         if (Array.isArray(foldersRaw) && foldersRaw.length > 0) {
           if (hasServerHydratedRef.current) return;
@@ -191,8 +197,9 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
           }
         } else {
           const flat =
-            normalizeVerticalInput(initial.images)?.filter(Boolean) ?? null;
-          const counts: number[] | undefined = initial.imageCardCounts;
+            normalizeVerticalInput(effectiveInitial.images)?.filter(Boolean) ??
+            null;
+          const counts: number[] | undefined = effectiveInitial.imageCardCounts;
 
           if (flat && flat.length > 0) {
             if (hasServerHydratedRef.current) return;
@@ -211,7 +218,7 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         }
 
         // 2) 세로형
-        const fileRefs = initial._fileItemRefs;
+        const fileRefs = effectiveInitial._fileItemRefs;
         if (Array.isArray(fileRefs) && fileRefs.length > 0) {
           if (hasServerHydratedRef.current) return;
           const hydrated = await hydrateVertical(
@@ -222,9 +229,9 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         } else {
           const verticalRaw =
             normalizeVerticalInput(
-              initial.verticalImages ??
-                initial.imagesVertical ??
-                initial.fileItems
+              effectiveInitial.verticalImages ??
+                effectiveInitial.imagesVertical ??
+                effectiveInitial.fileItems
             ) ?? null;
 
           if (Array.isArray(verticalRaw) && verticalRaw.length > 0) {
@@ -662,9 +669,20 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
   /* 카드형 파일 추가/삭제 */
   const onPickFilesToFolder = useCallback(
     async (idx: number, files: FileList | null) => {
-      if (!files || files.length === 0) return;
+      console.log(
+        "[useEditImages] onPickFilesToFolder idx:",
+        idx,
+        "files:",
+        files
+      );
+
+      if (!files || files.length === 0) {
+        console.log("[useEditImages] no files received!");
+        return;
+      }
 
       const fileArr = Array.from(files);
+      console.log("[useEditImages] converted fileArr:", fileArr);
 
       const tempItems: ImageItem[] = fileArr.map((f) => ({
         file: f,
@@ -672,11 +690,14 @@ export function useEditImages({ propertyId, initial }: UseEditImagesArgs) {
         url: URL.createObjectURL(f),
       }));
 
-      setImageFolders((prev) =>
-        prev.map((folder, i) =>
+      setImageFolders((prev) => {
+        console.log("[useEditImages] before set:", prev);
+        const next = prev.map((folder, i) =>
           i === idx ? [...folder, ...tempItems].slice(0, MAX_PER_CARD) : folder
-        )
-      );
+        );
+        console.log("[useEditImages] after set:", next);
+        return next;
+      });
     },
     []
   );

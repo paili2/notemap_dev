@@ -17,11 +17,9 @@ export default function HeaderSectionView({
   closeButtonRef,
   headingId,
   descId,
-  // 연식
   ageType,
   completionDate,
   newYearsThreshold = 5,
-  // ⭐ 리베이트 텍스트(만원 단위)
   rebateText,
 }: HeaderSectionViewProps) {
   const pinSrc = useMemo(() => getPinUrl(pinKind), [pinKind]);
@@ -40,7 +38,6 @@ export default function HeaderSectionView({
   }, [title]);
 
   const ageLabel = useMemo<"신축" | "구옥" | "-">(() => {
-    // 서버 ageType → getAgeLabel 에서 쓰는 isNew/isOld 플래그로 변환
     const isNewFlag =
       ageType === "NEW" ? true : ageType === "OLD" ? false : null;
     const isOldFlag =
@@ -61,7 +58,6 @@ export default function HeaderSectionView({
       ? "bg-amber-50 border-amber-200 text-amber-700"
       : "bg-gray-50 border-gray-200 text-gray-500";
 
-  // 🔢 리베이트 표시용 문자열 (0이하 / 비어있으면 숨김)
   const rebateDisplay = useMemo(() => {
     if (rebateText === null || rebateText === undefined) return null;
     const raw = String(rebateText).trim();
@@ -75,51 +71,54 @@ export default function HeaderSectionView({
 
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
-      <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-5 whitespace-nowrap overflow-hidden">
-        <span
-          className={cn(
-            "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",
-            ageClass
-          )}
-        >
-          {ageLabel}
-        </span>
+      {/* flex-wrap으로 줄바꿈 허용, md 이상에서만 가로 한 줄 */}
+      <div className="flex flex-wrap md:flex-nowrap items-center gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-5 overflow-hidden">
+        {/* 1️⃣ [모바일 1줄] 연식 + 제목 묶음 */}
+        <div className="order-1 flex items-center gap-2 flex-1 min-w-0 w-full md:w-auto">
+          <span
+            className={cn(
+              "inline-flex h-8 md:h-9 items-center rounded-md border px-2 md:px-3 text-xs md:text-sm font-bold shrink-0",
+              ageClass
+            )}
+          >
+            {ageLabel}
+          </span>
 
-        {/* 핀 아이콘 */}
-        <div className="shrink-0 w-7 h-7 md:w-9 md:h-9 grid place-items-center">
-          <Image src={pinSrc} alt="pin" width={24} height={32} priority />
-        </div>
-
-        {/* 평점 */}
-        <span className="hidden md:flex shrink-0 text-[20px] font-semibold text-gray-800">
-          매물평점
-        </span>
-        <div className="shrink-0 w-[120px] md:w-[200px] leading-none">
-          <StarsRating value={rating} className="hidden md:flex" />
-          <div className="flex md:hidden">
-            <StarMeter value={rating} showValue />
+          <div className="flex-1 min-w-0 text-xl text-slate-900">
+            <div className="h-9 md:h-10 flex items-center pl-1 pr-2 md:px-3 rounded-md bg-white">
+              <span className="truncate text-lg font-medium text-left">
+                {displayTitle}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* 구분선 */}
-        <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
+        {/* 2️⃣ 핀 + 평점 */}
+        <div className="order-2 flex items-center gap-2 shrink-0 mt-1 md:mt-0">
+          {/* 핀 아이콘 */}
+          <div className="shrink-0 w-7 h-7 md:w-9 md:h-9 grid place-items-center">
+            <Image src={pinSrc} alt="pin" width={24} height={32} priority />
+          </div>
 
-        {/* 매물명 */}
-        <span className="hidden md:flex shrink-0 text-[20px] font-semibold text-gray-800">
-          매물명
-        </span>
-        <div className="flex-1 min-w-0 text-xl text-slate-900">
-          <div className="h-9 md:h-10 flex items-center px-2 md:px-3 rounded-md bg-white">
-            <span className="truncate text-lg font-medium">{displayTitle}</span>
+          {/* 평점 라벨 (PC에서만) */}
+          <span className="hidden md:flex shrink-0 text-[20px] font-semibold text-gray-800">
+            매물평점
+          </span>
+
+          <div className="shrink-0 w-[120px] md:w-[200px] leading-none">
+            <StarsRating value={rating} className="hidden md:flex" />
+            <div className="flex md:hidden">
+              <StarMeter value={rating} showValue />
+            </div>
           </div>
         </div>
 
-        {/* 구분선 */}
-        <div className="h-5 w-px bg-gray-200 mx-1 shrink-0 hidden sm:block" />
+        {/* 3️⃣ 구분선 (PC에서만) */}
+        <div className="hidden sm:block h-5 w-px bg-gray-200 mx-1 shrink-0 md:order-3" />
 
-        {/* 🔥 리베이트 표시 */}
+        {/* 4️⃣ 리베이트 */}
         {rebateDisplay && (
-          <div className="shrink-0 flex items-center gap-3">
+          <div className="order-3 md:order-4 shrink-0 flex items-center gap-3 mt-1 md:mt-0">
             <span className="flex items-center h-9 text-[20px] md:text-[22px] font-extrabold text-red-500">
               R
             </span>

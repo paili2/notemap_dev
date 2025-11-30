@@ -1,3 +1,4 @@
+// (예: src/features/properties/components/modal/PropertyEditModal/ui/ImagesContainer.tsx)
 "use client";
 
 import type React from "react";
@@ -18,8 +19,6 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
   const {
     imageFolders,
     verticalImages,
-    registerImageInput,
-    openImagePicker,
     onPickFilesToFolder,
     addPhotoFolder,
     removePhotoFolder,
@@ -29,7 +28,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     onChangeFileItemCaption,
     handleRemoveFileItem,
 
-    // ⬇️ 훅의 서버 상태/큐잉 API
+    // 서버 상태/큐잉
     groups,
     queueGroupTitle,
     reorder,
@@ -142,9 +141,14 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
     [verticalImages]
   );
 
-  /** 5) (idx, FileList|null) → 훅 onPickFilesToFolder (그냥 FileList 전달) */
+  /** 5) (idx, FileList|null) → 훅 onPickFilesToFolder 호출 */
   const addToFolder = (folderIdx: number, files: FileList | null) => {
-    console.log("addToFolder", folderIdx, files?.length);
+    console.log(
+      "[ImagesContainer] addToFolder idx:",
+      folderIdx,
+      "files:",
+      files
+    );
     onPickFilesToFolder(folderIdx, files);
   };
 
@@ -195,9 +199,7 @@ export default function ImagesContainer({ images }: { images: EditImagesAPI }) {
       /* 가로 폴더 */
       folders={folders}
       onChangeFolderTitle={onChangeFolderTitle}
-      onOpenPicker={openImagePicker}
       onAddToFolder={addToFolder}
-      registerInputRef={registerImageInput}
       onAddFolder={addPhotoFolder}
       onRemoveFolder={removePhotoFolder}
       maxPerCard={MAX_PER_CARD}

@@ -9,9 +9,8 @@ export interface ImageCarouselUploadProps {
   onOpenPicker?: () => void;
 
   /** ✅ 콜백 ref 제거, 객체 ref만 허용 */
-  inputRef?: React.RefObject<HTMLInputElement> | null;
-
-  onChangeFiles?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  inputRef?: React.Ref<HTMLInputElement> | null;
+  onChangeFiles?: (files: FileList | null) => void;
   maxCount?: number;
   layout?: "wide" | "tall";
   wideAspectClass?: string;

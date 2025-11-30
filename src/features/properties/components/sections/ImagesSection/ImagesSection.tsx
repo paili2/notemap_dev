@@ -1,3 +1,4 @@
+// (예: src/features/properties/components/sections/ImagesSection/ImagesSection.tsx)
 "use client";
 
 import type React from "react";
@@ -13,15 +14,10 @@ export type PhotoFolder = {
   items: ImageItem[];
 };
 
-type RegisterRef =
-  | ((idx: number) => (el: HTMLInputElement | null) => void)
-  | ((idx: number, el: HTMLInputElement | null) => void);
-
 type Props = {
   /* 가로 폴더(카드형) */
   folders: PhotoFolder[];
   onChangeFolderTitle?: (folderIdx: number, nextTitle: string) => void;
-  onOpenPicker: (folderIdx: number) => void;
 
   /** 새 시그니처: (idx, FileList|null) */
   onAddToFolder?: (
@@ -29,13 +25,6 @@ type Props = {
     files: FileList | null
   ) => void | Promise<void>;
 
-  /** 레거시 시그니처: (idx, ChangeEvent<HTMLInputElement>) */
-  onChangeFiles?: (
-    folderIdx: number,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => void | Promise<void>;
-
-  registerInputRef?: RegisterRef;
   onAddFolder: () => void;
   onRemoveFolder?: (
     folderIdx: number,
@@ -75,10 +64,7 @@ type Props = {
 export default function ImagesSection({
   folders,
   onChangeFolderTitle,
-  onOpenPicker,
   onAddToFolder,
-  onChangeFiles,
-  registerInputRef,
   onAddFolder,
   onRemoveFolder,
   maxPerCard,
@@ -114,31 +100,6 @@ export default function ImagesSection({
       (_, i) => cardInputRefs.current[i] ?? createRef<HTMLInputElement>()
     );
   }
-
-  // registerInputRef 와 실제 DOM 노드를 동기화
-  const prevNodesRef = useRef<Array<HTMLInputElement | null>>([]);
-  useEffect(() => {
-    if (!registerInputRef) return;
-    const nextNodes = cardInputRefs.current.map((r) => r.current ?? null);
-    const prevNodes = prevNodesRef.current;
-
-    for (let i = 0; i < nextNodes.length; i++) {
-      if (prevNodes[i] !== nextNodes[i]) {
-        try {
-          const maybeCb = (registerInputRef as any)(i);
-          if (typeof maybeCb === "function") {
-            maybeCb(nextNodes[i]);
-          } else {
-            (registerInputRef as any)(i, nextNodes[i]);
-          }
-        } catch {
-          (registerInputRef as any)(i, nextNodes[i]);
-        }
-      }
-    }
-
-    prevNodesRef.current = nextNodes;
-  }, [renderFolders.length, registerInputRef]);
 
   /* 세로 폴더 input */
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -187,16 +148,9 @@ export default function ImagesSection({
               folderTitle={titleForInput}
               onChangeFolderTitle={(text) => onChangeFolderTitle?.(idx, text)}
               onRemoveImage={(imageIdx) => handleRemove(idx, imageIdx)}
-              onOpenPicker={() => onOpenPicker(idx)}
+              onOpenPicker={() => cardInputRefs.current[idx]?.current?.click()}
               inputRef={cardInputRefs.current[idx]}
-              onChangeFiles={(e) => {
-                const files = e?.target?.files ?? null;
-                if (onAddToFolder) {
-                  void onAddToFolder(idx, files);
-                } else if (onChangeFiles) {
-                  void onChangeFiles(idx, e);
-                }
-              }}
+              onChangeFiles={(files) => onAddToFolder?.(idx, files)}
               onChangeCaption={(imageIdx, text) =>
                 onChangeCaption?.(idx, imageIdx, text)
               }
@@ -219,7 +173,10 @@ export default function ImagesSection({
           onRemoveImage={onRemoveFileItem}
           onOpenPicker={() => fileInputRef.current?.click()}
           inputRef={fileInputRef}
-          onChangeFiles={(e) => onAddFiles(e.target.files)}
+          onChangeFiles={(files) => {
+            console.log("[ImagesSection] vertical onChangeFiles:", files);
+            onAddFiles(files);
+          }}
           onChangeCaption={(index, text) =>
             onChangeFileItemCaption?.(index, text)
           }
