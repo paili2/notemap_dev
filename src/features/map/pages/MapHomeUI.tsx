@@ -175,27 +175,21 @@ function shouldCreateSearchPin(item: any, keyword: string) {
 
   // 🔹 역 이름만 검색(출구 없이) → 핀 안 만들고 이동만
   if (!isExitQuery) {
-    // 지하철역 카테고리
     if (catCode === "SW8") return false;
-    // "○○역" 으로 끝나는 이름
     if (/역$/.test(name)) return false;
   }
 
-  // 1) "대한민국", "○○시청/구청/도청" 같은 큰 단위는 **무조건 핀 없이 이동만**
   const bigRegionPattern = /(대한민국|청사|도청|시청|구청)$/;
   if (bigRegionPattern.test(name) || bigRegionPattern.test(addr)) {
     return false;
   }
 
-  // 2) "○○시" 단독(동/읍/면/리 없이)만 검색된 경우도 핀 없이 이동만
   if (/^(.*(시|군|구))$/.test(name) && !/(동|읍|면|리)/.test(name)) {
     return false;
   }
 
-  // 3) 그 밖의 카테고리 있는 애들(편의시설, 아파트 등)은 핀 생성 허용
   if (item.category_group_code) return true;
 
-  // 4) 나머지(동 단위 주소, 상가 이름 등)는 핀 허용
   return true;
 }
 
@@ -270,8 +264,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     closeView,
     createFromDraftId,
   } = props;
-
-  console.debug("[MapHomeUI] draftHeaderPrefill prop =", draftHeaderPrefill);
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
   const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
@@ -401,10 +393,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
         const hasDrafts = (res.drafts?.length ?? 0) > 0;
 
         if (!hasPins && !hasDrafts) {
-          // ✅ 조건에 맞는 핀이 하나도 없을 때
           setNoResultDialogOpen(true);
         } else {
-          // ✅ 결과 있을 때만 지도 맞추기
           fitToSearch(res);
         }
       } catch (e: any) {
@@ -465,6 +455,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
     },
     []
   );
+
+  // 🔴 검색/지도에서 만든 임시핀(__draft__, __search__) 제거용
+  const clearTempMarkers = useCallback(() => {
+    setLocalDraftMarkers((prev) =>
+      prev.filter((m) => {
+        const id = String(m.id);
+        return id !== "__draft__" && id !== "__search__";
+      })
+    );
+  }, []);
 
   const originalOnAfterCreate = createHostHandlers?.onAfterCreate;
 
@@ -731,10 +731,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     } catch {}
   }, [kakaoSDK, mapInstance]);
 
-  // 한 군데에서만 레벨 관리
   const TARGET_FOCUS_LEVEL = 4;
 
-  // ✅ 답사지 예약(Flat 리스트) 클릭 시 지도 이동
   const handleFocusItemMap = useCallback(
     (item: ListItem | null) => {
       if (!item || !kakaoSDK || !mapInstance) return;
@@ -757,7 +755,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [kakaoSDK, mapInstance]
   );
 
-  // ✅ 즐겨찾기 하위 매물 클릭 시 지도 이동
   const handleFocusSubItemMap = useCallback(
     (sub: SubListItem | null) => {
       if (!sub || !kakaoSDK || !mapInstance) return;
@@ -818,14 +815,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
   );
 
   const handleSubmitSearch = useCallback(
-    (text: string) => {
+    async (text: string) => {
       const query = text.trim();
       if (!query || !kakaoSDK || !mapInstance) return;
 
-      // 상위 상태 훅(useMapHomeState)에도 검색어 전달
       onSubmitSearch?.(query);
 
-      // ✅ 메뉴 없이 단순 이동만 할 때(시청/구청/도청/역 등)
       const setCenterOnly = (lat: number, lng: number) => {
         console.log("[setCenterOnly]", { lat, lng, query });
         const ll = new kakaoSDK.maps.LatLng(lat, lng);
@@ -833,24 +828,44 @@ export function MapHomeUI(props: MapHomeUIProps) {
         mapInstance.setLevel(3);
       };
 
-      const setCenterWithMarker = (
+      // kakao 지도 애니메이션(이동/줌)이 끝난 뒤에 fn 실행
+      const runAfterIdle = (fn: () => void) => {
+        if (!kakaoSDK || !mapInstance || !(kakaoSDK as any).maps?.event) {
+          fn();
+          return;
+        }
+
+        try {
+          const event = (kakaoSDK as any).maps.event;
+          let fired = false;
+
+          const listener = event.addListener(mapInstance, "idle", () => {
+            if (fired) return;
+            fired = true;
+            event.removeListener(listener);
+            fn();
+          });
+
+          // 혹시 idle 이 안 들어오면 안전 타임아웃
+          setTimeout(() => {
+            if (fired) return;
+            fired = true;
+            event.removeListener(listener);
+            fn();
+          }, 400);
+        } catch {
+          fn();
+        }
+      };
+
+      const setCenterWithMarker = async (
         lat: number,
         lng: number,
         label?: string | null
       ) => {
-        console.log("[setCenterWithMarker] START", {
-          lat,
-          lng,
-          label,
-          query,
-          serverPointsCount: effectiveServerPoints?.length ?? 0,
-          serverDraftsCount: effectiveServerDrafts?.length ?? 0,
-          localDraftCount: localDraftMarkers.length,
-        });
+        const NEAR_THRESHOLD_M = 450;
+        const EXISTING_THRESHOLD_M = 350;
 
-        const NEAR_THRESHOLD_M = 120; // 매물/답사예정 판정 거리
-
-        // 1️⃣ 서버에서 내려온 "진짜 매물/답사예정" 먼저 찾기
         type RealAroundPin = {
           id: string;
           lat: number;
@@ -858,141 +873,146 @@ export function MapHomeUI(props: MapHomeUIProps) {
           title?: string | null;
         };
 
-        let bestReal: RealAroundPin | null = null;
-        let bestDist = Infinity;
+        // 1) 지도 중심/레벨 먼저 맞추기
+        try {
+          const ll = new kakaoSDK.maps.LatLng(lat, lng);
+          mapInstance.setCenter(ll);
+          mapInstance.setLevel(3);
+        } catch {}
 
-        const tryReal = (
-          id: string | number,
-          plat: number,
-          plng: number,
-          title?: string | null
-        ) => {
-          const d = distM(lat, lng, plat, plng);
-          if (d <= NEAR_THRESHOLD_M && d < bestDist) {
-            bestDist = d;
-            bestReal = {
-              id: String(id),
-              lat: plat,
-              lng: plng,
-              title,
-            };
-          }
-        };
+        // 주변 실제핀 찾는 함수
+        const findBestRealAround = (): RealAroundPin | null => {
+          let bestReal: RealAroundPin | null = null;
+          let bestDist = Infinity;
 
-        // 서버 points (매물)
-        (effectiveServerPoints ?? []).forEach((p: any) => {
-          tryReal(
-            p.id,
-            p.lat,
-            p.lng,
-            (p as any).title ?? (p as any).name ?? null
-          );
-        });
-
-        // 서버 drafts (답사예정)
-        (effectiveServerDrafts ?? []).forEach((d: any) => {
-          tryReal(
-            d.id,
-            d.lat,
-            d.lng,
-            (d as any).title ?? (d as any).name ?? "답사예정"
-          );
-        });
-
-        // localDraftMarkers 중 "__visit__" (클라이언트 쪽 답사예정)
-        localDraftMarkers.forEach((m: any) => {
-          const idStr = String(m.id);
-          if (!idStr.startsWith("__visit__")) return;
-          const pos = m.position;
-          if (!pos) return;
-          tryReal(idStr, pos.lat, pos.lng, m.title ?? null);
-        });
-
-        console.log("[setCenterWithMarker] bestReal result", {
-          bestReal,
-          bestDist,
-          NEAR_THRESHOLD_M,
-        });
-
-        // 🔹 주변에 "진짜 매물/답사예정" 있으면 → 임시핀 만들지 말고 그걸로 메뉴만 연다
-        if (bestReal) {
-          const {
-            id,
-            lat: realLat,
-            lng: realLng,
-            title: realTitle,
-          } = bestReal as RealAroundPin;
-
-          const title = realTitle ?? label ?? "선택 위치";
-
-          lastSearchCenterRef.current = {
-            lat: realLat,
-            lng: realLng,
+          const tryReal = (
+            id: string | number,
+            plat: number,
+            plng: number,
+            title?: string | null
+          ) => {
+            const d = distM(lat, lng, plat, plng);
+            if (d <= NEAR_THRESHOLD_M && d < bestDist) {
+              bestDist = d;
+              bestReal = {
+                id: String(id),
+                lat: plat,
+                lng: plng,
+                title,
+              };
+            }
           };
 
-          console.log("[setCenterWithMarker] use bestReal and open menu", {
-            bestReal,
-            title,
+          (effectiveServerPoints ?? []).forEach((p: any) => {
+            tryReal(
+              p.id,
+              p.lat,
+              p.lng,
+              (p as any).title ?? (p as any).name ?? null
+            );
           });
 
-          onOpenMenu?.({
-            position: { lat: realLat, lng: realLng },
-            propertyId: id,
-            propertyTitle: title,
+          (effectiveServerDrafts ?? []).forEach((d: any) => {
+            tryReal(
+              d.id,
+              d.lat,
+              d.lng,
+              (d as any).title ?? (d as any).name ?? "답사예정"
+            );
           });
+
+          localDraftMarkers.forEach((m: any) => {
+            const idStr = String(m.id);
+            if (!idStr.startsWith("__visit__")) return;
+            const pos = m.position;
+            if (!pos) return;
+            tryReal(idStr, pos.lat, pos.lng, m.title ?? null);
+          });
+
+          return bestReal;
+        };
+
+        // 기존 visibleMarkers 기반 "existing" 찾는 로직
+        const findExistingMarker = () => {
+          return visibleMarkers?.find((m: any) => {
+            const idStr = String(m.id ?? "");
+
+            if (idStr === "__draft__" || idStr === "__search__") return false;
+
+            const pos = m.position;
+            if (!pos) return false;
+
+            const d = distM(lat, lng, pos.lat, pos.lng);
+            return d <= EXISTING_THRESHOLD_M;
+          });
+        };
+
+        // 2) 한 번 먼저 실제핀/기존핀 찾기
+        let bestReal = findBestRealAround();
+
+        // 3) 못 찾았으면 뷰포트 강제 새로고침만 살짝 시도 (딜레이 없음)
+        if (!bestReal && kakaoSDK && mapInstance?.getLevel) {
+          try {
+            const level = mapInstance.getLevel();
+            const center = mapInstance.getCenter();
+
+            mapInstance.setLevel(level + 1, { animate: false });
+            mapInstance.setLevel(level, { animate: false });
+            mapInstance.setCenter(center);
+          } catch {}
+
+          bestReal = findBestRealAround();
+        }
+
+        // 4) 근처에 실제 매물/답사핀 있으면 그것 기준으로 메뉴 한 번만 열기
+        if (bestReal) {
+          const { id, lat: realLat, lng: realLng, title: realTitle } = bestReal;
+          const title = realTitle ?? label ?? "선택 위치";
+
+          runAfterIdle(() => {
+            clearTempMarkers();
+
+            lastSearchCenterRef.current = {
+              lat: realLat,
+              lng: realLng,
+            };
+
+            onOpenMenu?.({
+              position: { lat: realLat, lng: realLng },
+              propertyId: id,
+              propertyTitle: title,
+            });
+          });
+
           return;
         }
 
-        // 2️⃣ 그 다음에야, 이미 떠 있는 다른 마커(클러스터 결과 등) 있는지 검사
-        const EXISTING_THRESHOLD_M = 80;
-
-        const existing = visibleMarkers?.find((m: any) => {
-          const idStr = String(m.id ?? "");
-
-          // "__draft__", "__search__" 같은 임시 ID는 제외하고,
-          // 실제 매물/답사예정/즐겨찾기만 본다.
-          if (idStr === "__draft__" || idStr === "__search__") return false;
-
-          const pos = m.position;
-          if (!pos) return false;
-
-          const d = distM(lat, lng, pos.lat, pos.lng);
-          return d <= EXISTING_THRESHOLD_M;
-        });
-
-        console.log("[setCenterWithMarker] existing marker near?", {
-          existing,
-          EXISTING_THRESHOLD_M,
-        });
+        const existing = findExistingMarker();
 
         if (existing) {
           const pos = (existing as any).position;
           const title =
             (existing as any).title ?? label ?? query ?? "선택 위치";
 
-          lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
+          runAfterIdle(() => {
+            lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
 
-          onOpenMenu?.({
-            position: { lat: pos.lat, lng: pos.lng },
-            propertyId: String((existing as any).id),
-            propertyTitle: title,
+            onOpenMenu?.({
+              position: { lat: pos.lat, lng: pos.lng },
+              propertyId: String((existing as any).id),
+              propertyTitle: title,
+            });
           });
 
           return;
         }
 
-        // 3️⃣ 여기까지 왔으면 진짜 매물/답사예정/기존마커가 없으니
-        //    새 "검색 임시핀"을 만든다.
+        // 5) 여기까지 와도 없으면 __search__ 임시핀 + 질문핀 메뉴
+        clearTempMarkers();
+
         lastSearchCenterRef.current = { lat, lng };
 
         const id = "__search__";
-
-        console.log("[setCenterWithMarker] create TEMP SEARCH PIN", {
-          id,
-          lat,
-          lng,
-          label,
-        });
 
         upsertDraftMarker({
           id,
@@ -1003,12 +1023,24 @@ export function MapHomeUI(props: MapHomeUIProps) {
           kind: "question",
         });
 
-        onOpenMenu?.({
-          position: { lat, lng },
-          propertyTitle: label ?? query ?? "선택 위치",
-          pin: { kind: "question", isFav: false },
-        });
-        onChangeHideLabelForId?.(id);
+        const openMenu = () => {
+          onOpenMenu?.({
+            position: { lat, lng },
+            propertyId: id, // 🔙 다시 넘겨주기
+            propertyTitle: label ?? query ?? "선택 위치",
+            pin: { kind: "question", isFav: false },
+          });
+          onChangeHideLabelForId?.(id);
+        };
+
+        if (
+          typeof window !== "undefined" &&
+          "requestAnimationFrame" in window
+        ) {
+          window.requestAnimationFrame(openMenu);
+        } else {
+          setTimeout(openMenu, 0);
+        }
       };
 
       const places = new kakaoSDK.maps.services.Places();
@@ -1060,7 +1092,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
-          // 🚇 역 + 출구 검색
           if (hasExit && stationName) {
             const station = pickBestStation(data, stationName);
             if (!station) {
@@ -1119,7 +1150,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
             return;
           }
 
-          // 🚇 역 이름만 / 일반 장소 검색
           let target: any;
           if (stationName) {
             target = pickBestStation(data, stationName);
@@ -1161,6 +1191,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       effectiveServerPoints,
       effectiveServerDrafts,
       localDraftMarkers,
+      clearTempMarkers,
     ]
   );
 
@@ -1200,15 +1231,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   useEffect(() => {
     if (!menuOpen) {
-      // 검색 임시핀에 가려서 숨겨놓은 라벨이 있으면 해제
       if (hideLabelForId === "__search__") {
         onChangeHideLabelForId?.(undefined);
       }
-      // 🔸 더 이상 여기서 search 임시핀/lastSearchCenterRef 를 건드리지 않는다.
       return;
     }
 
-    // 메뉴가 열린 시점의 앵커를 기준 검색 중심으로 기억 (선택사항)
     if (menuAnchor) {
       lastSearchCenterRef.current = {
         lat: menuAnchor.lat,
@@ -1387,7 +1415,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         open={noResultDialogOpen}
         onOpenChange={setNoResultDialogOpen}
         onResetFilters={() => {
-          // 선택: 필터 초기화 + 패널 다시 열기
           clearSearch();
           setFilterSearchOpen(true);
         }}

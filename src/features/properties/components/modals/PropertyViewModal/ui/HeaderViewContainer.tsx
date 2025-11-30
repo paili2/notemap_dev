@@ -61,18 +61,6 @@ export default function HeaderViewContainer({
   // ⭐ ageType을 반영해서 실제로 화면에 보여줄 핀 종류 결정
   const displayPinKind = getDisplayPinKind(pinKind, ageType ?? null);
 
-  if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log("[HeaderViewContainer] → HeaderSectionView props", {
-      ageType,
-      completionDate,
-      newYearsThreshold,
-      rebateText,
-      pinKind,
-      displayPinKind,
-    });
-  }
-
   return (
     <HeaderSectionView
       title={title}

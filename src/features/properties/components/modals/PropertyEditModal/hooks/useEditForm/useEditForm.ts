@@ -27,6 +27,8 @@ type InitialForPatch = {
   contactSubPhone: string;
   minRealMoveInCost: string;
   unitLines: UnitLine[];
+  initialName?: string;
+  initialHasElevator?: boolean | null;
 };
 
 /** 서버 buildingType / registry 문자열 → UI 용도 표기 (도/생/근생 라벨 포함) */
@@ -293,21 +295,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     initId ?? (sourceData ? "__NOID__" : null);
 
   const normalized = useMemo(() => {
-    // 🔍 sourceData / buildingType 로그
-    console.log("[useEditForm] sourceData(flattened) =", sourceData);
-    console.log(
-      "[useEditForm] sourceData.buildingType =",
-      (sourceData as any)?.buildingType
-    );
-
     const n = normalizeInitialData(sourceData);
-
-    console.log("[useEditForm] normalized =", n);
-    console.log(
-      "[useEditForm] normalized.buildingType =",
-      (n as any)?.buildingType
-    );
-
     return n;
   }, [initKey, sourceData]);
 
@@ -426,12 +414,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
         buildingTypeRaw,
       });
 
-      console.log("[useEditForm][init registry]", {
-        normRegRaw,
-        buildingTypeRaw,
-        finalRegistry,
-      });
-
       setRegistry(finalRegistry);
     }
 
@@ -476,12 +458,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
 
     const mergedOptionEtc = extraCandidates.join(", ");
 
-    console.log("[useEditForm][options init]", {
-      presetOptions,
-      extraCandidates,
-      mergedOptionEtc,
-    });
-
     // 3) 최종 상태에 주입
     setOptions(presetOptions);
     setOptionEtc(mergedOptionEtc);
@@ -513,6 +489,24 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       contactSubPhone: normalized.officePhone2 ?? "",
       minRealMoveInCost: normalized.salePrice ?? "",
       unitLines: (normalized.unitLines ?? []).map((u) => ({ ...u })),
+
+      // 🔥 제목 초기값 스냅샷(name/title 전부 고려)
+      initialName:
+        (normalized as any).title ??
+        (normalized as any).name ??
+        (sourceData as any)?.title ??
+        (sourceData as any)?.name ??
+        "",
+
+      // 🔥 엘리베이터 초기값 스냅샷(hasElevator / boolean elevator 모두 고려)
+      initialHasElevator:
+        (normalized as any).hasElevator ??
+        (typeof (normalized as any).elevator === "boolean"
+          ? (normalized as any).elevator
+          : (sourceData as any)?.hasElevator ??
+            (typeof (sourceData as any)?.elevator === "boolean"
+              ? (sourceData as any).elevator
+              : null)),
     };
   }, [initKey, normalized, sourceData]);
 
@@ -534,13 +528,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       buildingTypeRaw,
     });
 
-    console.log("[useEditForm][sync registry]", {
-      normRegRaw,
-      buildingTypeRaw,
-      calculated,
-      prevRegistry: registry,
-    });
-
     setRegistry((prev) => {
       if (prev && calculated && String(prev) === String(calculated))
         return prev;
@@ -553,17 +540,6 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     (normalized as any)?.buildingType,
     sourceData,
   ]);
-
-  // 🔎 디버그용: buildingType/parkingType 변화 로그
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("[useEditForm] buildingType (state) =", buildingType);
-  }, [buildingType]);
-
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log("[useEditForm] parkingType =", parkingType);
-  }, [parkingType]);
 
   /* ========== 파생값/유효성 ========== */
   const baseHasExclusive = useMemo(

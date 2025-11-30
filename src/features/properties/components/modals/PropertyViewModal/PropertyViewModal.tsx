@@ -252,7 +252,6 @@ export default function PropertyViewModal({
 
   const onEditSubmit = useCallback(
     async (payload: UpdatePayload & Partial<CreatePayload>) => {
-      console.log("[PropertyViewModal] onEditSubmit payload =", payload);
       try {
         const viewPatch = toViewPatchFromEdit(payload);
 
@@ -365,8 +364,6 @@ function ViewStage({
   /** ✅ 마지막으로 저장한 payload (있으면 이걸 우선 사용) */
   lastEditPayload: any | null;
 }) {
-  console.log("[PropertyViewModal/ViewStage] render", { data });
-
   // ✅ 현재 로그인 유저 정보
   const { data: me } = useMe();
   const { toast } = useToast();
@@ -392,12 +389,6 @@ function ViewStage({
   const ageType = useMemo<"NEW" | "OLD" | null>(() => {
     const src = { ...(data as any), ...(f as any) };
     const resolved = deriveAgeTypeFrom(src);
-
-    console.log("[PropertyViewModal/ViewStage] ageType", {
-      src,
-      resolved,
-    });
-
     return resolved;
   }, [data, f]);
 
@@ -509,12 +500,6 @@ function ViewStage({
         unitLines: (f as any).unitLines,
       },
     };
-
-    console.log("[PropertyViewModal/ViewStage] editSeed for EditModal", {
-      baseInitial,
-      data,
-      editSeed,
-    });
 
     onRequestEdit(editSeed);
   }, [canEditProperty, toast, f, data, onRequestEdit, initialForEdit]);

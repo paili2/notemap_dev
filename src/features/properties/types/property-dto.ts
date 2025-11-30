@@ -249,4 +249,6 @@ export type UpdatePayload = {
   pinDraftId?: number | string | null;
   lat?: number;
   lng?: number;
+
+  hasElevator?: boolean | null;
 };

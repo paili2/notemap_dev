@@ -426,7 +426,17 @@ export function buildUpdatePayload(
   };
 
   /* ===== 기본 ===== */
-  put("title", a.title, initial?.title);
+
+  // 🔥 초기 제목: initial.initialName → name/title → raw.name/raw.title 순서로 찾기
+  const prevNameOrTitle =
+    (initial as any)?.initialName ??
+    (initial as any)?.name ??
+    (initial as any)?.title ??
+    (initial as any)?.raw?.name ??
+    (initial as any)?.raw?.title ??
+    undefined;
+
+  put("title", a.title, prevNameOrTitle);
   put("address", a.address, initial?.address);
   put("officeName", a.officeName, initial?.officeName);
   put("officePhone", a.officePhone, initial?.officePhone);
@@ -510,10 +520,39 @@ export function buildUpdatePayload(
   put("completionDate", a.completionDate, initial?.completionDate);
 
   /* ===== 평점/엘리베이터 ===== */
+
+  /* ===== 평점/엘리베이터 ===== */
   if (defined(a.parkingGrade) && parkingGradeVal !== undefined) {
     put("parkingGrade", parkingGradeVal, initial?.parkingGrade);
   }
-  put("elevator", a.elevator, initial?.elevator);
+
+  // 🔥 elevator ("O" | "X") ↔ hasElevator(boolean/null) 동기화
+  if (defined(a.elevator)) {
+    const nextHasElevator =
+      a.elevator === "O" ? true : a.elevator === "X" ? false : null;
+
+    // 초기 hasElevator: initial.initialHasElevator → hasElevator → boolean elevator
+    const prevHasElevator =
+      (initial as any)?.initialHasElevator ??
+      (initial as any)?.hasElevator ??
+      (typeof (initial as any)?.elevator === "boolean"
+        ? (initial as any).elevator
+        : null);
+
+    // ✅ hasElevator: 진짜 바뀌었을 때만 PATCH
+    putAllowNull("hasElevator", nextHasElevator, prevHasElevator);
+
+    // 선택적으로 elevator 문자열 자체도 비교해서 보낼 수 있음
+    const prevElevatorStr =
+      (initial as any)?.elevator ??
+      (typeof prevHasElevator === "boolean"
+        ? prevHasElevator
+          ? "O"
+          : "X"
+        : undefined);
+
+    put("elevator", a.elevator, prevElevatorStr);
+  } // ⬅️ 이 if 블록 여기서 닫아줘야 함
 
   /* ===== 숫자 ===== */
   putAllowNull("totalBuildings", totalBuildingsN, initial?.totalBuildings);
