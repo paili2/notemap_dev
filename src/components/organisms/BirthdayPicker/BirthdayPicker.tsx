@@ -5,7 +5,7 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/atoms/Button/Button";
 import { Input } from "@/components/atoms/Input/Input";
-import SafePopover from "@/features/safe/SafePopover"; // ✅ 가드된 Popover
+import SafePopover from "@/shared/components/safe/SafePopover"; // ✅ 가드된 Popover
 import { Calendar } from "@/components/atoms/Calendar/Calendar";
 import { toYMD, parseYMD, isValidYMD } from "@/lib/dateUtils"; // ✅ 공통 유틸 사용
 

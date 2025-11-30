@@ -1,6 +1,5 @@
 "use client";
 
-import type { MapMarker } from "../../../shared/types/map";
 import { createSurveyReservation } from "@/shared/api/surveyReservations";
 import { createPinDraft } from "@/shared/api/pins";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +13,7 @@ import {
 } from "@/features/map/shared/overlays/labelRegistry";
 import PinContextMenuContainer from "@/features/map/shared/pinContextMenu/components/PinContextMenu/PinContextMenuContainer";
 import { CreateFromPinArgs } from "@/features/map/shared/pinContextMenu/components/PinContextMenu/types";
+import { MapMarker } from "../../shared/types/map";
 
 /* ───────── 유틸 ───────── */
 function assertNoTruncate(tag: string, lat: number, lng: number) {

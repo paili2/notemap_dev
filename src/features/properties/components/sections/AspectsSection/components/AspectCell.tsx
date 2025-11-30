@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/atoms/Button/Button";
 import { Trash2 } from "lucide-react";
-import SafeSelect from "@/features/safe/SafeSelect";
+import SafeSelect from "@/shared/components/safe/SafeSelect";
 import type {
   AspectRowLite,
   OrientationValue,

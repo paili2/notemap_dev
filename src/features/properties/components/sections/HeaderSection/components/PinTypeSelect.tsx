@@ -1,7 +1,7 @@
 "use client";
 
 import Image, { StaticImageData } from "next/image";
-import SafeSelect from "@/features/safe/SafeSelect";
+import SafeSelect from "@/shared/components/safe/SafeSelect";
 
 import oneRoom from "@/../public/pins/1room-pin.svg";
 import oneRoomTerrace from "@/../public/pins/1room-terrace-pin.svg";

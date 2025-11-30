@@ -154,6 +154,20 @@ export default function PropertyCreateModalBody({
     queueGroupTitle,
   } = usePropertyImages();
 
+  /** ✅ 제목 + 사진이 있는 가로 폴더가 최소 1개라도 있는지 */
+  const hasImageFolderWithTitle = useMemo(() => {
+    const folders = imageFolders as any[];
+
+    return folders.some((folder, idx) => {
+      const hasImage = Array.isArray(folder) && folder.length > 0;
+      if (!hasImage) return false;
+
+      const titleFromMeta =
+        groups.find((g) => g.id === `folder-${idx}`)?.title ?? "";
+      return titleFromMeta.trim().length > 0;
+    });
+  }, [imageFolders, groups]);
+
   /** ───── ref 콜백 안정화 + detach 처리 + 지연 등록 ───── */
   type RefEntry = {
     cb: (el: HTMLInputElement | null) => void;
@@ -486,6 +500,8 @@ export default function PropertyCreateModalBody({
         ? (folderAny as ImageItem[])
         : [];
 
+      console.log("[persistOneCard] run", { folderIdx, groupImages });
+
       if (!groupImages.length) return;
 
       // 🔹 id 기반으로 메타 찾기
@@ -543,6 +559,8 @@ export default function PropertyCreateModalBody({
     async (pinId: string | number) => {
       if (processedVerticalRef.current) return;
       processedVerticalRef.current = true;
+
+      console.log("[persistVerticalFiles] run", { fileItems });
 
       try {
         const filePromises = fileItems.map((it, i) =>
@@ -693,6 +711,11 @@ export default function PropertyCreateModalBody({
       }
 
       /* ====== 2) 일반핀 저장(createPin) 로직 ====== */
+
+      if (!isVisitPlanPin && !hasImageFolderWithTitle) {
+        alert("사진 폴더 제목과 사진을 최소 1개 이상 등록해 주세요.");
+        return;
+      }
 
       if (!rawPinKindLocal) {
         alert("핀 종류를 선택해 주세요.");
@@ -922,6 +945,7 @@ export default function PropertyCreateModalBody({
     isVisitPlanPin,
     mainTitle,
     mainOfficePhone,
+    hasImageFolderWithTitle,
   ]);
 
   const imagesProp = useMemo(
@@ -999,6 +1023,7 @@ export default function PropertyCreateModalBody({
     unitLinesPriceError,
     isVisitPlanPin,
     minimalForVisitPlan,
+    hasImageFolderWithTitle,
   });
 
   const canSave = isVisitPlanPin
@@ -1006,6 +1031,7 @@ export default function PropertyCreateModalBody({
     : f.isSaveEnabled &&
       extraRequiredFilled &&
       !unitLinesPriceError &&
+      hasImageFolderWithTitle &&
       !isSaving;
 
   /** ✅ 일반핀 → 답사예정핀으로 전환될 때, 비활성화되는 필드 값 초기화 */

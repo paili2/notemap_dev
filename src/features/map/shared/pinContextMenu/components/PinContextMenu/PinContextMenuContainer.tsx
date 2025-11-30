@@ -14,12 +14,12 @@ import {
   createSurveyReservation,
   fetchUnreservedDrafts,
 } from "@/shared/api/surveyReservations";
-import type { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
 import { togglePinDisabled } from "@/shared/api/pins";
 import { useMe } from "@/shared/api/auth";
+import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
 
 /** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 function posKey(lat: number, lng: number) {

@@ -5,7 +5,7 @@ import { Input } from "@/components/atoms/Input/Input";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { ParkingSectionProps, Preset } from "./types";
 import { PRESETS } from "./constants";
-import SafeSelect from "@/features/safe/SafeSelect";
+import SafeSelect from "@/shared/components/safe/SafeSelect";
 
 const PARKING_TYPE_MAX_LEN = 50;
 

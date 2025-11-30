@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import type { LatLng } from "@/lib/geo/types";
 
 /* ───────── Kakao 얇은 타입 ───────── */
@@ -154,41 +154,32 @@ export function usePanToWithOffset(
   kakaoSDK: KakaoSDK | null,
   mapInstance: KakaoMapInstance | null
 ): (latlng: LatLng, offsetY?: number, offsetX?: number) => void {
-  const relayoutQueued = useRef(false);
-
   return useCallback(
     (latlng: LatLng, offsetY = 180, offsetX = 0) => {
       if (!kakaoSDK || !mapInstance) return;
 
-      // 레이아웃 직후 재계산(1프레임 뒤)
-      if (
-        !relayoutQueued.current &&
-        typeof mapInstance.relayout === "function"
-      ) {
-        relayoutQueued.current = true;
-        requestAnimationFrame(() => {
-          try {
-            mapInstance.relayout?.();
-          } finally {
-            relayoutQueued.current = false;
-          }
-        });
-      }
+      // 1️⃣ 일단 레이아웃을 바로 맞춰 놓고
+      try {
+        mapInstance.relayout?.();
+      } catch {}
 
       const pos = new kakaoSDK.maps.LatLng(latlng.lat, latlng.lng);
       const proj = mapInstance.getProjection?.();
 
-      // 프로젝션 불가 → 기본 panTo
-      if (!proj?.pointFromCoords || !proj?.coordsFromPoint) {
+      // 2️⃣ projection 을 못 얻으면 그냥 기본 panTo
+      if (!proj || !proj.pointFromCoords || !proj.coordsFromPoint) {
         mapInstance.panTo?.(pos);
         return;
       }
 
-      // 오프셋 적용
+      // 3️⃣ 오프셋 적용해서 항상 같은 방식으로 이동
       const pt = proj.pointFromCoords(pos);
-      const target = proj.coordsFromPoint(
-        new kakaoSDK.maps.Point(pt.x + offsetX, pt.y - offsetY)
+      const targetPoint = new kakaoSDK.maps.Point(
+        pt.x + offsetX,
+        pt.y - offsetY
       );
+      const target = proj.coordsFromPoint(targetPoint);
+
       mapInstance.panTo?.(target);
     },
     [kakaoSDK, mapInstance]

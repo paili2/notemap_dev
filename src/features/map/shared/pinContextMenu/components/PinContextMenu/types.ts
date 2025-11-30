@@ -1,6 +1,6 @@
 import { LatLng } from "@/lib/geo/types";
 import type { PinItem } from "@/features/pins/types";
-import { MergedMarker } from "@/features/map/pages/MapHome/hooks/useMergedMarkers";
+import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
 
 /** 컨텍스트 메뉴가 붙을 수 있는 대상(마커, LatLng 객체, 리터럴 좌표) */
 export type PinTarget = kakao.maps.Marker | kakao.maps.LatLng | LatLng;

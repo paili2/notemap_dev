@@ -1,20 +1,17 @@
 "use client";
 
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
-import { FilterSearch } from "../../../components/filterSearch";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
-import { MapHomeUIProps } from "./types";
-import { useMergedMarkers } from "../hooks/useMergedMarkers";
-import MapCanvas from "../components/MapCanvas";
-import ContextMenuHost from "../components/ContextMenuHost";
-import FilterFab from "../components/FilterFab";
-import ModalsHost from "../components/ModalsHost";
-import { usePlannedDrafts } from "../../../hooks/usePlannedDrafts";
-import { useBoundsRaw } from "../../../hooks/useBoundsRaw";
+
+import { useMergedMarkers } from "./hooks/useMergedMarkers";
+import MapCanvas from "./components/MapCanvas";
+import ContextMenuHost from "./components/ContextMenuHost";
+import FilterFab from "./components/FilterFab";
+import ModalsHost from "./components/ModalsHost";
+
 import { cn } from "@/lib/cn";
 
-import type { MapMarker } from "../../../shared/types/map";
 import type { PinKind } from "@/features/pins/types";
 import type {
   PinSearchParams,
@@ -29,12 +26,6 @@ import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 
-/* 라벨 숨김/복원 */
-import {
-  hideLabelsAround,
-  showLabelsAround,
-} from "@/features/map/shared/overlays/labelRegistry";
-
 import { distM } from "@/features/map/hooks/poi/geometry";
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
@@ -44,6 +35,11 @@ import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import TopRightControls from "@/features/map/components/TopRightControls";
 import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
+import { MapHomeUIProps } from "./types";
+import { useBoundsRaw } from "../hooks/useBoundsRaw";
+import { MapMarker } from "../shared/types/map";
+import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
+import { FilterSearch } from "../components/filterSearch";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -172,6 +168,18 @@ function shouldCreateSearchPin(item: any, keyword: string) {
     item.address?.address_name ||
     "";
   const name = item.place_name || addr || keyword;
+
+  const keywordNorm = (keyword || "").trim();
+  const isExitQuery = /출구/.test(keywordNorm);
+  const catCode = item.category_group_code || "";
+
+  // 🔹 역 이름만 검색(출구 없이) → 핀 안 만들고 이동만
+  if (!isExitQuery) {
+    // 지하철역 카테고리
+    if (catCode === "SW8") return false;
+    // "○○역" 으로 끝나는 이름
+    if (/역$/.test(name)) return false;
+  }
 
   // 1) "대한민국", "○○시청/구청/도청" 같은 큰 단위는 **무조건 핀 없이 이동만**
   const bigRegionPattern = /(대한민국|청사|도청|시청|구청)$/;
@@ -817,7 +825,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       // 상위 상태 훅(useMapHomeState)에도 검색어 전달
       onSubmitSearch?.(query);
 
-      // ✅ 메뉴 없이 단순 이동만 할 때(시청/구청/도청 등)
+      // ✅ 메뉴 없이 단순 이동만 할 때(시청/구청/도청/역 등)
       const setCenterOnly = (lat: number, lng: number) => {
         console.log("[setCenterOnly]", { lat, lng, query });
         const ll = new kakaoSDK.maps.LatLng(lat, lng);
@@ -1185,18 +1193,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
       null) as PropertyViewDetails | null;
     return ensureViewForEdit(base);
   }, [selectedViewItem, viewDataLocal]);
-
-  useEffect(() => {
-    if (!mapInstance || !menuAnchor) return;
-    if (menuOpen) {
-      hideLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 40);
-      return () => {
-        showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
-      };
-    } else {
-      showLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
-    }
-  }, [mapInstance, menuOpen, menuAnchor?.lat, menuAnchor?.lng]);
 
   useEffect(() => {
     if (selectedViewItem) setViewOpenLocal(true);

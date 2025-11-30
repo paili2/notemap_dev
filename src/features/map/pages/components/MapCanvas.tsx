@@ -3,9 +3,9 @@
 import * as React from "react";
 import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
 
-import type { MapMarker } from "../../../shared/types/map";
 import { attachLabelRegistryGlobalHandlers } from "@/features/map/shared/overlays/labelRegistry";
 import MapView from "@/features/map/view/MapView";
+import { MapMarker } from "../../shared/types/map";
 
 export default function MapCanvas(props: {
   appKey: string;

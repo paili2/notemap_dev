@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
 import { KOREA_BOUNDS } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
-import { useToast } from "@/hooks/use-toast"; // ✅ 추가
+import { useToast } from "@/hooks/use-toast";
 import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
 
 type Args = {
@@ -529,6 +529,7 @@ const useKakaoMap = ({
       if (isTooBroadKeyword(trimmed)) {
         toast({
           title: "검색 범위가 너무 넓어요",
+          variant: "destructive",
           description: "정확한 주소 또는 건물명을 입력해주세요.",
         });
         return;

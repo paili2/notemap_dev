@@ -21,6 +21,9 @@ import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import Portal from "@/components/Portal";
 import { BuildingType } from "@/features/properties/types/property-domain";
 
+// ✅ 토스트 훅 추가
+import { useToast } from "@/hooks/use-toast";
+
 type Props = FilterSearchProps & {
   onApply?: (params: PinSearchParams) => void;
   initial?: Partial<FilterState>;
@@ -33,6 +36,33 @@ const toM2 = (s: string) => {
     ? Math.round(n * PYEONG_TO_M2)
     : undefined;
 };
+
+// ✅ 숫자 파싱 유틸 (0 이하는 "입력 안 함"으로 간주)
+const parsePositiveNumber = (s: string) => {
+  const n = Number((s ?? "").replaceAll(",", "").trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+// ✅ 범위 검증 유틸 (라벨 + 최소/최대 문자열)
+function validateRangeLabel(
+  label: string,
+  minStr: string,
+  maxStr: string
+): string | null {
+  const min = parsePositiveNumber(minStr);
+  const max = parsePositiveNumber(maxStr);
+
+  // 둘 중 하나라도 안 적혀 있으면 (부분검색 허용) → 통과
+  if (min === null || max === null) return null;
+
+  if (min === max) {
+    return `${label}의 최소값과 최대값이 같을 수 없어요.`;
+  }
+  if (max < min) {
+    return `${label}의 최대값은 최소값보다 커야 해요.`;
+  }
+  return null;
+}
 
 function buildPinSearchParams(ui: FilterState): PinSearchParams {
   const params: PinSearchParams = {};
@@ -125,6 +155,9 @@ export default function FilterSearch({
     initialFilterState as FilterState
   );
 
+  // ✅ 토스트 훅
+  const { toast } = useToast();
+
   // 🔹 모달이 열릴 때만 initial 반영 (isOpen만 의존)
   useEffect(() => {
     if (!isOpen) return;
@@ -155,6 +188,31 @@ export default function FilterSearch({
   };
 
   const applyFilters = () => {
+    // ✅ 1) 면적 / 매매가 범위 먼저 검증
+    const areaError = validateRangeLabel(
+      "면적",
+      filters.areaMin,
+      filters.areaMax
+    );
+    const priceError = validateRangeLabel(
+      "매매가",
+      filters.priceMin,
+      filters.priceMax
+    );
+
+    const message = areaError ?? priceError;
+
+    if (message) {
+      // ❌ 잘못된 경우: 검색 요청 안 보내고 토스트만 띄우기
+      toast({
+        variant: "destructive",
+        title: "입력값을 확인해 주세요",
+        description: message,
+      });
+      return;
+    }
+
+    // ✅ 2) 검증 통과 시에만 실제 검색 파라미터 빌드 + onApply 호출
     const params = buildPinSearchParams(filters);
     onApply?.(params);
     onClose();
@@ -338,7 +396,7 @@ export default function FilterSearch({
             {/* 매매가 */}
             <FilterSection
               title={
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify_between gap-2">
                   <span>매매가</span>
                   <span className="text-xs text-gray-700">
                     {priceMinLabel} ~ {priceMaxLabel}

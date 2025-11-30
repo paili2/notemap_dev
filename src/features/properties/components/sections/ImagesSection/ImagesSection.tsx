@@ -1,4 +1,3 @@
-// (예: src/features/properties/components/sections/ImagesSection/ImagesSection.tsx)
 "use client";
 
 import type React from "react";

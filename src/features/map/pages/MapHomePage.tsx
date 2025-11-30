@@ -1,21 +1,21 @@
 "use client";
 
 import { useCallback, useMemo, useEffect } from "react";
-import { useMapHomeState } from "../MapHome/hooks/useMapHomeState";
-import { MapHomeUI } from "../MapHome/MapHomeUI/MapHomeUI";
 
 import { useSidebar } from "@/features/sidebar/SideBarProvider";
 import FavGroupModal from "@/features/sidebar/components/FavGroupModal";
 import type { ListItem } from "@/features/sidebar/types/sidebar";
 
+import { createPinDraft } from "@/shared/api/pins";
+import { useToast } from "@/hooks/use-toast";
 import { useReverseGeocode } from "./hooks/useReverseGeocode";
 import { useFavModalController } from "./hooks/useFavModalController";
-import { useReserveFromMenu, eqId } from "./hooks/useReserveFromMenu";
-
-import { createPinDraft } from "@/shared/api/pins";
-import { buildAddressLine } from "../../shared/pinContextMenu/components/PinContextMenu/utils/geo";
-import { useToast } from "@/hooks/use-toast";
-import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
+import { eqId } from "@/shared/api/surveyReservations";
+import { CreateFromPinArgs } from "../shared/pinContextMenu/components/PinContextMenu/types";
+import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
+import { buildAddressLine } from "../shared/pinContextMenu/components/PinContextMenu/utils/geo";
+import MapHomeUI from "./MapHomeUI";
+import { useMapHomeState } from "./hooks/useMapHomeState";
 
 const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 

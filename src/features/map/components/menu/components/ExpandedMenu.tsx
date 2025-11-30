@@ -67,14 +67,6 @@ const POI_CATEGORY_LABEL: Record<PoiCategoryKey, string> = {
   leisure: "여가",
 };
 
-/**
- * poiOverlays.tsx 기준 PoiKind:
- *  "convenience" | "mart" | "cafe" | "pharmacy" | "hospital" |
- *  "subway" | "parking" | "school" | "police"(안전기관: 경찰/소방) | "culture" | "park"
- *
- * - 예전 "ktx" → "parking" 으로 통일
- * - 소방 포함 안전기관은 "police" kind 로 통합 관리
- */
 const POI_CATEGORY_ITEMS: Record<PoiCategoryKey, PoiKind[]> = {
   transport: ["subway", "parking"],
   convenience: ["convenience", "mart"],

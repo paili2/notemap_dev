@@ -8,7 +8,6 @@ import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToIte
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import type { ViewSource } from "@/features/properties/lib/view/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
-import { PoiKind } from "../../../shared/overlays/poiOverlays";
 
 /* ⬇️ 라벨 숨김/복원 유틸 */
 import {
@@ -18,15 +17,17 @@ import {
 
 import { useToast } from "@/hooks/use-toast";
 import { PinKind } from "@/features/pins/types";
-import { CreateFromPinArgs } from "../../../shared/pinContextMenu/components/PinContextMenu/types";
-import { isTooBroadKeyword } from "../../../shared/utils/isTooBroadKeyword";
-import { useViewportPost } from "../../../hooks/useViewportPost";
-import { usePinsMap } from "../../../hooks/usePinsMap";
-import { usePanToWithOffset } from "../../../hooks/useKakaoTools";
-import { useRunSearch } from "../../../hooks/useRunSearch";
+
 import { useResolveAddress } from "@/hooks/useResolveAddress";
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { buildEditPatchWithMedia } from "@/features/properties/components/modals/PropertyEditModal/lib/buildEditPatch";
+import { PoiKind } from "../../shared/overlays/poiOverlays";
+import { useViewportPost } from "../../hooks/useViewportPost";
+import { usePinsMap } from "../../hooks/usePinsMap";
+import { usePanToWithOffset } from "../../hooks/useKakaoTools";
+import { useRunSearch } from "../../hooks/useRunSearch";
+import { isTooBroadKeyword } from "../../shared/utils/isTooBroadKeyword";
+import { CreateFromPinArgs } from "../../shared/pinContextMenu/components/PinContextMenu/types";
 
 type LocalCreateFromPinArgs = CreateFromPinArgs & {
   /** 답사예정지 '간단등록' 모드인지 여부 */
@@ -92,12 +93,16 @@ type OpenMenuOpts = {
   jibunAddress?: string | null;
   /** 줌 레벨 상관 없이 강제로 메뉴 열기 */
   forceOpen?: boolean;
+  /** 외부에서 이미 panTo를 한 경우, 여기서는 지도 이동 생략 */
+  skipPan?: boolean;
 };
 
 /** 지도 도구 모드 (지적/로드뷰 배타적 관리) */
 type MapToolMode = "none" | "district" | "roadview";
 
 export function useMapHomeState() {
+  const zoomTokenRef = useRef(0);
+
   // 지도/SDK
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
@@ -344,8 +349,6 @@ export function useMapHomeState() {
         level,
       });
 
-      // 🔐 기본 경로: 너무 축소되어 있으면 토스트만 띄우고 종료
-      //   ↳ marker 클릭에서 "강제 오픈"할 때는 forceOpen=true 로 우회
       if (
         !opts?.forceOpen &&
         typeof level === "number" &&
@@ -356,7 +359,7 @@ export function useMapHomeState() {
           description:
             "핀을 선택하거나 위치를 지정하려면 지도를 250m 수준까지 확대해 주세요.",
         });
-        return; // 메뉴/임시핀 생성 X
+        return;
       }
 
       const p = normalizeLL(position);
@@ -368,7 +371,6 @@ export function useMapHomeState() {
       setDraftPinSafe(isDraft ? p : null);
       setFitAllOnce(false);
 
-      // ✅ 임시 방문핀(__visit__123)에서 온 경우, draftId 기억
       if (sid.startsWith("__visit__")) {
         const rawId = sid.replace("__visit__", "");
         setCreateFromDraftId(rawId || null);
@@ -394,7 +396,10 @@ export function useMapHomeState() {
         setMenuJibunAddr(jibun ?? null);
       }
 
-      panToWithOffset(p, 180);
+      // 🔹 검색/포커스 경로에서 이미 panTo 한 경우엔 지도 이동 생략
+      if (!opts?.skipPan) {
+        panToWithOffset(p, 180);
+      }
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
@@ -422,36 +427,45 @@ export function useMapHomeState() {
         return;
       }
 
+      const ev = kakaoSDK?.maps?.event;
       const currentLevel = map.getLevel?.();
       const needsZoom =
         typeof currentLevel === "number" && currentLevel > targetLevel;
 
+      // 1) 먼저 줌 레벨 맞추기
       if (needsZoom) {
-        // event 객체 안전하게 꺼내기
-        const event = kakaoSDK?.maps?.event;
-
-        // event가 없으면 그냥 레벨만 바꾸고 넘어감
-        if (!event) {
+        try {
           map.setLevel(targetLevel, { animate: true });
-        } else {
-          map.setLevel(targetLevel, { animate: true });
-
-          // 📌 줌 애니메이션이 끝나는 순간까지 기다림
-          await new Promise<void>((resolve) => {
-            const handler = () => {
-              // 등록했던 handler로 제거해야 함
-              event.removeListener(map, "idle", handler);
-              resolve();
-            };
-            event.addListener(map, "idle", handler);
-          });
+        } catch {
+          map.setLevel(targetLevel);
         }
+
+        await new Promise<void>((resolve) => {
+          if (!ev || typeof ev.addListener !== "function") {
+            setTimeout(resolve, 250);
+            return;
+          }
+          const handler = () => {
+            try {
+              ev.removeListener(map, "idle", handler);
+            } catch {}
+            resolve();
+          };
+          ev.addListener(map, "idle", handler);
+        });
       }
 
-      // 이제 안전하게 메뉴 오픈
-      await openMenuAt(p, propertyId, { forceOpen: true });
+      // 2) 줌 끝난 후, 우리가 원하는 좌표로 이동
+      panToWithOffset(p, 180);
+
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
+
+      // 3) 지도는 그대로 두고 메뉴 상태만 세팅
+      await openMenuAt(p, propertyId, { forceOpen: true, skipPan: true });
     },
-    [mapInstance, kakaoSDK, openMenuAt]
+    [mapInstance, kakaoSDK, panToWithOffset, openMenuAt]
   );
 
   /**
@@ -587,6 +601,7 @@ export function useMapHomeState() {
       if (isTooBroadKeyword(keyword)) {
         toast({
           title: "검색 범위가 너무 넓어요",
+          variant: "destructive",
           description: "정확한 주소 또는 건물명을 입력해주세요.",
         });
         return;
@@ -625,16 +640,6 @@ export function useMapHomeState() {
       setMenuOpen(false);
     }
   }, [draftPin, resolveAddress, onChangeHideLabelForId, setRawMenuAnchor]);
-
-  // 지도 이동(idle 트리거)
-  useEffect(() => {
-    if (!draftPin || !kakaoSDK || !mapInstance) return;
-    panToWithOffset(draftPin, 180);
-    kakaoSDK.maps.event.trigger(mapInstance, "idle");
-    requestAnimationFrame(() =>
-      kakaoSDK.maps.event.trigger(mapInstance, "idle")
-    );
-  }, [draftPin, kakaoSDK, mapInstance, panToWithOffset]);
 
   // 마커 클릭 (매물핀 / __visit__ / __draft__ 모두 지원)
   const handleMarkerClick = useCallback(

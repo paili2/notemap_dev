@@ -67,14 +67,47 @@ function normalizeStarStr(v: unknown): StarStr {
 /** UI에서 허용하는 등기/건물타입 (라디오 버튼 라벨 기준) */
 const BUILDING_TYPES: BuildingType[] = ["주택", "APT", "OP", "도생", "근생"];
 
-/** 서버/폼 값 → 우리가 쓰는 라벨 그대로만 허용 (추가 매핑 없음) */
+/**
+ * 서버/폼 값 → 우리가 쓰는 라벨로 정규화
+ * - 문자열뿐 아니라 { value, label } 같은 객체도 처리
+ * - 오피스텔 / OFFICETEL / op 등은 전부 "OP" 로 통일
+ */
 const normalizeBuildingType = (v: any): BuildingType | undefined => {
   if (v == null) return undefined;
-  const s = typeof v === "string" ? v.trim() : "";
+
+  let s = "";
+
+  if (typeof v === "string") {
+    s = v.trim();
+  } else if (typeof v === "object") {
+    const cand =
+      v.value ?? v.code ?? v.key ?? v.label ?? v.name ?? v.id ?? v.text ?? "";
+    if (typeof cand === "string") s = cand.trim();
+  }
+
   if (!s) return undefined;
-  return BUILDING_TYPES.includes(s as BuildingType)
-    ? (s as BuildingType)
-    : undefined;
+
+  const upper = s.toUpperCase();
+
+  // 한국어 / 코드 여러 패턴을 우리 라벨로 매핑
+  if (s === "주택") return "주택";
+
+  if (upper === "APT" || s === "아파트") return "APT";
+
+  if (upper === "OP" || upper === "OFFICETEL" || s === "오피스텔") {
+    return "OP";
+  }
+
+  if (s === "도생" || s === "도시형생활주택") return "도생";
+
+  if (s === "근생" || s === "근린생활시설") return "근생";
+
+  // 혹시 이미 라벨 그대로 들어온 경우
+  if (BUILDING_TYPES.includes(s as BuildingType)) {
+    return s as BuildingType;
+  }
+
+  return undefined;
 };
 
 /* ───────── helpers ───────── */
@@ -314,24 +347,6 @@ const normalizeOptionsForCompare = (o: any) => {
   return Object.keys(y).length ? y : null;
 };
 
-/* ───────── deep prune & 비교 유틸 ───────── */
-const normalizeShallow2 = (v: any) => {
-  if (v === "" || v === null || v === undefined) return undefined;
-  if (Array.isArray(v) && v.length === 0) return undefined;
-  return v;
-};
-const jsonEq2 = (a: any, b: any) => {
-  const na = normalizeShallow2(a);
-  const nb = normalizeShallow2(b);
-  if (na === nb) return true;
-  if (!na || !nb || typeof na !== "object" || typeof nb !== "object")
-    return false;
-  try {
-    return JSON.stringify(na) === JSON.stringify(nb);
-  } catch {
-    return false;
-  }
-};
 function deepPrune<T>(obj: T): Partial<T> {
   const prune = (v: any): any => {
     if (v === undefined) return undefined;
@@ -368,46 +383,6 @@ const normStrU = (v: any): string | undefined => {
   if (v == null) return undefined;
   const s = String(v).trim();
   return s === "" || s === "-" || s === "—" ? undefined : s;
-};
-const normAspectNo = (v: any): string | undefined => {
-  const s = normStrU(v);
-  if (!s) return undefined;
-  const num = s.replace(/[^\d]/g, "");
-  return num === "" ? undefined : num;
-};
-type OrientationLike = any;
-const normOrientations = (arr: any): any[] | undefined => {
-  if (!Array.isArray(arr) || arr.length === 0) return undefined;
-  const pickKey = (o: OrientationLike) =>
-    String(
-      o?.code ??
-        o?.key ??
-        o?.name ??
-        o?.dir ??
-        o?.direction ??
-        JSON.stringify(o ?? {})
-    ).trim();
-  const normed = arr
-    .map((o) => ({ key: pickKey(o) }))
-    .filter((o) => o.key !== "");
-  if (normed.length === 0) return undefined;
-  normed.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  return normed;
-};
-const aspectBundlesEqual = (A: any, B: any): boolean => {
-  const toCmp = (x: any) => ({
-    aspect: normStrU(x?.aspect),
-    aspect1: normStrU(x?.aspect1),
-    aspect2: normStrU(x?.aspect2),
-    aspect3: normStrU(x?.aspect3),
-    aspectNoKey: normAspectNo(x?.aspectNo),
-    orientations: normOrientations(x?.orientations) ?? undefined,
-  });
-  try {
-    return JSON.stringify(toCmp(A)) === JSON.stringify(toCmp(B));
-  } catch {
-    return false;
-  }
 };
 
 type UnitLike2 = {
@@ -1174,12 +1149,27 @@ export default function PropertyEditModalBody({
   //    raw보다 view 를 우선 사용하고, 없을 때만 raw를 fallback 으로 사용
   const normalizedInitial = useMemo(() => {
     const src = initialData as any;
-    const v = src?.view ?? src?.raw ?? src ?? null;
-    console.log("[init] normalizedInitial(view-first):", v);
-    return v;
+    const raw = src?.raw ?? null;
+    const view = src?.view ?? null;
+
+    // raw/view 둘 다 없으면 src 자체를 fallback
+    if (!raw && !view) {
+      console.log("[init] normalizedInitial(fallback src):", src);
+      return src ?? null;
+    }
+
+    // raw 기준으로 깔고, view 로 덮어쓰기
+    const merged = { ...(raw ?? {}), ...(view ?? {}) };
+
+    console.log("[init] normalizedInitial(merged raw+view):", {
+      raw,
+      view,
+      merged,
+    });
+
+    return merged;
   }, [initialData]);
 
-  // 브릿지: 최저실입/등기/핀종류 정규화 (⚠️ 건물타입은 추가 매핑 없이 그대로만 사용)
   const bridgedInitial = useMemo(() => {
     const src = normalizedInitial as any;
     if (!src) return null;
@@ -1190,9 +1180,13 @@ export default function PropertyEditModalBody({
         ? String(src.minRealMoveInCost)
         : undefined);
 
-    // buildingType/registry는 서버가 준 값 중에서 우리가 허용하는 라벨만 사용
     const rawBt =
-      src?.buildingType ?? src?.registry ?? src?.propertyType ?? src?.type;
+      src?.registry ??
+      src?.registryOne ??
+      src?.buildingType ??
+      src?.propertyType ??
+      src?.type;
+
     const bt = normalizeBuildingType(rawBt);
 
     const initPinKind =
@@ -1204,6 +1198,7 @@ export default function PropertyEditModalBody({
       ...(bt !== undefined ? { buildingType: bt, registry: bt } : {}),
       ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
+
     console.log("[init] bridgedInitial:", {
       id: out?.id,
       ageType: out?.ageType,
@@ -1216,6 +1211,7 @@ export default function PropertyEditModalBody({
       registry: out?.registry,
       buildingType: out?.buildingType,
     });
+
     return out;
   }, [normalizedInitial]);
 

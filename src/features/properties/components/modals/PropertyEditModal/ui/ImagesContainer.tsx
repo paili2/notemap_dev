@@ -1,4 +1,3 @@
-// (예: src/features/properties/components/modal/PropertyEditModal/ui/ImagesContainer.tsx)
 "use client";
 
 import type React from "react";

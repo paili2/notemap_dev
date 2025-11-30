@@ -9,7 +9,7 @@ import {
   HoverCardTrigger,
   HoverCardContent,
 } from "@/components/atoms/HoverCard/HoverCard";
-import SafePopover from "@/features/safe/SafePopover"; // ✅ 가드된 Popover
+import SafePopover from "@/shared/components/safe/SafePopover"; // ✅ 가드된 Popover
 import { MapPin, Star } from "lucide-react";
 import { MapPinTooltipProps } from "./MapPinTooltip.types";
 

@@ -56,6 +56,7 @@ export function useRunSearch({
       // 0) 광역 키워드 컷
       if (isTooBroadKeyword(trimmed)) {
         toast({
+          variant: "destructive",
           title: "검색 범위가 너무 넓어요",
           description: "정확한 주소 또는 건물명을 입력해주세요.",
         });

@@ -6,7 +6,6 @@ export type {
   UpdatePinPhotoGroupDto,
 } from "@/shared/api/types/pinPhotos";
 
-// 👉 실제 구현은 단일 소스인 photos.ts 것을 재노출
 export {
   listPhotoGroupsByPin,
   createPhotoGroup,
