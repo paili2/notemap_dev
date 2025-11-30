@@ -43,6 +43,7 @@ import { useBounds } from "@/features/map/hooks/useBounds";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import TopRightControls from "@/features/map/components/TopRightControls";
 import SearchForm from "@/features/map/components/SearchForm/SearchForm";
+import { NoResultDialog } from "@/features/map/components/NoResultDialog";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {
@@ -387,7 +388,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
       try {
         const res = await searchPins(params);
         setSearchRes(res);
-        fitToSearch(res);
+
+        const hasPins = (res.pins?.length ?? 0) > 0;
+        const hasDrafts = (res.drafts?.length ?? 0) > 0;
+
+        if (!hasPins && !hasDrafts) {
+          // ✅ 조건에 맞는 핀이 하나도 없을 때
+          setNoResultDialogOpen(true);
+        } else {
+          // ✅ 결과 있을 때만 지도 맞추기
+          fitToSearch(res);
+        }
       } catch (e: any) {
         setSearchError(e?.message ?? "검색 실패");
         setSearchRes(null);
@@ -633,6 +644,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const [rightOpen, setRightOpen] = useState(false);
   const [filterSearchOpen, setFilterSearchOpen] = useState(false);
+  const [noResultDialogOpen, setNoResultDialogOpen] = useState(false);
 
   const [roadviewRoadOn, setRoadviewRoadOn] = useState(false);
 
@@ -1373,6 +1385,16 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onCloseRoadview={close}
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
+      />
+      {/* 🔔 필터 검색 결과 없음 모달 */}
+      <NoResultDialog
+        open={noResultDialogOpen}
+        onOpenChange={setNoResultDialogOpen}
+        onResetFilters={() => {
+          // 선택: 필터 초기화 + 패널 다시 열기
+          clearSearch();
+          setFilterSearchOpen(true);
+        }}
       />
     </div>
   );

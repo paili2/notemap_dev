@@ -11,7 +11,7 @@ import {
 } from "react";
 import type React from "react";
 import type { ContextMenuPanelProps } from "./types";
-import { Plus } from "lucide-react";
+import { Plus, Star, Trash2 } from "lucide-react";
 import type {
   CreateMode,
   ReserveRequestPayload,
@@ -289,7 +289,7 @@ export default function ContextMenuPanel({
       onPointerDown={stopAll}
       onMouseDown={stopAll}
       onClick={stopAll}
-      className="rounded-2xl bg-white shadow-xl border border-gray-200 p-3 min-w-[260px] max-w-[320px] outline-none"
+      className="rounded-2xl bg-white shadow-xl border border-gray-200 p-3 w-[280px] sm:w-[320px] max-w-[90vw] outline-none"
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between gap-3">
@@ -300,7 +300,36 @@ export default function ContextMenuPanel({
           {headerTitle}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center sm:gap-2 shrink-0">
+          {/* 🔹 모바일 아이콘 버튼 (기본: 보임 / PC: 숨김) */}
+          {showFav && (
+            <Button
+              type="button"
+              onClick={onAddFav}
+              aria-label="즐겨찾기"
+              variant="ghost"
+              size="icon"
+              className="sm:hidden -mr-[10px]"
+              ref={firstFocusableRef}
+            >
+              <Star className="w-5 h-5" />
+            </Button>
+          )}
+
+          {canDelete && (
+            <Button
+              type="button"
+              onClick={onDelete}
+              aria-label="매물삭제"
+              variant="ghost"
+              size="icon"
+              className="sm:hidden text-red-500"
+            >
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          )}
+
+          {/* 🔹 PC 전용 텍스트 버튼 (모바일: 숨김 / PC: 보임) */}
           {showFav && (
             <Button
               type="button"
@@ -308,7 +337,7 @@ export default function ContextMenuPanel({
               aria-label="즐겨찾기"
               variant="outline"
               size="sm"
-              ref={firstFocusableRef}
+              className="hidden sm:flex"
             >
               즐겨찾기
               <Plus aria-hidden="true" />
@@ -322,11 +351,13 @@ export default function ContextMenuPanel({
               aria-label="매물삭제"
               variant="destructive"
               size="sm"
+              className="hidden sm:flex"
             >
               삭제
             </Button>
           )}
 
+          {/* 닫기 버튼은 모든 화면에서 동일 */}
           <Button
             type="button"
             onClick={onClose}

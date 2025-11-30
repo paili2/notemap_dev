@@ -716,6 +716,7 @@ export default function PinContextMenuContainer(props: Props) {
 
   return (
     <CustomOverlay
+      key={overlayKey}
       kakao={kakao}
       map={map}
       position={position}
