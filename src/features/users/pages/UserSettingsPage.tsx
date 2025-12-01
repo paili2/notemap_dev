@@ -15,7 +15,8 @@ import {
   useAssignTeamMember,
 } from "@/features/teams/hooks/useTeams";
 import { useToast } from "@/hooks/use-toast";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { getProfile } from "@/features/users/api/account";
 
 interface UserSettingsPageProps {
   teamId?: string;
@@ -30,6 +31,15 @@ export default function UserSettingsPage({
   const queryClient = useQueryClient();
   const removeTeamMemberMutation = useRemoveTeamMember();
   const assignTeamMemberMutation = useAssignTeamMember();
+
+  // 프로필 정보 가져오기 (admin 권한 체크용)
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: getProfile,
+    staleTime: 10 * 60 * 1000, // 10분
+  });
+
+  const isAdmin = profile?.role === "admin";
 
   // API에서 받은 멤버 데이터를 UserRow 형식으로 변환
   const usersFromApi = useMemo<UserRow[]>(() => {
@@ -143,7 +153,7 @@ export default function UserSettingsPage({
   return (
     <main className="mx-auto max-w-7xl p-6 space-y-8">
       <div className="flex justify-end gap-2">
-        {teamId && members && members.length > 0 && (
+        {isAdmin && teamId && members && members.length > 0 && (
           <Button
             variant="outline"
             className="gap-2"
@@ -166,7 +176,7 @@ export default function UserSettingsPage({
             onOpenChange={setIsModalOpen}
             onAddToTeam={handleAddToTeam}
           />
-          {members && (
+          {isAdmin && members && (
             <AssignManagerModal
               open={isAssignManagerModalOpen}
               onOpenChange={setIsAssignManagerModalOpen}
