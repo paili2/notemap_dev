@@ -71,7 +71,7 @@ const POI_CATEGORY_ITEMS: Record<PoiCategoryKey, PoiKind[]> = {
   transport: ["subway", "parking"],
   convenience: ["convenience", "mart"],
   medical: ["pharmacy", "hospital"],
-  public: ["school", "police"],
+  public: ["school", "safety"],
   leisure: ["cafe", "park", "culture"],
 };
 
@@ -81,13 +81,12 @@ const POI_MENU_ICON: Partial<Record<PoiKind, LucideIcon>> = {
   subway: Train,
   school: School,
   convenience: Store,
-  mart: ShoppingCart, // ✅ 마트 → ShoppingCart
+  mart: ShoppingCart,
   cafe: Coffee,
   pharmacy: Pill,
-  hospital: Cross, // ✅ 병원 → Cross (십자가)
-  // 추가 아이콘들
+  hospital: Cross,
   parking: ParkingCircle,
-  police: ShieldCheck, // 안전기관(경찰/소방)
+  safety: ShieldCheck, // 안전기관(경찰/소방)
   culture: Landmark,
   park: TreePine,
 };

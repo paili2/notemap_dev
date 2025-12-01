@@ -12,7 +12,7 @@ import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
 import { PoiKind } from "../shared/overlays/poiOverlays";
 import { PoiLayerToggle } from "../components/menu/components/PoiLayerToggle";
-import usePoiLayer from "../hooks/poi/usePoiLayer";
+import usePoiLayer from "../hooks/poi/poiLayer/usePoiLayer";
 
 type Props = MapViewProps;
 

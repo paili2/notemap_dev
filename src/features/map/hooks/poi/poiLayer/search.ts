@@ -1,6 +1,6 @@
 "use client";
 
-import { distM, splitBoundsToGrid } from "./geometry";
+import { distM, splitBoundsToGrid } from "../shared/geometry";
 import { NEAR_RATIO } from "./constants";
 
 /** 카테고리 검색(페이징 자동) */
@@ -30,7 +30,7 @@ export function searchCategoryAllPagesByBounds(
  * - bounds 우선
  * - 부족하면 x/y/radius 폴백
  * - keyword: string | string[]
- *   예) 안전기관(poiKind: "police") → ["경찰서", "소방서"]
+ *   예) 안전기관(poiKind: "safety") → ["경찰서", "소방서"]
  */
 export async function searchKeywordAllPagesByBounds(
   kakao: any,

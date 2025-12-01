@@ -14,7 +14,7 @@ import { eqId } from "@/shared/api/surveyReservations";
 import { CreateFromPinArgs } from "../shared/pinContextMenu/components/PinContextMenu/types";
 import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 import { buildAddressLine } from "../shared/pinContextMenu/components/PinContextMenu/utils/geo";
-import MapHomeUI from "./MapHomeUI";
+import MapHomeUI from "./MapHomeUI/MapHomeUI";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 
 const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용

@@ -222,6 +222,12 @@ function buildOptionsForServer(
 }
 
 export function buildCreatePayload(args: BuildArgs) {
+  console.log(
+    "[buildCreatePayload] args.isNew/isOld =",
+    args.isNew,
+    args.isOld
+  );
+
   const {
     title,
     address,

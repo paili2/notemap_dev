@@ -17,148 +17,27 @@ import { PriceInput } from "./PriceInput";
 import { AreaInput } from "./AreaInput";
 import { FilterActions } from "./FilterActions";
 
-import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import Portal from "@/components/Portal";
-import { BuildingType } from "@/features/properties/types/property-domain";
 
-// ✅ 토스트 훅 추가
+// 🔹 분리한 유틸/빌더 import
+import { validateRangeLabel, toM2 } from "../lib/filterValidators";
+import { buildPinSearchParams } from "../lib/buildPinSearchParams";
+
 import { useToast } from "@/hooks/use-toast";
-
-type Props = FilterSearchProps & {
-  onApply?: (params: PinSearchParams) => void;
-  initial?: Partial<FilterState>;
-};
-
-const PYEONG_TO_M2 = 3.305785;
-const toM2 = (s: string) => {
-  const n = Number((s ?? "").replaceAll(",", "").trim());
-  return Number.isFinite(n) && n >= 0
-    ? Math.round(n * PYEONG_TO_M2)
-    : undefined;
-};
-
-// ✅ 숫자 파싱 유틸 (0 이하는 "입력 안 함"으로 간주)
-const parsePositiveNumber = (s: string) => {
-  const n = Number((s ?? "").replaceAll(",", "").trim());
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
-
-// ✅ 범위 검증 유틸 (라벨 + 최소/최대 문자열)
-function validateRangeLabel(
-  label: string,
-  minStr: string,
-  maxStr: string
-): string | null {
-  const min = parsePositiveNumber(minStr);
-  const max = parsePositiveNumber(maxStr);
-
-  // 둘 중 하나라도 안 적혀 있으면 (부분검색 허용) → 통과
-  if (min === null || max === null) return null;
-
-  if (min === max) {
-    return `${label}의 최소값과 최대값이 같을 수 없어요.`;
-  }
-  if (max < min) {
-    return `${label}의 최대값은 최소값보다 커야 해요.`;
-  }
-  return null;
-}
-
-function buildPinSearchParams(ui: FilterState): PinSearchParams {
-  const params: PinSearchParams = {};
-
-  // 1) 방 개수
-  const rooms: number[] = (ui.rooms ?? [])
-    .map((label) => {
-      const m = label.match(/\d+/);
-      return m ? Number(m[0]) : NaN;
-    })
-    .filter((n, idx, arr) => !Number.isNaN(n) && arr.indexOf(n) === idx);
-
-  if (rooms.length) {
-    params.rooms = rooms;
-  }
-
-  // 2) 복층 / 테라스 / 타운하우스
-  if (ui.rooms?.includes("복층")) {
-    params.hasLoft = true;
-  }
-  if (ui.rooms?.includes("테라스")) {
-    params.hasTerrace = true;
-  }
-  if (ui.rooms?.includes("타운하우스")) {
-    params.hasTownhouse = true;
-  }
-
-  // ✅ 실입주금 → DTO 필드 이름과 동일하게
-  const depositAmount = Number(convertPriceToWon(ui.deposit));
-  if (Number.isFinite(depositAmount) && depositAmount > 0) {
-    params.minRealMoveInCostMax = depositAmount;
-  }
-
-  // 3) 매매가
-  const priceMin = Number(ui.priceMin.replaceAll(",", ""));
-  const priceMax = Number(ui.priceMax.replaceAll(",", ""));
-  if (!Number.isNaN(priceMin) && priceMin > 0) {
-    params.salePriceMin = priceMin;
-  }
-  if (!Number.isNaN(priceMax) && priceMax > 0) {
-    params.salePriceMax = priceMax;
-  }
-
-  // 4) 면적
-  const areaMin = Number(ui.areaMin.replaceAll(",", ""));
-  const areaMax = Number(ui.areaMax.replaceAll(",", ""));
-  if (!Number.isNaN(areaMin) && areaMin > 0) {
-    params.areaMinM2 = Math.round(areaMin * PYEONG_TO_M2);
-  }
-  if (!Number.isNaN(areaMax) && areaMax > 0) {
-    params.areaMaxM2 = Math.round(areaMax * PYEONG_TO_M2);
-  }
-
-  // 5) 엘리베이터
-  const elev =
-    ui.elevator === "있음" ? true : ui.elevator === "없음" ? false : undefined;
-  if (elev !== undefined) {
-    params.hasElevator = elev;
-  }
-
-  // 6) 건물유형
-  if (ui.buildingTypes && ui.buildingTypes.length > 0) {
-    const map: Record<string, BuildingType> = {
-      주택: "주택",
-      APT: "APT",
-      OP: "OP",
-      "도/생": "도생",
-      "근/생": "근생",
-    };
-
-    const mapped = ui.buildingTypes
-      .map((label) => map[label])
-      .filter((v): v is BuildingType => !!v);
-
-    if (mapped.length) {
-      params.buildingTypes = Array.from(new Set(mapped));
-    }
-  }
-
-  return params;
-}
 
 export default function FilterSearch({
   isOpen,
   onClose,
   onApply,
+  onClear,
   initial,
-}: Props) {
+}: FilterSearchProps) {
   const [filters, setFilters] = useState<FilterState>(
     initialFilterState as FilterState
   );
-
-  // ✅ 토스트 훅
   const { toast } = useToast();
 
-  // 🔹 모달이 열릴 때만 initial 반영 (isOpen만 의존)
+  // 모달 열릴 때만 initial 반영
   useEffect(() => {
     if (!isOpen) return;
 
@@ -185,10 +64,11 @@ export default function FilterSearch({
 
   const resetFilters = () => {
     setFilters(initialFilterState as FilterState);
+    onClear?.();
   };
 
   const applyFilters = () => {
-    // ✅ 1) 면적 / 매매가 범위 먼저 검증
+    // 1) 범위 검증
     const areaError = validateRangeLabel(
       "면적",
       filters.areaMin,
@@ -199,11 +79,9 @@ export default function FilterSearch({
       filters.priceMin,
       filters.priceMax
     );
-
     const message = areaError ?? priceError;
 
     if (message) {
-      // ❌ 잘못된 경우: 검색 요청 안 보내고 토스트만 띄우기
       toast({
         variant: "destructive",
         title: "입력값을 확인해 주세요",
@@ -212,12 +90,13 @@ export default function FilterSearch({
       return;
     }
 
-    // ✅ 2) 검증 통과 시에만 실제 검색 파라미터 빌드 + onApply 호출
+    // 2) 검증 통과 시 검색 파라미터 빌드 + onApply
     const params = buildPinSearchParams(filters);
     onApply?.(params);
     onClose();
   };
 
+  // ---------- 표시용 라벨 계산 ----------
   const depositWon = convertPriceToWon(filters.deposit);
   const depositLabel =
     filters.deposit && filters.deposit !== "0"
@@ -242,16 +121,13 @@ export default function FilterSearch({
 
   if (!isOpen) return null;
 
-  // 🔹 필터 카드 안에서 발생한 클릭이 맵까지 전달되지 않도록 막기
   const stop = (e: React.SyntheticEvent) => {
     e.stopPropagation();
-    // 혹시 모를 네이티브 리스너도 한 번 더 차단
     (e.nativeEvent as any)?.stopImmediatePropagation?.();
   };
 
   return (
     <Portal>
-      {/* 🔹 오버레이(검은 배경) 없이 패널만 띄우는 래퍼 */}
       <div
         id="filter-search-root"
         className="
@@ -260,7 +136,6 @@ export default function FilterSearch({
           pointer-events-none
         "
       >
-        {/* 🔹 실제 필터 카드 */}
         <div
           className="
             pointer-events-auto
@@ -396,7 +271,7 @@ export default function FilterSearch({
             {/* 매매가 */}
             <FilterSection
               title={
-                <div className="flex items-center justify_between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <span>매매가</span>
                   <span className="text-xs text-gray-700">
                     {priceMinLabel} ~ {priceMaxLabel}

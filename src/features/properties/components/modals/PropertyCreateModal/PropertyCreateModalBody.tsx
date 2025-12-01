@@ -643,6 +643,13 @@ export default function PropertyCreateModalBody({
       /* ========= 최저 실입 / 리베이트 값 수집 ========= */
       const anyForm = f as any;
 
+      // 🔍 form 기준 isNew/isOld + buildingGrade 확인
+      console.log("[save] anyForm.isNew/isOld/buildingGrade =", {
+        isNew: anyForm.isNew,
+        isOld: anyForm.isOld,
+        buildingGrade: anyForm.buildingGrade,
+      });
+
       // ✅ 최저 실입(만원 단위)
       const rawMinRealMoveInCost =
         anyForm.minRealMoveInCost ??
@@ -665,11 +672,6 @@ export default function PropertyCreateModalBody({
         anyForm.isNew === true ||
         anyForm.isOld === true;
 
-      console.log("[save] rawMinRealMoveInCost =", rawMinRealMoveInCost);
-      console.log("[save] minRealMoveInCost =", minRealMoveInCost);
-      console.log("[save] rebateText =", rebateText);
-      console.log("[save] hasBuildingGrade =", hasBuildingGrade);
-
       if (!hasBuildingGrade) {
         alert("신축/구옥을 선택해 주세요.");
         return;
@@ -683,11 +685,54 @@ export default function PropertyCreateModalBody({
         return;
       }
 
+      // ✅ 서버로 보낼 isNew/isOld 확정 (buildingGrade 기반 fallback)
+      // ✅ 서버로 보낼 isNew/isOld 확정 (buildingGrade 기반)
+      const grade = anyForm.buildingGrade as "new" | "old" | null | undefined;
+
+      const isNewForPayload =
+        anyForm.isNew === true
+          ? true
+          : anyForm.isOld === true
+          ? false
+          : grade === "new"
+          ? true
+          : grade === "old"
+          ? false
+          : null;
+
+      const isOldForPayload =
+        anyForm.isOld === true
+          ? true
+          : anyForm.isNew === true
+          ? false
+          : grade === "old"
+          ? true
+          : grade === "new"
+          ? false
+          : null;
+
+      console.log("[save] isNewForPayload / isOldForPayload =", {
+        buildingGrade: grade,
+        isNewForPayload,
+        isOldForPayload,
+      });
+
+      console.log("[save] isNewForPayload / isOldForPayload =", {
+        isNewForPayload,
+        isOldForPayload,
+      });
+
       // ✅ badge: 직접 입력이 없으면 핀 종류 기반 기본값 사용
       const effectiveBadge =
         (f.badge ?? "").trim() ||
         (rawPinKindLocal ? mapPinKindToBadge(rawPinKindLocal) : "") ||
         undefined;
+
+      // 🔍 buildCreatePayload 호출 직전 form 값
+      console.log("[save] before buildCreatePayload", {
+        isNew: (f as any).isNew,
+        isOld: (f as any).isOld,
+      });
 
       const payload = buildCreatePayload({
         title: f.title,
@@ -716,6 +761,8 @@ export default function PropertyCreateModalBody({
         extraAreaSets: Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [],
 
         elevator: f.elevator,
+        isNew: isNewForPayload,
+        isOld: isOldForPayload,
         registryOne: f.registryOne,
         slopeGrade: f.slopeGrade,
         structureGrade: f.structureGrade,
@@ -773,6 +820,10 @@ export default function PropertyCreateModalBody({
 
         // ✅ 리베이트 텍스트
         rebateText,
+
+        // ✅ 신축/구옥 다시 한 번 명시
+        isNew: isNewForPayload ?? undefined,
+        isOld: isOldForPayload ?? undefined,
 
         // 안전하게 다시 명시
         pinKind: rawPinKindLocal,

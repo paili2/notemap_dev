@@ -17,7 +17,6 @@ export const initialFilterState = {
   deposit: "",
   areaMin: "",
   areaMax: "",
-  /** ✅ 여러 개 선택용 */
   buildingTypes: [] as string[],
   elevator: "",
   priceMin: "",

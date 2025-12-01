@@ -27,7 +27,7 @@ export type PoiKind =
   | "subway" // 지하철역
   | "parking" // 주차장
   | "school" // 학교
-  | "police" // 안전기관(경찰/소방 등)
+  | "safety" // 안전기관(경찰/소방 등)
   | "culture" // 문화시설
   | "park"; // 공원
 
@@ -50,7 +50,7 @@ export const POI_LABEL: Record<PoiKind, string> = {
   subway: "지하철역",
   parking: "주차장",
   school: "학교",
-  police: "안전기관", // ✅ 경찰서 + 소방서 등
+  safety: "안전기관", // ✅ 경찰서 + 소방서 등
   culture: "문화시설",
   park: "공원",
 };
@@ -65,7 +65,7 @@ export const KAKAO_CATEGORY: Partial<Record<PoiKind, string>> = {
   subway: "SW8", // 지하철역
   parking: "PK6", // 주차장
   school: "SC4", // 학교
-  police: "PO3", // 공공기관(경찰/소방 등)
+  safety: "PO3", // 공공기관(경찰/소방 등)
   culture: "CT1", // 문화시설
   park: "PK6", // 공원
 };
@@ -80,8 +80,7 @@ export const KAKAO_KEYWORD: Record<PoiKind, string | string[] | undefined> = {
   subway: undefined,
   parking: undefined,
   school: undefined,
-  // ✅ 안전기관: 경찰 + 소방 포함
-  police: ["경찰서", "소방서"],
+  safety: ["경찰서", "소방서"],
   culture: "문화시설",
   park: "공원",
 };
@@ -114,7 +113,7 @@ export const POI_ICON: Record<PoiKind, PoiIconSpec> = {
   subway: { url: svgDot("#3b82f6"), size: [28, 28], offset: [14, 14] },
   parking: { url: svgDot("#1d4ed8"), size: [28, 28], offset: [14, 14] },
   school: { url: svgDot("#8b5cf6"), size: [28, 28], offset: [14, 14] },
-  police: { url: svgDot("#0f766e"), size: [28, 28], offset: [14, 14] },
+  safety: { url: svgDot("#0f766e"), size: [28, 28], offset: [14, 14] },
   culture: { url: svgDot("#ea580c"), size: [28, 28], offset: [14, 14] },
   park: { url: svgDot("#16a34a"), size: [28, 28], offset: [14, 14] },
 };
@@ -129,21 +128,21 @@ const POI_BG: Record<PoiKind, string> = {
   subway: "#3b82f6",
   parking: "#1d4ed8",
   school: "#8b5cf6",
-  police: "#0f766e",
+  safety: "#0f766e",
   culture: "#ea580c",
   park: "#16a34a",
 };
 
 const POI_ICON_COMP: Partial<Record<PoiKind, LucideIcon>> = {
   convenience: Store,
-  mart: ShoppingCart, // ✅ 마트: 장바구니 아이콘
+  mart: ShoppingCart,
   cafe: Coffee,
   pharmacy: Pill,
-  hospital: Cross, // ✅ 병원: 십자가 아이콘
+  hospital: Cross,
   subway: Train,
   school: School,
   parking: ParkingCircle,
-  police: ShieldCheck,
+  safety: ShieldCheck,
   culture: Landmark,
   park: TreePine,
 };

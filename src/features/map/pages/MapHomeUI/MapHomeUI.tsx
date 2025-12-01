@@ -4,11 +4,11 @@ import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 
-import { useMergedMarkers } from "./hooks/useMergedMarkers";
-import MapCanvas from "./components/MapCanvas";
-import ContextMenuHost from "./components/ContextMenuHost";
-import FilterFab from "./components/FilterFab";
-import ModalsHost from "./components/ModalsHost";
+import { useMergedMarkers } from "../hooks/useMergedMarkers";
+import MapCanvas from "../components/MapCanvas";
+import ContextMenuHost from "../components/ContextMenuHost";
+import FilterFab from "../components/FilterFab";
+import ModalsHost from "../components/ModalsHost";
 
 import { cn } from "@/lib/cn";
 
@@ -26,7 +26,7 @@ import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 import { getPinRaw } from "@/shared/api/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 
-import { distM } from "@/features/map/hooks/poi/geometry";
+import { distM } from "@/features/map/hooks/poi/shared/geometry";
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
@@ -35,11 +35,11 @@ import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import TopRightControls from "@/features/map/components/TopRightControls";
 import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
-import { MapHomeUIProps } from "./types";
-import { useBoundsRaw } from "../hooks/useBoundsRaw";
-import { MapMarker } from "../shared/types/map";
-import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
-import { FilterSearch } from "../components/filterSearch";
+import { MapHomeUIProps } from "../types";
+import { useBoundsRaw } from "../../hooks/useBoundsRaw";
+import { MapMarker } from "../../shared/types/map";
+import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
+import { FilterSearch } from "../../components/filterSearch";
 
 /* ------------------------- 검색 유틸 ------------------------- */
 function parseStationAndExit(qRaw: string) {

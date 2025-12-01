@@ -28,7 +28,7 @@ export const RADIUS_BY_KIND: Record<PoiKind, number> = {
   subway: 1500,
   parking: 1000,
   school: 1000,
-  police: 1500, // 안전기관(경찰 + 소방 등)
+  safety: 1500, // 안전기관(경찰 + 소방 등)
   culture: 1500,
   park: 800,
 };

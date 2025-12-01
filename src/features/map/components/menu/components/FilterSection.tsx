@@ -17,8 +17,8 @@ type FilterItem = {
 
 const FILTER_MENU_ITEMS: FilterItem[] = [
   { key: "all", label: "전체", icon: Map },
-  { key: "new", label: "신축", icon: Building2 }, // ✅ 신축 = Building2
-  { key: "old", label: "구옥", icon: House }, // ✅ 구옥 = House
+  { key: "new", label: "신축", icon: Building2 },
+  { key: "old", label: "구옥", icon: House },
   { key: "plannedOnly", label: "답사예정", icon: "/pins/question-pin.svg" },
 ];
 
