@@ -258,8 +258,6 @@ export function useClustererWithLabels(
         if (!(marker as any).__dbg_click_bound) {
           (marker as any).__dbg_click_bound = true;
           kakao.maps.event.addListener(marker, "click", () => {
-            // eslint-disable-next-line no-console
-            console.log("[DBG] marker clicked:", key);
             onMarkerClickRef.current?.(key);
           });
         }

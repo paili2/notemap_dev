@@ -222,15 +222,6 @@ function buildOptionsForServer(
 }
 
 export function buildCreatePayload(args: BuildArgs) {
-  console.log(
-    "%c[buildCreatePayload] args.lat/lng →",
-    "color: orange; font-weight: bold;",
-    args.lat,
-    args.lng,
-    typeof args.lat,
-    typeof args.lng
-  );
-
   const {
     title,
     address,
@@ -627,13 +618,6 @@ export function buildCreatePayload(args: BuildArgs) {
 
     pinDraftId: pinDraftId ?? null,
   };
-
-  console.log(
-    "%c[buildCreatePayload] payload.lat/lng →",
-    "color: green; font-weight: bold;",
-    payload.lat,
-    payload.lng
-  );
 
   return payload;
 }

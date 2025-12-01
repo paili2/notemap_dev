@@ -609,7 +609,7 @@ export default function PinContextMenuContainer(props: Props) {
   const xAnchor = 0.5;
   const yAnchor = 1;
 
-  const offsetPx = isSearchDraft ? 78 : 56;
+  const offsetPx = isSearchDraft ? 56 : 56;
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
   const propertyIdClean = React.useMemo(() => {

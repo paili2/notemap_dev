@@ -70,7 +70,6 @@ export default function PropertyCreateViewHost({
   onSaveViewPatch,
   onDeleteFromView,
 }: Props) {
-  console.log("[PropertyCreateViewHost] initialPinKind prop =", initialPinKind);
   const [stage, setStage] = useState<Stage>(initialStage);
   const [createdPinId, setCreatedPinId] = useState<string | number | null>(
     initialViewData?.id ?? null

@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import type { MergedMarker } from "../hooks/useMergedMarkers";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import {
   hideLabelsAround,
   showLabelsAround,
@@ -317,8 +317,65 @@ export default function ContextMenuHost(props: {
     return anchorBase;
   }, [effectiveTarget.marker, anchorBase]);
 
+  const [idleReady, setIdleReady] = useState(false);
+
+  useEffect(() => {
+    if (!open || !mapInstance || !kakaoSDK || !anchorPos) {
+      setIdleReady(false);
+      return;
+    }
+
+    // 🔥 ultra fast 모드: idle 안 기다리고, center가 anchor에 충분히 가까워지는 순간 바로 렌더
+    let stopped = false;
+    setIdleReady(false);
+
+    // 위경도 차이 제곱합 기준 (0.0001 ≈ 대략 10m 근처)
+    const TH = 0.0001;
+    const TH2 = TH * TH;
+
+    const checkCenter = () => {
+      if (stopped) return;
+
+      try {
+        const center = mapInstance.getCenter?.();
+        if (center) {
+          const dx = center.getLat() - anchorPos.lat;
+          const dy = center.getLng() - anchorPos.lng;
+          const d2 = dx * dx + dy * dy;
+
+          if (d2 <= TH2) {
+            setIdleReady(true);
+            stopped = true;
+            return;
+          }
+        }
+      } catch {
+        // center 못 가져와도 계속 시도
+      }
+
+      // 아직 충분히 안 가까우면 다음 프레임에 다시 체크
+      requestAnimationFrame(checkCenter);
+    };
+
+    // 안전장치: 애니메이션이 너무 길어도 120ms 안에는 강제로 띄우기
+    const timeoutId = window.setTimeout(() => {
+      if (!stopped) {
+        setIdleReady(true);
+        stopped = true;
+      }
+    }, 120);
+
+    requestAnimationFrame(checkCenter);
+
+    return () => {
+      stopped = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [open, mapInstance, kakaoSDK, anchorPos?.lat, anchorPos?.lng]);
+
   /** 5) 렌더/라벨숨김 조건을 anchorPos 기준으로: 검색 경로에서도 동작 */
-  const shouldRender = !!open && !!mapInstance && !!kakaoSDK && !!anchorPos;
+  const shouldRender =
+    !!open && !!mapInstance && !!kakaoSDK && !!anchorPos && idleReady;
 
   // === 디버그: 현재 상태 로그 ===
   useEffect(() => {
