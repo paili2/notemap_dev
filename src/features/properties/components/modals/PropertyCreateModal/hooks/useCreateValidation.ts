@@ -51,6 +51,7 @@ function getUnitsLen(s: LooseAreaSet): number {
   return Array.isArray(s?.units) ? s.units.length : 0;
 }
 
+/** ✨ 저장 버튼 활성 여부만 판단하는 훅 */
 export function useCreateValidation(a: Args) {
   const baseHasExclusive = useMemo(
     () =>
@@ -165,3 +166,125 @@ export function useCreateValidation(a: Args) {
 
   return { isSaveEnabled };
 }
+
+/* ───────────── 수치/날짜 검증 유틸 (폼 밖에서도 재사용 가능하게) ───────────── */
+
+/** 숫자 or null */
+export const numOrNull = (v: any): number | null => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : null;
+};
+
+/** min/max가 모두 채워졌을 때만 비교. 단, 0은 단독으로도 금지 */
+export const isInvalidRange = (min: any, max: any) => {
+  const a = numOrNull(min);
+  const b = numOrNull(max);
+  if (a === 0 || b === 0) return true;
+  if (a != null && b != null) return b <= a;
+  return false;
+};
+
+/** 구조별 최소/최대 매매가 검증 */
+export const validateUnitPriceRanges = (units?: any[]): string | null => {
+  if (!Array.isArray(units)) return null;
+
+  const priceOrNull = (v: any): number | null => {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    const n = Number(s.replace(/[^\d.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i] ?? {};
+    const min = priceOrNull(u?.minPrice ?? u?.primary);
+    const max = priceOrNull(u?.maxPrice ?? u?.secondary);
+    const label = (u?.label ?? u?.name ?? `${i + 1}번째 구조`).toString();
+
+    // 🔹 최소/최대 하나라도 비어 있으면 에러
+    if (min == null || max == null) {
+      return `${label}: 최소·최대 매매가를 모두 입력해 주세요.`;
+    }
+
+    if (min === 0 || max === 0) {
+      return `${label}: 0원은 입력할 수 없습니다.`;
+    }
+
+    if (max <= min) {
+      return `${label}: 최대매매가는 최소매매가보다 커야 합니다.`;
+    }
+  }
+  return null;
+};
+
+/** 개별 평수 입력(전용/실평) 검증 */
+export const validateAreaSets = (
+  base: LooseAreaSet,
+  extras: LooseAreaSet[]
+): string | null => {
+  const checkOne = (set: any, titleForMsg: string) => {
+    const pairs: Array<[any, any, string]> = [
+      [set?.exMinM2, set?.exMaxM2, "전용(㎡)"],
+      [set?.exMinPy, set?.exMaxPy, "전용(평)"],
+      [set?.realMinM2, set?.realMaxM2, "실평(㎡)"],
+      [set?.realMinPy, set?.realMaxPy, "실평(평)"],
+    ];
+
+    for (const [a, b, label] of pairs) {
+      const na = numOrNull(a);
+      const nb = numOrNull(b);
+      if (na === 0 || nb === 0) {
+        return `${titleForMsg} - ${label}: 0은 입력할 수 없습니다.`;
+      }
+    }
+    for (const [a, b, label] of pairs) {
+      if (isInvalidRange(a, b)) {
+        return `${titleForMsg} - ${label}: 최대값은 최소값보다 커야 합니다.`;
+      }
+    }
+    return null;
+  };
+
+  const baseErr = checkOne(base ?? {}, base?.title?.trim() || "기본 면적");
+  if (baseErr) return baseErr;
+
+  for (let i = 0; i < extras.length; i++) {
+    const set = extras[i] ?? {};
+    const title = set?.title?.trim() || `면적 그룹 ${i + 1}`;
+    const err = checkOne(set, title);
+    if (err) return err;
+  }
+
+  return null;
+};
+
+/** 2자리 패딩 */
+const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+
+/** 8자리 숫자(YYYYMMDD)는 YYYY-MM-DD로 포맷, 그 외는 트림만 */
+export const normalizeDateInput = (raw?: string | null): string => {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  if (/^\d{8}$/.test(s)) {
+    const y = Number(s.slice(0, 4));
+    const m = Number(s.slice(4, 6));
+    const d = Number(s.slice(6, 8));
+    return `${y}-${pad2(m)}-${pad2(d)}`;
+  }
+  return s;
+};
+
+/** 정확히 YYYY-MM-DD 형식 + 실제 존재하는 날짜만 true */
+export const isValidIsoDateStrict = (s?: string | null): boolean => {
+  const v = String(s ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split("-").map((x) => Number(x));
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    dt.getUTCFullYear() === y &&
+    dt.getUTCMonth() === m - 1 &&
+    dt.getUTCDate() === d
+  );
+};

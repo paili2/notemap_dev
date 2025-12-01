@@ -8,6 +8,7 @@ import { HeaderSectionViewProps } from "./types";
 import { getPinUrl } from "@/features/pins/lib/assets";
 import StarMeter from "../../ui/StarMeter";
 import { getAgeLabel } from "@/features/properties/lib/ageLabel";
+import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
 
 export default function HeaderSectionView({
   title,
@@ -69,6 +70,9 @@ export default function HeaderSectionView({
     return n.toLocaleString("ko-KR");
   }, [rebateText]);
 
+  // ✅ 전역 메모 보기 모드 (K&N / R)
+  const { mode: memoMode } = useMemoViewMode();
+
   return (
     <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b supports-[backdrop-filter]:bg-white/70">
       <div className="flex flex-wrap items-center gap-2 md:gap-3 px-3 md:px-4 py-3 md:py-5 overflow-hidden">
@@ -116,10 +120,11 @@ export default function HeaderSectionView({
         </div>
 
         {/* 2️⃣ 구분선 (PC에서만) */}
-        <div className="hidden sm:block h-5 w-px bg-gray-200 mx-1 shrink-0 md:order-2" />
-
-        {/* 3️⃣ 리베이트 영역 */}
-        {rebateDisplay && (
+        {memoMode === "secret" && (
+          <div className="hidden sm:block h-5 w-px bg-gray-200 mx-1 shrink-0 md:order-2" />
+        )}
+        {/* 3️⃣ 리베이트 영역 (비밀글 모드 + 값 있을 때만 표시) */}
+        {memoMode === "secret" && rebateDisplay && (
           <div className="order-2 md:order-3 shrink-0 flex items-center md:gap-1 mt-1 md:mt-0">
             <span className="flex items-center h-9 text-[20px] md:text-[22px] font-extrabold text-red-500">
               R

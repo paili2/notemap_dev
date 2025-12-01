@@ -197,32 +197,22 @@ export default function TopRightControls(props: {
           로드뷰도로
         </button>
 
-        {/* 🟡 전역 메모 보기 토글 (K&N / R) */}
+        {/* 🟡 전역 메모 보기 토글 (K&N 단일 버튼: 주황/빨강) */}
         <div className="relative z-[2] shrink-0">
-          <div className="inline-flex rounded-md border overflow-hidden bg-white">
-            <button
-              type="button"
-              onClick={() => setMemoMode("public")}
-              className={`px-3 h-8 text-sm ${
-                memoMode === "public"
-                  ? "bg-amber-500 text-white"
-                  : "text-gray-700"
-              }`}
-            >
-              K&N
-            </button>
-            <button
-              type="button"
-              onClick={() => setMemoMode("secret")}
-              className={`px-3 h-8 text-sm border-l ${
-                memoMode === "secret"
-                  ? "bg-rose-600 text-white"
-                  : "text-gray-700"
-              }`}
-            >
-              R
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setMemoMode(memoMode === "public" ? "secret" : "public")
+            }
+            className={cn(
+              "px-3 h-8 text-sm rounded-md border shadow-sm transition-colors",
+              memoMode === "public"
+                ? "bg-amber-500 text-white border-amber-500" // 주황
+                : "bg-rose-600 text-white border-rose-600" // 빨강
+            )}
+          >
+            K&N
+          </button>
         </div>
 
         {/* 🔵 지도 메뉴 (등록/답사/임시핀 등 필터) - 가운데 */}
