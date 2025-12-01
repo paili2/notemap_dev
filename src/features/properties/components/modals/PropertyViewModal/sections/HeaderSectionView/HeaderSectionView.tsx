@@ -123,6 +123,7 @@ export default function HeaderSectionView({
         {memoMode === "secret" && (
           <div className="hidden sm:block h-5 w-px bg-gray-200 mx-1 shrink-0 md:order-2" />
         )}
+
         {/* 3️⃣ 리베이트 영역 (비밀글 모드 + 값 있을 때만 표시) */}
         {memoMode === "secret" && rebateDisplay && (
           <div className="order-2 md:order-3 shrink-0 flex items-center md:gap-1 mt-1 md:mt-0">

@@ -612,19 +612,43 @@ export default function PinContextMenuContainer(props: Props) {
   const offsetPx = isSearchDraft ? 56 : 56;
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
+  /** ✅ 컨텍스트 메뉴 패널에 넘길 propertyId
+   *  - draft 메타가 있으면 그 id를 우선 사용 (예: 62)
+   *  - 아니면 기존처럼 propertyId 문자열에서 숫자부분만 추출
+   */
   const propertyIdClean = React.useMemo(() => {
+    // 1️⃣ 현재 위치가 draft 마커면 meta의 id 사용
+    if (metaAtPos?.source === "draft") {
+      const n = Number((metaAtPos as any)?.id);
+      if (Number.isFinite(n)) return String(n);
+    }
+
+    // 2️⃣ 그 외에는 원래 로직
     const raw = String(propertyId ?? "").trim();
     if (!raw) return null;
     const m = raw.match(/(\d{1,})$/);
     return (m?.[1] ?? raw) || null;
-  }, [propertyId]);
+  }, [propertyId, metaAtPos]);
+
+  /** ✅ draft 메타일 때만 제목으로 사용 */
+  const metaTitle = React.useMemo(() => {
+    if (!metaAtPos) return undefined;
+
+    // 임시핀(draft)일 때만 meta의 title/name 사용
+    if (metaAtPos.source === "draft") {
+      return (
+        (metaAtPos as any)?.property?.title ??
+        (metaAtPos as any)?.title ??
+        (metaAtPos as any)?.name ??
+        undefined
+      );
+    }
+
+    // 실매물(point 등)일 때는 metaTitle 사용하지 않음
+    return undefined;
+  }, [metaAtPos]);
 
   const derivedPropertyTitle = React.useMemo(() => {
-    const metaTitle =
-      (metaAtPos as any)?.property?.title ??
-      (metaAtPos as any)?.title ??
-      (metaAtPos as any)?.name ??
-      undefined;
     const pinTitle =
       (pin as any)?.property?.title ??
       (pin as any)?.title ??
@@ -638,7 +662,7 @@ export default function PinContextMenuContainer(props: Props) {
       (metaTitle ?? "").trim() ||
       ""
     );
-  }, [propertyTitle, pin, metaAtPos]);
+  }, [propertyTitle, pin, metaTitle]);
 
   /** ✅ 매물 삭제 여부 상태 */
   const [deleting, setDeleting] = React.useState(false);
@@ -684,6 +708,7 @@ export default function PinContextMenuContainer(props: Props) {
       lat: position.getLat(),
       lng: position.getLng(),
       propertyId,
+      propertyIdClean,
       pinId: (pin as any)?.id,
       isSearchDraft,
       offsetPx,
@@ -697,6 +722,7 @@ export default function PinContextMenuContainer(props: Props) {
   }, [
     position,
     propertyId,
+    propertyIdClean,
     pin,
     isSearchDraft,
     offsetPx,

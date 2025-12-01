@@ -19,6 +19,7 @@ import type {
 import { getPinRaw } from "@/shared/api/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
+import { getPinDraftDetailOnce } from "@/shared/api/pins"; // ✅ 임시핀 상세 조회
 
 /** 느슨한 불리언 변환 (true/"true"/1/"1") */
 const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
@@ -175,18 +176,122 @@ export default function ContextMenuPanel({
     };
   }, [displayTitle, canView, propertyId]);
 
+  /** ✅ 답사예정/답사지예약(임시핀)일 때 pin-drafts 기반으로 제목 채우기 */
+  useEffect(() => {
+    const idStr = String(propertyId ?? "").trim();
+    if (!idStr) return;
+
+    // draft(검색 드래프트)는 '__draft__'라서 별도 처리, 여기서는
+    // "답사예정/답사지예약" 계열(= planned/reserved)만 다룬다.
+    if (!reserved && !planned) {
+      // 디버깅용
+      console.log("[draft effect] skip (not planned/reserved)", {
+        idStr,
+        planned,
+        reserved,
+        displayTitle,
+      });
+      return;
+    }
+
+    // 이미 제대로 된 매물명이 들어온 경우는 굳이 다시 불러올 필요 없음
+    if (
+      displayTitle &&
+      displayTitle !== "답사예정" &&
+      displayTitle !== "답사지예약"
+    ) {
+      console.log("[draft effect] skip (has proper title)", {
+        idStr,
+        planned,
+        reserved,
+        displayTitle,
+      });
+      return;
+    }
+
+    // 1차: __plan__62 / __visit__62 같은 형태 → 숫자 추출
+    let draftId = extractDraftIdFromPropertyId(propertyId);
+
+    // 2차: 위에서 못 뽑았고, 그냥 "62" 같은 숫자 문자열이면 그대로 draftId 로 사용
+    if (draftId == null) {
+      const n = Number(idStr);
+      if (Number.isFinite(n)) {
+        draftId = n;
+      }
+    }
+
+    if (!draftId) {
+      console.log("[draft effect] no draftId resolved", {
+        idStr,
+        planned,
+        reserved,
+        displayTitle,
+      });
+      return;
+    }
+
+    console.log("[draft effect] run for draftId", {
+      idStr,
+      draftId,
+      planned,
+      reserved,
+      displayTitle,
+    });
+
+    let alive = true;
+
+    getPinDraftDetailOnce(draftId)
+      .then((detail) => {
+        if (!alive || !detail) return;
+
+        const name = String(detail.name ?? "").trim();
+        const addr = String(detail.addressLine ?? "").trim();
+
+        console.log("[draft effect] detail loaded", { draftId, name, addr });
+
+        if (name) {
+          setDisplayTitle(name);
+        } else if (addr) {
+          setDisplayTitle(addr);
+        }
+      })
+      .catch((err) => {
+        console.log("[draft effect] error", err);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [propertyId, planned, reserved, displayTitle]);
+
   /** 최종 헤더 타이틀 */
   const headerTitle = useMemo(() => {
     if (draft) return "선택 위치";
 
+    // 1순위: 매물명(컨테이너/조회/드래프트로 채워진 제목)
     const name = (displayTitle || propertyTitle || "").trim();
     if (name) return name;
 
+    // 2순위: 예약핀은 그대로 문구 유지
     if (reserved) return "답사지예약";
-    if (planned) return "답사예정";
+
+    // 3순위: 답사 예정지는 주소 fallback
+    if (planned) {
+      const addr = (roadAddress || jibunAddress || "").trim();
+      if (addr) return addr;
+      return "답사예정";
+    }
 
     return "선택 위치";
-  }, [draft, reserved, planned, displayTitle, propertyTitle]);
+  }, [
+    draft,
+    reserved,
+    planned,
+    displayTitle,
+    propertyTitle,
+    roadAddress,
+    jibunAddress,
+  ]);
 
   /** 초기 포커스/복귀 */
   useEffect(() => {

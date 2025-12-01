@@ -9,16 +9,16 @@ export type PinKind =
   | "3room-terrace"
   | "4room"
   | "4room-terrace"
-  | "duplex" // 복층
+  | "duplex"
   | "duplex-terrace"
-  | "townhouse" // 타운하우스
-  | "question" // 답사예정
-  | "completed"; // 완료
+  | "townhouse"
+  | "question"
+  | "completed";
 
 export type PinState = "draft" | "saved" | "reserved";
 
 export type PinItem = PropertyItem & {
-  kind: PinKind; // "question" = 답사예정
+  kind: PinKind;
   state?: "draft" | "saved"; // 임시/저장됨
   isFav?: boolean;
 };
