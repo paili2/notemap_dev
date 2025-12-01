@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 
@@ -13,23 +13,9 @@ import ModalsHost from "../components/ModalsHost";
 import { cn } from "@/lib/cn";
 
 import type { PinKind } from "@/features/pins/types";
-import type {
-  PinSearchParams,
-  PinSearchResult,
-} from "@/features/pins/types/pin-search";
-import { searchPins, togglePinDisabled } from "@/shared/api/pins";
-
-/* ✅ 사이드바 아이템 타입 import 추가 */
 import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 
-/* ✅ 상세보기 데이터 패칭 & 뷰모델 변환 */
-import { getPinRaw } from "@/shared/api/getPin";
-import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
-
-import { distM } from "@/features/map/hooks/poi/shared/geometry";
 import { useRoadview } from "@/features/map/hooks/useRoadview";
-import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
-import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { useBounds } from "@/features/map/hooks/useBounds";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import TopRightControls from "@/features/map/components/TopRightControls";
@@ -37,184 +23,20 @@ import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
 import { MapHomeUIProps } from "../types";
 import { useBoundsRaw } from "../../hooks/useBoundsRaw";
-import { MapMarker } from "../../shared/types/map";
 import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
 import { FilterSearch } from "../../components/filterSearch";
 
-/* ------------------------- 검색 유틸 ------------------------- */
-function parseStationAndExit(qRaw: string) {
-  const q = qRaw.trim().replace(/\s+/g, " ");
-  const exitMatch = q.match(/(\d+)\s*번\s*출구/);
-  const exitNo = exitMatch ? Number(exitMatch[1]) : null;
-  const station = q
-    .replace(/(\d+)\s*번\s*출구/g, "")
-    .replace(/역/g, "")
-    .trim();
-  return { stationName: station, exitNo, hasExit: exitNo !== null, raw: q };
-}
+import { usePlaceSearchOnMap } from "./hooks/usePlaceSearchOnMap";
+import { useViewModalState } from "./hooks/useViewModalState";
+import { usePanelsAndToggles } from "./hooks/usePanelsAndToggles";
 
-const norm = (s: string) => (s || "").replace(/\s+/g, "");
+/* 🔎 검색 / 필터 훅들 */
+import { useFilterSearch } from "./hooks/useFilterSearch";
+import { useViewportPinsForMapHome } from "./hooks/useViewportPinsForMapHome";
+import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 
-function pickBestStation(data: any[], stationName: string) {
-  const s = norm(stationName);
-  const stations = data.filter((d) => d.category_group_code === "SW8");
-  const cand = stations.length ? stations : data;
-  return (
-    cand.find((d) => norm(d.place_name) === norm(`${stationName}역`)) ||
-    cand.find((d) => norm(d.place_name).includes(s)) ||
-    cand[0]
-  );
-}
-
-// 출구 번호 추출
-function extractExitNo(name: string): number | null {
-  const n1 = name.match(/(\d+)\s*번\s*출구/);
-  const n2 = name.match(/(\d+)\s*번출구/);
-  const n3 = name.match(/[①②③④⑤⑥⑦⑧⑨⑩]/);
-  if (n1) return Number(n1[1]);
-  if (n2) return Number(n2[1]);
-  if (n3) return "①②③④⑤⑥⑦⑧⑨⑩".indexOf(n3[0]) + 1;
-  return null;
-}
-
-function pickBestExitStrict(
-  data: any[],
-  stationName: string,
-  want?: number | null,
-  stationLL?: kakao.maps.LatLng
-) {
-  if (!data?.length) return null;
-  const n = (s: string) => (s || "").replace(/\s+/g, "");
-  const sNorm = n(`${stationName}역`);
-
-  const withStation = data.filter(
-    (d) => /출구/.test(d.place_name) && n(d.place_name).includes(n(stationName))
-  );
-  const pool = withStation.length
-    ? withStation
-    : data.filter((d) => /출구/.test(d.place_name)) || data;
-
-  const scored = pool.map((d) => {
-    const no = extractExitNo(d.place_name);
-    let score = 0;
-
-    if (want != null && no === want) score += 1000;
-    if (n(d.place_name).includes(sNorm)) score += 50;
-
-    let dist = Number(d.distance ?? 999_999);
-    if (isNaN(dist) && stationLL) {
-      const dy = Math.abs(Number(d.y) - stationLL.getLat());
-      const dx = Math.abs(Number(d.x) - stationLL.getLng());
-      dist = Math.sqrt(dx * dx + dy * dy) * 111_000;
-    }
-    score += Math.max(0, 500 - Math.min(dist, 500));
-    return { d, score };
-  });
-
-  scored.sort((a, b) => b.score - a.score);
-  return scored[0]?.d ?? data[0];
-}
-
-/* ------ 일반 장소(학교 가중) ------ */
-function scorePlaceForSchool(item: any, keywordNorm: string) {
-  const nameN = norm(item.place_name);
-  const cat = (item.category_name || "").replace(/\s+/g, "");
-  let s = 0;
-
-  if (nameN === keywordNorm) s += 1000;
-  if (nameN.startsWith(keywordNorm)) s += 400;
-  if (nameN.includes(keywordNorm)) s += 150;
-
-  if (/학교|대학교|캠퍼스|정문|본관/.test(item.place_name)) s += 300;
-  if (/학교|대학교/.test(cat)) s += 250;
-
-  if (/숲|산|등산|둘레길|산책로|야외|야영/.test(item.place_name)) s -= 500;
-  if (/[로|길]$/.test(item.place_name)) s -= 300;
-
-  const dist = Number(item.distance ?? 999_999);
-  if (!isNaN(dist)) s += Math.max(0, 400 - Math.min(dist, 400));
-  return s;
-}
-
-function pickBestPlace(
-  data: any[],
-  keyword: string,
-  center?: kakao.maps.LatLng | null
-) {
-  if (!data?.length) return null;
-  const kw = norm(keyword);
-
-  const exact = data.find((d) => norm(d.place_name) === kw);
-  if (exact) return exact;
-  const starts = data.find((d) => norm(d.place_name).startsWith(kw));
-  if (starts) return starts;
-  const partial = data.find((d) => norm(d.place_name).includes(kw));
-  if (partial) return partial;
-
-  if (center) {
-    const withDist = data
-      .map((d) => ({ d, dist: Number(d.distance ?? Infinity) }))
-      .sort((a, b) => a.dist - b.dist);
-    if (withDist[0]?.d) return withDist[0].d;
-  }
-  return data[0];
-}
-
-/* 🔍 검색 결과에 핀을 찍을지 판정 */
-function shouldCreateSearchPin(item: any, keyword: string) {
-  const addr =
-    item.road_address_name ||
-    item.address_name ||
-    item.address?.address_name ||
-    "";
-  const name = item.place_name || addr || keyword;
-
-  const keywordNorm = (keyword || "").trim();
-  const isExitQuery = /출구/.test(keywordNorm);
-  const catCode = item.category_group_code || "";
-
-  // 🔹 역 이름만 검색(출구 없이) → 핀 안 만들고 이동만
-  if (!isExitQuery) {
-    if (catCode === "SW8") return false;
-    if (/역$/.test(name)) return false;
-  }
-
-  const bigRegionPattern = /(대한민국|청사|도청|시청|구청)$/;
-  if (bigRegionPattern.test(name) || bigRegionPattern.test(addr)) {
-    return false;
-  }
-
-  if (/^(.*(시|군|구))$/.test(name) && !/(동|읍|면|리)/.test(name)) {
-    return false;
-  }
-
-  if (item.category_group_code) return true;
-
-  return true;
-}
-
-/* ------------------------------------------------------------ */
-/*                    🔧 EDIT 주입 보장 유틸                     */
-/* ------------------------------------------------------------ */
-
-function ensureViewForEdit(
-  v: PropertyViewDetails | (PropertyViewDetails & { editInitial?: any }) | null
-): (PropertyViewDetails & { editInitial: any }) | null {
-  if (!v) return null;
-
-  const id = (v as any).id ?? (v as any)?.view?.id ?? undefined;
-  const view = { ...(v as any), ...(id != null ? { id } : {}) };
-
-  if ((view as any).editInitial?.view) {
-    return view as any;
-  }
-  return {
-    ...(view as any),
-    editInitial: { view: { ...(view as any) } },
-  } as any;
-}
-
-/* =================================================================== */
+/* 👀 지도 포커스 유틸 */
+import { focusMapToPosition } from "./lib/viewUtils";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -268,300 +90,87 @@ export function MapHomeUI(props: MapHomeUIProps) {
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
   const getBoundsRaw = useBoundsRaw(kakaoSDK, mapInstance);
 
-  const [localDraftMarkers, setLocalDraftMarkers] = useState<MapMarker[]>([]);
-  const [, setFilterParams] = useState<PinSearchParams | null>(null);
-  const [searchRes, setSearchRes] = useState<PinSearchResult | null>(null);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
-  const [viewOpenLocal, setViewOpenLocal] = useState(false);
-  const [viewDataLocal, setViewDataLocal] =
-    useState<PropertyViewDetails | null>(null);
-
-  // 🔐 마지막 검색 기준 중심(지도의 center)을 기억해서, 멀리 이동했을 때만 검색핀 제거
-  const lastSearchCenterRef = useRef<{ lat: number; lng: number } | null>(null);
-
-  const handleViewFromMenuLocal = useCallback(async (pinId: string) => {
-    setViewOpenLocal(true);
-    setViewDataLocal(null);
-    try {
-      const apiPin = await getPinRaw(pinId);
-
-      const raw = (apiPin as any)?.data ?? apiPin;
-      const base = toViewDetailsFromApi(raw) as PropertyViewDetails;
-
-      const withEditInitial = {
-        ...base,
-        id: (base as any).id ?? pinId,
-        editInitial: {
-          view: { ...base },
-          raw,
-        },
-      } as PropertyViewDetails & { editInitial: any };
-
-      setViewDataLocal(withEditInitial);
-    } catch (e) {
-      console.error(e);
-      setViewOpenLocal(false);
-    }
-  }, []);
-
-  const handleViewFromMenu = useCallback(
-    (id: string) => {
-      if (typeof onViewFromMenu === "function") {
-        onViewFromMenu(id);
-      }
-      handleViewFromMenuLocal(id);
-    },
-    [onViewFromMenu, handleViewFromMenuLocal]
-  );
-
-  const handleOpenViewAfterCreate = useCallback(
-    (pinId: string | number) => {
-      handleViewFromMenu(String(pinId));
-    },
-    [handleViewFromMenu]
-  );
-
-  const fitToSearch = useCallback(
-    (res: PinSearchResult) => {
-      if (!kakaoSDK || !mapInstance) return;
-      const coords = [
-        ...(res.pins ?? []).map((p) => ({ lat: p.lat, lng: p.lng })),
-        ...(res.drafts ?? []).map((d) => ({ lat: d.lat, lng: d.lng })),
-      ];
-      if (!coords.length) return;
-      const bounds = new kakaoSDK.maps.LatLngBounds();
-      coords.forEach((c) =>
-        bounds.extend(new kakaoSDK.maps.LatLng(c.lat, c.lng))
-      );
-      try {
-        mapInstance.setBounds(bounds);
-      } catch {}
-    },
-    [kakaoSDK, mapInstance]
-  );
-
-  const toServerPointsFromPins = useCallback(
-    (pins: NonNullable<PinSearchResult["pins"]>) =>
-      pins.map((p) => {
-        const displayName = (p.name ?? "").trim();
-
-        return {
-          id: String(p.id),
-          name: displayName,
-          title: displayName,
-          lat: p.lat,
-          lng: p.lng,
-          badge: p.badge ?? null,
-          /** ⭐ 신축/구옥 정보 그대로 전달 */
-          ageType: p.ageType ?? null,
-        };
-      }),
-    []
-  );
-
-  const toServerDraftsFromDrafts = useCallback(
-    (drafts: NonNullable<PinSearchResult["drafts"]>) =>
-      drafts.map((d) => {
-        const label = (d.title ?? "답사예정").trim();
-
-        return {
-          id: d.id,
-          name: label,
-          title: label,
-          lat: d.lat,
-          lng: d.lng,
-          draftState: (d as any).draftState,
-          badge: d.badge ?? null,
-        };
-      }),
-    []
-  );
-
-  const handleApplyFilters = useCallback(
-    async (params: PinSearchParams) => {
-      setFilterParams(params);
-      setFilterSearchOpen(false);
-      setSearchLoading(true);
-      setSearchError(null);
-      try {
-        const res = await searchPins(params);
-        setSearchRes(res);
-
-        const hasPins = (res.pins?.length ?? 0) > 0;
-        const hasDrafts = (res.drafts?.length ?? 0) > 0;
-
-        if (!hasPins && !hasDrafts) {
-          setNoResultDialogOpen(true);
-        } else {
-          fitToSearch(res);
-        }
-      } catch (e: any) {
-        setSearchError(e?.message ?? "검색 실패");
-        setSearchRes(null);
-      } finally {
-        setSearchLoading(false);
-      }
-    },
-    [fitToSearch]
-  );
-
-  const clearSearch = useCallback(() => {
-    setFilterParams(null);
-    setSearchRes(null);
-    setSearchError(null);
-  }, []);
-
-  const upsertDraftMarker = useCallback(
-    (m: {
-      id: string | number;
-      lat: number;
-      lng: number;
-      address?: string | null;
-      source?: "geocode" | "search" | "draft";
-      kind?: PinKind;
-    }) => {
-      console.log("[upsertDraftMarker] input", m);
-      setLocalDraftMarkers((prev) => {
-        const list = prev.slice();
-        const id = String(m.id);
-        const idx = list.findIndex((x) => String(x.id) === id);
-        const next: MapMarker = {
-          id,
-          title: m.address ?? "선택 위치",
-          position: { lat: m.lat, lng: m.lng },
-          ...(m.source ? ({ source: m.source } as any) : {}),
-          kind: (m.kind ?? "question") as PinKind,
-        };
-        if (idx >= 0) list[idx] = { ...list[idx], ...next };
-        else list.push(next);
-        console.log("[upsertDraftMarker] next list", list);
-        return list;
-      });
-    },
-    []
-  );
-
-  const replaceTempByRealId = useCallback(
-    (tempId: string | number, realId: string | number) => {
-      setLocalDraftMarkers((prev) =>
-        prev.map((x) =>
-          String(x.id) === String(tempId)
-            ? { ...x, id: `__visit__${realId}` }
-            : x
-        )
-      );
-    },
-    []
-  );
-
-  // 🔴 검색/지도에서 만든 임시핀(__draft__, __search__) 제거용
-  const clearTempMarkers = useCallback(() => {
-    setLocalDraftMarkers((prev) =>
-      prev.filter((m) => {
-        const id = String(m.id);
-        return id !== "__draft__" && id !== "__search__";
-      })
-    );
-  }, []);
-
-  const originalOnAfterCreate = createHostHandlers?.onAfterCreate;
-
-  const handleAfterCreate = useCallback(
-    (args: any) => {
-      const { matchedDraftId, lat, lng, mode, pinId } = args || {};
-
-      if (mode === "visit-plan-only") {
-        createHostHandlers?.resetAfterCreate?.();
-        createHostHandlers?.onClose?.();
-        closeView?.();
-        originalOnAfterCreate?.(args);
-        return;
-      }
-
-      if (matchedDraftId != null && pinId != null) {
-        replaceTempByRealId(matchedDraftId, pinId);
-      } else if (lat != null && lng != null && pinId != null) {
-        upsertDraftMarker({
-          id: `__visit__${pinId}`,
-          lat,
-          lng,
-          address: null,
-          source: "draft",
-        });
-      }
-
-      originalOnAfterCreate?.(args);
-    },
-    [
-      closeView,
-      createHostHandlers,
-      originalOnAfterCreate,
-      replaceTempByRealId,
-      upsertDraftMarker,
-    ]
-  );
-
-  const draftStateForQuery = useMemo<
-    undefined | "before" | "scheduled" | "all"
-  >(() => {
-    switch (filter as MapMenuKey) {
-      case "plannedOnly":
-        return "before";
-      default:
-        return undefined;
-    }
-  }, [filter]);
-
-  const isNewFlag = useMemo(
-    () => (filter === "new" ? true : undefined),
-    [filter]
-  );
-  const isOldFlag = useMemo(
-    () => (filter === "old" ? true : undefined),
-    [filter]
-  );
-
+  // 🔭 로드뷰
   const {
-    points: serverPoints,
-    drafts: serverDrafts,
-    loading: pinsLoading,
-    error: pinsError,
-  } = usePinsFromViewport({
-    map: mapInstance,
-    debounceMs: 300,
-    draftState: draftStateForQuery,
-    isNew: isNewFlag,
-    isOld: isOldFlag,
+    roadviewContainerRef,
+    visible: roadviewVisible,
+    openAtCenter,
+    openAt,
+    close,
+  } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
+
+  // 🔧 패널 / 토글 묶음 훅
+  const {
+    isDistrictOn,
+    rightOpen,
+    filterSearchOpen,
+    noResultDialogOpen,
+    roadviewRoadOn,
+    handleSetDistrictOn,
+    handleSetRightOpen,
+    setFilterSearchOpen,
+    setNoResultDialogOpen,
+    handleOpenFilterSearch,
+    handleToggleSidebar,
+    toggleRoadviewRoad,
+    rightAreaRef,
+    filterAreaRef,
+    sidebarAreaRef,
+  } = usePanelsAndToggles({
+    useSidebar,
+    setUseSidebar,
+    roadviewVisible,
+    closeRoadview: close,
   });
 
-  const normServerPoints = useMemo(
-    () =>
-      serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })) ?? [],
-    [serverPoints]
-  );
-  const normServerDrafts = useMemo(
-    () =>
-      serverDrafts?.map((d) => ({ ...d, title: d.title ?? undefined })) ?? [],
-    [serverDrafts]
-  );
+  // 🔍 필터 검색 상태/로직 (API + bounds 맞추기)
+  const {
+    searchRes,
+    searchLoading,
+    searchError,
+    handleApplyFilters,
+    clearSearch,
+  } = useFilterSearch({
+    kakaoSDK,
+    mapInstance,
+    setFilterSearchOpen,
+    setNoResultDialogOpen,
+  });
 
-  const effectiveServerPoints = useMemo(
-    () =>
-      searchRes?.pins
-        ? toServerPointsFromPins(searchRes.pins)
-        : normServerPoints,
-    [searchRes?.pins, normServerPoints, toServerPointsFromPins]
-  );
-  const effectiveServerDrafts = useMemo(
-    () =>
-      searchRes?.drafts
-        ? toServerDraftsFromDrafts(searchRes.drafts)
-        : normServerDrafts,
-    [searchRes?.drafts, normServerDrafts, toServerDraftsFromDrafts]
-  );
+  // 🔍 뷰포트 기준 서버 핀 + 검색 결과 머지된 형태
+  const {
+    pinsLoading,
+    pinsError,
+    effectiveServerPoints,
+    effectiveServerDrafts,
+  } = useViewportPinsForMapHome({
+    mapInstance,
+    filter: filter as MapMenuKey,
+    searchRes,
+  });
 
+  // 🔍 상단 장소 검색 + 검색핀 관리
+  const {
+    localDraftMarkers,
+    upsertDraftMarker,
+    replaceTempByRealId,
+    handleSubmitSearch,
+    handleViewportChangeInternal,
+  } = usePlaceSearchOnMap({
+    kakaoSDK,
+    mapInstance,
+    effectiveServerPoints,
+    effectiveServerDrafts,
+    onSubmitSearch,
+    onViewportChange,
+    onOpenMenu,
+    onChangeHideLabelForId,
+    menuOpen,
+    menuAnchor,
+    hideLabelForId: hideLabelForId ?? undefined,
+  });
+
+  // 서버핀 + 로컬 임시핀 merge
   const { mergedWithTempDraft, mergedMeta } = useMergedMarkers({
     localMarkers: useMemo(
       () => [...(markers ?? []), ...localDraftMarkers],
@@ -574,26 +183,17 @@ export function MapHomeUI(props: MapHomeUIProps) {
     filterKey: filter,
   });
 
+  // 답사 예정 draft 핀 (오렌지/빨강 토글용)
   usePlannedDrafts({ filter, getBounds: getBoundsRaw });
-
-  const {
-    roadviewContainerRef,
-    visible: roadviewVisible,
-    openAtCenter,
-    openAt,
-    close,
-  } = useRoadview({ kakaoSDK, map: mapInstance, autoSync: true });
-
-  const [isDistrictOn, setIsDistrictOnState] = useState(false);
 
   const handleRoadviewClickOnMap = useCallback(
     (pos: { lat: number; lng: number }) => {
       openAt(pos, { face: pos });
       if (isDistrictOn) {
-        setIsDistrictOnState(false);
+        handleSetDistrictOn(false);
       }
     },
-    [openAt, isDistrictOn]
+    [openAt, isDistrictOn, handleSetDistrictOn]
   );
 
   const toggleRoadview = useCallback(() => {
@@ -620,7 +220,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
 
     if (isDistrictOn) {
-      setIsDistrictOnState(false);
+      handleSetDistrictOn(false);
     }
   }, [
     roadviewVisible,
@@ -632,6 +232,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     draftPin,
     mapInstance,
     isDistrictOn,
+    handleSetDistrictOn,
   ]);
 
   const [didInit, setDidInit] = useState(false);
@@ -650,76 +251,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [mergedWithTempDraft]
   );
 
-  const [rightOpen, setRightOpen] = useState(false);
-  const [filterSearchOpen, setFilterSearchOpen] = useState(false);
-  const [noResultDialogOpen, setNoResultDialogOpen] = useState(false);
-
-  const [roadviewRoadOn, setRoadviewRoadOn] = useState(false);
-
-  const rightAreaRef = useRef<HTMLDivElement | null>(null);
-  const filterAreaRef = useRef<HTMLDivElement | null>(null);
-  const sidebarAreaRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!rightOpen && !filterSearchOpen && !useSidebar) return;
-
-      const target = event.target as Node | null;
-      if (!target) return;
-
-      const filterPortalRoot = document.getElementById("filter-search-root");
-      if (filterPortalRoot && filterPortalRoot.contains(target)) {
-        return;
-      }
-
-      if (
-        rightAreaRef.current?.contains(target) ||
-        filterAreaRef.current?.contains(target) ||
-        sidebarAreaRef.current?.contains(target)
-      ) {
-        return;
-      }
-
-      setRightOpen(false);
-      setFilterSearchOpen(false);
-      setUseSidebar(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [rightOpen, filterSearchOpen, useSidebar, setUseSidebar]);
-
-  const handleSetDistrictOn = useCallback(
-    (next: boolean) => {
-      setIsDistrictOnState(next);
-      if (next && roadviewVisible) {
-        close();
-      }
-    },
-    [roadviewVisible, close]
-  );
-
-  const handleSetRightOpen = useCallback(
-    (expanded: boolean) => {
-      setRightOpen(expanded);
-      if (expanded) {
-        setFilterSearchOpen(false);
-        if (useSidebar) setUseSidebar(false);
-      }
-    },
-    [useSidebar, setUseSidebar]
-  );
-
-  const handleOpenFilterSearch = useCallback(() => {
-    setFilterSearchOpen(true);
-    setRightOpen(false);
-    setUseSidebar(false);
-  }, [setUseSidebar]);
-
-  const { siteReservations } = useSidebarCtx();
-
+  // 🔄 뷰 모달 상태 관리
   const refreshViewportPins = useCallback(async () => {
     if (!kakaoSDK || !mapInstance) return;
     try {
@@ -731,519 +263,55 @@ export function MapHomeUI(props: MapHomeUIProps) {
     } catch {}
   }, [kakaoSDK, mapInstance]);
 
-  const TARGET_FOCUS_LEVEL = 4;
+  const {
+    viewOpenLocal,
+    selectedViewForModal,
+    handleViewFromMenu,
+    handleOpenViewAfterCreate,
+    handleDeleteFromView,
+    handleCloseView,
+  } = useViewModalState({
+    selectedViewItem: selectedViewItem ?? null,
+    onViewFromMenu,
+    onDeleteFromView,
+    refreshViewportPins,
+    closeView,
+  });
 
+  // 생성 후 임시핀/방문핀 처리 (커스텀 훅)
+  const { handleAfterCreate } = useAfterCreateHandler({
+    createHostHandlers,
+    closeView,
+    replaceTempByRealId,
+    upsertDraftMarker,
+  });
+
+  const { siteReservations } = useSidebarCtx();
+
+  // 🔎 사이드바에서 지도 포커싱
   const handleFocusItemMap = useCallback(
     (item: ListItem | null) => {
-      if (!item || !kakaoSDK || !mapInstance) return;
-      if ((item as any).lat == null || (item as any).lng == null) return;
+      if (!item) return;
+      const lat = (item as any).lat;
+      const lng = (item as any).lng;
+      if (lat == null || lng == null) return;
 
-      const ll = new kakaoSDK.maps.LatLng((item as any).lat, (item as any).lng);
-
-      try {
-        const current = mapInstance.getLevel?.();
-
-        if (typeof current === "number" && current !== TARGET_FOCUS_LEVEL) {
-          mapInstance.setLevel(TARGET_FOCUS_LEVEL, { animate: true });
-        }
-
-        mapInstance.panTo(ll);
-      } catch (e) {
-        console.error("[handleFocusItemMap] map 이동 실패:", e);
-      }
+      focusMapToPosition({ kakaoSDK, mapInstance, lat, lng });
     },
     [kakaoSDK, mapInstance]
   );
 
   const handleFocusSubItemMap = useCallback(
     (sub: SubListItem | null) => {
-      if (!sub || !kakaoSDK || !mapInstance) return;
-      if ((sub as any).lat == null || (sub as any).lng == null) return;
+      if (!sub) return;
+      const lat = (sub as any).lat;
+      const lng = (sub as any).lng;
+      if (lat == null || lng == null) return;
 
-      const ll = new kakaoSDK.maps.LatLng((sub as any).lat, (sub as any).lng);
-
-      try {
-        const current = mapInstance.getLevel?.();
-
-        if (typeof current === "number" && current !== TARGET_FOCUS_LEVEL) {
-          mapInstance.setLevel(TARGET_FOCUS_LEVEL, { animate: true });
-        }
-        mapInstance.panTo(ll);
-      } catch (e) {
-        console.error("[handleFocusSubItemMap] map 이동 실패:", e);
-      }
+      focusMapToPosition({ kakaoSDK, mapInstance, lat, lng });
     },
     [kakaoSDK, mapInstance]
   );
-
-  const handleViewportChangeInternal = useCallback(
-    (v: any) => {
-      console.log("[viewportChange] fired", {
-        lastSearchCenter: lastSearchCenterRef.current,
-        v,
-      });
-
-      if (lastSearchCenterRef.current) {
-        const centerLat = (v.leftTop.lat + v.rightBottom.lat) / 2;
-        const centerLng = (v.leftTop.lng + v.rightBottom.lng) / 2;
-
-        const d = distM(
-          centerLat,
-          centerLng,
-          lastSearchCenterRef.current.lat,
-          lastSearchCenterRef.current.lng
-        );
-
-        console.log("[viewportChange] distance from lastSearchCenter", { d });
-
-        const THRESHOLD_M = 300;
-        if (d > THRESHOLD_M) {
-          console.log(
-            "[viewportChange] over threshold → clear search markers",
-            { THRESHOLD_M }
-          );
-          setLocalDraftMarkers((prev) =>
-            prev.filter((m) => (m as any).source !== "search")
-          );
-          lastSearchCenterRef.current = null;
-        }
-      }
-
-      onViewportChange?.(v);
-    },
-    [onViewportChange]
-  );
-
-  const handleSubmitSearch = useCallback(
-    async (text: string) => {
-      const query = text.trim();
-      if (!query || !kakaoSDK || !mapInstance) return;
-
-      onSubmitSearch?.(query);
-
-      const setCenterOnly = (lat: number, lng: number) => {
-        console.log("[setCenterOnly]", { lat, lng, query });
-        const ll = new kakaoSDK.maps.LatLng(lat, lng);
-        mapInstance.setCenter(ll);
-        mapInstance.setLevel(3);
-      };
-
-      // kakao 지도 애니메이션(이동/줌)이 끝난 뒤에 fn 실행
-      const runAfterIdle = (fn: () => void) => {
-        if (!kakaoSDK || !mapInstance || !(kakaoSDK as any).maps?.event) {
-          fn();
-          return;
-        }
-
-        try {
-          const event = (kakaoSDK as any).maps.event;
-          let fired = false;
-
-          const listener = event.addListener(mapInstance, "idle", () => {
-            if (fired) return;
-            fired = true;
-            event.removeListener(listener);
-            fn();
-          });
-
-          // 혹시 idle 이 안 들어오면 안전 타임아웃
-          setTimeout(() => {
-            if (fired) return;
-            fired = true;
-            event.removeListener(listener);
-            fn();
-          }, 400);
-        } catch {
-          fn();
-        }
-      };
-
-      const setCenterWithMarker = async (
-        lat: number,
-        lng: number,
-        label?: string | null
-      ) => {
-        const NEAR_THRESHOLD_M = 450;
-        const EXISTING_THRESHOLD_M = 350;
-
-        type RealAroundPin = {
-          id: string;
-          lat: number;
-          lng: number;
-          title?: string | null;
-        };
-
-        // 1) 지도 중심/레벨 먼저 맞추기
-        try {
-          const ll = new kakaoSDK.maps.LatLng(lat, lng);
-          mapInstance.setCenter(ll);
-          mapInstance.setLevel(3);
-        } catch {}
-
-        // 주변 실제핀 찾는 함수
-        const findBestRealAround = (): RealAroundPin | null => {
-          let bestReal: RealAroundPin | null = null;
-          let bestDist = Infinity;
-
-          const tryReal = (
-            id: string | number,
-            plat: number,
-            plng: number,
-            title?: string | null
-          ) => {
-            const d = distM(lat, lng, plat, plng);
-            if (d <= NEAR_THRESHOLD_M && d < bestDist) {
-              bestDist = d;
-              bestReal = {
-                id: String(id),
-                lat: plat,
-                lng: plng,
-                title,
-              };
-            }
-          };
-
-          (effectiveServerPoints ?? []).forEach((p: any) => {
-            tryReal(
-              p.id,
-              p.lat,
-              p.lng,
-              (p as any).title ?? (p as any).name ?? null
-            );
-          });
-
-          (effectiveServerDrafts ?? []).forEach((d: any) => {
-            tryReal(
-              d.id,
-              d.lat,
-              d.lng,
-              (d as any).title ?? (d as any).name ?? "답사예정"
-            );
-          });
-
-          localDraftMarkers.forEach((m: any) => {
-            const idStr = String(m.id);
-            if (!idStr.startsWith("__visit__")) return;
-            const pos = m.position;
-            if (!pos) return;
-            tryReal(idStr, pos.lat, pos.lng, m.title ?? null);
-          });
-
-          return bestReal;
-        };
-
-        // 기존 visibleMarkers 기반 "existing" 찾는 로직
-        const findExistingMarker = () => {
-          return visibleMarkers?.find((m: any) => {
-            const idStr = String(m.id ?? "");
-
-            if (idStr === "__draft__" || idStr === "__search__") return false;
-
-            const pos = m.position;
-            if (!pos) return false;
-
-            const d = distM(lat, lng, pos.lat, pos.lng);
-            return d <= EXISTING_THRESHOLD_M;
-          });
-        };
-
-        // 2) 한 번 먼저 실제핀/기존핀 찾기
-        let bestReal = findBestRealAround();
-
-        // 3) 못 찾았으면 뷰포트 강제 새로고침만 살짝 시도 (딜레이 없음)
-        if (!bestReal && kakaoSDK && mapInstance?.getLevel) {
-          try {
-            const level = mapInstance.getLevel();
-            const center = mapInstance.getCenter();
-
-            mapInstance.setLevel(level + 1, { animate: false });
-            mapInstance.setLevel(level, { animate: false });
-            mapInstance.setCenter(center);
-          } catch {}
-
-          bestReal = findBestRealAround();
-        }
-
-        // 4) 근처에 실제 매물/답사핀 있으면 그것 기준으로 메뉴 한 번만 열기
-        if (bestReal) {
-          const { id, lat: realLat, lng: realLng, title: realTitle } = bestReal;
-          const title = realTitle ?? label ?? "선택 위치";
-
-          runAfterIdle(() => {
-            clearTempMarkers();
-
-            lastSearchCenterRef.current = {
-              lat: realLat,
-              lng: realLng,
-            };
-
-            onOpenMenu?.({
-              position: { lat: realLat, lng: realLng },
-              propertyId: id,
-              propertyTitle: title,
-            });
-          });
-
-          return;
-        }
-
-        const existing = findExistingMarker();
-
-        if (existing) {
-          const pos = (existing as any).position;
-          const title =
-            (existing as any).title ?? label ?? query ?? "선택 위치";
-
-          runAfterIdle(() => {
-            lastSearchCenterRef.current = { lat: pos.lat, lng: pos.lng };
-
-            onOpenMenu?.({
-              position: { lat: pos.lat, lng: pos.lng },
-              propertyId: String((existing as any).id),
-              propertyTitle: title,
-            });
-          });
-
-          return;
-        }
-
-        // 5) 여기까지 와도 없으면 __search__ 임시핀 + 질문핀 메뉴
-        clearTempMarkers();
-
-        lastSearchCenterRef.current = { lat, lng };
-
-        const id = "__search__";
-
-        upsertDraftMarker({
-          id,
-          lat,
-          lng,
-          address: label ?? query,
-          source: "search",
-          kind: "question",
-        });
-
-        const openMenu = () => {
-          onOpenMenu?.({
-            position: { lat, lng },
-            propertyId: id, // 🔙 다시 넘겨주기
-            propertyTitle: label ?? query ?? "선택 위치",
-            pin: { kind: "question", isFav: false },
-          });
-          onChangeHideLabelForId?.(id);
-        };
-
-        if (
-          typeof window !== "undefined" &&
-          "requestAnimationFrame" in window
-        ) {
-          window.requestAnimationFrame(openMenu);
-        } else {
-          setTimeout(openMenu, 0);
-        }
-      };
-
-      const places = new kakaoSDK.maps.services.Places();
-      const geocoder = new kakaoSDK.maps.services.Geocoder();
-      const Status = kakaoSDK.maps.services.Status;
-      const centerLL = mapInstance.getCenter?.();
-
-      const doAddressFallback = () => {
-        geocoder.addressSearch(query, (addrRes: any[], addrStatus: string) => {
-          if (addrStatus !== Status.OK || !addrRes?.length) return;
-          const { x, y, road_address, address } = addrRes[0] ?? {};
-          const lat = Number(y);
-          const lng = Number(x);
-          const label =
-            road_address?.address_name ||
-            address?.address_name ||
-            query ||
-            null;
-
-          const pseudoItem = {
-            place_name: query,
-            road_address_name: label,
-            address_name: label,
-            address: { address_name: label },
-            category_group_code: "",
-          };
-
-          if (shouldCreateSearchPin(pseudoItem, query)) {
-            setCenterWithMarker(lat, lng, label);
-          } else {
-            setCenterOnly(lat, lng);
-          }
-        });
-      };
-
-      const { stationName, exitNo, hasExit } = parseStationAndExit(query);
-
-      places.keywordSearch(
-        query,
-        (data: any[], status: string) => {
-          console.log("[keywordSearch] result", {
-            query,
-            status,
-            count: data?.length ?? 0,
-          });
-
-          if (status !== Status.OK || !data?.length) {
-            doAddressFallback();
-            return;
-          }
-
-          if (hasExit && stationName) {
-            const station = pickBestStation(data, stationName);
-            if (!station) {
-              doAddressFallback();
-              return;
-            }
-
-            const stationLL = new kakaoSDK.maps.LatLng(
-              Number(station.y),
-              Number(station.x)
-            );
-
-            places.keywordSearch(
-              `${station.place_name} 출구`,
-              (exitData: any[], exitStatus: string) => {
-                console.log("[keywordSearch exit]", {
-                  query,
-                  exitStatus,
-                  exitCount: exitData?.length ?? 0,
-                });
-
-                if (exitStatus !== Status.OK || !exitData?.length) {
-                  const lat = stationLL.getLat();
-                  const lng = stationLL.getLng();
-                  if (shouldCreateSearchPin(station, query)) {
-                    setCenterWithMarker(lat, lng, station.place_name);
-                  } else {
-                    setCenterOnly(lat, lng);
-                  }
-                  return;
-                }
-
-                const picked =
-                  pickBestExitStrict(
-                    exitData,
-                    stationName,
-                    exitNo ?? null,
-                    stationLL
-                  ) ?? station;
-
-                const lat = Number(picked.y);
-                const lng = Number(picked.x);
-                const label = picked.place_name ?? query;
-
-                if (shouldCreateSearchPin(picked, query)) {
-                  setCenterWithMarker(lat, lng, label);
-                } else {
-                  setCenterOnly(lat, lng);
-                }
-              },
-              {
-                location: stationLL,
-                radius: 600,
-              }
-            );
-            return;
-          }
-
-          let target: any;
-          if (stationName) {
-            target = pickBestStation(data, stationName);
-          } else {
-            target = pickBestPlace(data, query, centerLL ?? undefined);
-          }
-
-          if (!target) {
-            doAddressFallback();
-            return;
-          }
-
-          const lat = Number(target.y);
-          const lng = Number(target.x);
-          const label = target.place_name ?? query;
-
-          if (shouldCreateSearchPin(target, query)) {
-            setCenterWithMarker(lat, lng, label);
-          } else {
-            setCenterOnly(lat, lng);
-          }
-        },
-        centerLL
-          ? {
-              location: centerLL,
-              radius: 3000,
-            }
-          : undefined
-      );
-    },
-    [
-      kakaoSDK,
-      mapInstance,
-      onSubmitSearch,
-      visibleMarkers,
-      upsertDraftMarker,
-      onOpenMenu,
-      onChangeHideLabelForId,
-      effectiveServerPoints,
-      effectiveServerDrafts,
-      localDraftMarkers,
-      clearTempMarkers,
-    ]
-  );
-
-  const handleDeleteFromView = useCallback(async () => {
-    if (typeof onDeleteFromView === "function") {
-      await onDeleteFromView();
-      return;
-    }
-    const id =
-      (selectedViewItem as any)?.id ?? (viewDataLocal as any)?.id ?? null;
-    if (!id) return;
-
-    try {
-      await togglePinDisabled(String(id), true);
-      await refreshViewportPins();
-      setViewOpenLocal(false);
-    } catch (e) {
-      console.error("[disable-pin] 실패:", e);
-    }
-  }, [onDeleteFromView, selectedViewItem, viewDataLocal, refreshViewportPins]);
-
-  const handleCloseView = useCallback(() => {
-    setViewOpenLocal(false);
-    closeView?.();
-  }, [closeView]);
-
-  const selectedViewForModal = useMemo(() => {
-    const base = (viewDataLocal ??
-      selectedViewItem ??
-      null) as PropertyViewDetails | null;
-    return ensureViewForEdit(base);
-  }, [selectedViewItem, viewDataLocal]);
-
-  useEffect(() => {
-    if (selectedViewItem) setViewOpenLocal(true);
-  }, [selectedViewItem]);
-
-  useEffect(() => {
-    if (!menuOpen) {
-      if (hideLabelForId === "__search__") {
-        onChangeHideLabelForId?.(undefined);
-      }
-      return;
-    }
-
-    if (menuAnchor) {
-      lastSearchCenterRef.current = {
-        lat: menuAnchor.lat,
-        lng: menuAnchor.lng,
-      };
-    }
-  }, [menuOpen, menuAnchor, hideLabelForId, onChangeHideLabelForId]);
 
   return (
     <div className="fixed inset-0">
@@ -1342,16 +410,14 @@ export function MapHomeUI(props: MapHomeUIProps) {
               setRightOpen={(open: boolean) => handleSetRightOpen(open)}
               sidebarOpen={useSidebar}
               setSidebarOpen={(open: boolean) => {
-                setUseSidebar(open);
-                if (open) {
-                  setRightOpen(false);
-                  setFilterSearchOpen(false);
+                if (open !== useSidebar) {
+                  handleToggleSidebar();
                 }
               }}
               getBounds={getBoundsLLB}
               getLevel={() => mapInstance?.getLevel?.()}
               roadviewRoadOn={roadviewRoadOn}
-              onToggleRoadviewRoad={() => setRoadviewRoadOn((prev) => !prev)}
+              onToggleRoadviewRoad={toggleRoadviewRoad}
             />
           </div>
         </div>
@@ -1373,14 +439,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
       <div ref={sidebarAreaRef}>
         <Sidebar
           isSidebarOn={useSidebar}
-          onToggleSidebar={() => {
-            const next = !useSidebar;
-            setUseSidebar(next);
-            if (next) {
-              setRightOpen(false);
-              setFilterSearchOpen(false);
-            }
-          }}
+          onToggleSidebar={handleToggleSidebar}
           onFocusItemMap={handleFocusItemMap}
           onFocusSubItemMap={handleFocusSubItemMap}
         />
@@ -1410,6 +469,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
       />
+
       {/* 🔔 필터 검색 결과 없음 모달 */}
       <NoResultDialog
         open={noResultDialogOpen}

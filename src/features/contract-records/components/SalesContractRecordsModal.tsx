@@ -107,7 +107,7 @@ export function SalesContractRecordsModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(!initialData); // 초기 데이터가 없으면 편집 모드 (신규 생성)
   const { toast } = useToast();
-  
+
   // 날짜 선택 Popover 상태
   const [isContractDateOpen, setIsContractDateOpen] = useState(false);
   const [isBalanceDateOpen, setIsBalanceDateOpen] = useState(false);
@@ -429,7 +429,10 @@ export function SalesContractRecordsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="w-[100vw] max-w-[1240px] h-[95vh] max-h-[900px] p-0 flex flex-col">
+      <DialogContent
+        data-contract-records-modal-root
+        className="w-[100vw] max-w-[1240px] h-[95vh] max-h-[900px] p-0 flex flex-col"
+      >
         {/* 고정 헤더 */}
         <DialogHeader className="pb-1 flex-shrink-0 p-4 border-b">
           <DialogTitle className="text-lg font-bold">
@@ -448,7 +451,9 @@ export function SalesContractRecordsModal({
               <CardContent className="p-3 pt-1">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="space-y-1 flex-1">
-                    <Label className="text-xs text-muted-foreground">계약일자</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      계약일자
+                    </Label>
                     <div className="relative">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -469,7 +474,10 @@ export function SalesContractRecordsModal({
                             <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 !z-[2200]" align="start">
+                        <PopoverContent
+                          className="w-auto p-0 !z-[2200]"
+                          align="start"
+                        >
                           <Calendar
                             mode="single"
                             selected={
@@ -513,7 +521,9 @@ export function SalesContractRecordsModal({
                   </div>
 
                   <div className="space-y-1 flex-1">
-                    <Label className="text-xs text-muted-foreground">잔금일자</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      잔금일자
+                    </Label>
                     <div className="relative">
                       <Popover
                         open={isBalanceDateOpen}
@@ -537,7 +547,10 @@ export function SalesContractRecordsModal({
                             <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 !z-[2200]" align="start">
+                        <PopoverContent
+                          className="w-auto p-0 !z-[2200]"
+                          align="start"
+                        >
                           <Calendar
                             mode="single"
                             selected={
@@ -581,7 +594,9 @@ export function SalesContractRecordsModal({
                   </div>
 
                   <div className="space-y-1 flex-1">
-                    <Label className="text-xs text-muted-foreground">계약 상태</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      계약 상태
+                    </Label>
                     <Select
                       value={data.status || "ongoing"}
                       onValueChange={(value) => {
@@ -599,7 +614,8 @@ export function SalesContractRecordsModal({
                       <SelectTrigger
                         className={`h-7 text-xs ${
                           statusConfigMap[
-                            (data.status || "ongoing") as keyof typeof statusConfigMap
+                            (data.status ||
+                              "ongoing") as keyof typeof statusConfigMap
                           ]?.className || ""
                         }`}
                         disabled={!isEditMode}
