@@ -31,8 +31,8 @@ type SidebarProps = ToggleSidebarProps & {
 export function Sidebar({
   isSidebarOn,
   onToggleSidebar,
-  onFocusItemMap, // ✅ 추가
-  onFocusSubItemMap, // ✅ 추가
+  onFocusItemMap,
+  onFocusSubItemMap,
 }: SidebarProps) {
   // 0) 안전 기본값
   const {

@@ -8,10 +8,10 @@ import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 
 import type { PinKind } from "@/features/pins/types";
-import { PropertyViewDetails } from "../PropertyViewModal/types";
-import { PropertyCreateResult } from "../PropertyCreateModal/types";
-import PropertyCreateModalBody from "../PropertyCreateModal/PropertyCreateModalBody";
-import PropertyViewModal from "../PropertyViewModal/PropertyViewModal";
+import { PropertyViewDetails } from "../../modals/PropertyViewModal/types";
+import { PropertyCreateResult } from "../../modals/PropertyCreateModal/types";
+import PropertyCreateModalBody from "../../modals/PropertyCreateModal/PropertyCreateModalBody";
+import PropertyViewModal from "../../modals/PropertyViewModal/PropertyViewModal";
 
 type Stage = "create" | "view";
 
