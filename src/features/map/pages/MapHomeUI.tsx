@@ -672,6 +672,18 @@ export function MapHomeUI(props: MapHomeUIProps) {
         return;
       }
 
+      // Dialog Portal 감지 (Radix UI Dialog는 Portal을 사용)
+      const dialogContent = (target as Element)?.closest?.('[role="dialog"]');
+      if (dialogContent) {
+        return;
+      }
+
+      // Radix UI Portal 감지
+      const radixPortal = (target as Element)?.closest?.("[data-radix-portal]");
+      if (radixPortal) {
+        return;
+      }
+
       if (
         rightAreaRef.current?.contains(target) ||
         filterAreaRef.current?.contains(target) ||

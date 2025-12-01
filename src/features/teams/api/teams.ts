@@ -156,3 +156,19 @@ export async function replaceTeamManager(
     throw error;
   }
 }
+
+// 팀 삭제 API
+export async function deleteTeam(teamId: string): Promise<{ id: string }> {
+  try {
+    const response = await api.delete<{
+      success: boolean;
+      path: string;
+      message: string;
+      data: { id: string };
+    }>(`/dashboard/accounts/teams/${teamId}`);
+    return response.data.data;
+  } catch (error: any) {
+    console.error("팀 삭제 API 호출 실패:", error);
+    throw error;
+  }
+}

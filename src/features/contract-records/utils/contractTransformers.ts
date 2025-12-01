@@ -228,6 +228,7 @@ export function transformContractResponseToContractData(
     salesPersonSalary: 0, // 백엔드에 없음, 기본값
     totalCalculation: calculatedTotal,
     contractDate: contract.contractDate,
+    balanceDate: undefined, // 백엔드에 balanceDate 필드가 없음 (추후 추가 예정)
     amount: calculatedTotal,
     status:
       contract.status === "done"
