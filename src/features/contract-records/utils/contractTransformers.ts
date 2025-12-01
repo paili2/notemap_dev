@@ -204,6 +204,7 @@ export function transformContractResponseToContractData(
   salesPersonSalary: number;
   totalCalculation: number;
   contractDate: string;
+  balanceDate?: string; // 잔금일자 (백엔드 연결 전까지 undefined)
   amount: number;
   status: "ongoing" | "rejected" | "cancelled" | "completed";
   createdAt: string;
