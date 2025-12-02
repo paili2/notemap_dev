@@ -20,7 +20,7 @@ const S = (v: any): string | undefined => {
   return t ? t : undefined;
 };
 
-const toBoolLoose = (v: any): boolean | undefined => {
+const toBool = (v: any): boolean | undefined => {
   if (v === undefined || v === null || v === "") return undefined;
   if (typeof v === "boolean") return v;
   if (typeof v === "number")
@@ -199,34 +199,8 @@ const unitsChanged = (prev?: any[], curr?: any[]) => {
 
 export type InitialSnapshot = { [key: string]: any };
 
-/* ───────── 엘리베이터 정규화 헬퍼 ───────── */
-const normalizeElevatorFromInitial = (src: any): boolean | undefined => {
-  // useInjectInitialData 에서 넣어준 스냅샷이 최우선
-  if (src && "initialHasElevator" in src) {
-    const v = (src as any).initialHasElevator;
-    if (v === true || v === false) return v;
-  }
-  // 과거 호환용: hasElevator / elevator 도 한 번 더 본다
-  const v = (src as any)?.hasElevator ?? (src as any)?.elevator;
-  return toBoolLoose(v);
-};
-
-const normalizeElevatorFromForm = (v: any): boolean | undefined => {
-  if (v === undefined || v === null || v === "") return undefined;
-  if (v === true || v === false) return v;
-  const s = String(v).trim().toUpperCase();
-  if (s === "O" || s === "Y" || s === "1" || s === "TRUE") return true;
-  if (s === "X" || s === "N" || s === "0" || s === "FALSE") return false;
-  return undefined;
-};
-
 /* ───────── 폼 → 서버 최소 PATCH ───────── */
 export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
-  console.groupCollapsed("[toPinPatch] start");
-  console.log("[toPinPatch] initial:", initial);
-  console.log("[toPinPatch] form.baseAreaSet:", f.baseAreaSet);
-  console.log("[toPinPatch] form.extraAreaSets:", f.extraAreaSets);
-
   const patch: Partial<UpdatePinDto> = {};
   const S2 = (v: any) => {
     const t = typeof v === "string" ? v.trim() : "";
@@ -277,18 +251,16 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     (patch as any).completionDate = S2((f as any).completionDate) ?? null;
   }
 
-  // 🔧 엘리베이터 (스냅샷 기반 비교)
-  {
-    const initElev = normalizeElevatorFromInitial(initial);
-    const nowElev = normalizeElevatorFromForm((f as any)?.elevator);
+  // 엘리베이터 (초기 스냅샷 + 서버값 모두 고려)
+  const initElev = toBool(
+    (initial as any)?.initialHasElevator ??
+      (initial as any)?.hasElevator ??
+      (initial as any)?.elevator
+  );
+  const nowElev = toBool((f as any)?.elevator);
 
-    console.log("[toPinPatch][elevator]", { initElev, nowElev });
-
-    // nowElev 가 정의된 경우에만 PATCH, 그리고 init 과 다를 때만
-    if (nowElev !== undefined && nowElev !== initElev) {
-      (patch as any).hasElevator = nowElev;
-    }
-  }
+  if (nowElev !== undefined && nowElev !== initElev)
+    (patch as any).hasElevator = nowElev;
 
   // 메모
   if (!jsonEq2Local((initial as any)?.publicMemo, (f as any).publicMemo))
@@ -355,56 +327,17 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     }
   }
 
-  // --- 등기/건물타입 diff ---
-  const pickRegistryString = (src: any): string | undefined => {
-    if (!src) return undefined;
-    const candidates = [
-      src?.buildingType,
-      src?.registry,
-      src?.type,
-      src?.propertyType,
-      src?.registryOne,
-    ];
-    const fromAny = (v: any): string | undefined => {
-      if (!v) return undefined;
-      if (typeof v === "string" && v.trim() !== "") return v.trim();
-      if (typeof v === "object") {
-        const s =
-          v.value ?? v.code ?? v.label ?? v.name ?? v.id ?? v.key ?? v.text;
-        if (typeof s === "string" && s.trim() !== "") return s.trim();
-      }
-      return undefined;
-    };
-    for (const c of candidates) {
-      const val = fromAny(c);
-      if (val) return val;
+  // --- 등기/건물타입: 폼 값을 진실로 보고 그대로 전송 ---
+  {
+    const btNowUI = (f as any)?.buildingType ?? null;
+    const btNow = normalizeBuildingType(btNowUI);
+
+    // btNow === null → 사용자가 선택 해제한 것으로 보고 null 전송
+    // btNow 가 undefined 이면(인식 못한 값) 그냥 아무 것도 안 보냄
+    if (btNow !== undefined) {
+      (patch as any).buildingType = btNow ?? null;
+      (patch as any).registry = btNow ?? null;
     }
-    return undefined;
-  };
-
-  // 1️⃣ 초기값: 스냅샷(initialBuildingType)이 있으면 그걸 신뢰
-  const btInitFromSnapshot = (initial as any)?.initialBuildingType ?? null;
-  const btInit =
-    btInitFromSnapshot !== undefined && btInitFromSnapshot !== null
-      ? normalizeBuildingType(btInitFromSnapshot)
-      : normalizeBuildingType(pickRegistryString(initial) ?? null);
-
-  // 2️⃣ 현재값: 폼에서 온 buildingType 만 사용
-  const btNowRaw = (f as any)?.buildingType ?? null;
-  const btNow = normalizeBuildingType(btNowRaw);
-
-  console.log("[registry(buildingType)]", {
-    btInitFromSnapshot,
-    btInit,
-    btNowRaw,
-    btNow,
-  });
-
-  // normalizeBuildingType 은 BuildingType | null 반환
-  // null === null 이면 변화 없음, enum 다르면 PATCH
-  if (btNow !== btInit) {
-    (patch as any).buildingType = btNow;
-    (patch as any).registry = btNow;
   }
 
   // ── 핀종류(pinKind) 변경 감지 ──
@@ -415,7 +348,6 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
         ? mapBadgeToPinKind((initial as any).badge)
         : undefined);
     const nowPinKind = (f as any)?.pinKind;
-    console.log("[pinKind diff]", { initPinKind, nowPinKind });
     if (nowPinKind !== undefined && nowPinKind !== initPinKind) {
       (patch as any).pinKind = nowPinKind;
       try {
@@ -460,13 +392,6 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
       trimmed === "" || trimmed === "custom" ? null : trimmed.slice(0, 50);
 
     const initParkingType = (initial as any)?.parkingType ?? null; // 서버 초기값
-
-    console.log("[toPinPatch][parkingType]", {
-      initParkingType,
-      nowRaw: raw,
-      trimmed,
-      send: value,
-    });
 
     if (value !== initParkingType) {
       (patch as any).parkingType = value;
@@ -616,8 +541,6 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
 
   /* 3) 면적 그룹 — 초기 vs 현재 그룹 ‘정규화’ 비교 */
   {
-    console.groupCollapsed("[areaGroups] 비교 시작");
-
     const canonNumStr = (v: any): string | undefined => {
       if (v === "" || v == null) return undefined;
       const n = Number(String(v).replace(/[^\d.-]/g, ""));
@@ -671,13 +594,8 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
 
     let nowGroupsRaw: any[] = [];
     try {
-      console.log("[areaGroups] buildAreaGroups 입력:", {
-        strictBase,
-        strictExtras,
-      });
       nowGroupsRaw = buildAreaGroups(strictBase, strictExtras) ?? [];
-    } catch (e) {
-      console.warn("[areaGroups] buildAreaGroups 실패:", e);
+    } catch {
       nowGroupsRaw = [];
     }
 
@@ -689,30 +607,9 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     // 🔥 핵심: "실제로 폼에서 면적 세트를 건드렸는지" 플래그만 신뢰
     const areaSetsTouched = !!(f as any).areaSetsTouched;
 
-    console.log("[areaGroups] 상태", {
-      areaSetsTouched,
-      hasAreaGroupsDelta,
-      initNorm,
-      nowNorm,
-    });
-
     if (areaSetsTouched && hasAreaGroupsDelta) {
       (patch as any).areaGroups = nowGroupsRaw.length ? nowGroupsRaw : [];
-      console.log(
-        "[areaGroups] ✅ areaGroups 넣음 (areaSetsTouched && hasAreaGroupsDelta)"
-      );
-    } else {
-      console.log(
-        "[areaGroups] ❌ areaGroups 넣지 않음",
-        "(areaSetsTouched:",
-        areaSetsTouched,
-        ", hasAreaGroupsDelta:",
-        hasAreaGroupsDelta,
-        ")"
-      );
     }
-
-    console.groupEnd();
   }
 
   // ── 향/방향: 변경시에만 directions 전송 ─────────────────────
@@ -836,8 +733,6 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     (patch as any).units = units;
   }
 
-  console.log("[toPinPatch] final patch:", patch);
-  console.groupEnd();
   return patch as UpdatePinDto;
 }
 

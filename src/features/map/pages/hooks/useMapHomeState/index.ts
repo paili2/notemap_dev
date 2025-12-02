@@ -118,6 +118,7 @@ export function useMapHomeState() {
     toast,
     resolveAddress,
     panToWithOffset,
+    refetchPins: refetch,
   });
 
   // ───────── 검색/POI 훅 ─────────

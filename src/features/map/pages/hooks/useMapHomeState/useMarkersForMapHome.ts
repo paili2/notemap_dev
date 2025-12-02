@@ -5,6 +5,11 @@ import { useMemo } from "react";
 import type { LatLng } from "@/lib/geo/types";
 import type { MapMarker } from "@/features/map/shared/types/map";
 
+// 🔹 핀 타입/뱃지 ↔ kind 매핑 유틸 추가
+import type { PinKind } from "@/features/pins/types";
+import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
+import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
+
 // ⭐ MapMarker 확장: isFav는 선택 필드로만 추가
 export type MapMarkerWithFav = MapMarker & { isFav?: boolean };
 
@@ -43,13 +48,30 @@ export function useMarkersForMapHome({
     });
 
     // 4) 매물핀 마커 변환
-    const pointMarkers: MapMarkerWithFav[] = visiblePoints.map((p: any) => ({
-      id: String(p.id),
-      position: { lat: p.lat, lng: p.lng },
-      kind: "1room" as const,
-      title: p.badge ?? "",
-      isFav: false,
-    }));
+    const pointMarkers: MapMarkerWithFav[] = visiblePoints.map((p: any) => {
+      // 🔹 서버에서 내려준 badge/ageType 기준으로 kind 계산
+      const baseKind = mapBadgeToPinKind(p.badge);
+      const displayKind = getDisplayPinKind(baseKind, p.ageType ?? null);
+      const kind: PinKind = (displayKind ?? baseKind ?? "1room") as PinKind;
+
+      // 🔹 매물명 우선 표시: name → propertyName → data.propertyName → data.name → badge
+      const name =
+        (p.name ?? "").trim() ||
+        (p.propertyName ?? "").trim() ||
+        (p.data?.propertyName ?? "").trim() ||
+        (p.data?.name ?? "").trim() ||
+        "";
+      const displayTitle = name || (p.badge ?? "");
+
+      return {
+        id: String(p.id),
+        position: { lat: p.lat, lng: p.lng },
+        kind,
+        name, // 라벨 텍스트
+        title: displayTitle,
+        isFav: false,
+      };
+    });
 
     // 5) 임시핀 마커 변환 (__visit__ 접두사)
     const draftMarkers: MapMarkerWithFav[] = visibleDrafts.map((d: any) => ({

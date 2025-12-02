@@ -1,3 +1,4 @@
+// features/map/components/PinContextMenu/hooks/usePlanReserve.ts
 import { useCallback } from "react";
 import { buildAddressLine } from "../utils/geo";
 import { PlanRequestPayload, ReserveRequestPayload } from "../types";
@@ -48,8 +49,9 @@ export function usePlanReserve(params: {
   } = params;
 
   // ────────────────────────────────────────────
-  // 1) 계획(임시핀 생성) - view 모드면 생성 없이 onPlan만 호출
-  // 반환: { draftId?, payload }
+  // 1) 계획(임시핀 생성)
+  //   - view 모드: 서버 생성 없이 onPlan만 호출
+  //   - create 모드: 서버에 draft 생성 후 onPlan 호출
   // ────────────────────────────────────────────
   const handlePlan = useCallback(
     async (
@@ -101,7 +103,7 @@ export function usePlanReserve(params: {
       }
 
       try {
-        await onPlan?.(payload);
+        await onPlan?.(payload); // ⭐ 부모(onPlanFromMenu)로 신호 전달
       } catch (e) {
         console.error("[plan] onPlan callback failed:", e);
       }
@@ -121,8 +123,7 @@ export function usePlanReserve(params: {
   );
 
   // ────────────────────────────────────────────
-  // 2) 예약 - view 모드에선 visitId 없으면 생성하지 않음
-  // 반환: { success, visitId? }
+  // 2) 예약
   // ────────────────────────────────────────────
   const handleReserve = useCallback(
     async (
@@ -133,7 +134,6 @@ export function usePlanReserve(params: {
 
       // 보기 모드: 새 draft 만들지 않음
       if (!visitId && mode === "view") {
-        // skip silently
         return { success: false };
       }
 
@@ -172,7 +172,6 @@ export function usePlanReserve(params: {
           return { success: false };
         }
 
-        // 다양한 응답 형태 대응
         const draftId =
           draft?.id ??
           draft?.draftId ??
@@ -187,9 +186,7 @@ export function usePlanReserve(params: {
         visitId = String(draftId);
       }
 
-      if (!visitId) {
-        return { success: false };
-      }
+      if (!visitId) return { success: false };
 
       try {
         await reserveVisitPlan(String(visitId));

@@ -25,6 +25,8 @@ type UseMenuAndDraftArgs = {
     pos: LatLng
   ) => Promise<{ road?: string | null; jibun?: string | null }>;
   panToWithOffset: (pos: LatLng, yOffset: number) => void;
+  /** 답사예정 등록/삭제 후 서버 핀을 다시 불러오는 함수 (usePinsMap.refetch) */
+  refetchPins?: () => void;
 };
 
 export function useMenuAndDraft({
@@ -35,6 +37,7 @@ export function useMenuAndDraft({
   toast,
   resolveAddress,
   panToWithOffset,
+  refetchPins,
 }: UseMenuAndDraftArgs) {
   // 라벨 숨김
   const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
@@ -252,7 +255,7 @@ export function useMenuAndDraft({
         const draft = (drafts ?? []).find((d: any) => String(d.id) === rawId);
         if (draft) {
           const pos = { lat: draft.lat, lng: draft.lng };
-          await focusAndOpenAt(pos, `__visit__${rawId}`);
+          await focusAndOpenAt(pos as any, `__visit__${rawId}`);
           return;
         }
       }
@@ -311,15 +314,17 @@ export function useMenuAndDraft({
     menuAnchor,
   ]);
 
+  /** 답사예정지 등록 완료 시 호출되는 콜백 */
   const onPlanFromMenu = useCallback(
-    (pos: LatLng) => {
+    (pos: LatLng | { lat: number; lng: number } | any) => {
       const p = normalizeLL(pos);
       if (draftPin && sameCoord(draftPin, p)) {
         setDraftPinSafe(null);
       }
       closeMenu();
+      refetchPins?.(); // ⭐ 서버 핀 재조회
     },
-    [closeMenu, draftPin, setDraftPinSafe]
+    [closeMenu, draftPin, setDraftPinSafe, refetchPins]
   );
 
   const onOpenMenu = useCallback(

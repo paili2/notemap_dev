@@ -160,13 +160,20 @@ export function useRebuildScene(args: Args) {
           return undefined;
         })();
 
-        const displayName =
+        // ✅ "매물명" 계열을 최우선으로 한 번 더 잡아준다
+        const primaryName =
           firstNonEmpty(
-            // 1순위: 매물명 계열
-            cleanLabelCandidate((m as any).property?.name),
-            cleanLabelCandidate((m as any).property?.title),
-            cleanLabelCandidate((m as any).data?.propertyName),
+            cleanLabelCandidate((m as any).name), // MapMarker.name (대부분 매물명)
             cleanLabelCandidate((m as any).propertyName),
+            cleanLabelCandidate((m as any).property?.name),
+            cleanLabelCandidate((m as any).data?.propertyName)
+          ) || "";
+
+        const displayName =
+          primaryName ||
+          firstNonEmpty(
+            // 1순위: 그 밖의 title 기반 이름
+            cleanLabelCandidate((m as any).property?.title),
 
             // 2순위: MapMarker.name (주소랑 다를 때만)
             cleanLabelCandidate(nameCandidate),
@@ -180,7 +187,8 @@ export function useRebuildScene(args: Args) {
 
             // 5순위: 그래도 없으면 id (내부키는 cleanLabelCandidate로 필터)
             cleanLabelCandidate(String(m.id ?? ""))
-          ) || "";
+          ) ||
+          "";
 
         const planText = `${m.regionLabel ?? ""} 답사예정`.trim();
 
