@@ -20,7 +20,7 @@ const S = (v: any): string | undefined => {
   return t ? t : undefined;
 };
 
-const toBool = (v: any): boolean | undefined => {
+const toBoolLoose = (v: any): boolean | undefined => {
   if (v === undefined || v === null || v === "") return undefined;
   if (typeof v === "boolean") return v;
   if (typeof v === "number")
@@ -199,6 +199,27 @@ const unitsChanged = (prev?: any[], curr?: any[]) => {
 
 export type InitialSnapshot = { [key: string]: any };
 
+/* ───────── 엘리베이터 정규화 헬퍼 ───────── */
+const normalizeElevatorFromInitial = (src: any): boolean | undefined => {
+  // useInjectInitialData 에서 넣어준 스냅샷이 최우선
+  if (src && "initialHasElevator" in src) {
+    const v = (src as any).initialHasElevator;
+    if (v === true || v === false) return v;
+  }
+  // 과거 호환용: hasElevator / elevator 도 한 번 더 본다
+  const v = (src as any)?.hasElevator ?? (src as any)?.elevator;
+  return toBoolLoose(v);
+};
+
+const normalizeElevatorFromForm = (v: any): boolean | undefined => {
+  if (v === undefined || v === null || v === "") return undefined;
+  if (v === true || v === false) return v;
+  const s = String(v).trim().toUpperCase();
+  if (s === "O" || s === "Y" || s === "1" || s === "TRUE") return true;
+  if (s === "X" || s === "N" || s === "0" || s === "FALSE") return false;
+  return undefined;
+};
+
 /* ───────── 폼 → 서버 최소 PATCH ───────── */
 export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
   console.groupCollapsed("[toPinPatch] start");
@@ -256,43 +277,17 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     (patch as any).completionDate = S2((f as any).completionDate) ?? null;
   }
 
-  // 엘리베이터: 서버 초기값 vs 현재 폼값을 정규화해서 비교 -------------------
+  // 🔧 엘리베이터 (스냅샷 기반 비교)
+  {
+    const initElev = normalizeElevatorFromInitial(initial);
+    const nowElev = normalizeElevatorFromForm((f as any)?.elevator);
 
-  // 서버/뷰 스냅샷에서 "원래 엘리베이터 값" 추출
-  const prevHasElevatorRaw =
-    // 뷰에서 따로 넣어둔 메타가 있다면 최우선
-    (initial as any)?.initialHasElevator ??
-    // 서버 boolean 필드
-    (initial as any)?.hasElevator ??
-    // 레거시/문자 표현 등
-    (initial as any)?.elevator;
+    console.log("[toPinPatch][elevator]", { initElev, nowElev });
 
-  const prevHasElevator = toBool(prevHasElevatorRaw);
-
-  // 폼에서 온 현재 값 ("O" | "X" | 기타)
-  const elevRaw = (f as any)?.elevator as string | boolean | undefined;
-
-  let currHasElevator: boolean | undefined;
-
-  if (elevRaw === "O") {
-    currHasElevator = true;
-  } else if (elevRaw === "X") {
-    currHasElevator = false;
-  } else {
-    // 혹시 boolean / "true" / "false" / 1 / 0 / "o" / "x" 등 들어올 때 방어
-    currHasElevator = toBool(elevRaw);
-  }
-
-  console.log("[toPinPatch][elevator]", {
-    prevHasElevatorRaw,
-    prevHasElevator,
-    elevRaw,
-    currHasElevator,
-  });
-
-  // ✅ 폼에서 값이 정의돼 있고, "실제로 값이 바뀐 경우"에만 PATCH에 실어준다
-  if (currHasElevator !== undefined && currHasElevator !== prevHasElevator) {
-    (patch as any).hasElevator = currHasElevator;
+    // nowElev 가 정의된 경우에만 PATCH, 그리고 init 과 다를 때만
+    if (nowElev !== undefined && nowElev !== initElev) {
+      (patch as any).hasElevator = nowElev;
+    }
   }
 
   // 메모
@@ -387,20 +382,27 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     return undefined;
   };
 
-  const btInitRaw = pickRegistryString(initial);
-  const btInit = normalizeBuildingType(btInitRaw);
+  // 1️⃣ 초기값: 스냅샷(initialBuildingType)이 있으면 그걸 신뢰
+  const btInitFromSnapshot = (initial as any)?.initialBuildingType ?? null;
+  const btInit =
+    btInitFromSnapshot !== undefined && btInitFromSnapshot !== null
+      ? normalizeBuildingType(btInitFromSnapshot)
+      : normalizeBuildingType(pickRegistryString(initial) ?? null);
 
-  const btNowUI = (f as any)?.buildingType;
-  const btNow = normalizeBuildingType(btNowUI);
+  // 2️⃣ 현재값: 폼에서 온 buildingType 만 사용
+  const btNowRaw = (f as any)?.buildingType ?? null;
+  const btNow = normalizeBuildingType(btNowRaw);
 
   console.log("[registry(buildingType)]", {
-    btInitRaw,
+    btInitFromSnapshot,
     btInit,
-    btNowUI,
+    btNowRaw,
     btNow,
   });
 
-  if (btNow !== undefined && btNow !== btInit) {
+  // normalizeBuildingType 은 BuildingType | null 반환
+  // null === null 이면 변화 없음, enum 다르면 PATCH
+  if (btNow !== btInit) {
     (patch as any).buildingType = btNow;
     (patch as any).registry = btNow;
   }

@@ -1,53 +1,35 @@
-import { BuildingType } from "@/features/properties/types/property-domain";
-
-/** UI에서 허용하는 등기/건물타입 (라디오 버튼 라벨 기준) */
-export const BUILDING_TYPES: BuildingType[] = [
-  "주택",
-  "APT",
-  "OP",
-  "도생",
-  "근생",
-];
+// features/properties/hooks/useEditForm/lib/buildingType.ts
+import {
+  type BuildingType,
+  type BuildingTypeLabel,
+  BUILDING_TYPES,
+  normalizeBuildingTypeLabelToEnum,
+} from "@/features/properties/types/property-domain";
 
 /**
- * 서버/폼 값 → 우리가 쓰는 라벨로 정규화
- * - 문자열뿐 아니라 { value, label } 같은 객체도 처리
- * - 오피스텔 / OFFICETEL / op 등은 전부 "OP" 로 통일
+ * UI 라벨 / 서버 enum / 아무 문자열이나 받아서
+ * 서버 enum(BuildingType)으로만 정규화
+ *
+ * - "APT" 같이 이미 enum 값이어도 그대로 통과
+ * - "아파트" / "오피스텔" / "근/생" / "도/생" 등 라벨도 지원
+ * - 인식 못 하면 null
  */
-export const normalizeBuildingType = (v: any): BuildingType | undefined => {
-  if (v == null) return undefined;
+export function normalizeBuildingType(
+  v: BuildingType | BuildingTypeLabel | string | null | undefined
+): BuildingType | null {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
 
-  let s = "";
-
-  if (typeof v === "string") {
-    s = v.trim();
-  } else if (typeof v === "object") {
-    const cand =
-      v.value ?? v.code ?? v.key ?? v.label ?? v.name ?? v.id ?? v.text ?? "";
-    if (typeof cand === "string") s = cand.trim();
-  }
-
-  if (!s) return undefined;
-
-  const upper = s.toUpperCase();
-
-  // 한국어 / 코드 여러 패턴을 우리 라벨로 매핑
-  if (s === "주택") return "주택";
-
-  if (upper === "APT" || s === "아파트") return "APT";
-
-  if (upper === "OP" || upper === "OFFICETEL" || s === "오피스텔") {
-    return "OP";
-  }
-
-  if (s === "도생" || s === "도시형생활주택") return "도생";
-
-  if (s === "근생" || s === "근린생활시설") return "근생";
-
-  // 혹시 이미 라벨 그대로 들어온 경우
-  if (BUILDING_TYPES.includes(s as BuildingType)) {
+  // 이미 서버 enum이면 그대로
+  if ((BUILDING_TYPES as readonly string[]).includes(s)) {
     return s as BuildingType;
   }
 
-  return undefined;
-};
+  // 그 외에는 라벨 → enum 헬퍼에 위임
+  return normalizeBuildingTypeLabelToEnum(s as BuildingTypeLabel | string);
+}
+
+/** (옵션) 두 값이 같은 건물유형인지 비교할 때 사용 */
+export function isSameBuildingType(a: any, b: any): boolean {
+  return normalizeBuildingType(a) === normalizeBuildingType(b);
+}

@@ -1,10 +1,10 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import Field from "@/components/atoms/Field/Field";
 import { Input } from "@/components/atoms/Input/Input";
 import PillRadioGroup from "@/components/atoms/PillRadioGroup";
-import { useCallback, useEffect, useRef, useState } from "react";
-
 import type {
   Grade,
   BuildingType,
@@ -100,6 +100,7 @@ export default function CompletionRegistrySection({
   elevator?: "O" | "X" | null;
   setElevator?: (v: "O" | "X" | null) => void;
   isVisitPlanPin?: boolean;
+  // buildingType / setBuildingType 는 props 타입에서 이미 들어있다고 가정
 }) {
   /** ── 준공일 ── */
   const [localDate, setLocalDate] = useState<string>(toYmd(completionDate));
@@ -112,7 +113,9 @@ export default function CompletionRegistrySection({
   }, [localDate, setCompletionDate]);
 
   /** ── 건물유형 (등기) ── */
-  const uiBuildingType = mapBackendToLabel(buildingType as any);
+  const uiBuildingType = mapBackendToLabel(
+    (buildingType as BuildingType | null) ?? null
+  );
 
   /** ── 최저실입 ── */
   const initialPrice = String(minRealMoveInCost ?? salePrice ?? "");

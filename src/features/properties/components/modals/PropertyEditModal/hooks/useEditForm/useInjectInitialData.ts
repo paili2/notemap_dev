@@ -1,3 +1,4 @@
+// useInjectInitialData.ts
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
@@ -5,10 +6,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { normalizeInitialData } from "./normalize";
 import type { UseEditFormArgs, UnitLine } from "./types";
 import { resolveRegistryUi } from "./registry";
-import {
-  normalizeBuildingTypeLabelToEnum,
-  type BuildingType,
-} from "@/features/properties/types/property-domain";
+import type { BuildingType } from "@/features/properties/types/property-domain";
+import { normalizeBuildingType } from "../../lib/buildingType";
 
 type StarStr = "" | "1" | "2" | "3" | "4" | "5";
 
@@ -18,7 +17,10 @@ export type InitialForPatch = {
   minRealMoveInCost: string;
   unitLines: UnitLine[];
   initialName?: string;
+  /** ✅ 유저가 모달 열었을 때의 엘리베이터 상태 */
   initialHasElevator?: boolean | null;
+  /** ✅ 유저가 모달 열었을 때의 등기/건물유형(enum) */
+  initialBuildingType?: BuildingType | null;
 };
 
 type Args = {
@@ -62,6 +64,7 @@ export function useInjectInitialData({
     contactSubPhone: "",
     minRealMoveInCost: "",
     unitLines: [],
+    initialBuildingType: null,
   });
 
   useEffect(() => {
@@ -234,33 +237,36 @@ export function useInjectInitialData({
     api.setUnitLines(normalized.unitLines);
     api.setAspects(normalized.aspects);
 
-    // ✅ buildingType: raw + normalized 모두 로그로 확인, 모르면 null
+    // ✅ buildingType: registry / buildingType / propertyType / type 를 한 번에 정규화
+    let resolvedBt: BuildingType | null = null;
     {
-      const rawBuildingType: any =
-        (sourceData as any)?.buildingType ??
-        (sourceData as any)?.propertyType ??
-        (sourceData as any)?.type ??
-        null;
+      const rawCandidates: any[] = [
+        // registry 계열 (예전 데이터에서 근생 등이 여기에만 들어있는 경우 우선)
+        (normalized as any).registry,
+        (normalized as any).registryOne,
+        (sourceData as any)?.registry,
+        (sourceData as any)?.registryOne,
+        // buildingType 계열
+        (normalized as any).buildingType,
+        (sourceData as any)?.buildingType,
+        (sourceData as any)?.propertyType,
+        (sourceData as any)?.type,
+      ];
 
-      // normalizeInitialData 에서 이미 만들어 줬으면 우선 사용
-      let bt: BuildingType | null =
-        ((normalized as any).buildingType as BuildingType | null) ?? null;
-
-      // 그래도 없으면 raw 를 한 번 더 정규화
-      if (!bt && rawBuildingType != null) {
-        bt = normalizeBuildingTypeLabelToEnum(
-          rawBuildingType as any
-        ) as BuildingType | null;
+      for (const cand of rawCandidates) {
+        const norm = normalizeBuildingType(cand);
+        if (norm) {
+          resolvedBt = norm;
+          break;
+        }
       }
 
-      console.log(
-        "[inject] buildingType(raw → normalized):",
-        rawBuildingType,
-        "→",
-        bt
-      );
+      console.log("[inject] buildingType candidates →", {
+        rawCandidates,
+        resolvedBt,
+      });
 
-      api.setBuildingType(bt);
+      api.setBuildingType(resolvedBt);
     }
 
     // 🔥 initialForPatch 스냅샷
@@ -285,6 +291,7 @@ export function useInjectInitialData({
             (typeof (sourceData as any)?.elevator === "boolean"
               ? (sourceData as any).elevator
               : null)),
+      initialBuildingType: resolvedBt,
     };
   }, [initKey, normalized, sourceData, api, aspectsTouchedRef]);
 

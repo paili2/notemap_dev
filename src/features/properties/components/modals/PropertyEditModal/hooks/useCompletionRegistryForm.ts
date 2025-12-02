@@ -7,7 +7,6 @@ import type {
   Grade,
   BuildingType,
 } from "@/features/properties/types/property-domain";
-import { normalizeBuildingType } from "../lib/buildingType";
 
 type UseCompletionRegistryFormArgs = {
   form: any; // useEditForm 리턴값
@@ -67,12 +66,11 @@ export function useCompletionRegistryForm({
     [form]
   );
 
-  /** UI에서 전달되는 string → 내부 enum으로만 정규화 */
+  /** ✅ UI에서 전달되는 enum 그대로 사용 (추가 정규화 X) */
   const setBuildingType = useCallback(
-    (v: string | null) => {
-      const bt = normalizeBuildingType(v);
-      console.log("[Completion] buildingType change:", v, "→", bt);
-      form?.setBuildingType?.(bt ?? null);
+    (v: BuildingType | null) => {
+      console.log("[Completion] buildingType change:", v);
+      form?.setBuildingType?.(v);
     },
     [form]
   );
@@ -112,7 +110,7 @@ export function useCompletionRegistryForm({
       structureGrade: form?.structureGrade,
       setStructureGrade,
 
-      // ✅ 등기/건물 타입: 이미 useEditForm에서 정규화된 값을 그대로 씀
+      // ✅ 등기/건물 타입: 이미 useEditForm에서 정규화된 enum 값을 그대로 씀
       buildingType: (form?.buildingType ?? null) as BuildingType | null,
       setBuildingType,
 
