@@ -6,7 +6,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
-import useKakaoMap from "./hooks/useKakaoMap";
+import useKakaoMap from "./hooks/useKakaoMap/useKakaoMap";
 import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";

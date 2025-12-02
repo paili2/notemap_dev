@@ -100,10 +100,16 @@ export function FinancialInfoSection({
               }
               disabled={readOnly}
             >
-              <SelectTrigger className="h-7 text-xs min-w-24 w-auto" disabled={readOnly}>
+              <SelectTrigger
+                className="h-7 text-xs min-w-24 w-auto"
+                disabled={readOnly}
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="!z-[2200]">
+              <SelectContent
+                data-contract-records-portal="true"
+                className="!z-[2200]"
+              >
                 <SelectItem value="vat-included" className="text-xs">
                   부가세
                 </SelectItem>
@@ -164,10 +170,16 @@ export function FinancialInfoSection({
               onValueChange={handleTaxStatusChange}
               disabled={readOnly}
             >
-              <SelectTrigger className="h-7 text-xs min-w-20 w-auto" disabled={readOnly}>
+              <SelectTrigger
+                className="h-7 text-xs min-w-20 w-auto"
+                disabled={readOnly}
+              >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="!z-[2200]">
+              <SelectContent
+                data-contract-records-portal="true"
+                className="!z-[2200]"
+              >
                 <SelectItem value="taxable" className="text-xs">
                   과세
                 </SelectItem>
@@ -264,16 +276,16 @@ export function FinancialInfoSection({
               - 지원금액 ={" "}
               {(() => {
                 // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
-                const brokerageAndVat = Number(financialInfo.totalBrokerageFee) || 0;
+                const brokerageAndVat =
+                  Number(financialInfo.totalBrokerageFee) || 0;
                 const rebateAmount =
                   financialInfo.taxStatus === "taxable"
                     ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
                     : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
-                const totalSupportAmount = Number(financialInfo.totalSupportAmount) || 0;
+                const totalSupportAmount =
+                  Number(financialInfo.totalSupportAmount) || 0;
                 const finalTotal =
-                  brokerageAndVat -
-                  totalSupportAmount +
-                  rebateAmount;
+                  brokerageAndVat - totalSupportAmount + rebateAmount;
                 return formatCurrency(finalTotal);
               })()}
               원
@@ -291,16 +303,16 @@ export function FinancialInfoSection({
             <div className="text-lg font-bold text-primary">
               {(() => {
                 // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
-                const brokerageAndVat = Number(financialInfo.totalBrokerageFee) || 0;
+                const brokerageAndVat =
+                  Number(financialInfo.totalBrokerageFee) || 0;
                 const rebateAmount =
                   financialInfo.taxStatus === "taxable"
                     ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
                     : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
-                const totalSupportAmount = Number(financialInfo.totalSupportAmount) || 0;
+                const totalSupportAmount =
+                  Number(financialInfo.totalSupportAmount) || 0;
                 const finalTotal =
-                  brokerageAndVat -
-                  totalSupportAmount +
-                  rebateAmount;
+                  brokerageAndVat - totalSupportAmount + rebateAmount;
                 return formatCurrency(finalTotal);
               })()}
               원

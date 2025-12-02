@@ -9,127 +9,12 @@ import { usePlanReserve } from "./hooks/usePlanReserve";
 import ContextMenuPanel from "../ContextMenuPanel/ContextMenuPanel";
 import { CreateFromPinArgs, PinContextMenuProps } from "./types";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
-import {
-  BeforeDraft,
-  createSurveyReservation,
-  fetchUnreservedDrafts,
-} from "@/shared/api/surveyReservations";
-import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
-import { togglePinDisabled } from "@/shared/api/pins";
-import { useMe } from "@/shared/api/auth";
+import { useDeletePropertyFromMenu } from "./hooks/useDeletePropertyFromMenu";
 import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
-
-/** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
-function posKey(lat: number, lng: number) {
-  return `${lat.toFixed(5)},${lng.toFixed(5)}`;
-}
-
-/** draftId 우선 추출 */
-function extractDraftIdFromPin(pin: any): number | undefined {
-  const raw =
-    pin?.pinDraftId ??
-    pin?.draftId ??
-    pin?.draft?.id ??
-    (typeof pin?.id === "number" ? pin.id : undefined);
-
-  if (raw == null) return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-/** before 목록에서 좌표/주소로 draft 찾기 */
-function findDraftIdByHeuristics(args: {
-  before: BeforeDraft[];
-  lat: number;
-  lng: number;
-  roadAddress?: string | null;
-  jibunAddress?: string | null;
-}): number | undefined {
-  const { before, lat, lng, roadAddress, jibunAddress } = args;
-  const targetKey = posKey(lat, lng);
-
-  // 1) posKey 기반
-  const byPos = before.find(
-    (d) => `${d.lat.toFixed(5)},${d.lng.toFixed(5)}` === targetKey
-  );
-  if (byPos) return Number(byPos.id);
-
-  // 2) 주소 기반
-  const addr = (roadAddress ?? jibunAddress ?? "").trim();
-  if (addr) {
-    const byAddr = before.find((d) => (d.addressLine ?? "").trim() === addr);
-    if (byAddr) return Number(byAddr.id);
-  }
-
-  // 3) 근사 lat/lng
-  const EPS = 1e-5;
-  const byNear = before.find(
-    (d) => Math.abs(d.lat - lat) < EPS && Math.abs(d.lng - lng) < EPS
-  );
-  if (byNear) return Number(byNear.id);
-
-  return undefined;
-}
-
-// ✅ 예약(scheduled) 목록에서 draftId 찾기
-function findDraftIdFromScheduled(args: {
-  scheduled: any[];
-  lat: number;
-  lng: number;
-  roadAddress?: string | null;
-  jibunAddress?: string | null;
-}): number | undefined {
-  const { scheduled, lat, lng, roadAddress, jibunAddress } = args;
-  if (!scheduled?.length) return undefined;
-
-  const key = posKey(lat, lng);
-  const EPS = 1e-5;
-
-  // 1) posKey 기준
-  const byPosKey = scheduled.find((r: any) => r.posKey && r.posKey === key);
-  if (byPosKey) {
-    const raw = byPosKey.pinDraftId ?? byPosKey.pin_draft_id;
-    if (raw != null && Number.isFinite(Number(raw))) {
-      return Number(raw);
-    }
-  }
-
-  // 2) lat/lng 근사
-  const byLatLng = scheduled.find(
-    (r: any) =>
-      typeof r.lat === "number" &&
-      typeof r.lng === "number" &&
-      Math.abs(r.lat - lat) < EPS &&
-      Math.abs(r.lng - lng) < EPS
-  );
-  if (byLatLng) {
-    const raw = byLatLng.pinDraftId ?? byLatLng.pin_draft_id;
-    if (raw != null && Number.isFinite(Number(raw))) {
-      return Number(raw);
-    }
-  }
-
-  // 3) 주소 기준 (addressLine)
-  const addr = (roadAddress ?? jibunAddress ?? "").trim();
-  if (addr) {
-    const byAddr = scheduled.find(
-      (r: any) => (r.addressLine ?? "").trim() === addr
-    );
-    if (byAddr) {
-      const raw = byAddr.pinDraftId ?? byAddr.pin_draft_id;
-      if (raw != null && Number.isFinite(Number(raw))) {
-        return Number(raw);
-      }
-    }
-  }
-
-  return undefined;
-}
-
-/** ⭐ 낙관적 "답사예정" 표식을 좌표 기준으로 저장 (페이지 생명주기 동안 유지) */
-const optimisticPlannedPosSet = new Set<string>();
+import { posKey } from "./lib/draftMatching";
+import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
+import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions"; // ⭐ 새 훅
 
 type Props = PinContextMenuProps & {
   mergedMeta?: MergedMarker[];
@@ -171,9 +56,6 @@ export default function PinContextMenuContainer(props: Props) {
     upsertDraftMarker,
     onDeleteProperty,
   } = props;
-
-  // 🔐 현재 로그인 유저
-  const { data: me } = useMe();
 
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
@@ -271,7 +153,9 @@ export default function PinContextMenuContainer(props: Props) {
 
   /** 이 위치가 낙관적으로 "답사예정" 처리된 상태인지 */
   const optimisticPlannedHere =
-    !isNewClick && optimisticPlannedPosSet.has(posK);
+    !isNewClick && (globalThis as any).optimisticPlannedPosSet?.has
+      ? (globalThis as any).optimisticPlannedPosSet.has(posK)
+      : false;
 
   /** 🔥 최종 reserved/planned 판정 */
   let reserved = false;
@@ -354,248 +238,17 @@ export default function PinContextMenuContainer(props: Props) {
     }
   }, []);
 
-  /** ⭐ 답사예정 생성 */
-  const handlePlanClick = React.useCallback(async () => {
-    const lat = position.getLat();
-    const lng = position.getLng();
-
-    const result = (await handlePlan()) as {
-      draftId?: string | number;
-      payload: { lat: number; lng: number; address?: string | null };
-    } | void;
-
-    optimisticPlannedPosSet.add(posK);
-
-    let refreshed = false;
-    const box = getBoundsBox();
-    if (refreshViewportPins && box) {
-      try {
-        await refreshViewportPins(box);
-        refreshed = true;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[PinContextMenu] refreshViewportPins failed:", e);
-      }
-    }
-    if (!refreshed && result?.payload && upsertDraftMarker) {
-      const id = (result.draftId ?? `__temp_${Date.now()}`) as string | number;
-      upsertDraftMarker({
-        id,
-        lat: result.payload.lat,
-        lng: result.payload.lng,
-        address: result.payload.address ?? null,
-      });
-    }
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        cleanupOverlaysAt(lat, lng);
-      });
-    });
-
-    bump();
-  }, [
-    handlePlan,
-    posK,
-    upsertDraftMarker,
-    refreshViewportPins,
-    getBoundsBox,
-    position,
-    cleanupOverlaysAt,
-    bump,
-  ]);
-
-  /** 예약 */
-  const [reserving, setReserving] = React.useState(false);
-  const getDraftIdForReservation = React.useCallback(async (): Promise<
-    number | undefined
-  > => {
-    let draftId = extractDraftIdFromPin(pin);
-    if (draftId != null) return draftId;
-
-    const metaDraftId =
-      metaAtPos?.source === "draft" ? (metaAtPos as any)?.id : undefined;
-    if (typeof metaDraftId === "number") return metaDraftId;
-
-    const idStr = String(propertyId ?? "");
-    const m = idStr.match(/(\d{1,})$/);
-    if (m) {
-      const n = Number(m[1]);
-      if (Number.isFinite(n)) return n;
-    }
-
-    try {
-      const before = await fetchUnreservedDrafts();
-      const lat = position.getLat();
-      const lng = position.getLng();
-      draftId = findDraftIdByHeuristics({
-        before,
-        lat,
-        lng,
-        roadAddress,
-        jibunAddress,
-      });
-      if (draftId != null) return draftId;
-    } catch {}
-
-    return undefined;
-  }, [pin, metaAtPos, propertyId, position, roadAddress, jibunAddress]);
-
-  const handleReserveClick = async () => {
-    try {
-      setReserving(true);
-      // 디버그 로그
-      // eslint-disable-next-line no-console
-      console.log("[reserve] 클릭됨");
-
-      const draftId = await getDraftIdForReservation();
-      // eslint-disable-next-line no-console
-      console.log("[reserve] resolved draftId:", draftId);
-
-      if (draftId == null) {
-        // eslint-disable-next-line no-console
-        console.error("No pinDraftId resolved for reservation", {
-          pin,
-          propertyId,
-          pos: [position.getLat(), position.getLng()],
-        });
-        alert(
-          "이 위치에 연결된 '답사예정' 핀을 찾지 못해서 예약을 만들 수 없어요."
-        );
-        return;
-      }
-
-      // ✅ 1) 예약 생성
-      await createSurveyReservation({
-        pinDraftId: draftId,
-        reservedDate: todayYmdKST(),
-      });
-
-      // ✅ 2) 예약 리스트 동기화
-      try {
-        await refetchScheduledReservations();
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[reserve] refetchScheduledReservations 실패:", e);
-      }
-
-      // ✅ 3) 컨텍스트메뉴는 닫기
-      onClose?.();
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("[reserve] 에러:", e);
-      alert("답사지 예약 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.");
-    } finally {
-      setReserving(false);
-    }
-  };
-
-  /** 신규 등록/정보 입력 */
-  const handleCreateClick = React.useCallback(
-    async (payloadFromPanel: CreateFromPinArgs) => {
-      const lat = position.getLat();
-      const lng = position.getLng();
-
-      let {
-        latFromPin,
-        lngFromPin,
-        fromPinDraftId,
-        address,
-        roadAddress: roadAddrFromPanel,
-        jibunAddress: jibunAddrFromPanel,
-        createMode,
-      } = payloadFromPanel;
-
-      latFromPin ||= lat;
-      lngFromPin ||= lng;
-
-      // 1차: 기존 heuristic
-      let effectiveDraftId =
-        fromPinDraftId ?? extractDraftIdFromPin(pin) ?? undefined;
-
-      if (effectiveDraftId == null && metaAtPos?.source === "draft") {
-        const n = Number((metaAtPos as any)?.id);
-        if (Number.isFinite(n)) effectiveDraftId = n;
-      }
-
-      if (effectiveDraftId == null) {
-        const idStr = String(propertyId ?? "");
-        const m = idStr.match(/(\d{1,})$/);
-        if (m) {
-          const n = Number(m[1]);
-          if (Number.isFinite(n)) effectiveDraftId = n;
-        }
-      }
-
-      const roadAddressFinal = roadAddrFromPanel ?? roadAddress ?? null;
-      const jibunAddressFinal = jibunAddrFromPanel ?? jibunAddress ?? null;
-      const addressFinal =
-        address ?? roadAddressFinal ?? jibunAddressFinal ?? null;
-
-      // ✅ 2차: draftId 없으면 reserved 여부에 따라 분기
-      if (effectiveDraftId == null) {
-        if (reserved) {
-          // 이미 "답사지예약된 핀"에서 매물등록 → scheduled 리스트에서 찾기
-          const found = findDraftIdFromScheduled({
-            scheduled: scheduledReservations ?? [],
-            lat: latFromPin,
-            lng: lngFromPin,
-            roadAddress: roadAddressFinal,
-            jibunAddress: jibunAddressFinal,
-          });
-          if (found != null) {
-            effectiveDraftId = found;
-          }
-        } else {
-          // 예약 안 된 "답사예정지"에서 바로 매물등록 → before(unreserved)에서 찾기
-          try {
-            const before = await fetchUnreservedDrafts();
-            const found = findDraftIdByHeuristics({
-              before,
-              lat: latFromPin,
-              lng: lngFromPin,
-              roadAddress: roadAddressFinal,
-              jibunAddress: jibunAddressFinal,
-            });
-            if (found != null) {
-              effectiveDraftId = found;
-            }
-          } catch (e) {
-            // eslint-disable-next-line no-console
-            console.warn("[create] fetchUnreservedDrafts failed:", e);
-          }
-        }
-      }
-
-      // 🔼 최종 payload
-      onCreate?.({
-        ...payloadFromPanel,
-        latFromPin,
-        lngFromPin,
-        fromPinDraftId: effectiveDraftId,
-        address: addressFinal,
-        roadAddress: roadAddressFinal,
-        jibunAddress: jibunAddressFinal,
-        createMode,
-      });
-
-      // 오버레이 정리 + 닫기
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          try {
-            const anyWin = globalThis as any;
-            if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
-              anyWin.__cleanupOverlaysAtPos(latFromPin, lngFromPin);
-            }
-          } catch {}
-        });
-      });
-      onClose?.();
-    },
-    [
-      onCreate,
-      onClose,
+  // ⭐ 여기서 새 훅 사용
+  const { handlePlanClick, reserving, handleReserveClick, handleCreateClick } =
+    usePinContextMenuActions({
       position,
+      posK,
+      handlePlan,
+      getBoundsBox,
+      refreshViewportPins,
+      upsertDraftMarker,
+      cleanupOverlaysAt,
+      bump,
       pin,
       metaAtPos,
       propertyId,
@@ -603,8 +256,10 @@ export default function PinContextMenuContainer(props: Props) {
       jibunAddress,
       reserved,
       scheduledReservations,
-    ]
-  );
+      refetchScheduledReservations: () => refetchScheduledReservations(),
+      onClose,
+      onCreate,
+    });
 
   const xAnchor = 0.5;
   const yAnchor = 1;
@@ -612,18 +267,13 @@ export default function PinContextMenuContainer(props: Props) {
   const offsetPx = isSearchDraft ? 56 : 56;
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
-  /** ✅ 컨텍스트 메뉴 패널에 넘길 propertyId
-   *  - draft 메타가 있으면 그 id를 우선 사용 (예: 62)
-   *  - 아니면 기존처럼 propertyId 문자열에서 숫자부분만 추출
-   */
+  /** ✅ 컨텍스트 메뉴 패널에 넘길 propertyId */
   const propertyIdClean = React.useMemo(() => {
-    // 1️⃣ 현재 위치가 draft 마커면 meta의 id 사용
     if (metaAtPos?.source === "draft") {
       const n = Number((metaAtPos as any)?.id);
       if (Number.isFinite(n)) return String(n);
     }
 
-    // 2️⃣ 그 외에는 원래 로직
     const raw = String(propertyId ?? "").trim();
     if (!raw) return null;
     const m = raw.match(/(\d{1,})$/);
@@ -634,7 +284,6 @@ export default function PinContextMenuContainer(props: Props) {
   const metaTitle = React.useMemo(() => {
     if (!metaAtPos) return undefined;
 
-    // 임시핀(draft)일 때만 meta의 title/name 사용
     if (metaAtPos.source === "draft") {
       return (
         (metaAtPos as any)?.property?.title ??
@@ -644,7 +293,6 @@ export default function PinContextMenuContainer(props: Props) {
       );
     }
 
-    // 실매물(point 등)일 때는 metaTitle 사용하지 않음
     return undefined;
   }, [metaAtPos]);
 
@@ -664,42 +312,13 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [propertyTitle, pin, metaTitle]);
 
-  /** ✅ 매물 삭제 여부 상태 */
-  const [deleting, setDeleting] = React.useState(false);
-
-  // 🔐 삭제 권한: admin / manager(팀장)만
-  const role = me?.role;
-  const canDeleteByRole = role === "admin" || role === "manager";
-
-  const canDelete = React.useMemo(
-    () => !!propertyIdClean && listed && !isSearchDraft && canDeleteByRole,
-    [propertyIdClean, listed, isSearchDraft, canDeleteByRole]
-  );
-
-  const handleDelete = React.useCallback(async () => {
-    if (!propertyIdClean || deleting) return;
-    if (!confirm("정말 삭제(비활성화)할까요?")) return;
-
-    try {
-      setDeleting(true);
-      // ✅ PropertyViewModal에서 쓰는 것과 동일한 요청
-      await togglePinDisabled(String(propertyIdClean), true);
-
-      // 부모 쪽에서 리스트/지도 갱신이 필요하면
-      await onDeleteProperty?.(propertyIdClean);
-
-      // 컨텍스트 메뉴 닫기
-      onClose?.();
-    } catch (err: any) {
-      const msg =
-        err?.message ||
-        err?.responseData?.message ||
-        "비활성화 요청에 실패했습니다.";
-      alert(msg);
-    } finally {
-      setDeleting(false);
-    }
-  }, [propertyIdClean, deleting, onDeleteProperty, onClose]);
+  const { canDelete, deleting, handleDelete } = useDeletePropertyFromMenu({
+    propertyIdClean,
+    listed,
+    isSearchDraft,
+    onDeleteProperty,
+    onClose,
+  });
 
   React.useEffect(() => {
     // 상태 디버그용
@@ -771,7 +390,6 @@ export default function PinContextMenuContainer(props: Props) {
               onAddFav={onAddFav}
               favActive={favActive}
               position={position}
-              /** 🔥 즐겨찾기 옆 매물삭제 버튼용 */
               canDelete={canDelete}
               onDelete={handleDelete}
             />

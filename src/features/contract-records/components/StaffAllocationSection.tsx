@@ -75,7 +75,11 @@ export function StaffAllocationSection({
       onStaffAllocationsChange(
         staffAllocations.map((staff) =>
           staff.id === staffId
-            ? { ...staff, name: selectedEmployee.name || "", accountId: employeeId }
+            ? {
+                ...staff,
+                name: selectedEmployee.name || "",
+                accountId: employeeId,
+              }
             : staff
         )
       );
@@ -165,10 +169,7 @@ export function StaffAllocationSection({
   React.useEffect(() => {
     const updatedAllocations = calculateStaffAllocations();
     onStaffAllocationsChange(updatedAllocations);
-  }, [
-    totalCalculation,
-    staffAllocations.map((s) => s.percentage).join(","),
-  ]);
+  }, [totalCalculation, staffAllocations.map((s) => s.percentage).join(",")]);
 
   return (
     <Card className="flex-1 min-h-0">
@@ -225,7 +226,8 @@ export function StaffAllocationSection({
                 </h4>
                 {staff.type === "employee" &&
                   staffAllocations.filter((s) => s.type === "employee").length >
-                    1 && !readOnly && (
+                    1 &&
+                  !readOnly && (
                     <Button
                       type="button"
                       variant="ghost"
@@ -261,14 +263,23 @@ export function StaffAllocationSection({
                       }
                       disabled={readOnly}
                     >
-                      <SelectTrigger className="h-5 text-xs border-gray-300" disabled={readOnly}>
+                      <SelectTrigger
+                        className="h-5 text-xs border-gray-300"
+                        disabled={readOnly}
+                      >
                         <SelectValue placeholder="사원 선택">
                           {staff.name || "사원 선택"}
                         </SelectValue>
                       </SelectTrigger>
-                      <SelectContent className="!z-[2200]">
+                      <SelectContent
+                        data-contract-records-portal="true"
+                        className="!z-[2200]"
+                      >
                         {teamMembers.map((employee) => (
-                          <SelectItem key={employee.accountId} value={employee.accountId}>
+                          <SelectItem
+                            key={employee.accountId}
+                            value={employee.accountId}
+                          >
                             {employee.name || "이름 없음"}
                           </SelectItem>
                         ))}
@@ -316,10 +327,16 @@ export function StaffAllocationSection({
                           }
                           disabled={readOnly}
                         >
-                          <SelectTrigger className="h-5 text-xs border-gray-300" disabled={readOnly}>
+                          <SelectTrigger
+                            className="h-5 text-xs border-gray-300"
+                            disabled={readOnly}
+                          >
                             <SelectValue placeholder="%" />
                           </SelectTrigger>
-                          <SelectContent className="!z-[2200]">
+                          <SelectContent
+                            data-contract-records-portal="true"
+                            className="!z-[2200]"
+                          >
                             {getAvailablePercentages(staff.id).map(
                               (percentage) => (
                                 <SelectItem

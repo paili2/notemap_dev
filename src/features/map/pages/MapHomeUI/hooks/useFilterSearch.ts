@@ -1,4 +1,3 @@
-// useFilterSearch.ts
 import { useState, useCallback } from "react";
 import { searchPins } from "@/shared/api/pins";
 import type {

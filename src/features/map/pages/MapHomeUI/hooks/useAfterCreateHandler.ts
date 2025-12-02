@@ -1,4 +1,3 @@
-// useAfterCreateHandler.ts
 import { useCallback } from "react";
 
 type Args = {

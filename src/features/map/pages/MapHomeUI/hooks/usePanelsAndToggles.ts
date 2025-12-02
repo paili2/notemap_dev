@@ -35,8 +35,16 @@ export function usePanelsAndToggles({
       const target = event.target as HTMLElement | null;
       if (!target) return;
 
-      // ✅ 1) 영업자 계약기록 모달 안쪽 클릭이면 무시
+      // ✅ 1) 영업자 계약기록 모달 본문 안쪽 클릭이면 무시
       if (target.closest("[data-contract-records-modal-root]")) {
+        return;
+      }
+
+      // ✅ 1-1) 영업 계약기록 모달에서 띄운 달력/셀렉트 포털 안쪽 클릭이면 무시
+      if (
+        target.closest("[data-contract-calendar='true']") ||
+        target.closest("[data-contract-records-portal='true']")
+      ) {
         return;
       }
 
@@ -55,7 +63,18 @@ export function usePanelsAndToggles({
         return;
       }
 
-      // ✅ 3) 진짜로 바깥을 클릭했을 때만 닫기
+      // 🔒 2-1) 영업 계약기록 모달이 떠 있는 동안에는
+      //         사이드바/패널은 바깥 클릭으로 닫지 않는다
+      const contractModal = document.querySelector(
+        "[data-contract-records-modal-root]"
+      );
+      if (contractModal) {
+        // 모달은 Dialog 자체에서 onOpenChange로 닫히도록 두고,
+        // 여기서는 사이드바 상태는 건드리지 않음
+        return;
+      }
+
+      // ✅ 3) 진짜로 바깥을 클릭했고, 모달도 없을 때만 패널/사이드바 닫기
       setRightOpen(false);
       setFilterSearchOpen(false);
       setUseSidebar(false);
@@ -65,7 +84,14 @@ export function usePanelsAndToggles({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [rightOpen, filterSearchOpen, useSidebar, setUseSidebar]);
+  }, [
+    rightOpen,
+    filterSearchOpen,
+    useSidebar,
+    setUseSidebar,
+    setRightOpen,
+    setFilterSearchOpen,
+  ]);
 
   const handleSetDistrictOn = useCallback(
     (next: boolean) => {

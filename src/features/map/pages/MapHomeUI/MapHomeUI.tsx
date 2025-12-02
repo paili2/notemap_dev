@@ -10,16 +10,12 @@ import ContextMenuHost from "../components/ContextMenuHost";
 import FilterFab from "../components/FilterFab";
 import ModalsHost from "../components/ModalsHost";
 
-import { cn } from "@/lib/cn";
-
 import type { PinKind } from "@/features/pins/types";
 import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { useBounds } from "@/features/map/hooks/useBounds";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";
-import TopRightControls from "@/features/map/components/TopRightControls";
-import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
 import { MapHomeUIProps } from "../types";
 import { useBoundsRaw } from "../../hooks/useBoundsRaw";
@@ -37,6 +33,7 @@ import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 
 /* 👀 지도 포커스 유틸 */
 import { focusMapToPosition } from "./lib/viewUtils";
+import { TopRegion } from "./components/TopRegion";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
@@ -371,57 +368,31 @@ export function MapHomeUI(props: MapHomeUIProps) {
       />
 
       {/* 상단 검색 + 필터 + 토글 */}
-      <div
-        className={cn(
-          "pointer-events-none absolute left-3 right-3 top-3 z-[70]",
-          "flex flex-col gap-2"
-        )}
-        role="region"
-        aria-label="지도 상단 검색 및 토글"
-      >
-        <div className="pointer-events-auto w-full md:w-auto">
-          <SearchForm
-            value={q}
-            onChange={onChangeQ}
-            onSubmit={handleSubmitSearch}
-            placeholder="장소, 주소, 버스 검색"
-            className="w-full md:max-w-[360px]"
-          />
-        </div>
-
-        <div className="pointer-events-auto flex items-center justify-between">
-          <div
-            ref={rightAreaRef}
-            className="flex flex-col md:flex-row items-center gap-2"
-          >
-            <TopRightControls
-              activeMenu={activeMenu}
-              onChangeFilter={(next: MapMenuKey) => {
-                const resolved: MapMenuKey = next === activeMenu ? "all" : next;
-                (onChangeFilter as any)(resolved);
-              }}
-              isDistrictOn={isDistrictOn}
-              setIsDistrictOn={handleSetDistrictOn}
-              poiKinds={poiKinds}
-              onChangePoiKinds={onChangePoiKinds}
-              roadviewVisible={roadviewVisible}
-              onToggleRoadview={toggleRoadview}
-              rightOpen={rightOpen}
-              setRightOpen={(open: boolean) => handleSetRightOpen(open)}
-              sidebarOpen={useSidebar}
-              setSidebarOpen={(open: boolean) => {
-                if (open !== useSidebar) {
-                  handleToggleSidebar();
-                }
-              }}
-              getBounds={getBoundsLLB}
-              getLevel={() => mapInstance?.getLevel?.()}
-              roadviewRoadOn={roadviewRoadOn}
-              onToggleRoadviewRoad={toggleRoadviewRoad}
-            />
-          </div>
-        </div>
-      </div>
+      <TopRegion
+        ref={rightAreaRef}
+        q={q}
+        onChangeQ={onChangeQ}
+        onSubmitSearch={handleSubmitSearch}
+        activeMenu={activeMenu}
+        onChangeFilter={(next: MapMenuKey) => {
+          const resolved: MapMenuKey = next === activeMenu ? "all" : next;
+          (onChangeFilter as any)(resolved);
+        }}
+        isDistrictOn={isDistrictOn}
+        setIsDistrictOn={handleSetDistrictOn}
+        poiKinds={[...poiKinds]}
+        onChangePoiKinds={onChangePoiKinds}
+        roadviewVisible={roadviewVisible}
+        onToggleRoadview={toggleRoadview}
+        rightOpen={rightOpen}
+        setRightOpen={handleSetRightOpen}
+        sidebarOpen={useSidebar}
+        onToggleSidebar={handleToggleSidebar}
+        getBounds={getBoundsLLB}
+        getLevel={() => mapInstance?.getLevel?.()}
+        roadviewRoadOn={roadviewRoadOn}
+        onToggleRoadviewRoad={toggleRoadviewRoad}
+      />
 
       {/* 필터 플로팅 버튼 + 필터 검색 패널 영역 */}
       <div ref={filterAreaRef}>

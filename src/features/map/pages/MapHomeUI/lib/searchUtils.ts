@@ -1,5 +1,3 @@
-// MapHomeUI/lib/searchUtils.ts
-
 import type { PinSearchResult } from "@/features/pins/types/pin-search";
 
 // ======================

@@ -475,6 +475,7 @@ export function SalesContractRecordsModal({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
+                          data-contract-calendar="true"
                           className="w-auto p-0 !z-[2200]"
                           align="start"
                         >
@@ -548,6 +549,7 @@ export function SalesContractRecordsModal({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
+                          data-contract-calendar="true"
                           className="w-auto p-0 !z-[2200]"
                           align="start"
                         >
@@ -622,7 +624,10 @@ export function SalesContractRecordsModal({
                       >
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="!z-[2200]">
+                      <SelectContent
+                        data-contract-records-portal="true"
+                        className="!z-[2200]"
+                      >
                         <SelectItem value="ongoing" className="text-xs">
                           계약중
                         </SelectItem>

@@ -4,8 +4,6 @@ import { useRef, useState, useCallback, useMemo, useEffect } from "react";
 
 import type { PropertyCreateModalProps } from "./types";
 
-import { usePropertyImages } from "./hooks/usePropertyImages";
-import { buildCreatePayload } from "./lib/buildCreatePayload";
 import { useCreateForm } from "./hooks/useCreateForm/useCreateForm";
 
 import { createPin, createPinDraft, CreatePinDto } from "@/shared/api/pins";
@@ -15,11 +13,8 @@ import type { AreaSet as StrictAreaSet } from "@/features/properties/components/
 import type { UnitLine } from "@/features/properties/types/property-domain";
 import type { PinKind } from "@/features/pins/types";
 
-/* ───────────── 미디어 영속화 단계 API ───────────── */
-import { createPhotoGroup } from "@/shared/api/photoGroups";
-import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
-import { createPhotosInGroup } from "@/shared/api/photos";
-import type { ImageItem } from "@/features/properties/types/media";
+import { useCreateMedia } from "./hooks/useCreateMedia";
+
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 import {
   MAX_FILES,
@@ -46,9 +41,14 @@ import {
   isValidIsoDateStrict,
   normalizeDateInput,
   numOrNull,
+  usePropertyImages,
   validateAreaSets,
   validateUnitPriceRanges,
 } from "./hooks";
+import { buildCreatePayload } from "./lib/buildCreatePayload";
+import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
+import { createPhotoGroup, createPhotosInGroup } from "@/shared/api/photos";
+import { ImageItem } from "@/features/properties/types/media";
 
 /** ✅ 실제 답사예정 핀 kind 값: PinKind 중 "question" 을 사용 */
 const VISIT_PLAN_PIN_KIND: PinKind = "question";

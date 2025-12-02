@@ -1,5 +1,3 @@
-// MapHomeUI/lib/viewUtils.ts
-
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 
 /* 🔍 사이드바 → 지도 포커스 공통 레벨 */

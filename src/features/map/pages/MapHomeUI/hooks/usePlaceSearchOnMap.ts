@@ -1,4 +1,3 @@
-// usePlaceSearchOnMap.ts
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
