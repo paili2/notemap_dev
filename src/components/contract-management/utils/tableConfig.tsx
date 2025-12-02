@@ -50,7 +50,7 @@ export const contractTableColumns: TableColumn<ContractData>[] = [
   },
   {
     key: "balanceDate",
-    label: "Settlement Date",
+    label: "잔금일",
     width: "110px",
     align: "center",
     render: (value) => value ? formatDate(value) : "-",
