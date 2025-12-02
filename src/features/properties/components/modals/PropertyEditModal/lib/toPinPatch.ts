@@ -256,13 +256,44 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     (patch as any).completionDate = S2((f as any).completionDate) ?? null;
   }
 
-  // 엘리베이터
-  const initElev = toBool(
-    (initial as any)?.hasElevator ?? (initial as any)?.elevator
-  );
-  const nowElev = toBool((f as any)?.elevator);
-  if (nowElev !== undefined && nowElev !== initElev)
-    (patch as any).hasElevator = nowElev;
+  // 엘리베이터: 서버 초기값 vs 현재 폼값을 정규화해서 비교 -------------------
+
+  // 서버/뷰 스냅샷에서 "원래 엘리베이터 값" 추출
+  const prevHasElevatorRaw =
+    // 뷰에서 따로 넣어둔 메타가 있다면 최우선
+    (initial as any)?.initialHasElevator ??
+    // 서버 boolean 필드
+    (initial as any)?.hasElevator ??
+    // 레거시/문자 표현 등
+    (initial as any)?.elevator;
+
+  const prevHasElevator = toBool(prevHasElevatorRaw);
+
+  // 폼에서 온 현재 값 ("O" | "X" | 기타)
+  const elevRaw = (f as any)?.elevator as string | boolean | undefined;
+
+  let currHasElevator: boolean | undefined;
+
+  if (elevRaw === "O") {
+    currHasElevator = true;
+  } else if (elevRaw === "X") {
+    currHasElevator = false;
+  } else {
+    // 혹시 boolean / "true" / "false" / 1 / 0 / "o" / "x" 등 들어올 때 방어
+    currHasElevator = toBool(elevRaw);
+  }
+
+  console.log("[toPinPatch][elevator]", {
+    prevHasElevatorRaw,
+    prevHasElevator,
+    elevRaw,
+    currHasElevator,
+  });
+
+  // ✅ 폼에서 값이 정의돼 있고, "실제로 값이 바뀐 경우"에만 PATCH에 실어준다
+  if (currHasElevator !== undefined && currHasElevator !== prevHasElevator) {
+    (patch as any).hasElevator = currHasElevator;
+  }
 
   // 메모
   if (!jsonEq2Local((initial as any)?.publicMemo, (f as any).publicMemo))

@@ -78,8 +78,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   /** 🔥 헤더 R 인풋과 연결될 리베이트 텍스트(만원 단위) */
   const [rebateText, setRebateText] = useState<string>("");
 
-  /** ✅ 엘리베이터: "O" | "X" (기본값 "O") */
-  const [elevator, setElevator] = useState<"O" | "X">("O");
+  const [elevator, setElevator] = useState<"O" | "X" | undefined>();
 
   const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
 
