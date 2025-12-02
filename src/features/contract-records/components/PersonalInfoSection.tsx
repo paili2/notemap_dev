@@ -8,6 +8,7 @@ import {
 } from "@/components/atoms/Card/Card";
 import { Input } from "@/components/atoms/Input/Input";
 import { Label } from "@/components/atoms/Label/Label";
+import { formatPhone } from "@/lib/formatPhone";
 import type { PersonInfo } from "../types/contract-records";
 
 interface PersonalInfoSectionProps {
@@ -69,13 +70,14 @@ export function PersonalInfoSection({
                 onChange={(e) =>
                   onCustomerInfoChange({
                     ...customerInfo,
-                    contact: e.target.value,
+                    contact: formatPhone(e.target.value),
                   })
                 }
                 className="h-7 text-xs"
-                placeholder="연락처 입력"
+                placeholder="010-1234-5678"
                 readOnly={readOnly}
                 disabled={readOnly}
+                inputMode="tel"
               />
             </div>
           </div>

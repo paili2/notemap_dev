@@ -28,6 +28,7 @@ import {
 } from "@/components/atoms/Form/Form";
 import { Plus, ChevronDownIcon } from "lucide-react";
 import { useState, useEffect } from "react";
+import { formatPhone } from "@/lib/formatPhone";
 import { useRouter } from "next/navigation";
 import { getTeams } from "@/features/teams";
 import {
@@ -613,7 +614,12 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>연락처 *</FormLabel>
                     <FormControl>
-                      <Input placeholder="010-1234-5678" {...field} />
+                      <Input 
+                        placeholder="010-1234-5678" 
+                        {...field}
+                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        inputMode="tel"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -627,7 +633,12 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>비상 연락처 *</FormLabel>
                     <FormControl>
-                      <Input placeholder="010-0000-0000" {...field} />
+                      <Input 
+                        placeholder="010-0000-0000" 
+                        {...field}
+                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        inputMode="tel"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

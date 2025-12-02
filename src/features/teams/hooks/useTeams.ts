@@ -6,6 +6,7 @@ import {
   removeTeamMember,
   assignTeamMember,
   replaceTeamManager,
+  deleteTeam,
   CreateTeamRequest,
   CreateTeamResponse,
   AssignTeamMemberRequest,
@@ -100,6 +101,20 @@ export function useReplaceTeamManager() {
       // 팀장 교체 후 해당 팀 상세 정보와 팀 목록 캐시 무효화
       queryClient.invalidateQueries({ queryKey: teamKeys.detail(variables.teamId) });
       queryClient.invalidateQueries({ queryKey: teamKeys.list() });
+    },
+  });
+}
+
+// 팀 삭제 (Mutation)
+export function useDeleteTeam() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (teamId: string) => deleteTeam(teamId),
+    onSuccess: () => {
+      // 팀 삭제 후 팀 목록 캐시 무효화
+      queryClient.invalidateQueries({ queryKey: teamKeys.list() });
+      queryClient.invalidateQueries({ queryKey: teamKeys.details() });
     },
   });
 }

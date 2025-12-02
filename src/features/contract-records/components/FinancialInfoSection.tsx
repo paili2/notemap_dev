@@ -17,7 +17,7 @@ import {
 } from "@/components/atoms/Select/Select";
 import { Textarea } from "@/components/atoms/Textarea/Textarea";
 import type { FinancialInfo } from "../types/contract-records";
-import { formatCurrency } from "../utils/utils";
+import { formatCurrency, formatNumberWithCommas, parseNumberFromFormatted } from "../utils/utils";
 
 interface FinancialInfoSectionProps {
   financialInfo: FinancialInfo;
@@ -34,7 +34,17 @@ export function FinancialInfoSection({
     field: keyof FinancialInfo,
     value: string | number
   ) => {
-    const numValue = typeof value === "string" ? parseFloat(value) || 0 : value;
+    const numValue = typeof value === "string" ? parseNumberFromFormatted(value) : value;
+    onFinancialInfoChange({ ...financialInfo, [field]: numValue });
+  };
+
+  // 천단위 구분자가 포함된 숫자 입력 핸들러
+  const handleFormattedInputChange = (
+    field: keyof FinancialInfo,
+    value: string
+  ) => {
+    const formatted = formatNumberWithCommas(value);
+    const numValue = parseNumberFromFormatted(formatted);
     onFinancialInfoChange({ ...financialInfo, [field]: numValue });
   };
 
@@ -70,14 +80,14 @@ export function FinancialInfoSection({
             <Label className="text-xs text-muted-foreground">중개보수금</Label>
             <div className="flex items-center gap-1">
               <Input
-                type="number"
+                type="text"
                 value={
                   financialInfo.brokerageFee === 0
                     ? ""
-                    : financialInfo.brokerageFee
+                    : formatNumberWithCommas(financialInfo.brokerageFee.toString())
                 }
                 onChange={(e) =>
-                  handleInputChange("brokerageFee", e.target.value)
+                  handleFormattedInputChange("brokerageFee", e.target.value)
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
@@ -126,10 +136,14 @@ export function FinancialInfoSection({
             </Label>
             <div className="flex items-center gap-1">
               <Input
-                type="number"
-                value={financialInfo.totalBrokerageFee}
+                type="text"
+                value={
+                  financialInfo.totalBrokerageFee === 0
+                    ? ""
+                    : formatNumberWithCommas(financialInfo.totalBrokerageFee.toString())
+                }
                 onChange={(e) =>
-                  handleInputChange("totalBrokerageFee", e.target.value)
+                  handleFormattedInputChange("totalBrokerageFee", e.target.value)
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
@@ -194,14 +208,14 @@ export function FinancialInfoSection({
             <Label className="text-xs text-muted-foreground">지원금액</Label>
             <div className="flex items-center gap-1">
               <Input
-                type="number"
+                type="text"
                 value={
                   financialInfo.totalSupportAmount === 0
                     ? ""
-                    : financialInfo.totalSupportAmount
+                    : formatNumberWithCommas(financialInfo.totalSupportAmount.toString())
                 }
                 onChange={(e) =>
-                  handleInputChange("totalSupportAmount", e.target.value)
+                  handleFormattedInputChange("totalSupportAmount", e.target.value)
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"

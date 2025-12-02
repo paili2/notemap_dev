@@ -49,11 +49,11 @@ export const contractTableColumns: TableColumn<ContractData>[] = [
     ),
   },
   {
-    key: "contractDate",
-    label: "계약일",
+    key: "balanceDate",
+    label: "Settlement Date",
     width: "110px",
     align: "center",
-    render: (value) => formatDate(value),
+    render: (value) => value ? formatDate(value) : "-",
   },
   {
     key: "status",
