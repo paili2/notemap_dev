@@ -15,9 +15,6 @@ import {
   upsertFavoriteItem,
   deleteFavoriteItem,
   updateGroupTitle,
-  reorderGroups,
-  type FavoriteGroup,
-  type FavoriteItem,
 } from "@/features/favorites/api/favorites";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -453,7 +450,9 @@ export function useSidebarState() {
 
         // 성공 시 로컬 상태 업데이트
         setNestedFavorites((prev) =>
-          prev.map((g) => (g.id === groupId ? { ...g, title: updated.title } : g))
+          prev.map((g) =>
+            g.id === groupId ? { ...g, title: updated.title } : g
+          )
         );
 
         toast({
@@ -464,7 +463,10 @@ export function useSidebarState() {
         console.error("그룹 이름 수정 실패:", error);
         toast({
           title: "그룹 이름 수정 실패",
-          description: error?.response?.data?.message || error?.message || "그룹 이름 수정 중 오류가 발생했습니다.",
+          description:
+            error?.response?.data?.message ||
+            error?.message ||
+            "그룹 이름 수정 중 오류가 발생했습니다.",
           variant: "destructive",
         });
         throw error;

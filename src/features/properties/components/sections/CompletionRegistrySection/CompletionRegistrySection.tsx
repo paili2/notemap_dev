@@ -29,9 +29,27 @@ const mapLabelToBackend = (v?: UIBuildingType | null): BuildingType | null => {
 
 const mapBackendToLabel = (v?: string | null): UIBuildingType | undefined => {
   if (!v) return undefined;
-  if (v === "근생") return "근/생";
-  if (v === "도생" || v === "도/생") return "도/생";
-  if (["주택", "APT", "OP"].includes(v)) return v as UIBuildingType;
+  const raw = String(v).trim();
+
+  // 근생
+  if (raw === "근생" || raw === "근/생") return "근/생";
+
+  // 도생
+  if (raw === "도생" || raw === "도/생") return "도/생";
+
+  // 주택
+  if (raw === "주택") return "주택";
+
+  // 아파트
+  if (raw === "APT" || raw === "아파트" || raw.toUpperCase() === "APARTMENT") {
+    return "APT";
+  }
+
+  // 오피스텔
+  if (raw === "OP" || raw === "오피스텔" || raw.toUpperCase() === "OFFICETEL") {
+    return "OP";
+  }
+
   return undefined;
 };
 
@@ -185,15 +203,6 @@ export default function CompletionRegistrySection({
 
   return (
     <div className="space-y-4">
-      {/* 상단 블록: 경사도 / 구조 / 엘리베이터 / 준공일 / 등기 */}
-      {/* 모바일: 2열 grid
-          - 1행: 경사도 | 구조
-          - 2행: 엘리베이터 | 준공일
-          - 3행: 등기(2칸 전체)
-        PC(md+): 3열 grid
-          - 1행: 경사도 | 구조 | 엘리베이터
-          - 2행: 준공일 | 등기(2칸 전체)
-      */}
       <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3 md:gap-x-6 md:items-center">
         <Field label="경사도" align="center" className="min-w-[120px]">
           <PillRadioGroup
@@ -258,7 +267,6 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
-      {/* 최저실입(만원) */}
       <Field label="최저실입" align="center">
         <div className="flex items-center gap-3">
           <Input

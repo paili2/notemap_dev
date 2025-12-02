@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 
@@ -16,45 +16,29 @@ import { useMenuAndDraft } from "./useMenuAndDraft";
 import { usePropertyModals } from "./usePropertyModals";
 import { useSearchAndPoi } from "./useSearchAndPoi";
 
+import { useMapTools } from "./useMapTools";
+import { useHiddenDrafts } from "./useHiddenDrafts";
+import { useMarkersForMapHome } from "./useMarkersForMapHome";
+
 export function useMapHomeState() {
+  const { toast } = useToast();
+
   // 지도/SDK
   const [mapInstance, setMapInstance] = useState<any>(null);
   const [kakaoSDK, setKakaoSDK] = useState<any>(null);
-  const { toast } = useToast();
 
-  // 토글/필터 (지도 툴 모드, 사이드바)
-  const [mapToolMode, setMapToolMode] = useState<MapToolMode>("none");
-  const [useSidebar, setUseSidebar] = useState<boolean>(false);
-
-  /** 파생: 지적편집도 / 로드뷰 상태 */
-  const useDistrict = mapToolMode === "district";
-  const roadviewVisible = mapToolMode === "roadview";
-
-  /** 지적편집도 토글 (배타적) */
-  const toggleDistrict = useCallback(() => {
-    setMapToolMode((prev) => (prev === "district" ? "none" : "district"));
-  }, []);
-
-  /** 로드뷰 토글 (배타적) */
-  const toggleRoadview = useCallback(() => {
-    setMapToolMode((prev) => (prev === "roadview" ? "none" : "roadview"));
-  }, []);
-
-  /** 기존 setUseDistrict 인터페이스 호환용 */
-  const setUseDistrict = useCallback((next: boolean) => {
-    setMapToolMode((prev) => {
-      if (next) return "district";
-      return prev === "district" ? "none" : prev;
-    });
-  }, []);
-
-  /** 필요 시 로드뷰도 직접 세트할 수 있게 */
-  const setRoadviewVisible = useCallback((next: boolean) => {
-    setMapToolMode((prev) => {
-      if (next) return "roadview";
-      return prev === "roadview" ? "none" : prev;
-    });
-  }, []);
+  // 토글/툴모드/사이드바
+  const {
+    mapToolMode,
+    useSidebar,
+    setUseSidebar,
+    useDistrict,
+    roadviewVisible,
+    toggleDistrict,
+    toggleRoadview,
+    setUseDistrict,
+    setRoadviewVisible,
+  } = useMapTools();
 
   // 데이터 (ViewModal 목록용)
   const [items, setItems] = useState<PropertyItem[]>([]);
@@ -65,30 +49,8 @@ export function useMapHomeState() {
   const lastViewportRef = useRef<Viewport | null>(null);
   const { points, drafts, setBounds, refetch } = usePinsMap();
 
-  // 방금 등록된 draft 숨김 관리 (⭐ usePropertyModals보다 위로 이동)
-  const [hiddenDraftIds, setHiddenDraftIds] = useState<Set<string>>(new Set());
-  const hideDraft = useCallback(
-    (draftId: string | number | null | undefined) => {
-      if (draftId == null) return;
-      const key = String(draftId);
-      setHiddenDraftIds((prev) => {
-        if (prev.has(key)) return prev;
-        const next = new Set(prev);
-        next.add(key);
-        return next;
-      });
-    },
-    []
-  );
-  const clearHiddenDraft = useCallback((draftId: string | number) => {
-    const key = String(draftId);
-    setHiddenDraftIds((prev) => {
-      if (!prev.has(key)) return prev;
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
-  }, []);
+  // 방금 등록된 draft 숨김 관리
+  const { hiddenDraftIds, hideDraft, clearHiddenDraft } = useHiddenDrafts();
 
   // 뷰포트 전송 (pins/poi 쿼리용)
   const sendViewportQuery = useCallback(
@@ -183,7 +145,6 @@ export function useMapHomeState() {
     sendViewportQuery,
     refetch,
     onMatchedPin: async (p: any) => {
-      // ✅ 기존 runSearchRaw onMatchedPin 동작 그대로
       setDraftPin(null);
       setCreateFromDraftId(null);
 
@@ -199,7 +160,6 @@ export function useMapHomeState() {
       await focusAndOpenAt(pos as LatLng, String(p.id));
     },
     onNoMatch: async (coords: LatLng) => {
-      // ✅ 매칭 핀이 없을 때만 진짜 draft 모드로 전환
       setCreateFromDraftId(null);
 
       console.log(
@@ -239,7 +199,7 @@ export function useMapHomeState() {
     onSubmitEdit,
 
     // create from menu
-    createPos, // (외부에 직접 줄 필요는 없지만, selectedPos 계산용으로 사용)
+    createPos,
     createPinKind,
     setCreatePinKind,
     draftHeaderPrefill,
@@ -299,57 +259,14 @@ export function useMapHomeState() {
     [refetch, setBounds]
   );
 
-  // ⭐ 마커 목록 (필터 반영)
-  const markers = useMemo(() => {
-    // 0) drafts 배열에서 숨긴 것 제외
-    const visibleDraftsRaw = (drafts ?? []).filter(
-      (d: any) => !hiddenDraftIds.has(String(d.id))
-    );
-
-    // 1) 필터 모드 판별
-    const isPlannedOnlyMode = filter === "plannedOnly";
-
-    // 2) 매물핀: plannedOnly 모드에서는 안 보이게
-    const visiblePoints = isPlannedOnlyMode ? [] : points ?? [];
-
-    // 3) 임시핀: plannedOnly 모드일 때는 draftState === "BEFORE" 만 남기기
-    const visibleDrafts = visibleDraftsRaw.filter((d: any) => {
-      if (!isPlannedOnlyMode) return true;
-      const state = d.draftState as "BEFORE" | "SCHEDULED" | undefined;
-      return state === "BEFORE";
-    });
-
-    // 4) 매물핀 마커 변환
-    const pointMarkers = visiblePoints.map((p: any) => ({
-      id: String(p.id),
-      position: { lat: p.lat, lng: p.lng },
-      kind: "1room" as const,
-      title: p.badge ?? "",
-      isFav: false,
-    }));
-
-    // 5) 임시핀 마커 변환 (__visit__ 접두사)
-    const draftMarkers = visibleDrafts.map((d: any) => ({
-      id: `__visit__${d.id}`,
-      position: { lat: d.lat, lng: d.lng },
-      kind: "question" as const,
-      isFav: false,
-    }));
-
-    // 6) 화면에서 선택한 임시 draftPin
-    const draftPinMarker = draftPin
-      ? [
-          {
-            id: "__draft__",
-            position: draftPin,
-            kind: "question" as const,
-            isFav: false,
-          },
-        ]
-      : [];
-
-    return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
-  }, [points, drafts, draftPin, hiddenDraftIds, filter]);
+  // ⭐ 마커 목록 (필터 + 숨김 반영)
+  const markers = useMarkersForMapHome({
+    points,
+    drafts,
+    draftPin,
+    hiddenDraftIds,
+    filter,
+  });
 
   const onViewportChange = useCallback(
     (vp: any, opts?: { force?: boolean }) => sendViewportQuery(vp, opts),

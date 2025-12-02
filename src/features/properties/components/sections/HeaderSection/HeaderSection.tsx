@@ -11,6 +11,16 @@ import { HeaderSectionProps } from "./types";
 import { asControlled } from "@/features/properties/lib/forms/asControlled";
 import { BuildingGrade } from "@/features/properties/types/building-grade";
 
+type UiGrade = "" | "new" | "old";
+
+function toUiGrade(grade: BuildingGrade | null | undefined): UiGrade {
+  if (grade == null) return "";
+  const s = String(grade).toLowerCase();
+  if (s === "new") return "new";
+  if (s === "old") return "old";
+  return "";
+}
+
 export default function HeaderSection(
   props: HeaderSectionProps & {
     /** 신축/구옥: "new" | "old" | null (null = 미선택) */
@@ -45,27 +55,38 @@ export default function HeaderSection(
   const ratingDisabled = !!isVisitPlanPin;
   const rebateDisabled = !!isVisitPlanPin;
 
-  /** ───────── 신축/구옥 어댑터 ───────── */
-  const buildingGrade: BuildingGrade | null =
-    _buildingGrade === "new" || _buildingGrade === "old"
-      ? _buildingGrade
-      : null;
+  /** ───────── 신축/구옥: 로컬 상태 + 외부 동기화 ───────── */
+  const [uiValue, setUiValue] = React.useState<UiGrade>(() =>
+    toUiGrade(_buildingGrade)
+  );
+
+  // 외부에서 buildingGrade가 바뀌면 로컬 상태도 맞춰줌
+  React.useEffect(() => {
+    setUiValue(toUiGrade(_buildingGrade));
+  }, [_buildingGrade]);
 
   const setBuildingGrade =
     typeof _setBuildingGrade === "function"
       ? _setBuildingGrade
       : (_: BuildingGrade | null) => {};
 
-  const uiValue: "" | "new" | "old" =
-    buildingGrade === "new" ? "new" : buildingGrade === "old" ? "old" : "";
+  const handleUiChange = (v: UiGrade) => {
+    console.log("[BuildingGrade onChange]", v);
+    // 1) 로컬 UI 상태 먼저 갱신 → 바로 파란색 옮겨감
+    setUiValue(v);
 
-  const handleUiChange = (v: "" | "new" | "old") => {
+    // 2) 부모 폼 상태도 함께 동기화
     if (!v) {
       setBuildingGrade(null);
     } else {
-      setBuildingGrade(v);
+      // BuildingGrade 타입이 "new" | "old" 라고 가정
+      setBuildingGrade(v as BuildingGrade);
     }
   };
+
+  // PinTypeSelect 에 넘길 grade (없으면 null)
+  const buildingGradeForPinSelect: BuildingGrade | null =
+    uiValue === "" ? null : (uiValue as BuildingGrade);
 
   /** ───────── 리베이트 입력 (setRebate 없을 때 fallback 상태) ───────── */
   const [fallbackRebate, setFallbackRebate] = React.useState<string>("");
@@ -79,6 +100,7 @@ export default function HeaderSection(
     // 일반핀(false) → 답사예정(true)으로 바뀌는 순간에만 초기화
     if (current && prev === false) {
       // 신축/구옥 초기화
+      setUiValue("");
       setBuildingGrade(null);
       // 별점 초기화
       setParkingGrade("" as HeaderSectionProps["parkingGrade"]);
@@ -122,7 +144,7 @@ export default function HeaderSection(
         <div
           className={cn(
             "order-1 flex-shrink-0",
-            isVisitPlanPin && "pointer-events-none opacity-60"
+            isVisitPlanPin && "opacity-60"
           )}
         >
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />
@@ -135,7 +157,7 @@ export default function HeaderSection(
             onChange={(v) => setPinKind(v)}
             className="h-9 w-[140px] md:w-[190px]"
             placeholder="핀선택"
-            buildingGrade={buildingGrade ?? null}
+            buildingGrade={buildingGradeForPinSelect}
           />
         </div>
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Check, Loader2, ArrowLeft } from "lucide-react";
 import { FooterButtonsProps } from "./types";
 
@@ -8,21 +7,8 @@ export default function FooterButtons({
   onClose,
   onSave,
   canSave,
+  isSaving = false,
 }: FooterButtonsProps) {
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!canSave || isSaving) return;
-    try {
-      setIsSaving(true);
-      await Promise.resolve(onSave());
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const canSaveNow = canSave && !isSaving;
   const canCancelNow = !isSaving;
 
@@ -53,7 +39,7 @@ export default function FooterButtons({
       {/* 저장 (오른쪽) */}
       <button
         type="button"
-        onClick={handleSave}
+        onClick={onSave}
         disabled={!canSaveNow}
         aria-disabled={!canSaveNow}
         className={[

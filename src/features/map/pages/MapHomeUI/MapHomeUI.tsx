@@ -6,7 +6,7 @@ import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 
 import { useMergedMarkers } from "../hooks/useMergedMarkers";
 import MapCanvas from "../components/MapCanvas";
-import ContextMenuHost from "../components/ContextMenuHost";
+import ContextMenuHost from "../components/ContextMenuHost/ContextMenuHost";
 import FilterFab from "../components/FilterFab";
 import ModalsHost from "../components/ModalsHost";
 

@@ -230,13 +230,11 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     ? (d.unitLines as UnitLine[])
     : [];
 
-  // buildingType 정규화
-  const buildingType: BuildingType | null = normalizeBuildingType(
-    d.buildingType ??
-      d.registrationType ??
-      d.registrationTypeName ??
-      d.registrationTypeId
-  );
+  // 🔥 buildingType 정규화
+  //    👉 건물유형 전용 필드에서만 추출 (registry/registration* 은 등기 전용)
+  const buildingTypeSource = d.buildingType ?? d.propertyType ?? d.type ?? null;
+  const buildingType: BuildingType | null =
+    normalizeBuildingType(buildingTypeSource);
 
   /* ───────── 옵션/직접입력/리베이트 ───────── */
 

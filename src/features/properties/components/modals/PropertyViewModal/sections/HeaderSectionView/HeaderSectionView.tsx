@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import StarsRating from "@/components/molecules/StarsRating";
 import { HeaderSectionViewProps } from "./types";
 import { getPinUrl } from "@/features/pins/lib/assets";
-import StarMeter from "../../ui/StarMeter";
+import StarMeter from "../../ui/parts/StarMeter";
 import { getAgeLabel } from "@/features/properties/lib/ageLabel";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
 

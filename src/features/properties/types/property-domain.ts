@@ -30,6 +30,8 @@ export const BUILDING_TYPE_LABELS = [
   "도시형생활주택",
   "근/생",
   "근생", // 과거 표기 호환
+  "아파트",
+  "오피스텔",
 ] as const;
 export type BuildingTypeLabel = (typeof BUILDING_TYPE_LABELS)[number];
 
@@ -40,19 +42,32 @@ export function normalizeBuildingTypeLabelToEnum(
   const s = String(v ?? "").trim();
   if (!s) return null;
 
+  const upper = s.toUpperCase();
+
   // 이미 백엔드 enum이면 그대로
   if ((BUILDING_TYPES as readonly string[]).includes(s)) {
     return s as BuildingType;
   }
 
-  // 과거/대체 라벨 매핑
+  // ✅ 아파트 계열 → "APT"
+  if (s === "아파트" || upper === "APARTMENT") {
+    return "APT";
+  }
+
+  // ✅ 오피스텔 계열 → "OP"
+  if (s === "오피스텔" || upper === "OFFICETEL") {
+    return "OP";
+  }
+
   // ✅ 도/생 관련 라벨 → "도생"
   if (s === "도/생" || s === "도생" || s === "도시형생활주택") {
     return "도생";
   }
 
   // ✅ 근/생 관련 라벨 → "근생"
-  if (s === "근/생" || s === "근생") return "근생";
+  if (s === "근/생" || s === "근생") {
+    return "근생";
+  }
 
   return null;
 }
