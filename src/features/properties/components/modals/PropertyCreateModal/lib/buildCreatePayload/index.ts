@@ -1,3 +1,4 @@
+// features/properties/components/modals/PropertyCreateModal/lib/buildCreatePayload.ts
 "use client";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";
@@ -153,8 +154,51 @@ export function buildCreatePayload(args: BuildArgs) {
   const minRealMoveInCostValue = toIntOrNullLocal(minRealMoveInCost);
   const rebateTextSafe = s(rebateText);
 
-  // 서버 전송용 units: 항상 포함(비어있으면 []), 타입은 배열
-  const unitsForServer = normalizeUnits(unitLines);
+  // ─────────────────────────────────────────────
+  // ✅ 서버 전송용 units: 구조별 최소/최대 매매가 포함
+  //    - normalizeUnits: rooms/baths/복층/테라스 등 기본 필드
+  //    - 같은 index의 unitLines 에서 primary/secondary 값을 읽어서
+  //      minPrice / maxPrice 에 주입
+  // ─────────────────────────────────────────────
+  // ─────────────────────────────────────────────
+  // ✅ 서버 전송용 units: 구조별 최소/최대 매매가 + 복층/테라스 반영
+  //    - normalizeUnits: rooms/baths/기본 구조 필드 정규화
+  //    - 같은 index의 unitLines에서
+  //      duplex/terrace + primary/secondary 를 읽어와서 덮어쓰기
+  // ─────────────────────────────────────────────
+  const unitsBase = normalizeUnits(unitLines);
+  const unitsForServer = unitsBase.map((u: any, idx: number) => {
+    const src =
+      Array.isArray(unitLines) && unitLines[idx] ? unitLines[idx] : ({} as any);
+
+    // 금액
+    const rawMin =
+      (src as any).primary ?? (src as any).minPrice ?? (src as any).min ?? null;
+    const rawMax =
+      (src as any).secondary ??
+      (src as any).maxPrice ??
+      (src as any).max ??
+      null;
+
+    const minPrice = toIntOrNullLocal(rawMin);
+    const maxPrice = toIntOrNullLocal(rawMax);
+
+    // 복층/테라스 → hasLoft/hasTerrace로 강제 매핑
+    const rawLoft =
+      (src as any).duplex ?? (src as any).hasLoft ?? (src as any).loft ?? false;
+    const rawTerrace = (src as any).terrace ?? (src as any).hasTerrace ?? false;
+
+    const hasLoft = !!rawLoft;
+    const hasTerrace = !!rawTerrace;
+
+    return {
+      ...u,
+      hasLoft,
+      hasTerrace,
+      minPrice,
+      maxPrice,
+    };
+  });
 
   /* 6) 최종 payload 조립 */
   const payload: CreatePayload & {
@@ -295,17 +339,17 @@ export function buildCreatePayload(args: BuildArgs) {
     // UI 보존용
     unitLines,
 
-    // 서버 전송용(항상 포함)
+    // ✅ 서버 전송용(항상 포함)
     units: unitsForServer,
 
     /* 이미지/파일 */
     imageFolders: imageFoldersStored,
     imageCards: imageCardsUI,
     imageCardCounts,
-    verticalImages: verticalImagesStored, // 저장형(세로)
-    imagesVertical: verticalImagesStored, // 레거시/호환 키
+    verticalImages: verticalImagesStored,
+    imagesVertical: verticalImagesStored,
     images: imagesFlatStrings,
-    fileItems: verticalImagesUI, // UI 프리뷰용(세로)
+    fileItems: verticalImagesUI,
 
     imageFoldersRaw,
     imageFolderTitles,

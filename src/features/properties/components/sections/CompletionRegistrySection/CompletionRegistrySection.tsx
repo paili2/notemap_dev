@@ -205,8 +205,8 @@ export default function CompletionRegistrySection({
   ]);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-3 md:gap-x-6 md:items-center">
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-6 md:grid-cols-3 md:gap-x-6 md:items-center">
         <Field label="경사도" align="center" className="min-w-[120px]">
           <PillRadioGroup
             name="slopeGrade"
@@ -256,7 +256,7 @@ export default function CompletionRegistrySection({
           />
         </Field>
 
-        <Field label="등기" align="center" className="col-span-2 md:col-span-3">
+        <Field label="등기" align="center">
           <PillRadioGroup
             name="buildingType"
             options={UI_BUILDING_TYPES}
@@ -270,6 +270,7 @@ export default function CompletionRegistrySection({
         </Field>
       </div>
 
+      {/* 최저실입 */}
       <Field label="최저실입" align="center">
         <div className="flex items-center gap-3">
           <Input
