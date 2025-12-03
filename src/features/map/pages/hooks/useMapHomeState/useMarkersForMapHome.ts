@@ -80,19 +80,5 @@ export function useMarkersForMapHome({
       kind: "question" as const,
       isFav: false,
     }));
-
-    // 6) 화면에서 선택한 임시 draftPin
-    const draftPinMarker: MapMarkerWithFav[] = draftPin
-      ? [
-          {
-            id: "__draft__",
-            position: draftPin,
-            kind: "question" as const,
-            isFav: false,
-          },
-        ]
-      : [];
-
-    return [...pointMarkers, ...draftMarkers, ...draftPinMarker];
   }, [points, drafts, draftPin, hiddenDraftIds, filter]);
 }

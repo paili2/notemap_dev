@@ -22,7 +22,6 @@ import { useBoundsRaw } from "../../hooks/useBoundsRaw";
 import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
 import { FilterSearch } from "../../components/filterSearch";
 
-import { usePlaceSearchOnMap } from "./hooks/usePlaceSearchOnMap";
 import { useViewModalState } from "./hooks/useViewModalState";
 import { usePanelsAndToggles } from "./hooks/usePanelsAndToggles";
 
@@ -34,6 +33,7 @@ import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 /* 👀 지도 포커스 유틸 */
 import { focusMapToPosition } from "./lib/viewUtils";
 import { TopRegion } from "./components/TopRegion";
+import usePlaceSearchOnMap from "./hooks/usePlaceSearchOnMap";
 
 type ViewportBounds = {
   sw: { lat: number; lng: number };

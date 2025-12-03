@@ -244,13 +244,19 @@ export function useMergedMarkers(params: {
     }
 
     // 🔹 1) 앵커 근처에 "실제 매물 핀" 이 하나라도 있으면 임시핀 만들지 않기
-    const NEAR_THRESHOLD_M = 10;
+    //    → 여유 있게 150m 이내면 같은 위치로 간주
+    const NEAR_THRESHOLD_M = 150;
 
     const hasRealMarkerNearAnchor = mergedMarkers.some((m) => {
       const id = String(m.id ?? "");
 
-      // 내부용 임시 id 는 제외
-      if (id === "__draft__" || id.startsWith("__visit__")) return false;
+      // 내부용 임시 id 들은 “실제 핀”에서 제외
+      if (
+        id === "__draft__" ||
+        id === "__search__" ||
+        id.startsWith("__visit__")
+      )
+        return false;
 
       const p: any = (m as any).position ?? m;
       const lat =
@@ -269,6 +275,12 @@ export function useMergedMarkers(params: {
     });
 
     if (hasRealMarkerNearAnchor) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          "[MergedMarkers] skip temp __draft__ (real marker near anchor)",
+          { anchor: menuAnchor }
+        );
+      }
       return mergedMarkers;
     }
 

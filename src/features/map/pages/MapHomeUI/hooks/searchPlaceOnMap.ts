@@ -166,6 +166,8 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
 
     let bestReal = findBestRealAround();
 
+    console.log("[DEBUG bestReal]", bestReal);
+
     // 못 찾았으면 뷰포트 강제 새로고침 한 번 시도
     if (!bestReal && kakaoSDK && mapInstance?.getLevel) {
       try {
@@ -199,6 +201,27 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
         });
       });
 
+      return;
+    }
+
+    // 🚫 마지막 방어선:
+    // 현재 시점에라도 근처에 실제 매물/답사핀 있으면 임시핀을 만들지 않는다.
+    const hasRealNow =
+      (effectiveServerPoints ?? []).some((p: any) => {
+        return distM(lat, lng, p.lat, p.lng) <= NEAR_THRESHOLD_M;
+      }) ||
+      (effectiveServerDrafts ?? []).some((d: any) => {
+        return distM(lat, lng, d.lat, d.lng) <= NEAR_THRESHOLD_M;
+      });
+
+    if (hasRealNow) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log(
+          "[searchPlaceOnMap] skip __search__ marker (real pin exists nearby)",
+          { lat, lng, label, query }
+        );
+      }
+      // 센터만 맞춰놓고 종료 – 유저는 실제 핀을 직접 클릭해서 사용
       return;
     }
 
