@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+import { PoiKind } from "@/features/map/view/overlays/poiOverlays";
 
-import { attachLabelRegistryGlobalHandlers } from "@/features/map/shared/overlays/labelRegistry";
+import { attachLabelRegistryGlobalHandlers } from "@/features/map/view/overlays/labelRegistry";
 import MapView from "@/features/map/view/MapView";
 import { MapMarker } from "../../shared/types/map";
 

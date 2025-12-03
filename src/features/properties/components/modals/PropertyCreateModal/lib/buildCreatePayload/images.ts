@@ -1,4 +1,3 @@
-// PropertyCreateModal/lib/buildCreatePayload/images.ts
 import type {
   ImageItem,
   StoredMediaItem,

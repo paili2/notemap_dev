@@ -1,4 +1,3 @@
-// PropertyCreateModal/lib/buildCreatePayload/normalizeUnits.ts
 import type { UnitLine } from "@/features/properties/types/property-domain";
 import { toInt, toNum, s } from "./numeric";
 

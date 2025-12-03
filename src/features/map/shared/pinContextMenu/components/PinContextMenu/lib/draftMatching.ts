@@ -1,4 +1,4 @@
-import type { BeforeDraft } from "@/shared/api/surveyReservations";
+import type { BeforeDraft } from "@/shared/api/survey-reservations/surveyReservations";
 
 /** 🔹 소수점 5자리 posKey (UI 그룹/매칭 전용) */
 export function posKey(lat: number, lng: number) {

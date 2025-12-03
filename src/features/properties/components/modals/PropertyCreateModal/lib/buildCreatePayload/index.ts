@@ -1,4 +1,3 @@
-// features/properties/components/modals/PropertyCreateModal/lib/buildCreatePayload.ts
 "use client";
 
 import { buildOrientationFields } from "@/features/properties/lib/orientation";

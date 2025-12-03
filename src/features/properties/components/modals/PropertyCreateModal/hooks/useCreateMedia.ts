@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { usePropertyImages } from "./usePropertyImages";
 
-import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
-import { createPhotoGroup } from "@/shared/api/photoGroups";
-import { createPhotosInGroup } from "@/shared/api/photos";
+import { uploadPhotosAndGetUrls } from "@/shared/api/photos/photoUpload";
+import { createPhotoGroup } from "@/shared/api/photos/photoGroups";
+import { createPhotosInGroup } from "@/shared/api/photos/photos";
 import type { ImageItem } from "@/features/properties/types/media";
 
 type RefEntry = {

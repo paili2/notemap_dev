@@ -1,4 +1,3 @@
-// features/properties/hooks/useEditForm/lib/buildingType.ts
 import {
   type BuildingType,
   type BuildingTypeLabel,

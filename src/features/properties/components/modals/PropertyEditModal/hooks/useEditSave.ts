@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { updatePin, type UpdatePinDto } from "@/shared/api/pins";
 import { buildUpdatePayload } from "../lib/buildUpdatePayload/buildUpdatePayload";
-import type { PinPhotoGroup } from "@/shared/api/photoGroups";
+import type { PinPhotoGroup } from "@/shared/api/photos/photoGroups";
 import type { BuildingType } from "@/features/properties/types/property-domain";
 
 import {

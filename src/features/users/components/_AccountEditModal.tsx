@@ -13,10 +13,7 @@ import {
 import BirthdayPicker from "@/components/organisms/BirthdayPicker/BirthdayPicker";
 import { Button } from "@/components/atoms/Button/Button";
 import { useEffect, useState } from "react";
-import {
-  uploadOnePhoto,
-  UploadDomain,
-} from "@/shared/api/photoUpload";
+import { uploadOnePhoto, UploadDomain } from "@/shared/api/photos/photoUpload";
 
 type Patch = Partial<UserRow> & {
   email?: string;

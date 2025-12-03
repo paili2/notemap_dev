@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { api } from "./api";
 import { broadcastAuth } from "./authChannel";
+import { api } from "../api";
 
 /* ---------- types ---------- */
 type SignInBody = {

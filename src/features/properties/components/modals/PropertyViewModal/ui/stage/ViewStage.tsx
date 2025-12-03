@@ -20,7 +20,6 @@ import MetaInfoContainer from "../../sections/MetaInfoContainer";
 
 import { cn } from "@/lib/cn";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
-import { useMe } from "@/shared/api/auth";
 import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
 import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +28,7 @@ import ViewLoadingSkeleton from "../parts/ViewLoadingSkeleton";
 import ViewActionsBar from "../parts/ViewActionsBar";
 import AreaSetsViewContainer from "../containers/AreaSetsViewContainer";
 import AspectsViewContainer from "../containers/AspectsViewContainer";
+import { useMe } from "@/shared/api/auth/auth";
 
 /* 지도 이벤트만 막고 기본 클릭은 그대로 두기 */
 function eat(e: any) {

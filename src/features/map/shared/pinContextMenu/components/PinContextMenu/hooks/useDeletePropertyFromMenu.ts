@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useMe } from "@/shared/api/auth/auth";
 import { togglePinDisabled } from "@/shared/api/pins";
-import { useMe } from "@/shared/api/auth";
 
 type Args = {
   propertyIdClean: string | null;

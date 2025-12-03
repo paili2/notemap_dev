@@ -1,5 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { getPinResult, type GetPinResult } from "@/shared/api/getPin";
+import {
+  getPinResult,
+  type GetPinResult,
+} from "@/shared/api/pins/queries/getPin";
 
 export const pinKeys = {
   all: ["pin"] as const,

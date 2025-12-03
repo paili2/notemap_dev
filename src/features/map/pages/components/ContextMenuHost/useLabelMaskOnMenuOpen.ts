@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "@/features/map/shared/overlays/labelRegistry";
+} from "@/features/map/view/overlays/labelRegistry";
 
 type LatLng = { lat: number; lng: number };
 

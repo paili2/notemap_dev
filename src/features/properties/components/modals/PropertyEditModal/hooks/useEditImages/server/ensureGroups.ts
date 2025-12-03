@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { IdLike, PinPhotoGroup } from "@/shared/api/types/pinPhotos";
-import { createPhotoGroup as apiCreatePhotoGroup } from "@/shared/api/photoGroups";
+import type { IdLike, PinPhotoGroup } from "@/shared/api/photos/types";
+import { createPhotoGroup as apiCreatePhotoGroup } from "@/shared/api/photos/photoGroups";
 import type { PendingGroupChange } from "../queue/groupQueue";
 import {
   getQueuedFolderTitle,

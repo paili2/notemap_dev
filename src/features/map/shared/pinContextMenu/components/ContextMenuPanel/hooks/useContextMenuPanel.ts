@@ -11,7 +11,7 @@ import {
 import type React from "react";
 
 import type { ContextMenuPanelProps } from "../types";
-import { getPinRaw } from "@/shared/api/getPin";
+import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";

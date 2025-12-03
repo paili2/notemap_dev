@@ -6,7 +6,7 @@ import type {
   IdLike,
   PinPhoto,
   PinPhotoGroup,
-} from "@/shared/api/types/pinPhotos";
+} from "@/shared/api/photos/types";
 import type { AnyImageRef, ImageItem } from "@/features/properties/types/media";
 
 /* ───────── utils & hydration ───────── */

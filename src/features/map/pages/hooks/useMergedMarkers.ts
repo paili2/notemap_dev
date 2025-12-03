@@ -1,4 +1,3 @@
-// features/map/pages/hooks/useMergedMarkers.ts
 "use client";
 
 import { useMemo } from "react";

@@ -2,13 +2,13 @@ import type { Dispatch, SetStateAction } from "react";
 import {
   listGroupPhotos,
   deletePhotos as apiDeletePhotos,
-} from "@/shared/api/photos";
-import { listPhotoGroupsByPin as apiListPhotoGroupsByPin } from "@/shared/api/photoGroups";
+} from "@/shared/api/photos/photos";
+import { listPhotoGroupsByPin as apiListPhotoGroupsByPin } from "@/shared/api/photos/photoGroups";
 import type {
   IdLike,
   PinPhoto,
   PinPhotoGroup,
-} from "@/shared/api/types/pinPhotos";
+} from "@/shared/api/photos/types";
 import type { ImageItem } from "@/features/properties/types/media";
 import { dropEmptyCards } from "../utils/dropEmptyCards";
 import type { PendingGroupChange } from "../queue/groupQueue";

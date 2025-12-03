@@ -7,7 +7,7 @@ import type { LatLng } from "@/lib/geo/types";
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "@/features/map/shared/overlays/labelRegistry";
+} from "@/features/map/view/overlays/labelRegistry";
 import {
   normalizeLL,
   PIN_MENU_MAX_LEVEL,
@@ -117,7 +117,7 @@ export function useMenuAndDraft({
         setCreateFromDraftId(null);
       }
 
-      onChangeHideLabelForId("__draft__");
+      // ✅ 여기서 바로 최종 id 로만 세팅 (더 이상 "__draft__" 중간값 안 씀)
       onChangeHideLabelForId(isDraft ? "__draft__" : sid);
 
       setRawMenuAnchor(p);
@@ -339,8 +339,6 @@ export function useMenuAndDraft({
         hasRefetchPins: typeof refetchPins === "function",
       });
 
-      // ⭐ 서버 핀 재조회 (지도 /map GET 트리거)
-      // 살짝 늦게 한 번 더 안전하게 호출
       try {
         refetchPins?.();
         setTimeout(() => {

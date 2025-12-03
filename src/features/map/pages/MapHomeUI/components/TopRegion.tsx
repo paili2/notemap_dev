@@ -5,7 +5,7 @@ import { cn } from "@/lib/cn";
 import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import TopRightControls from "@/features/map/components/TopRightControls";
 import type { MapMenuKey } from "@/features/map/components/menu/components/types";
-import type { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+import type { PoiKind } from "@/features/map/view/overlays/poiOverlays";
 
 type TopRegionProps = {
   q: string;

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { hydrateRefsToMedia } from "@/lib/media/refs";
 
 /* 🔧 그룹/사진 API */
-import { listGroupPhotos } from "@/shared/api/photos";
-import { listPhotoGroupsByPin } from "@/shared/api/photoGroups";
+import { listGroupPhotos } from "@/shared/api/photos/photos";
+import { listPhotoGroupsByPin } from "@/shared/api/photos/photoGroups";
 
 /* ───────── 타입 ───────── */
 export type HydratedImg = { url: string; name: string; caption?: string };

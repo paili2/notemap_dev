@@ -5,7 +5,7 @@ import {
   MyReservation,
   reorderSurveyReservations,
   ReorderItem,
-} from "@/shared/api/surveyReservations";
+} from "@/shared/api/survey-reservations/surveyReservations";
 
 type ReorderDeps = {
   items: MyReservation[];

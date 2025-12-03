@@ -151,6 +151,30 @@ export function MapHomeUI(props: MapHomeUIProps) {
     searchRes,
   });
 
+  // 🔁 메뉴 오픈 핸들러 래핑: 임시핀/실핀에 따라 hideLabelForId 설정
+  const handleOpenMenuInternal = useCallback(
+    (args: {
+      position: { lat: number; lng: number };
+      propertyId: string | number;
+      propertyTitle: string;
+      pin?: { kind: PinKind; isFav: boolean };
+    }) => {
+      const idStr = String(args.propertyId);
+
+      const isPureDraft =
+        idStr === "__draft__" || idStr.startsWith("__search__");
+
+      if (isPureDraft) {
+        onChangeHideLabelForId?.("__draft__");
+      } else {
+        onChangeHideLabelForId?.(idStr);
+      }
+
+      onOpenMenu?.(args);
+    },
+    [onOpenMenu, onChangeHideLabelForId]
+  );
+
   // 🔍 상단 장소 검색 + 검색핀 관리
   const {
     localDraftMarkers,
@@ -165,11 +189,12 @@ export function MapHomeUI(props: MapHomeUIProps) {
     effectiveServerDrafts,
     onSubmitSearch,
     onViewportChange,
-    onOpenMenu,
+    onOpenMenu: handleOpenMenuInternal,
     onChangeHideLabelForId,
     menuOpen,
     menuAnchor,
     hideLabelForId: hideLabelForId ?? undefined,
+    onMarkerClick,
   });
 
   // 서버핀 + 로컬 임시핀 merge
@@ -280,7 +305,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
       if (!viewport) return;
 
-      // 👉 여기서 상위 onViewportChange를 직접 호출 → GET /map 발생
       onViewportChange(viewport as any);
     },
     [onViewportChange, mapInstance]
@@ -311,9 +335,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
   const { siteReservations } = useSidebarCtx();
 
-  console.log("[MapHomeUI] pass onPlanFromMenu =", onPlanFromMenu);
-
-  // 🔎 사이드바에서 지도 포커싱
   const handleFocusItemMap = useCallback(
     (item: ListItem | null) => {
       if (!item) return;
@@ -353,7 +374,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         menuAnchor={menuAnchor}
         hideLabelForId={hideLabelForId}
         onMarkerClick={onMarkerClick}
-        onOpenMenu={onOpenMenu}
+        onOpenMenu={handleOpenMenuInternal}
         onChangeHideLabelForId={onChangeHideLabelForId}
         onMapReady={handleMapReady}
         onViewportChange={handleViewportChangeInternal}
@@ -456,7 +477,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
         selectedPos={selectedPos}
         createHostHandlers={{
           ...createHostHandlers,
-          // 🔥 생성/답사예정지 등록 모두 끝난 뒤 /map 재조회
           onAfterCreate: async (res) => {
             await handleAfterCreate(res);
             await refreshViewportPins();
@@ -471,11 +491,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onCloseRoadview={close}
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
-        // ⭐ 수정모달 저장 후 /map 핀 재조회용 콜백
         onLabelChanged={() => refreshViewportPins()}
       />
 
-      {/* 🔔 필터 검색 결과 없음 모달 */}
       <NoResultDialog
         open={noResultDialogOpen}
         onOpenChange={setNoResultDialogOpen}

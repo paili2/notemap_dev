@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   fetchMySurveyReservations,
   type MyReservation,
-} from "@/shared/api/surveyReservations";
+} from "@/shared/api/survey-reservations/surveyReservations";
 
 /* ───────── 정렬/보정 유틸 ───────── */
 function sortByServerRuleLocal<

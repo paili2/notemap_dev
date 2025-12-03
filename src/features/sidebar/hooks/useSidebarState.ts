@@ -9,7 +9,7 @@ import type {
   PendingReservation,
 } from "../types/sidebar";
 import { createPinDraft } from "@/shared/api/pins";
-import { getPinRaw } from "@/shared/api/getPin";
+import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import {
   getFavoriteGroups,
   upsertFavoriteItem,
@@ -20,7 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   fetchUnreservedDrafts,
   type BoundsParams,
-} from "@/shared/api/surveyReservations";
+} from "@/shared/api/survey-reservations/surveyReservations";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 
 // ──────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import ToggleSidebar from "./ToggleSidebar/ToggleSidebar";
-import { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+import { PoiKind } from "@/features/map/view/overlays/poiOverlays";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
 import { cn } from "@/lib/cn";

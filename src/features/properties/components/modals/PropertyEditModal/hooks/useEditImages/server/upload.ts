@@ -2,9 +2,9 @@ import type {
   IdLike,
   PinPhoto,
   PinPhotoGroup,
-} from "@/shared/api/types/pinPhotos";
-import { createPhotoGroup as apiCreatePhotoGroup } from "@/shared/api/photoGroups";
-import { createPhotosInGroup } from "@/shared/api/photos";
+} from "@/shared/api/photos/types";
+import { createPhotoGroup as apiCreatePhotoGroup } from "@/shared/api/photos/photoGroups";
+import { createPhotosInGroup } from "@/shared/api/photos/photos";
 import { filesSignature } from "../utils/signature";
 
 /**
@@ -24,7 +24,9 @@ export async function uploadToGroupImpl(
   if (existed) return existed;
 
   const work = (async () => {
-    const { uploadPhotosAndGetUrls } = await import("@/shared/api/photoUpload");
+    const { uploadPhotosAndGetUrls } = await import(
+      "@/shared/api/photos/photoUpload"
+    );
     const urls = await uploadPhotosAndGetUrls(files, {
       domain: opts?.domain ?? "map",
     });

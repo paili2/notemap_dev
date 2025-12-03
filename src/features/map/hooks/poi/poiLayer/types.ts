@@ -1,4 +1,4 @@
-import type { PoiKind } from "@/features/map/shared/overlays/poiOverlays";
+import type { PoiKind } from "@/features/map/view/overlays/poiOverlays";
 
 export type UsePoiLayerOptions = {
   kakaoSDK?: any | null;

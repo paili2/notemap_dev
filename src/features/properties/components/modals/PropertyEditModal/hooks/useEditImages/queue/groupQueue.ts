@@ -1,4 +1,4 @@
-import type { IdLike } from "@/shared/api/types/pinPhotos";
+import type { IdLike } from "@/shared/api/photos/types";
 
 export type PendingGroupChange = {
   id: IdLike | string;

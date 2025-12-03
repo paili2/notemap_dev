@@ -10,7 +10,7 @@ import useKakaoMap from "./hooks/useKakaoMap/useKakaoMap";
 import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
-import { PoiKind } from "../shared/overlays/poiOverlays";
+import { PoiKind } from "./overlays/poiOverlays";
 import { PoiLayerToggle } from "../components/menu/components/PoiLayerToggle";
 import usePoiLayer from "../hooks/poi/poiLayer/usePoiLayer";
 

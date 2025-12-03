@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Plus, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { Card, CardContent, CardHeader } from "@/components/atoms/Card/Card";
-import { uploadOnePhoto } from "@/shared/api/photoUpload";
+import { uploadOnePhoto } from "@/shared/api/photos/photoUpload";
 import { useToast } from "@/hooks/use-toast";
 
 interface ImageItem {
@@ -32,12 +32,19 @@ export function ContractImageSection({
   // initialImages를 문자열로 변환하여 비교 (의존성 배열 최적화)
   const initialImagesKey = useMemo(() => {
     if (!initialImages) return "";
-    return JSON.stringify(initialImages.map((img) => ({ id: img.id, preview: img.preview })));
+    return JSON.stringify(
+      initialImages.map((img) => ({ id: img.id, preview: img.preview }))
+    );
   }, [initialImages]);
 
   // 초기 이미지가 변경되면 업데이트
   useEffect(() => {
-    console.log("ContractImageSection initialImages 변경:", initialImages, "key:", initialImagesKey);
+    console.log(
+      "ContractImageSection initialImages 변경:",
+      initialImages,
+      "key:",
+      initialImagesKey
+    );
     // initialImages가 undefined가 아닐 때만 업데이트 (빈 배열도 허용)
     if (initialImages !== undefined) {
       setImages(initialImages);
@@ -48,7 +55,9 @@ export function ContractImageSection({
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = event.target.files;
     if (!files) return;
 
@@ -188,17 +197,29 @@ export function ContractImageSection({
                     <div className="w-full h-full flex items-center justify-center bg-gray-200">
                       <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                     </div>
-                  ) : image.preview && (image.preview.startsWith('http://') || image.preview.startsWith('https://')) ? (
+                  ) : image.preview &&
+                    (image.preview.startsWith("http://") ||
+                      image.preview.startsWith("https://")) ? (
                     <img
                       src={image.preview}
                       alt={image.file.name}
                       className="w-full h-full object-cover"
                       onError={(e) => {
-                        console.error("계약 이미지 로드 실패:", image.preview, "id:", image.id);
+                        console.error(
+                          "계약 이미지 로드 실패:",
+                          image.preview,
+                          "id:",
+                          image.id
+                        );
                         console.error("에러 이벤트:", e);
                       }}
                       onLoad={() => {
-                        console.log("계약 이미지 로드 성공:", image.preview, "id:", image.id);
+                        console.log(
+                          "계약 이미지 로드 성공:",
+                          image.preview,
+                          "id:",
+                          image.id
+                        );
                       }}
                     />
                   ) : (
@@ -206,7 +227,9 @@ export function ContractImageSection({
                       {image.preview ? (
                         <div>
                           <p>이미지 접근 불가</p>
-                          <p className="text-[10px] opacity-75 truncate">{image.preview}</p>
+                          <p className="text-[10px] opacity-75 truncate">
+                            {image.preview}
+                          </p>
                         </div>
                       ) : (
                         <p>이미지 없음</p>

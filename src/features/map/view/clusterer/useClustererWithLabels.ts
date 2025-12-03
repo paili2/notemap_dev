@@ -60,10 +60,16 @@ export function useClustererWithLabels(
     [markersKey, rerenderTick]
   );
 
+  // 🔍 hideLabelForId 콘솔 로그
+  console.log("[DEBUG hideLabelForId]", hideLabelForId);
+
   const selectedKey = useMemo(
     () => (hideLabelForId == null ? null : String(hideLabelForId)),
     [hideLabelForId]
   );
+
+  // 🔍 selectedKey 콘솔 로그
+  console.log("[DEBUG selectedKey]", selectedKey);
 
   const markerObjsRef = useRef<Record<string, any>>({});
   const markerClickHandlersRef = useRef<

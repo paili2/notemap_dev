@@ -6,16 +6,16 @@ import { useSidebar } from "@/features/sidebar/SideBarProvider";
 import FavGroupModal from "@/features/sidebar/components/FavGroupModal";
 import type { ListItem } from "@/features/sidebar/types/sidebar";
 
-import { createPinDraft } from "@/shared/api/pins";
 import { useToast } from "@/hooks/use-toast";
 import { useReverseGeocode } from "./hooks/useReverseGeocode";
 import { useFavModalController } from "./hooks/useFavModalController";
-import { eqId } from "@/shared/api/surveyReservations";
+import { eqId } from "@/shared/api/survey-reservations/surveyReservations";
 import { CreateFromPinArgs } from "../shared/pinContextMenu/components/PinContextMenu/types";
 import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 import { buildAddressLine } from "../shared/pinContextMenu/components/PinContextMenu/utils/geo";
 import MapHomeUI from "./MapHomeUI/MapHomeUI";
 import { useMapHomeState } from "./hooks/useMapHomeState";
+import { createPinDraft } from "@/shared/api/pins";
 
 const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 

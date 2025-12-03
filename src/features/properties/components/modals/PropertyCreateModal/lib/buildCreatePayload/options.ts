@@ -1,4 +1,3 @@
-// PropertyCreateModal/lib/buildCreatePayload/options.ts
 import { s } from "./numeric";
 
 export type OptionsForServer = {

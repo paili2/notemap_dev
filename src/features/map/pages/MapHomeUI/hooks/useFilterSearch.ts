@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
-import { searchPins } from "@/shared/api/pins";
 import type {
   PinSearchParams,
   PinSearchResult,
 } from "@/features/pins/types/pin-search";
 import { fitSearchResultToBounds } from "../lib/searchUtils";
+import { searchPins } from "@/shared/api/pins";
 
 type Args = {
   kakaoSDK: any;

@@ -1,4 +1,3 @@
-// features/map/pages/hooks/useMapHomeState/index.ts
 "use client";
 
 import { useCallback, useRef, useState } from "react";

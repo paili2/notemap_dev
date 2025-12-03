@@ -1,13 +1,13 @@
-// features/map/hooks/usePinsMap.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { Bounds } from "../shared/types/bounds";
 import {
   fetchPinsInBounds,
-  type PinsMapDraft,
-  type PinsMapPoint,
-} from "@/shared/api/pinsMap";
-import { Bounds } from "../shared/types/bounds";
+  PinsMapDraft,
+  PinsMapPoint,
+} from "@/shared/api/pins/queries/pinsMap";
 
 /** 간단 디바운스 */
 function debounce<T extends (...a: any[]) => void>(fn: T, ms = 250) {

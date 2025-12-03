@@ -1,3 +1,4 @@
+// features/map/hooks/useClustererWithLabels/effects/useUpdateZIndexAndLabels.ts
 "use client";
 
 import { useEffect } from "react";
@@ -20,7 +21,7 @@ export function useUpdateZIndexAndLabels(
     const BASE_Z = 1000;
     const DRAFT_Z = -99999; // 🔥 임시/답사예정 핀은 항상 맨 뒤로
 
-    // ───────── zIndex 갱신 ─────────
+    // ───────── 마커 zIndex 갱신 ─────────
     try {
       Object.entries(markerMap).forEach(([id, mk]) => {
         if (!mk) return;
@@ -33,14 +34,13 @@ export function useUpdateZIndexAndLabels(
           return;
         }
 
-        // ✅ 2) 서버 드래프트(답사예정) 핀도 뒤로 보내고 싶으면
-        //     "__visit__" prefix 도 같이 내리기
+        // ✅ 2) 답사예정 서버핀도 뒤로
         if (idStr.startsWith("__visit__")) {
           mk.setZIndex?.(DRAFT_Z);
           return;
         }
 
-        // ✅ 3) 그 외(실매물 핀)는 기존 규칙 유지
+        // ✅ 3) 일반 매물핀
         const order = reservationOrderMap?.[idStr];
         const z = typeof order === "number" ? BASE_Z + (1000 - order) : BASE_Z;
 
@@ -54,22 +54,34 @@ export function useUpdateZIndexAndLabels(
       // ignore
     }
 
-    // ───────── 라벨(배지 포함) 갱신 ─────────
+    // ───────── 라벨(배지 포함) 갱신 + 선택된 라벨 숨기기 ─────────
     try {
       Object.entries(labelMap).forEach(([id, ov]) => {
         const el = ov?.getContent?.() as HTMLDivElement | null;
         if (!el) return;
 
-        // ✅ 주소 임시 라벨은 건드리지 않음
-        if ((el as any).dataset?.labelType === "address") return;
-
         const ds = (el as any).dataset ?? ((el as any).dataset = {});
+
+        // ✅ 선택된 핀 라벨은 **강제로 숨김**
+        const idStr = String(id);
+        if (selectedKey && idStr === selectedKey) {
+          ds.hiddenBySelected = "1";
+          el.style.visibility = "hidden";
+        } else if (ds.hiddenBySelected === "1") {
+          // 선택 해제 시 다시 보이게
+          delete ds.hiddenBySelected;
+          el.style.visibility = "";
+        }
+
+        // ✅ 주소 임시 라벨은 배지 안 붙임
+        if (ds.labelType === "address") return;
+
         if (!ds.rawLabel || ds.rawLabel.trim() === "") {
           ds.rawLabel = el.textContent ?? "";
         }
         const raw = ds.rawLabel ?? "";
 
-        const order = reservationOrderMap?.[String(id)];
+        const order = reservationOrderMap?.[idStr];
         const desiredOrder = typeof order === "number" ? order : null;
         const currentText = el.textContent ?? "";
         const desiredText =

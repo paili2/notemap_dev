@@ -5,7 +5,7 @@ import { CreatePayload } from "@/features/properties/types/property-dto";
 import { PinKind } from "@/features/pins/types";
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { MapMarker, MapMarkerTagged } from "../shared/types/map";
-import { PoiKind } from "../shared/overlays/poiOverlays";
+import { PoiKind } from "../view/overlays/poiOverlays";
 import { CreateFromPinArgs } from "../shared/pinContextMenu/components/PinContextMenu/types";
 
 type ReserveFromMenuPayload =

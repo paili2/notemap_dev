@@ -2,8 +2,7 @@
 
 import { useMemo, useRef } from "react";
 
-import { createSurveyReservation } from "@/shared/api/surveyReservations";
-import { createPinDraft } from "@/shared/api/pins";
+import { createSurveyReservation } from "@/shared/api/survey-reservations/surveyReservations";
 import { useToast } from "@/hooks/use-toast";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
@@ -18,6 +17,7 @@ import {
 } from "./utils";
 import { useContextMenuAnchor } from "./useContextMenuAnchor";
 import { ContextMenuHostProps, LatLng, ReserveFromMenuArgs } from "./types";
+import { createPinDraft } from "@/shared/api/pins";
 
 export default function ContextMenuHost(props: ContextMenuHostProps) {
   const {

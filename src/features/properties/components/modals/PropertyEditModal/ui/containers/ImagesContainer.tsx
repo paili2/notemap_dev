@@ -7,7 +7,7 @@ import type {
   ImageItem,
   ResolvedFileItem,
 } from "@/features/properties/types/media";
-import type { PinPhotoGroup } from "@/shared/api/types/pinPhotos";
+import type { PinPhotoGroup } from "@/shared/api/photos/types";
 import ImagesSection, {
   PhotoFolder,
 } from "../../../../sections/ImagesSection/ImagesSection";

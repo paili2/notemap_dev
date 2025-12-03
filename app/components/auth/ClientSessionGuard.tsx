@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   AUTH_CHANNEL_NAME,
   AuthBroadcastMessage,
-} from "@/shared/api/authChannel";
+} from "@/shared/api/auth/authChannel";
 
 /**
  * 백엔드 API base (마지막 슬래시 제거해서 안전하게 사용)

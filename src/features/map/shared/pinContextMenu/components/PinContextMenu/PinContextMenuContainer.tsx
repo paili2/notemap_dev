@@ -15,8 +15,8 @@ import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
 import { posKey } from "./lib/draftMatching";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions"; // ⭐ 새 훅
-import { deletePinDraft } from "@/shared/api/pins"; // ✅ 임시핀 삭제 API
 import { useToast } from "@/hooks/use-toast"; // ✅ 토스트
+import { deletePinDraft } from "@/shared/api/pins";
 
 type Props = PinContextMenuProps & {
   mergedMeta?: MergedMarker[];

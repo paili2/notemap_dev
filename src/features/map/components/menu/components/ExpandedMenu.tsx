@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import type { MapMenuKey } from "./types";
-import { PoiKind, POI_LABEL } from "@/features/map/shared/overlays/poiOverlays";
+import { PoiKind, POI_LABEL } from "@/features/map/view/overlays/poiOverlays";
 import { FilterSection } from "./FilterSection";
 import RoadviewToggleButton from "./RoadviewToggleButton";
 import DistrictToggleButton from "./DistrictToggleButton";

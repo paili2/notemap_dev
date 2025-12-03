@@ -3,7 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { signOut } from "@/shared/api/auth";
+import { signOut } from "@/shared/api/auth/auth";
 
 function clearLocalCaches() {
   try {

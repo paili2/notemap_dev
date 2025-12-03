@@ -4,7 +4,7 @@ import { PinKind } from "@/features/pins/types";
 import {
   fetchUnreservedDrafts,
   BeforeDraft,
-} from "@/shared/api/surveyReservations";
+} from "@/shared/api/survey-reservations/surveyReservations";
 
 import { Bounds } from "@/features/map/shared/types/bounds";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";

@@ -1,4 +1,3 @@
-// features/map/pages/hooks/useMarkersForMapHome.ts
 "use client";
 
 import { useMemo } from "react";
@@ -16,7 +15,7 @@ export type MapMarkerWithFav = MapMarker & { isFav?: boolean };
 type UseMarkersArgs = {
   points: any[] | undefined;
   drafts: any[] | undefined;
-  draftPin: LatLng | null;
+  draftPin: LatLng | null; // 지금은 안 써도 타입은 그대로 둠
   hiddenDraftIds: Set<string>;
   filter: string;
 };
@@ -24,7 +23,7 @@ type UseMarkersArgs = {
 export function useMarkersForMapHome({
   points,
   drafts,
-  draftPin,
+  draftPin, // eslint-disable-line @typescript-eslint/no-unused-vars
   hiddenDraftIds,
   filter,
 }: UseMarkersArgs): MapMarkerWithFav[] {
@@ -80,5 +79,8 @@ export function useMarkersForMapHome({
       kind: "question" as const,
       isFav: false,
     }));
+
+    // ✅ 최종 리턴
+    return [...pointMarkers, ...draftMarkers];
   }, [points, drafts, draftPin, hiddenDraftIds, filter]);
 }

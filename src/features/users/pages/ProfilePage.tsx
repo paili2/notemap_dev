@@ -28,10 +28,7 @@ import {
   type UpdateMyProfileRequest,
 } from "@/features/users/api/account";
 import { useToast } from "@/hooks/use-toast";
-import {
-  uploadOnePhoto,
-  UploadDomain,
-} from "@/shared/api/photoUpload";
+import { uploadOnePhoto, UploadDomain } from "@/shared/api/photos/photoUpload";
 import {
   Avatar,
   AvatarImage,
@@ -170,7 +167,10 @@ export default function ProfilePage() {
       if (file.size > maxUploadBytes) {
         setUploadErrors((prev) => ({
           ...prev,
-          [field]: `파일이 너무 큽니다. 최대 ${(maxUploadBytes / (1024 * 1024)).toFixed(1)}MB 까지 가능합니다.`,
+          [field]: `파일이 너무 큽니다. 최대 ${(
+            maxUploadBytes /
+            (1024 * 1024)
+          ).toFixed(1)}MB 까지 가능합니다.`,
         }));
         if (e.currentTarget) {
           e.currentTarget.value = "";
@@ -187,7 +187,7 @@ export default function ProfilePage() {
         console.log("meta.url:", meta?.url);
         console.log("meta.key:", meta?.key);
         console.log("meta.storageKey:", meta?.storageKey);
-        
+
         // URL이 없는 경우 key를 사용하거나 에러
         const urlToUse = meta?.url || meta?.key || null;
         if (!urlToUse) {
@@ -225,19 +225,22 @@ export default function ProfilePage() {
   /** 프리뷰 유틸 */
   const isImageUrl = (url?: string) =>
     !!url && /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(url.split("?")[0] || "");
-  
+
   /** 접근 가능한 URL인지 확인 (s3:// 형태는 브라우저에서 접근 불가) */
   const isAccessibleUrl = (url?: string) => {
     if (!url) return false;
-    return url.startsWith('http://') || url.startsWith('https://');
+    return url.startsWith("http://") || url.startsWith("https://");
   };
-  
+
   /** URL을 접근 가능한 형태로 변환 (s3:// -> key만 반환 또는 에러) */
   const getAccessibleUrl = (url?: string) => {
     if (!url) return undefined;
     // s3:// 형태는 브라우저에서 접근 불가
-    if (url.startsWith('s3://')) {
-      console.warn('⚠️ s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:', url);
+    if (url.startsWith("s3://")) {
+      console.warn(
+        "⚠️ s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:",
+        url
+      );
       return undefined; // 프리사인 URL 생성 API 필요
     }
     return url;
@@ -263,7 +266,7 @@ export default function ProfilePage() {
 
   const photoUrl = form.watch("profileUrl");
   const accessiblePhotoUrl = getAccessibleUrl(photoUrl);
-  
+
   // 디버깅: 프로필 이미지 URL 확인
   useEffect(() => {
     console.log("=== 프로필 이미지 URL 상태 ===");
@@ -291,7 +294,9 @@ export default function ProfilePage() {
     return (
       <div className="mx-auto max-w-4xl p-6 space-y-8">
         <div className="text-center py-12">
-          <p className="text-lg font-semibold mb-2">프로필을 불러올 수 없습니다</p>
+          <p className="text-lg font-semibold mb-2">
+            프로필을 불러올 수 없습니다
+          </p>
         </div>
       </div>
     );
@@ -328,11 +333,17 @@ export default function ProfilePage() {
                             src={accessiblePhotoUrl || undefined}
                             alt="프로필 사진"
                             onError={(e) => {
-                              console.error("프로필 이미지 로드 실패:", accessiblePhotoUrl);
+                              console.error(
+                                "프로필 이미지 로드 실패:",
+                                accessiblePhotoUrl
+                              );
                               console.error("에러 이벤트:", e);
                             }}
                             onLoad={() => {
-                              console.log("프로필 이미지 로드 성공:", accessiblePhotoUrl);
+                              console.log(
+                                "프로필 이미지 로드 성공:",
+                                accessiblePhotoUrl
+                              );
                             }}
                           />
                           <AvatarFallback className="text-xl font-semibold">
@@ -502,7 +513,9 @@ export default function ProfilePage() {
                     render={({ field: formField }) => (
                       <FormItem>
                         <div className="flex items-center gap-2">
-                          <FormLabel className="mb-0">{uploadFieldLabels[field]}</FormLabel>
+                          <FormLabel className="mb-0">
+                            {uploadFieldLabels[field]}
+                          </FormLabel>
                           <label
                             htmlFor={`upload-${field}`}
                             className="cursor-pointer inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
@@ -536,10 +549,16 @@ export default function ProfilePage() {
                                           alt={uploadFieldLabels[field]}
                                           className="max-w-xs max-h-48 rounded border object-contain"
                                           onError={(e) => {
-                                            console.error(`이미지 미리보기 로드 실패 [${field}]:`, url);
+                                            console.error(
+                                              `이미지 미리보기 로드 실패 [${field}]:`,
+                                              url
+                                            );
                                           }}
                                           onLoad={() => {
-                                            console.log(`이미지 미리보기 로드 성공 [${field}]:`, url);
+                                            console.log(
+                                              `이미지 미리보기 로드 성공 [${field}]:`,
+                                              url
+                                            );
                                           }}
                                         />
                                       </div>
@@ -577,7 +596,8 @@ export default function ProfilePage() {
                                   )
                                 ) : (
                                   <div className="text-yellow-600 text-xs">
-                                    ⚠️ 이미지 URL이 접근 불가능한 형태입니다 (s3:// 등)
+                                    ⚠️ 이미지 URL이 접근 불가능한 형태입니다
+                                    (s3:// 등)
                                   </div>
                                 )}
                               </div>

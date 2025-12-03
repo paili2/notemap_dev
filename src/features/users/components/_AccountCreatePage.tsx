@@ -36,10 +36,7 @@ import {
   createEmployeeInfo,
 } from "@/features/users/api/account";
 import { useToast } from "@/hooks/use-toast";
-import {
-  uploadOnePhoto,
-  UploadDomain,
-} from "@/shared/api/photoUpload";
+import { uploadOnePhoto, UploadDomain } from "@/shared/api/photos/photoUpload";
 import {
   Popover,
   PopoverContent,
@@ -213,7 +210,6 @@ export default function AccountCreatePage({
   >({});
   const [isBirthdayOpen, setIsBirthdayOpen] = useState(false);
 
-
   /** 팀 목록 관리 */
   const [teams, setTeams] = useState<
     Array<{ id: number | string; name: string; teamLeaderName: string | null }>
@@ -322,7 +318,9 @@ export default function AccountCreatePage({
           teamId: v.team.teamId,
           isPrimary: v.team.isPrimary ?? true,
           joinedAt:
-            v.team.joinedAt && v.team.joinedAt !== "" ? v.team.joinedAt : undefined,
+            v.team.joinedAt && v.team.joinedAt !== ""
+              ? v.team.joinedAt
+              : undefined,
         },
         photo_url: v.photo_url || undefined,
         id_photo_url: v.id_photo_url || undefined,
@@ -614,10 +612,12 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>연락처 *</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="010-1234-5678" 
+                      <Input
+                        placeholder="010-1234-5678"
                         {...field}
-                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        onChange={(e) =>
+                          field.onChange(formatPhone(e.target.value))
+                        }
                         inputMode="tel"
                       />
                     </FormControl>
@@ -633,10 +633,12 @@ export default function AccountCreatePage({
                   <FormItem>
                     <FormLabel>비상 연락처 *</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="010-0000-0000" 
+                      <Input
+                        placeholder="010-0000-0000"
                         {...field}
-                        onChange={(e) => field.onChange(formatPhone(e.target.value))}
+                        onChange={(e) =>
+                          field.onChange(formatPhone(e.target.value))
+                        }
                         inputMode="tel"
                       />
                     </FormControl>

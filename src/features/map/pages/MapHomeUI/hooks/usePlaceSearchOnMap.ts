@@ -1,3 +1,4 @@
+// features/map/pages/MapHomeUI/hooks/usePlaceSearchOnMap.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -23,6 +24,8 @@ type Args = {
   menuOpen: boolean;
   menuAnchor: { lat: number; lng: number } | null;
   hideLabelForId?: string;
+  /** 🔥 검색으로 매물 잡았을 때, “핀 클릭”처럼 처리하는 콜백 */
+  onMarkerClick?: (id: string | number) => void;
 };
 
 function usePlaceSearchOnMap({
@@ -37,6 +40,7 @@ function usePlaceSearchOnMap({
   menuOpen,
   menuAnchor,
   hideLabelForId,
+  onMarkerClick,
 }: Args) {
   const lastSearchCenterRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -170,51 +174,6 @@ function usePlaceSearchOnMap({
     });
   }, [rawLocalDraftMarkers, effectiveServerPoints, effectiveServerDrafts]);
 
-  /**
-   * 🔒 onOpenMenu 래퍼:
-   * 검색 결과 위치가 실제 매물 좌표와 가까우면 propertyId/position 을
-   * 그 매물로 스냅시켜서 "실제 매물 메뉴" 로 보이게 함.
-   */
-  const wrappedOnOpenMenu = useCallback(
-    (args: {
-      position: { lat: number; lng: number };
-      propertyId: string | number;
-      propertyTitle: string;
-      pin?: { kind: PinKind; isFav: boolean };
-    }) => {
-      if (!onOpenMenu) return;
-
-      const { position } = args;
-      const lat = position.lat;
-      const lng = position.lng;
-
-      const NEAR_THRESHOLD_M = 800;
-      let best: { d: number; p: any } | null = null;
-
-      for (const p of effectiveServerPoints ?? []) {
-        if (!p) continue;
-        const d = distM(lat, lng, p.lat, p.lng);
-        if (d <= NEAR_THRESHOLD_M && (!best || d < best.d)) {
-          best = { d, p };
-        }
-      }
-
-      if (!best) {
-        onOpenMenu(args);
-        return;
-      }
-
-      const p = best.p;
-      onOpenMenu({
-        ...args,
-        position: { lat: p.lat, lng: p.lng },
-        propertyId: p.id,
-        propertyTitle: (p.name ?? p.title ?? args.propertyTitle) as string,
-      });
-    },
-    [onOpenMenu, effectiveServerPoints]
-  );
-
   const handleViewportChangeInternal = useCallback(
     (v: any) => {
       console.log("[viewportChange] fired", {
@@ -262,9 +221,10 @@ function usePlaceSearchOnMap({
         upsertDraftMarker: safeUpsertDraftMarker,
         clearTempMarkers,
         onSubmitSearch,
-        onOpenMenu: wrappedOnOpenMenu,
+        onOpenMenu,
         onChangeHideLabelForId,
         lastSearchCenterRef,
+        onMarkerClick,
       }),
     [
       kakaoSDK,
@@ -275,8 +235,9 @@ function usePlaceSearchOnMap({
       safeUpsertDraftMarker,
       clearTempMarkers,
       onSubmitSearch,
-      wrappedOnOpenMenu,
+      onOpenMenu,
       onChangeHideLabelForId,
+      onMarkerClick,
     ]
   );
 

@@ -1,4 +1,3 @@
-// PropertyCreateModal/lib/buildCreatePayload/types.ts
 import type {
   AspectRowLite,
   Grade,

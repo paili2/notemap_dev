@@ -1,6 +1,6 @@
-import { createPhotoGroup } from "@/shared/api/photoGroups";
-import { uploadPhotosAndGetUrls } from "@/shared/api/photoUpload";
-import { createPhotosInGroup } from "@/shared/api/photos";
+import { createPhotoGroup } from "@/shared/api/photos/photoGroups";
+import { uploadPhotosAndGetUrls } from "@/shared/api/photos/photoUpload";
+import { createPhotosInGroup } from "@/shared/api/photos/photos";
 
 /** 가로(카드) 그룹 저장: 그대로 */
 export async function persistCardToServer(args: {

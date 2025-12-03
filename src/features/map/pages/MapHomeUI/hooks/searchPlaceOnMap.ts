@@ -1,3 +1,4 @@
+// features/map/pages/MapHomeUI/hooks/searchPlaceOnMap.ts
 "use client";
 
 import type { MutableRefObject } from "react";
@@ -11,6 +12,12 @@ import {
 } from "../lib/searchUtils";
 import type { PinKind } from "@/features/pins/types";
 import type { MapMarker } from "@/features/map/shared/types/map";
+
+// ✅ 매물 핀 kind 계산용 (MapHome에서 쓰는 것과 동일하게)
+import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
+import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
+// ✅ 라벨 직접 숨기기용
+import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
 
 type SearchDeps = {
   kakaoSDK: any;
@@ -28,6 +35,7 @@ type SearchDeps = {
   }) => void;
   clearTempMarkers: () => void;
   onSubmitSearch?: (q: string) => void;
+  // 🔹 기존 메뉴 오픈 콜백 (임시핀용)
   onOpenMenu?: (args: {
     position: { lat: number; lng: number };
     propertyId: string | number;
@@ -36,6 +44,8 @@ type SearchDeps = {
   }) => void;
   onChangeHideLabelForId?: (id?: string) => void;
   lastSearchCenterRef: MutableRefObject<{ lat: number; lng: number } | null>;
+  // 🔹 새로 추가: "해당 핀을 클릭한 것처럼" 처리하는 콜백
+  onMarkerClick?: (id: string | number) => void;
 };
 
 export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
@@ -51,6 +61,7 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
     onOpenMenu,
     onChangeHideLabelForId,
     lastSearchCenterRef,
+    onMarkerClick,
   } = deps;
 
   const query = text.trim();
@@ -105,6 +116,7 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
       lat: number;
       lng: number;
       title?: string | null;
+      kind?: PinKind;
     };
 
     try {
@@ -121,7 +133,8 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
         id: string | number,
         plat: number,
         plng: number,
-        title?: string | null
+        title?: string | null,
+        kind?: PinKind
       ) => {
         const d = distM(lat, lng, plat, plng);
         if (d <= NEAR_THRESHOLD_M && d < bestDist) {
@@ -131,34 +144,44 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
             lat: plat,
             lng: plng,
             title,
+            kind,
           };
         }
       };
 
+      // ✅ 실제 매물핀
       (effectiveServerPoints ?? []).forEach((p: any) => {
+        const baseKind = mapBadgeToPinKind(p.badge);
+        const displayKind = getDisplayPinKind(baseKind, p.ageType ?? null);
+        const kind = (displayKind ?? baseKind ?? "1room") as PinKind;
+
         tryReal(
           p.id,
           p.lat,
           p.lng,
-          (p as any).title ?? (p as any).name ?? null
+          (p as any).title ?? (p as any).name ?? null,
+          kind
         );
       });
 
+      // ✅ 답사예정핀 (question 아이콘)
       (effectiveServerDrafts ?? []).forEach((d: any) => {
         tryReal(
           d.id,
           d.lat,
           d.lng,
-          (d as any).title ?? (d as any).name ?? "답사예정"
+          (d as any).title ?? (d as any).name ?? "답사예정",
+          "question"
         );
       });
 
+      // ✅ 이미 지도에 떠 있는 __visit__ 임시핀
       localDraftMarkers.forEach((m: any) => {
         const idStr = String(m.id);
         if (!idStr.startsWith("__visit__")) return;
         const pos = m.position;
         if (!pos) return;
-        tryReal(idStr, pos.lat, pos.lng, m.title ?? null);
+        tryReal(idStr, pos.lat, pos.lng, m.title ?? null, "question");
       });
 
       return bestReal;
@@ -183,8 +206,15 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
     }
 
     if (bestReal) {
-      const { id, lat: realLat, lng: realLng, title: realTitle } = bestReal;
+      const {
+        id,
+        lat: realLat,
+        lng: realLng,
+        title: realTitle,
+        kind,
+      } = bestReal;
       const title = realTitle ?? label ?? "선택 위치";
+      const pinKind: PinKind = (kind ?? "question") as PinKind;
 
       runAfterIdle(() => {
         clearTempMarkers();
@@ -194,11 +224,30 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
           lng: realLng,
         };
 
-        onOpenMenu?.({
-          position: { lat: realLat, lng: realLng },
-          propertyId: id,
-          propertyTitle: title,
-        });
+        // ✅ 1) state 기반 라벨 숨김 시도
+        onChangeHideLabelForId?.(String(id));
+
+        // ✅ 2) 혹시 몰라서, 해당 위치 주변 라벨을 직접 숨김
+        try {
+          if (mapInstance) {
+            hideLabelsAround(mapInstance, realLat, realLng, 56);
+          }
+        } catch (e) {
+          console.warn("[searchPlaceOnMap] hideLabelsAround error", e);
+        }
+
+        // ✅ 3) “핀 클릭한 것처럼” 처리
+        if (onMarkerClick) {
+          onMarkerClick(id);
+        } else {
+          // 안전장치: onMarkerClick이 없으면 기존 방식으로
+          onOpenMenu?.({
+            position: { lat: realLat, lng: realLng },
+            propertyId: id,
+            propertyTitle: title,
+            pin: { kind: pinKind, isFav: false },
+          });
+        }
       });
 
       return;
@@ -225,7 +274,7 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
       return;
     }
 
-    // 근처에 실제 핀이 없으면 __search__ 임시핀을 만들고 메뉴 열기
+    // 🔹 근처에 실제 핀이 없으면 __search__ 임시핀을 만들고 메뉴 열기
     clearTempMarkers();
 
     lastSearchCenterRef.current = { lat, lng };

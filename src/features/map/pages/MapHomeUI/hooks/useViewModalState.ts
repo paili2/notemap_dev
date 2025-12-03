@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getPinRaw } from "@/shared/api/getPin";
+import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { ensureViewForEdit } from "../lib/viewUtils";

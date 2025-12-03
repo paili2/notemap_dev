@@ -6,8 +6,7 @@ import {
   KAKAO_CATEGORY,
   KAKAO_KEYWORD,
   createPoiOverlay,
-  calcPoiSizeByLevel,
-} from "@/features/map/shared/overlays/poiOverlays";
+} from "@/features/map/view/overlays/poiOverlays";
 import {
   DEFAULTS,
   IDLE_THROTTLE_MS,
@@ -30,6 +29,7 @@ import {
   searchCategoryAllPagesByBounds,
   searchKeywordAllPagesByBounds,
 } from "./search";
+import { calcPoiSizeByLevel } from "@/features/map/view/overlays/poiMeta";
 
 export function usePoiLayer({
   kakaoSDK,

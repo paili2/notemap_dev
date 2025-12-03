@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
-import { getPinRaw } from "@/shared/api/getPin";
+import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
 
 export const pinDetailKey = (id: string | number) =>

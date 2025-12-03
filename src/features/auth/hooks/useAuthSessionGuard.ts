@@ -7,7 +7,7 @@ import { api } from "@/shared/api/api";
 import {
   AUTH_CHANNEL_NAME,
   AuthBroadcastMessage,
-} from "@/shared/api/authChannel";
+} from "@/shared/api/auth/authChannel";
 
 type Options = {
   /** 폴링 주기 (ms). 백업용으로 10~15분 추천. 0 이면 폴링 안 함 */

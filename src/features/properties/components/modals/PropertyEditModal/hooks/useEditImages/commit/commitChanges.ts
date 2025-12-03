@@ -2,12 +2,11 @@ import type {
   IdLike,
   PinPhoto,
   PinPhotoGroup,
-} from "@/shared/api/types/pinPhotos";
+} from "@/shared/api/photos/types";
 import {
-  batchPatchPhotoGroups,
   batchPatchPhotos,
   deletePhotos as apiDeletePhotos,
-} from "@/shared/api/photos";
+} from "@/shared/api/photos/photos";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { PendingGroupChange } from "../queue/groupQueue";
 import type { PendingPhotoChange } from "../queue/photoQueue";
@@ -22,6 +21,7 @@ import {
 } from "../server/ensureGroups";
 import { uploadToGroupImpl } from "../server/upload";
 import { MAX_FILES } from "@/features/properties/components/constants";
+import { batchPatchPhotoGroups } from "@/shared/api/photos/photoGroups";
 
 type CommitDeps = {
   propertyId: string;

@@ -7,7 +7,7 @@ import type { CreateFromPinArgs } from "../types";
 import {
   createSurveyReservation,
   fetchUnreservedDrafts,
-} from "@/shared/api/surveyReservations";
+} from "@/shared/api/survey-reservations/surveyReservations";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 import {
   extractDraftIdFromPin,

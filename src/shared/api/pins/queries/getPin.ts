@@ -1,5 +1,5 @@
 import { AxiosError } from "axios";
-import { api } from "./api";
+import { api } from "../../api";
 import type { ApiPin } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import type { ApiEnvelope, PinDetail } from "@/features/pins/pin";
 

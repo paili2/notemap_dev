@@ -5,7 +5,7 @@ import { useMemo, useCallback, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import type { ToggleSidebarProps } from "./types/sidebar";
-import type { ListItem, SubListItem } from "./types/sidebar"; // ✅ SubListItem 추가
+import type { ListItem, SubListItem } from "./types/sidebar";
 import { useSidebar } from "./SideBarProvider";
 import { SidebarSection } from "./components/SidebarSection";
 import { ContractRecordsButton } from "./components/ContractRecordsButton";

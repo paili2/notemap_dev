@@ -1,4 +1,3 @@
-// useInjectInitialData.ts
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";

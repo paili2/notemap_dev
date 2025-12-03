@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 
 import type { PropertyViewDetails } from "./types";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
-import { deletePin } from "@/shared/api/pins";
 import { usePinDetail } from "@/features/properties/hooks/useEditForm/usePinDetail";
 import type {
   CreatePayload,
@@ -15,6 +14,7 @@ import type {
 import ViewStage from "./ui/stage/ViewStage";
 import EditStage from "./ui/stage/EditStage";
 import { deriveAgeTypeFrom } from "./utils/ageType";
+import { deletePin } from "@/shared/api/pins";
 
 /* utils */
 const toUndef = <T,>(v: T | null | undefined): T | undefined => v ?? undefined;
