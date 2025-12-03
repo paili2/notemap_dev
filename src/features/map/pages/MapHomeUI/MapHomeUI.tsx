@@ -35,6 +35,11 @@ import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 import { focusMapToPosition } from "./lib/viewUtils";
 import { TopRegion } from "./components/TopRegion";
 
+type ViewportBounds = {
+  sw: { lat: number; lng: number };
+  ne: { lat: number; lng: number };
+};
+
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -248,17 +253,38 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [mergedWithTempDraft]
   );
 
-  // 🔄 뷰 모달 상태 관리 + 핀 재조회 유틸
-  const refreshViewportPins = useCallback(async () => {
-    if (!kakaoSDK || !mapInstance) return;
-    try {
-      const c = mapInstance.getCenter();
-      const level = mapInstance.getLevel();
-      mapInstance.setLevel(level + 1, { animate: false });
-      mapInstance.setLevel(level, { animate: false });
-      mapInstance.setCenter(c);
-    } catch {}
-  }, [kakaoSDK, mapInstance]);
+  // 🔄 /map 다시 치도록 하는 함수: 현재 뷰포트(또는 overrideBounds)로 onViewportChange 호출
+  const refreshViewportPins = useCallback(
+    (overrideBounds?: ViewportBounds) => {
+      if (!onViewportChange) return;
+
+      let viewport: ViewportBounds | null = overrideBounds ?? null;
+
+      if (!viewport && mapInstance?.getBounds) {
+        try {
+          const b = mapInstance.getBounds();
+          viewport = {
+            sw: {
+              lat: b.getSouthWest().getLat(),
+              lng: b.getSouthWest().getLng(),
+            },
+            ne: {
+              lat: b.getNorthEast().getLat(),
+              lng: b.getNorthEast().getLng(),
+            },
+          };
+        } catch {
+          viewport = null;
+        }
+      }
+
+      if (!viewport) return;
+
+      // 👉 여기서 상위 onViewportChange를 직접 호출 → GET /map 발생
+      onViewportChange(viewport as any);
+    },
+    [onViewportChange, mapInstance]
+  );
 
   const {
     viewOpenLocal,
@@ -446,7 +472,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
         // ⭐ 수정모달 저장 후 /map 핀 재조회용 콜백
-        onLabelChanged={refreshViewportPins}
+        onLabelChanged={() => refreshViewportPins()}
       />
 
       {/* 🔔 필터 검색 결과 없음 모달 */}

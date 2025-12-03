@@ -118,7 +118,7 @@ export function useCreateSave({
 
         const addressLine = (f.address && f.address.trim()) || mainTitle;
 
-        await createPinDraft({
+        const draft = await createPinDraft({
           lat: latNum,
           lng: lngNum,
           addressLine,
@@ -126,6 +126,33 @@ export function useCreateSave({
           contactMainPhone: mainOfficePhone,
         });
 
+        // ⭐ createPinDraft 결과에서 draftId 추출
+        const draftId =
+          typeof draft === "object" && draft && "id" in draft
+            ? (draft as any).id
+            : draft;
+
+        const matchedDraftId =
+          draftId != null ? (Number(draftId) as number) : undefined;
+
+        // ⭐ MapHomeUI 쪽 onAfterCreate → refreshViewportPins 타게 하기 위해
+        //    visit-plan-only 결과도 onSubmit으로 올려보내기
+        await Promise.resolve(
+          onSubmit?.({
+            pinId: undefined, // 실매물 없음
+            matchedDraftId: matchedDraftId ?? null,
+            lat: latNum,
+            lng: lngNum,
+            payload: {
+              mode: "visit-plan-only",
+              title: mainTitle,
+              officePhone: mainOfficePhone,
+            },
+            mode: "visit-plan-only",
+          } as any)
+        );
+
+        // 기존 동작 유지: 모달 닫기
         onClose?.();
         return;
       }
@@ -340,6 +367,7 @@ export function useCreateSave({
           lat: latNum,
           lng: lngNum,
           payload,
+          mode: "create",
         } as any)
       );
       // ⬆️ 일반핀 생성의 경우 여기서 onClose는 호출하지 않는다.

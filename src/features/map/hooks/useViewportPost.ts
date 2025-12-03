@@ -1,7 +1,8 @@
+// src/features/map/hooks/useViewportPost.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { LatLng } from "@/lib/geo/types";
+import type { LatLng } from "@/lib/geo/types";
 
 type Viewport = {
   leftTop: LatLng;
@@ -29,6 +30,21 @@ type UseViewportPostOptions = {
   minDelta?: number;
 };
 
+/** q 가 Viewport 형태인지 러프하게 체크 */
+const isValidViewport = (q: any): q is Viewport => {
+  if (!q) return false;
+  const pts = [q.leftTop, q.leftBottom, q.rightTop, q.rightBottom];
+  if (
+    pts.some(
+      (p) => !p || typeof p.lat !== "number" || typeof p.lng !== "number"
+    )
+  ) {
+    return false;
+  }
+  if (typeof q.zoomLevel !== "number") return false;
+  return true;
+};
+
 export function useViewportPost(opts: UseViewportPostOptions = {}) {
   const { precision = 6, debounceMs = 120, onChange, minDelta = 1e-6 } = opts;
 
@@ -54,8 +70,19 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
     []
   );
 
+  /** 내부 통지 함수 */
   const _notify = useCallback(
-    (q: Viewport) => {
+    (raw?: Viewport) => {
+      // ✅ 최상단에서 Viewport 형태 검증
+      if (!isValidViewport(raw)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[viewport] _notify called with invalid viewport:", raw);
+        }
+        return;
+      }
+
+      const q = raw;
+
       const lats = [
         q.leftTop.lat,
         q.leftBottom.lat,
@@ -75,7 +102,7 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
         lngs.some((v) => !Number.isFinite(v))
       ) {
         if (process.env.NODE_ENV !== "production") {
-          console.warn("[viewport] invalid lat/lng", { lats, lngs });
+          console.warn("[viewport] invalid lat/lng", { lats, lngs, q });
         }
         return;
       }
@@ -110,7 +137,16 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
   );
 
   const sendViewportQuery = useCallback(
-    (q: Viewport) => {
+    (q?: Viewport) => {
+      if (!isValidViewport(q)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[viewport] sendViewportQuery called with invalid viewport:",
+            q
+          );
+        }
+        return;
+      }
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       debounceTimer.current = setTimeout(() => _notify(q), debounceMs);
     },
@@ -119,7 +155,16 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
 
   // 즉시 송신(디바운스 무시)도 제공
   const flushViewport = useCallback(
-    (q: Viewport) => {
+    (q?: Viewport) => {
+      if (!isValidViewport(q)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "[viewport] flushViewport called with invalid viewport:",
+            q
+          );
+        }
+        return;
+      }
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       _notify(q);
     },
