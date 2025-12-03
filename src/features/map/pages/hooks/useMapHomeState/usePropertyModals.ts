@@ -271,8 +271,9 @@ export function usePropertyModals({
       onClose: () => setEditOpen(false),
       updateItems: setItems,
       onSubmit: onSubmitEdit,
+      onLabelChanged: refetch,
     }),
-    [onSubmitEdit, setItems]
+    [onSubmitEdit, setItems, refetch]
   );
 
   const selectedViewItem = useMemo(() => {

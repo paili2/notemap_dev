@@ -15,6 +15,7 @@ import {
   findDraftIdFromScheduled,
   optimisticPlannedPosSet,
 } from "../lib/draftMatching";
+import { useToast } from "@/hooks/use-toast"; // ✅ 토스트 추가
 
 type BoundsBox =
   | {
@@ -81,6 +82,8 @@ export function usePinContextMenuActions({
   onClose,
   onCreate,
 }: Args) {
+  const { toast } = useToast(); // ✅ 토스트 훅
+
   /** ⭐ 답사예정 생성 */
   const handlePlanClick = useCallback(async () => {
     const lat = position.getLat();
@@ -192,7 +195,11 @@ export function usePinContextMenuActions({
           propertyId,
           pos: [position.getLat(), position.getLng()],
         });
-        alert("이미 다른 사원이 예약한 핀입니다.");
+        toast({
+          title: "답사지 예약 실패",
+          description: "이미 다른 사원이 예약한 핀입니다.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -210,12 +217,27 @@ export function usePinContextMenuActions({
         console.warn("[reserve] refetchScheduledReservations 실패:", e);
       }
 
-      // ✅ 3) 컨텍스트메뉴는 닫기
+      // ✅ 3) 성공 토스트
+      toast({
+        title: "답사지 예약 완료",
+        description: "답사지 예약을 완료했습니다.",
+      });
+
+      // ✅ 4) 컨텍스트메뉴 닫기
       onClose?.();
-    } catch (e) {
+    } catch (e: any) {
       // eslint-disable-next-line no-console
       console.error("[reserve] 에러:", e);
-      alert("답사지 예약 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.");
+      const msg = String(
+        e?.response?.data?.message ??
+          e?.message ??
+          "답사지 예약 중 오류가 발생했습니다."
+      );
+      toast({
+        title: "답사지 예약 실패",
+        description: msg,
+        variant: "destructive",
+      });
     } finally {
       setReserving(false);
     }
@@ -226,6 +248,7 @@ export function usePinContextMenuActions({
     position,
     refetchScheduledReservations,
     onClose,
+    toast,
   ]);
 
   /** 신규 등록/정보 입력 */

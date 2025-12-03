@@ -1,3 +1,4 @@
+// features/map/pages/hooks/useMapHomeState/useMenuAndDraft.ts
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -318,11 +319,36 @@ export function useMenuAndDraft({
   const onPlanFromMenu = useCallback(
     (pos: LatLng | { lat: number; lng: number } | any) => {
       const p = normalizeLL(pos);
+
+      console.log("[useMenuAndDraft] onPlanFromMenu, call refetchPins", {
+        pos,
+        normalized: p,
+        hasDraftPin: !!draftPin,
+      });
+
+      // 메뉴를 열었던 draft 위치와 동일하면 draftPin 비우기
       if (draftPin && sameCoord(draftPin, p)) {
         setDraftPinSafe(null);
       }
+
+      // 메뉴 닫기 및 라벨 복원
       closeMenu();
-      refetchPins?.(); // ⭐ 서버 핀 재조회
+
+      console.log("[useMenuAndDraft] onPlanFromMenu, call refetchPins", {
+        pos: p,
+        hasRefetchPins: typeof refetchPins === "function",
+      });
+
+      // ⭐ 서버 핀 재조회 (지도 /map GET 트리거)
+      // 살짝 늦게 한 번 더 안전하게 호출
+      try {
+        refetchPins?.();
+        setTimeout(() => {
+          refetchPins?.();
+        }, 0);
+      } catch (e) {
+        console.error("[useMenuAndDraft/onPlanFromMenu] refetchPins error:", e);
+      }
     },
     [closeMenu, draftPin, setDraftPinSafe, refetchPins]
   );

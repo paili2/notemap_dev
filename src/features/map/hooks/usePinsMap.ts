@@ -1,3 +1,4 @@
+// features/map/hooks/usePinsMap.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -45,26 +46,35 @@ export function usePinsMap() {
   const draftsMerged = useMemo<DraftWithTitle[]>(() => {
     if (!localDrafts.length) return drafts as DraftWithTitle[];
     const byId = new Map<string, DraftWithTitle>();
+
     // 1) 로컬 먼저
     for (const d of localDrafts) {
       byId.set(String(d.id), d);
     }
+
     // 2) 서버로 덮어쓰기(동일 id면 서버가 진실)
     for (const d of drafts) {
       byId.set(String(d.id), d as DraftWithTitle);
     }
+
     return Array.from(byId.values());
   }, [drafts, localDrafts]);
 
-  /** 서버에서 뷰포트 핀 로드 */
+  /** ⭐ 실제 서버에서 뷰포트 핀 로드하는 내부 헬퍼 */
   const load = useCallback(
     async (overrideFilters?: Filters) => {
-      if (!bounds) return;
+      if (!bounds) {
+        // bounds 가 아직 없으면 아무 것도 하지 않음
+        // console.log("[usePinsMap] skip load: no bounds");
+        return;
+      }
 
       const finalFilters: Filters = {
         ...filters,
         ...(overrideFilters ?? {}),
       };
+
+      // console.log("[usePinsMap] load()", { bounds, finalFilters });
 
       abortRef.current?.abort();
       const ctrl = new AbortController();
@@ -112,6 +122,7 @@ export function usePinsMap() {
         const list = prev.slice();
         const id = String(m.id);
         const idx = list.findIndex((x) => String(x.id) === id);
+
         const next: DraftWithTitle = {
           id,
           title: m.title ?? "답사예정",
@@ -119,8 +130,13 @@ export function usePinsMap() {
           lng: m.lng,
           draftState: (m.draftState as any) ?? "BEFORE",
         };
-        if (idx >= 0) list[idx] = { ...list[idx], ...next };
-        else list.push(next);
+
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...next };
+        } else {
+          list.push(next);
+        }
+
         return list;
       });
     },
@@ -155,6 +171,11 @@ export function usePinsMap() {
     [filters, load]
   );
 
+  /** ✅ 외부에서 사용하는 refetch: 항상 현재 뷰포트/필터 기준으로 재패치 */
+  const refetch = useCallback(async () => {
+    await refreshViewportPins();
+  }, [refreshViewportPins]);
+
   useEffect(() => {
     return () => abortRef.current?.abort();
   }, []);
@@ -166,9 +187,9 @@ export function usePinsMap() {
     localDrafts, // 로컬 임시 drafts (title 포함)
     loading,
     error,
-    setBounds: setBoundsDebounced, // 지도 이벤트에서 호출
-    refetch: load, // 수동 재패치 (현재 filters 유지)
-    refreshViewportPins, // 뷰포트 재패치 + 필터 갱신
+    setBounds: setBoundsDebounced, // 지도 이벤트에서 호출 (idle 등)
+    refetch, // 수동 재패치 (현재 bounds + filters 기준)
+    refreshViewportPins, // 필터를 바꾸면서 재패치할 때 사용
     upsertDraftMarker, // 등록 직후 임시 마커 주입
     replaceTempByRealId, // 임시 → 실제 id 치환
     clearLocalDrafts, // 로컬 임시 정리

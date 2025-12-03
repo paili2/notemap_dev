@@ -49,9 +49,14 @@ function normalizeStarStr(v: unknown): StarStr {
 export default function PropertyEditModalBody({
   onClose,
   onSubmit,
+  /** 🔁 지도 핀 다시 불러오고 싶을 때 (예: get /map) */
+  onLabelChanged,
   initialData,
   embedded = false,
-}: Omit<PropertyEditModalProps, "open"> & { embedded?: boolean }) {
+}: Omit<PropertyEditModalProps, "open"> & {
+  embedded?: boolean;
+  onLabelChanged?: () => void | Promise<void>;
+}) {
   // ✅ 모바일 수정 제한 토글
   const isMobile = useIsMobileBreakpoint(768);
   const canEditOnMobile = ALLOW_MOBILE_PROPERTY_EDIT;
@@ -440,6 +445,8 @@ export default function PropertyEditModalBody({
     showAlert,
     onSubmit,
     onClose,
+    // ⭐ 여기서 지도 갱신 콜백까지 넘겨줌
+    onLabelChanged,
   });
 
   /* ───────── 레이아웃 분기 ───────── */

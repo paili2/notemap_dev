@@ -67,10 +67,10 @@ export function useCancelReservation(
         const { alreadyCanceled } = await cancelSurveyReservation(idStr);
 
         toast({
-          title: alreadyCanceled ? "이미 취소된 예약" : "예약을 취소했어요",
-          description: `예약 ID: ${idStr}${
-            alreadyCanceled ? " (서버상 이미 취소됨)" : ""
-          }`,
+          title: "예약 취소",
+          description: alreadyCanceled
+            ? "이미 취소된 답사지 예약입니다."
+            : "답사지 예약을 취소했습니다.",
         });
 
         // ✅ 예약 리스트 동기화

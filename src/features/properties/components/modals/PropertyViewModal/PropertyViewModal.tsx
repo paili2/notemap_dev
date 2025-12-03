@@ -95,6 +95,8 @@ export default function PropertyViewModal({
   onSave,
   onDelete,
   asInner,
+  /** ✅ 수정모달에서 저장 성공 시 map 핀을 다시 불러오고 싶을 때 쓰는 콜백 */
+  onLabelChanged,
 }: {
   open: boolean;
   onClose: () => void;
@@ -103,6 +105,7 @@ export default function PropertyViewModal({
   onSave?: (patch: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDelete?: () => void | Promise<void>;
   asInner?: boolean;
+  onLabelChanged?: () => void | Promise<void>;
 }) {
   const [stage, setStage] = useState<Stage>("view");
   const [deleting, setDeleting] = useState(false);
@@ -259,6 +262,8 @@ export default function PropertyViewModal({
         onClose={onEditClose}
         onSubmit={onEditSubmit}
         asInner={asInner}
+        // ⭐ 여기서 EditStage로 onLabelChanged 전달
+        onLabelChanged={onLabelChanged}
       />
     ) : (
       <ViewStage

@@ -53,6 +53,9 @@ type UseEditSaveArgs = {
   showAlert: (msg: string) => void;
   onSubmit?: (payload: any) => void | Promise<void>;
   onClose: () => void;
+
+  /** 🔁 수정 저장 성공 시 지도용 GET(/map) 같이 호출할 콜백 */
+  onLabelChanged?: () => void | Promise<void>;
 };
 
 export function useEditSave({
@@ -72,6 +75,7 @@ export function useEditSave({
   showAlert,
   onSubmit,
   onClose,
+  onLabelChanged,
 }: UseEditSaveArgs) {
   const queryClient = useQueryClient();
 
@@ -119,7 +123,7 @@ export function useEditSave({
         if (!isValidIsoDateStrict(normalized)) {
           console.groupEnd();
           showAlert(
-            "준공일은 YYYY-MM-DD 형식으로 입력해주세요.\n예: 2024-04-14"
+            " 준공일은 YYYY-MM-DD 형식으로 입력해주세요.\n예: 2024-04-14"
           );
           return;
         }
@@ -256,9 +260,20 @@ export function useEditSave({
       try {
         console.log("PATCH /pins/:id payload", dto);
         await updatePin(propertyId, dto);
+
+        // 상세 쿼리 invalidate
         await queryClient.invalidateQueries({
           queryKey: ["pinDetail", propertyId],
         });
+
+        // 🔥 여기서: 수정 성공 시마다 map 갱신 콜백 호출
+        if (onLabelChanged) {
+          try {
+            await onLabelChanged();
+          } catch (e) {
+            console.error("[save] onLabelChanged 실행 중 오류:", e);
+          }
+        }
       } catch (e: any) {
         console.error("[PATCH /pins/:id] 실패:", e);
         console.groupEnd();
@@ -410,6 +425,7 @@ export function useEditSave({
     showAlert,
     onSubmit,
     onClose,
+    onLabelChanged,
     queryClient,
   ]);
 

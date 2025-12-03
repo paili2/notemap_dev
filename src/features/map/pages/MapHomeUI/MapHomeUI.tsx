@@ -248,7 +248,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     [mergedWithTempDraft]
   );
 
-  // 🔄 뷰 모달 상태 관리
+  // 🔄 뷰 모달 상태 관리 + 핀 재조회 유틸
   const refreshViewportPins = useCallback(async () => {
     if (!kakaoSDK || !mapInstance) return;
     try {
@@ -284,6 +284,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
   });
 
   const { siteReservations } = useSidebarCtx();
+
+  console.log("[MapHomeUI] pass onPlanFromMenu =", onPlanFromMenu);
 
   // 🔎 사이드바에서 지도 포커싱
   const handleFocusItemMap = useCallback(
@@ -428,7 +430,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
         selectedPos={selectedPos}
         createHostHandlers={{
           ...createHostHandlers,
-          onAfterCreate: handleAfterCreate,
+          // 🔥 생성/답사예정지 등록 모두 끝난 뒤 /map 재조회
+          onAfterCreate: async (res) => {
+            await handleAfterCreate(res);
+            await refreshViewportPins();
+          },
           onOpenViewAfterCreate: handleOpenViewAfterCreate,
         }}
         pinDraftId={
@@ -439,6 +445,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onCloseRoadview={close}
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
+        // ⭐ 수정모달 저장 후 /map 핀 재조회용 콜백
+        onLabelChanged={refreshViewportPins}
       />
 
       {/* 🔔 필터 검색 결과 없음 모달 */}

@@ -52,6 +52,9 @@ type Props = {
   initialViewData?: PropertyViewDetails | null;
   onSaveViewPatch?: (p: Partial<PropertyViewDetails>) => void | Promise<void>;
   onDeleteFromView?: () => void | Promise<void>;
+
+  /** ✅ 뷰 모달 안에서 수정모달 저장 성공 시 map 핀 갱신용 콜백 */
+  onLabelChanged?: () => void | Promise<void>;
 };
 
 export default function PropertyCreateViewHost({
@@ -69,6 +72,7 @@ export default function PropertyCreateViewHost({
   initialViewData,
   onSaveViewPatch,
   onDeleteFromView,
+  onLabelChanged,
 }: Props) {
   const [stage, setStage] = useState<Stage>(initialStage);
   const [createdPinId, setCreatedPinId] = useState<string | number | null>(
@@ -168,6 +172,7 @@ export default function PropertyCreateViewHost({
         data={initialViewData ?? undefined}
         onSave={onSaveViewPatch}
         onDelete={onDeleteFromView}
+        onLabelChanged={onLabelChanged}
       />
     );
   }

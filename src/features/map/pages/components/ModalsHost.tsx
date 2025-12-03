@@ -17,6 +17,9 @@ export default function ModalsHost(props: {
   /** ✅ MapHomeUI 쪽 시그니처에 맞게: 인자 없는 함수 */
   onDeleteFromView: () => void | Promise<void>;
 
+  /** ✅ 수정 모달 저장 후 map 핀 다시 불러오기용 콜백 (ex. usePinsMap.refetch) */
+  onLabelChanged?: () => void | Promise<void>;
+
   /** Create Modal */
   createOpen: boolean;
   prefillAddress?: string;
@@ -66,6 +69,7 @@ export default function ModalsHost(props: {
     onCloseView,
     onSaveViewPatch,
     onDeleteFromView,
+    onLabelChanged,
     // create
     createOpen,
     prefillAddress,
@@ -127,6 +131,8 @@ export default function ModalsHost(props: {
               initialViewData={selectedViewItem ?? undefined}
               onSaveViewPatch={onSaveViewPatch}
               onDeleteFromView={onDeleteFromView}
+              /* ✅ 뷰 → 수정 → 저장 후 map GET용 콜백 */
+              onLabelChanged={onLabelChanged}
             />
           </div>
         </div>

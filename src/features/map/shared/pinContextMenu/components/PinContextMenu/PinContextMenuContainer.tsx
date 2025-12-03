@@ -15,6 +15,8 @@ import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
 import { posKey } from "./lib/draftMatching";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions"; // ⭐ 새 훅
+import { deletePinDraft } from "@/shared/api/pins"; // ✅ 임시핀 삭제 API
+import { useToast } from "@/hooks/use-toast"; // ✅ 토스트
 
 type Props = PinContextMenuProps & {
   mergedMeta?: MergedMarker[];
@@ -57,6 +59,7 @@ export default function PinContextMenuContainer(props: Props) {
     onDeleteProperty,
   } = props;
 
+  const { toast } = useToast();
   const version = useReservationVersion((s) => s.version);
   const bump = useReservationVersion((s) => s.bump);
 
@@ -312,13 +315,43 @@ export default function PinContextMenuContainer(props: Props) {
     );
   }, [propertyTitle, pin, metaTitle]);
 
-  const { canDelete, deleting, handleDelete } = useDeletePropertyFromMenu({
-    propertyIdClean,
-    listed,
-    isSearchDraft,
-    onDeleteProperty,
-    onClose,
-  });
+  /** ✅ 매물 삭제용 훅 (기존) */
+  const { canDelete: canDeleteProperty, handleDelete: handleDeleteProperty } =
+    useDeletePropertyFromMenu({
+      propertyIdClean,
+      listed,
+      isSearchDraft,
+      onDeleteProperty,
+      onClose,
+    });
+
+  /** ✅ 답사예정지(draft) id 추출 */
+  const draftIdFromPin = React.useMemo(() => {
+    const raw = String((pin as any)?.id ?? "");
+    if (raw.startsWith("__visit__")) {
+      const n = Number(raw.replace("__visit__", ""));
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  }, [pin]);
+
+  const draftIdFromMeta = React.useMemo(() => {
+    if (metaAtPos?.source !== "draft") return null;
+    const n = Number(
+      (metaAtPos as any)?.id ??
+        (metaAtPos as any)?.draftId ??
+        (metaAtPos as any)?.pinDraftId
+    );
+    return Number.isFinite(n) ? n : null;
+  }, [metaAtPos]);
+
+  const draftId = draftIdFromMeta ?? draftIdFromPin;
+
+  /** ✅ 답사예정지 삭제 가능 여부 (예약 전 PLANNED 핀) */
+  const canDeleteDraft = planned && draftId != null;
+
+  /** ✅ 최종 삭제 가능 여부: 매물 삭제 || 답사예정지 삭제 */
+  const canDelete = canDeleteProperty || canDeleteDraft;
 
   React.useEffect(() => {
     // 상태 디버그용
@@ -337,6 +370,9 @@ export default function PinContextMenuContainer(props: Props) {
       reserved,
       planned,
       draftStateForPanel,
+      draftId,
+      canDeleteProperty,
+      canDeleteDraft,
     });
   }, [
     position,
@@ -351,6 +387,9 @@ export default function PinContextMenuContainer(props: Props) {
     reserved,
     planned,
     draftStateForPanel,
+    draftId,
+    canDeleteProperty,
+    canDeleteDraft,
   ]);
 
   // 🔑 제목이 바뀔 때 CustomOverlay를 한 번 다시 만들도록 key에 포함
@@ -358,6 +397,75 @@ export default function PinContextMenuContainer(props: Props) {
     () => `ctx:${version}:${posK}:${derivedPropertyTitle || ""}`,
     [version, posK, derivedPropertyTitle]
   );
+
+  /** ✅ 삭제 핸들러: 답사예정지 → deletePinDraft, 그 외는 기존 매물 삭제 */
+  const handleDelete = React.useCallback(async () => {
+    // 1) 답사예정지 임시핀 삭제
+    if (canDeleteDraft && draftId != null) {
+      const ok = window.confirm("이 답사예정지 핀을 삭제하시겠어요?");
+      if (!ok) return;
+
+      try {
+        await deletePinDraft(draftId);
+
+        const box = getBoundsBox();
+        if (box && refreshViewportPins) {
+          await Promise.resolve(refreshViewportPins(box));
+        }
+
+        cleanupOverlaysAt(position.getLat(), position.getLng());
+
+        toast({
+          title: "삭제 완료",
+          description: "답사예정지를 삭제했습니다.",
+        });
+        onClose?.();
+      } catch (e: any) {
+        const msg = String(
+          e?.response?.data?.message ??
+            e?.responseData?.message ??
+            e?.message ??
+            e
+        );
+        toast({
+          title: "삭제 실패",
+          description: msg,
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    // 2) 그 외는 기존 매물 삭제 로직 그대로
+    if (canDeleteProperty) {
+      await handleDeleteProperty();
+    }
+  }, [
+    canDeleteDraft,
+    draftId,
+    canDeleteProperty,
+    handleDeleteProperty,
+    getBoundsBox,
+    refreshViewportPins,
+    cleanupOverlaysAt,
+    position,
+    toast,
+    onClose,
+  ]);
+
+  /** ✅ 답사지 예약 버튼용 핸들러: 예약 완료 후 토스트 */
+  const handleReserveWithToast = React.useCallback(async () => {
+    try {
+      await handleReserveClick();
+      // 이 onReserve는 ContextMenuPanel에서 "답사지 예약" 버튼일 때만 쓰임
+      toast({
+        title: "예약 완료",
+        description: "답사지를 예약했습니다.",
+      });
+    } catch {
+      // 내부에서 에러 토스트를 이미 처리하고 있을 수 있으니 여기서는 조용히 무시
+    }
+  }, [handleReserveClick, toast]);
 
   return (
     <CustomOverlay
@@ -383,7 +491,7 @@ export default function PinContextMenuContainer(props: Props) {
               onView={handleView}
               onCreate={handleCreateClick}
               onPlan={handlePlanClick}
-              onReserve={reserving ? () => {} : handleReserveClick}
+              onReserve={reserving ? () => {} : handleReserveWithToast}
               isPlanPin={planned}
               isVisitReservedPin={reserved}
               showFav={listed}

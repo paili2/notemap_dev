@@ -1,3 +1,4 @@
+// features/map/pages/hooks/useMergedMarkers.ts
 "use client";
 
 import { useMemo } from "react";
@@ -50,6 +51,8 @@ export function useMergedMarkers(params: {
     lat: number;
     lng: number;
     badge?: string | null;
+    /** 서버에서 직접 내려줄 수도 있는 pinKind (있으면 최우선) */
+    pinKind?: PinKind | null;
     /** 🔹 서버에서 내려주는 신축/구옥 정보 */
     ageType?: "NEW" | "OLD" | null;
   }>;
@@ -152,9 +155,14 @@ export function useMergedMarkers(params: {
           });
 
     const normals: MapMarker[] = effectivePoints.map((p) => {
-      const baseKind = mapBadgeToPinKind(p.badge);
+      // 🔥 여기서 **항상 서버 응답 기준**으로 kind 결정
+      const baseFromServer =
+        (p.pinKind as PinKind | null | undefined) ??
+        (mapBadgeToPinKind(p.badge) as PinKind | null | undefined);
+
+      const baseKind: PinKind = (baseFromServer ?? "1room") as PinKind;
       const displayKind = getDisplayPinKind(baseKind, p.ageType ?? null);
-      const kind: PinKind = (displayKind ?? baseKind ?? "1room") as PinKind;
+      const kind: PinKind = (displayKind ?? baseKind) as PinKind;
 
       const name = (p.name ?? "").trim();
       const title = (p.title ?? "").trim();
@@ -164,7 +172,7 @@ export function useMergedMarkers(params: {
         name: name || title, // ✅ 라벨에 들어갈 텍스트
         title, // ✅ 주소/부제는 title 에만
         position: { lat: p.lat, lng: p.lng },
-        kind,
+        kind, // ✅ 최신 badge/ageType 반영된 pinKind
       };
     });
 
@@ -193,23 +201,27 @@ export function useMergedMarkers(params: {
     hideDraftsForAgeFilter,
   ]);
 
-  // 3) 로컬 마커와 서버 마커 병합
+  // 3) 로컬 마커와 서버 마커 병합 (⚠️ 서버 우선)
   const mergedMarkers: MapMarker[] = useMemo(() => {
     const byId = new Map<string, MapMarker>();
 
-    // 로컬 우선
-    localMarkers.forEach((m) => {
-      byId.set(String(m.id), {
+    // ⭐ 1) 서버 마커를 먼저 넣고 → 이 값이 “진실”이 되게 만든다.
+    serverViewMarkers.forEach((m) => {
+      const id = String(m.id);
+      byId.set(id, {
         ...m,
         position: toNumericPos((m as any).position),
       });
     });
 
-    // 서버로 덮어쓰기 (동일 id면 최신 서버 값 사용)
-    serverViewMarkers.forEach((m) => {
+    // ⭐ 2) 로컬 마커는 서버에 **없는 id**에 대해서만 추가
+    localMarkers.forEach((m) => {
       const id = String(m.id);
-      if (id === "__draft__" && byId.has("__draft__")) return;
-      byId.set(id, { ...m, position: toNumericPos((m as any).position) });
+      if (byId.has(id)) return; // 동일 id 는 서버 값 유지
+      byId.set(id, {
+        ...m,
+        position: toNumericPos((m as any).position),
+      });
     });
 
     return Array.from(byId.values());
@@ -232,8 +244,6 @@ export function useMergedMarkers(params: {
     }
 
     // 🔹 1) 앵커 근처에 "실제 매물 핀" 이 하나라도 있으면 임시핀 만들지 않기
-    //    - id 가 "__draft__", "__visit__" 같은 내부 임시 키는 제외
-    //    - 거리 기준: 10m 이내면 같은 위치라고 간주
     const NEAR_THRESHOLD_M = 10;
 
     const hasRealMarkerNearAnchor = mergedMarkers.some((m) => {
@@ -259,11 +269,10 @@ export function useMergedMarkers(params: {
     });
 
     if (hasRealMarkerNearAnchor) {
-      // 👉 이미 그 근처에 우리 매물 핀이 있으니 질문표 임시핀은 만들지 않는다.
       return mergedMarkers;
     }
 
-    // 🔹 2) 완전히 같은 좌표에 이미 마커가 있으면 임시핀 추가 안 함 (기존 로직 유지)
+    // 🔹 2) 완전히 같은 좌표에 이미 마커가 있으면 임시핀 추가 안 함
     const targetKey = posKey(menuAnchor.lat, menuAnchor.lng);
 
     const hasSamePosKey = mergedMarkers.some((m) => {
@@ -301,7 +310,7 @@ export function useMergedMarkers(params: {
         kind: "question" as PinKind,
       },
     ];
-  }, [mergedMarkers, menuOpen, menuAnchor, menuTargetId, distM]);
+  }, [mergedMarkers, menuOpen, menuAnchor, menuTargetId]);
 
   return { mergedMarkers, mergedWithTempDraft, mergedMeta };
 }

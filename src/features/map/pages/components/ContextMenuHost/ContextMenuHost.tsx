@@ -317,8 +317,33 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
 
         onCreateFromMenu(args as any);
       }}
-      onPlan={() => {
+      onPlan={async () => {
+        // 1) 메뉴 훅(onPlanFromMenu) 쪽에 먼저 알려주기
         onPlanFromMenu?.({ lat: anchorPosRO.lat, lng: anchorPosRO.lng });
+
+        // 2) 현재 지도 bounds 기준으로 map GET 다시 치도록 트리거
+        try {
+          const b = mapInstance?.getBounds?.();
+          if (b) {
+            await refreshViewportPins?.({
+              sw: {
+                lat: b.getSouthWest().getLat(),
+                lng: b.getSouthWest().getLng(),
+              },
+              ne: {
+                lat: b.getNorthEast().getLat(),
+                lng: b.getNorthEast().getLng(),
+              },
+            });
+          }
+        } catch (e) {
+          console.error(
+            "[ContextMenuHost:onPlan] refreshViewportPins failed:",
+            e
+          );
+        }
+
+        // 3) 예약 버전 bump + 메뉴 닫기 (기존 동작 유지)
         bump();
         onCloseMenu?.();
       }}

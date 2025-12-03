@@ -46,7 +46,10 @@ export function useClustererWithLabels(
     return [...markers]
       .map((m) => {
         const label = (m as any).name ?? m.title ?? "";
-        return `${String(m.id)}:${m.position.lat},${m.position.lng}:${label}`;
+        const kind = (m as any).kind ?? (m as any).badge ?? "";
+        return `${String(m.id)}:${m.position.lat},${
+          m.position.lng
+        }:${label}:${kind}`;
       })
       .sort()
       .join("|");

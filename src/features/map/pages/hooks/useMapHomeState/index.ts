@@ -1,3 +1,4 @@
+// features/map/pages/hooks/useMapHomeState/index.ts
 "use client";
 
 import { useCallback, useRef, useState } from "react";
@@ -118,6 +119,7 @@ export function useMapHomeState() {
     toast,
     resolveAddress,
     panToWithOffset,
+    // ⭐ 답사예정지 등록/삭제 후 서버 핀을 다시 가져오기 위해 usePinsMap.refetch 넘김
     refetchPins: refetch,
   });
 
