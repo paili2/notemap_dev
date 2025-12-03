@@ -136,7 +136,7 @@ export function AssignManagerModal({
             </Label>
             <Select
               onValueChange={setSelectedAccountId}
-              value={selectedAccountId || undefined}
+              value={selectedAccountId === "" ? undefined : selectedAccountId}
               disabled={replaceManagerMutation.isPending}
             >
               <SelectTrigger className="col-span-3">

@@ -7,7 +7,7 @@ import {
   CardTitle,
 } from "@/components/atoms/Card/Card";
 import { Button } from "@/components/atoms/Button/Button";
-import { User, Users } from "lucide-react";
+import { User, Users, FileText } from "lucide-react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "@/features/users/api/account";
@@ -34,6 +34,13 @@ export function MyPageMainPage() {
       href: "/my-page/my-team",
       icon: Users,
       color: "bg-indigo-500",
+    },
+    {
+      title: "내 계약",
+      description: "본인이 계약한 계약목록 조회",
+      href: "/my-page/my-contracts",
+      icon: FileText,
+      color: "bg-green-500",
     },
   ];
 
