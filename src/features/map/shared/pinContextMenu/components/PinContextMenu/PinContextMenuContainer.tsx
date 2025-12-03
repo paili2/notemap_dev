@@ -1,3 +1,4 @@
+// features/map/components/ContextMenuHost/PinContextMenuContainer.tsx
 "use client";
 
 import * as React from "react";
@@ -14,8 +15,8 @@ import { useDeletePropertyFromMenu } from "./hooks/useDeletePropertyFromMenu";
 import { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
 import { posKey } from "./lib/draftMatching";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
-import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions"; // ⭐ 새 훅
-import { useToast } from "@/hooks/use-toast"; // ✅ 토스트
+import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions";
+import { useToast } from "@/hooks/use-toast";
 import { deletePinDraft } from "@/shared/api/pins";
 
 type Props = PinContextMenuProps & {
@@ -32,6 +33,8 @@ type Props = PinContextMenuProps & {
   }) => void;
   /** ✅ 매물 삭제 후 부모에서 리스트/지도 갱신이 필요하면 사용 */
   onDeleteProperty?: (id: string | null) => void | Promise<void>;
+  /** ✅ 메뉴가 떠 있는 동안 숨길 라벨 id 제어 */
+  onChangeHideLabelForId?: (id?: string) => void;
 };
 
 export default function PinContextMenuContainer(props: Props) {
@@ -57,6 +60,7 @@ export default function PinContextMenuContainer(props: Props) {
     refreshViewportPins,
     upsertDraftMarker,
     onDeleteProperty,
+    onChangeHideLabelForId,
   } = props;
 
   const { toast } = useToast();
@@ -132,13 +136,11 @@ export default function PinContextMenuContainer(props: Props) {
     if (!scheduledReservations?.length) return false;
     const key = posK;
 
-    // posKey 우선
     const byPosKey = scheduledReservations.find(
       (r: any) => r.posKey && r.posKey === key
     );
     if (byPosKey) return true;
 
-    // lat/lng 보정
     const lat = position.getLat();
     const lng = position.getLng();
     const EPS = 1e-5;
@@ -241,7 +243,6 @@ export default function PinContextMenuContainer(props: Props) {
     }
   }, []);
 
-  // ⭐ 여기서 새 훅 사용
   const { handlePlanClick, reserving, handleReserveClick, handleCreateClick } =
     usePinContextMenuActions({
       position,
@@ -354,8 +355,6 @@ export default function PinContextMenuContainer(props: Props) {
   const canDelete = canDeleteProperty || canDeleteDraft;
 
   React.useEffect(() => {
-    // 상태 디버그용
-    // eslint-disable-next-line no-console
     console.debug("[PinContextMenu] position", {
       lat: position.getLat(),
       lng: position.getLng(),
@@ -392,15 +391,37 @@ export default function PinContextMenuContainer(props: Props) {
     canDeleteDraft,
   ]);
 
-  // 🔑 제목이 바뀔 때 CustomOverlay를 한 번 다시 만들도록 key에 포함
+  /** 🔥 메뉴가 떠 있는 동안 라벨 숨기기: 여기서 id를 강제로 세팅 */
+  React.useEffect(() => {
+    const id = propertyIdClean ?? undefined;
+    if (!id) return;
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[PinContextMenuContainer] set hideLabelForId by menu", {
+        lat: position.getLat(),
+        lng: position.getLng(),
+        propertyId: id,
+      });
+    }
+
+    onChangeHideLabelForId?.(id);
+
+    return () => {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[PinContextMenuContainer] clear hideLabelForId by menu", {
+          propertyId: id,
+        });
+      }
+      onChangeHideLabelForId?.(undefined);
+    };
+  }, [propertyIdClean, onChangeHideLabelForId, position]);
+
   const overlayKey = React.useMemo(
     () => `ctx:${version}:${posK}:${derivedPropertyTitle || ""}`,
     [version, posK, derivedPropertyTitle]
   );
 
-  /** ✅ 삭제 핸들러: 답사예정지 → deletePinDraft, 그 외는 기존 매물 삭제 */
   const handleDelete = React.useCallback(async () => {
-    // 1) 답사예정지 임시핀 삭제
     if (canDeleteDraft && draftId != null) {
       const ok = window.confirm("이 답사예정지 핀을 삭제하시겠어요?");
       if (!ok) return;
@@ -436,7 +457,6 @@ export default function PinContextMenuContainer(props: Props) {
       return;
     }
 
-    // 2) 그 외는 기존 매물 삭제 로직 그대로
     if (canDeleteProperty) {
       await handleDeleteProperty();
     }
@@ -453,17 +473,15 @@ export default function PinContextMenuContainer(props: Props) {
     onClose,
   ]);
 
-  /** ✅ 답사지 예약 버튼용 핸들러: 예약 완료 후 토스트 */
   const handleReserveWithToast = React.useCallback(async () => {
     try {
       await handleReserveClick();
-      // 이 onReserve는 ContextMenuPanel에서 "답사지 예약" 버튼일 때만 쓰임
       toast({
         title: "예약 완료",
         description: "답사지를 예약했습니다.",
       });
     } catch {
-      // 내부에서 에러 토스트를 이미 처리하고 있을 수 있으니 여기서는 조용히 무시
+      /* 내부에서 에러 토스트 처리 가능하니 여기서는 무시 */
     }
   }, [handleReserveClick, toast]);
 

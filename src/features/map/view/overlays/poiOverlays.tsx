@@ -4,13 +4,13 @@ import * as React from "react";
 import ReactDOM from "react-dom/client";
 import type { LucideProps } from "lucide-react";
 
-import type { PoiKind, PoiPoint } from "./poiTypes";
+import type { PoiKind, PoiPoint } from "../../poi/lib/poiTypes";
 import {
   POI_BG,
   POI_ICON_COMP,
   POI_LABEL,
   calcPoiSizeByLevel,
-} from "./poiMeta";
+} from "../../poi/lib/poiMeta";
 
 /** 오버레이 내용: React 컴포넌트(재렌더로만 갱신 → 깜빡임 최소화) */
 function PoiBubble({
@@ -269,5 +269,10 @@ export function usePoiOverlays(params: {
 
 /* ───────────── 외부에서 쓰던 것들 re-export (기존 import 안 깨지게) ───────────── */
 
-export type { PoiKind, PoiPoint } from "./poiTypes";
-export { POI_LABEL, KAKAO_CATEGORY, KAKAO_KEYWORD, POI_ICON } from "./poiMeta";
+export type { PoiKind, PoiPoint } from "../../poi/lib/poiTypes";
+export {
+  POI_LABEL,
+  KAKAO_CATEGORY,
+  KAKAO_KEYWORD,
+  POI_ICON,
+} from "../../poi/lib/poiMeta";

@@ -11,8 +11,8 @@ import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
 import { PoiKind } from "./overlays/poiOverlays";
-import { PoiLayerToggle } from "../components/menu/components/PoiLayerToggle";
-import usePoiLayer from "../hooks/poi/poiLayer/usePoiLayer";
+import { PoiLayerToggle } from "../poi/components/PoiLayerToggle";
+import usePoiLayer from "../poi/hooks/usePoiLayer";
 
 type Props = MapViewProps;
 
@@ -70,6 +70,7 @@ const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
     onMapReady,
     onViewportChange, // 그대로 전달 (훅이 디바운스 처리)
     useCurrentLocationOnInit: true,
+    showRoadviewOverlay,
   });
 
   // 외부로 제어 메서드 노출

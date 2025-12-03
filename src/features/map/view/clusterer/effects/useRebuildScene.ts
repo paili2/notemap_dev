@@ -291,11 +291,10 @@ export function useRebuildScene(args: Args) {
             (el as any).dataset = (el as any).dataset || {};
             (el as any).dataset.rawLabel = labelText;
             (el as any).dataset.posKey = posKey ?? ""; // 그룹핑 전용 키
-            (el as any).dataset.posLat = String(m.position?.lat ?? ""); // 원본
-            (el as any).dataset.posLng = String(m.position?.lng ?? ""); // 원본
-            (el as any).dataset.labelType = isPlan ? "plan" : "address";
+            (el as any).dataset.posLat = String(m.position?.lat ?? "");
+            (el as any).dataset.posLng = String(m.position?.lng ?? "");
+            (el as any).dataset.labelType = isPlan ? "plan" : "property";
 
-            // ✅ 배지는 보존하고 제목만 업데이트
             const titleEl = (el as any).querySelector?.(
               '[data-role="label-title"]'
             );
@@ -304,7 +303,6 @@ export function useRebuildScene(args: Args) {
                 titleEl.textContent = labelText;
               }
             } else if (!el.childElementCount) {
-              // 옛날(텍스트만 있던) 라벨과의 호환
               if (!el.textContent || el.textContent !== labelText) {
                 el.textContent = labelText;
               }
@@ -312,9 +310,21 @@ export function useRebuildScene(args: Args) {
           }
         } catch {}
 
+        // 🔗 여기서 ref에 등록
         labelOvRef.current[key] = labelOv;
         if (posKey) {
           labelByPos[posKey] = { ov: labelOv, isPlan };
+        }
+
+        // 🔥 여기 아래에 디버그 로그 추가
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[labelOvRef] add label", {
+            key,
+            labelText,
+            posKey,
+            pos: m.position,
+            isPlan,
+          });
         }
 
         // 히트박스

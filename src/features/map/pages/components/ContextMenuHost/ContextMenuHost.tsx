@@ -1,3 +1,4 @@
+// features/map/pages/components/ContextMenuHost/ContextMenuHost.tsx
 "use client";
 
 import { useMemo, useRef } from "react";
@@ -240,6 +241,40 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
     }
   };
 
+  /** 🔥 매물 삭제 핸들러: PinContextMenuContainer 타입에 맞게 id를 string | null로 받도록 수정 */
+  const handleDeleteProperty = async (id: string | null) => {
+    try {
+      // id가 null이면 아무 것도 하지 않음
+      if (!id) return;
+
+      // 상위에서 내려온 onDeleteProperty는 string만 받는다고 가정 → string으로 변환해서 호출
+      await onDeleteProperty?.(String(id));
+
+      const b = mapInstance?.getBounds?.();
+      if (b) {
+        await refreshViewportPins?.({
+          sw: {
+            lat: b.getSouthWest().getLat(),
+            lng: b.getSouthWest().getLng(),
+          },
+          ne: {
+            lat: b.getNorthEast().getLat(),
+            lng: b.getNorthEast().getLng(),
+          },
+        });
+      }
+    } catch (e) {
+      console.error("[ContextMenuHost:onDeleteProperty] error:", e);
+      toast({
+        title: "매물 삭제에 실패했어요.",
+        description: "잠시 후 다시 시도해 주세요.",
+        variant: "destructive",
+      });
+    } finally {
+      onCloseMenu?.();
+    }
+  };
+
   return (
     <PinContextMenuContainer
       kakao={kakaoSDK}
@@ -381,7 +416,7 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
       }
       upsertDraftMarker={upsertDraftMarker}
       refreshViewportPins={refreshViewportPins}
-      onDeleteProperty={onDeleteProperty}
+      onDeleteProperty={handleDeleteProperty}
     />
   );
 }

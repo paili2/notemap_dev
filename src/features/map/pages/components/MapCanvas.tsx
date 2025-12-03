@@ -48,6 +48,11 @@ export default function MapCanvas(props: {
     onMapReady,
     onViewportChange,
     isDistrictOn,
+
+    // 🔹 메뉴 상태 (라벨 hide/show 에 사용)
+    menuOpen,
+    menuAnchor,
+
     showRoadviewOverlay,
     onRoadviewClick,
   } = props;
@@ -124,6 +129,32 @@ export default function MapCanvas(props: {
     },
     []
   );
+
+  // ✅ 메뉴가 닫힐 때, 해당 위치 주변 라벨 다시 보이게
+  React.useEffect(() => {
+    if (!mapRef.current) return;
+    if (!menuAnchor) return;
+
+    // menuOpen → false 로 바뀔 때만 동작
+    if (menuOpen) return;
+
+    try {
+      if (typeof window !== "undefined" && "dispatchEvent" in window) {
+        window.dispatchEvent(
+          new CustomEvent("map:cleanup-overlays-at", {
+            detail: {
+              map: mapRef.current,
+              lat: menuAnchor.lat,
+              lng: menuAnchor.lng,
+              radiusPx: 56, // 필요하면 조절
+            },
+          })
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, [menuOpen, menuAnchor]);
 
   return (
     <div className="absolute inset-0 notemap-map-root">

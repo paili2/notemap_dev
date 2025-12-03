@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { PinKind } from "@/features/pins/types";
-import { distM } from "@/features/map/hooks/poi/shared/geometry";
+import { distM } from "@/features/map/poi/lib/geometry";
 import { useSearchDraftMarkers } from "./useSearchDraftMarkers";
 import { searchPlaceOnMap } from "./searchPlaceOnMap";
 
@@ -19,6 +19,7 @@ type Args = {
     propertyId: string | number;
     propertyTitle: string;
     pin?: { kind: PinKind; isFav: boolean };
+    source?: string;
   }) => void;
   onChangeHideLabelForId?: (id?: string) => void;
   menuOpen: boolean;
@@ -43,6 +44,8 @@ function usePlaceSearchOnMap({
   onMarkerClick,
 }: Args) {
   const lastSearchCenterRef = useRef<{ lat: number; lng: number } | null>(null);
+  // 🔒 마지막 viewport 기억해서 동일 viewport 중복 호출은 막기
+  const lastViewportRef = useRef<any | null>(null);
 
   const {
     localDraftMarkers: rawLocalDraftMarkers,
@@ -53,10 +56,11 @@ function usePlaceSearchOnMap({
   } = useSearchDraftMarkers();
 
   if (process.env.NODE_ENV !== "production") {
-    console.log(
-      "[DEBUG] effectiveServerPoints sample:",
-      effectiveServerPoints?.[0]
-    );
+    console.log("[usePlaceSearchOnMap] init", {
+      samplePoint: effectiveServerPoints?.[0],
+      hideLabelForId,
+      menuOpen,
+    });
   }
 
   /** 다양한 형태의 객체에서 lat/lng를 추출하는 유틸 */
@@ -132,6 +136,14 @@ function usePlaceSearchOnMap({
         return;
       }
 
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[usePlaceSearchOnMap] safeUpsertDraftMarker → upsert", {
+          marker,
+          lat,
+          lng,
+        });
+      }
+
       // upsertDraftMarker가 lat/lng를 기대하므로 확실히 실어 보내기
       upsertDraftMarker({
         ...marker,
@@ -155,27 +167,69 @@ function usePlaceSearchOnMap({
   const localDraftMarkers = useMemo(() => {
     const NEAR_THRESHOLD_M = 800;
 
-    return (rawLocalDraftMarkers ?? []).filter((m) => {
-      const mm = extractLatLng(m);
-      if (!mm) return false; // 좌표 이상한 건 아예 안 그림
+    const result =
+      (rawLocalDraftMarkers ?? []).filter((m) => {
+        const mm = extractLatLng(m);
+        if (!mm) return false; // 좌표 이상한 건 아예 안 그림
 
-      const hasServerPointNear = (effectiveServerPoints ?? []).some((p) => {
-        const pp = extractLatLng(p);
-        return pp && distM(mm.lat, mm.lng, pp.lat, pp.lng) <= NEAR_THRESHOLD_M;
+        const hasServerPointNear = (effectiveServerPoints ?? []).some((p) => {
+          const pp = extractLatLng(p);
+          return (
+            pp && distM(mm.lat, mm.lng, pp.lat, pp.lng) <= NEAR_THRESHOLD_M
+          );
+        });
+
+        const hasServerDraftNear = (effectiveServerDrafts ?? []).some((d) => {
+          const dd = extractLatLng(d);
+          return (
+            dd && distM(mm.lat, mm.lng, dd.lat, dd.lng) <= NEAR_THRESHOLD_M
+          );
+        });
+
+        // 서버핀/서버드래프트 근처에 있으면 지도에서 숨김
+        return !hasServerPointNear && !hasServerDraftNear;
+      }) ?? [];
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[usePlaceSearchOnMap] localDraftMarkers (filtered)", {
+        count: result.length,
+        rawCount: rawLocalDraftMarkers?.length ?? 0,
       });
+    }
 
-      const hasServerDraftNear = (effectiveServerDrafts ?? []).some((d) => {
-        const dd = extractLatLng(d);
-        return dd && distM(mm.lat, mm.lng, dd.lat, dd.lng) <= NEAR_THRESHOLD_M;
-      });
-
-      // 서버핀/서버드래프트 근처에 있으면 지도에서 숨김
-      return !hasServerPointNear && !hasServerDraftNear;
-    });
+    return result;
   }, [rawLocalDraftMarkers, effectiveServerPoints, effectiveServerDrafts]);
+
+  // 🔍 viewport 객체가 거의 같은지 비교 (소수점 오차 허용)
+  const isSameViewport = (a: any, b: any) => {
+    if (!a || !b) return false;
+    const EPS = 1e-6;
+
+    const diff =
+      Math.abs(a.leftTop.lat - b.leftTop.lat) +
+      Math.abs(a.leftTop.lng - b.leftTop.lng) +
+      Math.abs(a.rightBottom.lat - b.rightBottom.lat) +
+      Math.abs(a.rightBottom.lng - b.rightBottom.lng);
+
+    return diff < EPS;
+  };
 
   const handleViewportChangeInternal = useCallback(
     (v: any) => {
+      if (!v) return;
+
+      // ✅ 같은 viewport가 연속으로 들어오면 스킵 → /map GET 중복 방지
+      if (
+        lastViewportRef.current &&
+        isSameViewport(lastViewportRef.current, v)
+      ) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[viewportChange] duplicated viewport, skip", v);
+        }
+        return;
+      }
+      lastViewportRef.current = v;
+
       console.log("[viewportChange] fired", {
         lastSearchCenter: lastSearchCenterRef.current,
         v,
@@ -211,13 +265,20 @@ function usePlaceSearchOnMap({
   );
 
   const handleSubmitSearch = useCallback(
-    (text: string) =>
-      searchPlaceOnMap(text, {
+    (text: string) => {
+      console.log("[usePlaceSearchOnMap] handleSubmitSearch", {
+        text,
+        hasOnMarkerClick: !!onMarkerClick,
+        hideLabelForId,
+        menuOpen,
+      });
+
+      return searchPlaceOnMap(text, {
         kakaoSDK,
         mapInstance,
         effectiveServerPoints,
         effectiveServerDrafts,
-        localDraftMarkers, // 이미 서버핀 근처 임시핀은 제거된 상태
+        localDraftMarkers,
         upsertDraftMarker: safeUpsertDraftMarker,
         clearTempMarkers,
         onSubmitSearch,
@@ -225,7 +286,8 @@ function usePlaceSearchOnMap({
         onChangeHideLabelForId,
         lastSearchCenterRef,
         onMarkerClick,
-      }),
+      });
+    },
     [
       kakaoSDK,
       mapInstance,
@@ -238,6 +300,8 @@ function usePlaceSearchOnMap({
       onOpenMenu,
       onChangeHideLabelForId,
       onMarkerClick,
+      hideLabelForId,
+      menuOpen,
     ]
   );
 

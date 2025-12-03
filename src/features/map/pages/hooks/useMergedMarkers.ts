@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import type { PinKind } from "@/features/pins/types";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
-import { distM } from "@/features/map/hooks/poi/shared/geometry";
+import { distM } from "@/features/map/poi/lib/geometry";
 import { MapMarker } from "../../shared/types/map";
 
 /** kakao LatLng/Point 등 다양한 포맷을 좌표 객체로 정규화 */

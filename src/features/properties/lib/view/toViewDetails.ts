@@ -6,7 +6,7 @@ import {
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
 import type { ViewSource } from "@/features/properties/lib/view/types";
-import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
+import { PropertyViewDetails } from "../../view/types";
 
 /** 안전 변환 유틸 */
 const toNumOr = (v: any, fallback: number) =>

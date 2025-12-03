@@ -1,11 +1,10 @@
-// features/map/pages/hooks/useMapHomeState/useMenuAndDraft.ts
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 import {
-  hideLabelsAround,
+  hideLabelsAround, // 지금은 안 쓰지만, 혹시 나중에 다시 쓸 수도 있어서 import는 남겨둠
   showLabelsAround,
 } from "@/features/map/view/overlays/labelRegistry";
 import {
@@ -40,7 +39,7 @@ export function useMenuAndDraft({
   panToWithOffset,
   refetchPins,
 }: UseMenuAndDraftArgs) {
-  // 라벨 숨김
+  // 라벨 숨김 (지금은 항상 null 로 관리)
   const [hideLabelForId, setHideLabelForId] = useState<string | null>(null);
   const onChangeHideLabelForId = useCallback((id: string | null) => {
     setHideLabelForId(id);
@@ -63,12 +62,14 @@ export function useMenuAndDraft({
 
   const setRawMenuAnchor = useCallback((ll: LatLng | any) => {
     const p = normalizeLL(ll);
+    if (!p) return; // ✅ null 방어
     setMenuAnchor(p);
   }, []);
 
   const setDraftPinSafe = useCallback((pin: LatLng | null) => {
     if (pin) {
       const p = normalizeLL(pin);
+      if (!p) return; // ✅ null 방어
       _setDraftPin(p);
       try {
         localStorage.setItem(DRAFT_PIN_STORAGE_KEY, JSON.stringify(p));
@@ -104,6 +105,8 @@ export function useMenuAndDraft({
       }
 
       const p = normalizeLL(position);
+      if (!p) return; // ✅ null 방어
+
       const isDraft = propertyId === "__draft__";
       const sid = String(propertyId);
 
@@ -117,14 +120,14 @@ export function useMenuAndDraft({
         setCreateFromDraftId(null);
       }
 
-      // ✅ 여기서 바로 최종 id 로만 세팅 (더 이상 "__draft__" 중간값 안 씀)
-      onChangeHideLabelForId(isDraft ? "__draft__" : sid);
+      // ✅ 이제는 어떤 경우에도 특정 id 라벨을 숨기지 않는다
+      onChangeHideLabelForId(null);
 
       setRawMenuAnchor(p);
 
-      try {
-        if (mapInstance) hideLabelsAround(mapInstance, p.lat, p.lng, 40);
-      } catch {}
+      // 과거에는 isTempId 일 때 hideLabelsAround 를 호출했지만,
+      // 검색 결과/임시핀 사라지는 버그 때문에 현재는 사용하지 않는다.
+      // 필요해지면 여기서 opts 플래그를 보고 선택적으로 다시 켜면 됨.
 
       if (opts?.roadAddress || opts?.jibunAddress) {
         setMenuRoadAddr(opts.roadAddress ?? null);
@@ -159,6 +162,7 @@ export function useMenuAndDraft({
       const map = mapInstance;
       const targetLevel = PIN_MENU_MAX_LEVEL;
       const p = normalizeLL(pos);
+      if (!p) return; // ✅ null 방어
 
       if (!map) {
         await openMenuAt(p, propertyId, { forceOpen: true });
@@ -213,6 +217,8 @@ export function useMenuAndDraft({
       }
     ) => {
       const p = normalizeLL(pos);
+      if (!p) return; // ✅ null 방어
+
       const map = mapInstance;
       if (!map) return;
 
@@ -247,6 +253,7 @@ export function useMenuAndDraft({
       const item = items.find((p) => String(p.id) === sid);
       if (item) {
         const pos = normalizeLL(item.position);
+        if (!pos) return; // ✅ null 방어
         await focusAndOpenAt(pos, sid);
         return;
       }
@@ -281,12 +288,16 @@ export function useMenuAndDraft({
       setMenuJibunAddr(jibun ?? null);
     })();
 
-    if (!sameCoord(draftPin, restoredDraftPinRef.current)) {
+    const restored = restoredDraftPinRef.current;
+
+    if (restored && sameCoord(draftPin, restored)) {
+      // 이전에 복원된 draft와 완전히 같으면 자동 오픈 없이 닫기
+      setMenuOpen(false);
+    } else {
+      // 새 위치면 자동 오픈
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setMenuOpen(true));
       });
-    } else {
-      setMenuOpen(false);
     }
   }, [draftPin, resolveAddress, setRawMenuAnchor]);
 
@@ -319,6 +330,7 @@ export function useMenuAndDraft({
   const onPlanFromMenu = useCallback(
     (pos: LatLng | { lat: number; lng: number } | any) => {
       const p = normalizeLL(pos);
+      if (!p) return; // ✅ null 방어
 
       console.log("[useMenuAndDraft] onPlanFromMenu, call refetchPins", {
         pos,
@@ -357,6 +369,8 @@ export function useMenuAndDraft({
       propertyId?: "__draft__" | string | number;
     }) => {
       const pos = normalizeLL(p.position);
+      if (!pos) return; // ✅ null 방어
+
       const id = (p.propertyId ?? "__draft__") as "__draft__" | string;
       focusAndOpenAt(pos, id);
     },

@@ -1,4 +1,4 @@
-import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
+import { PropertyViewDetails } from "@/features/properties/view/types";
 
 /* 🔍 사이드바 → 지도 포커스 공통 레벨 */
 export const TARGET_FOCUS_LEVEL = 4;

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
-import { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { ensureViewForEdit } from "../lib/viewUtils";
 import { togglePinDisabled } from "@/shared/api/pins";
+import { PropertyViewDetails } from "@/features/properties/view/types";
 
 type Args = {
   selectedViewItem: PropertyViewDetails | null;

@@ -61,16 +61,29 @@ export function useUpdateZIndexAndLabels(
         if (!el) return;
 
         const ds = (el as any).dataset ?? ((el as any).dataset = {});
-
-        // ✅ 선택된 핀 라벨은 **강제로 숨김**
         const idStr = String(id);
+
+        // ✅ 0) 이미 숨긴 라벨이면 건드리지 않음
+        if (ds.hiddenBySelected === "1") return;
+
+        // ✅ 1) 선택된 핀 라벨은 **아예 지도에서 제거**
         if (selectedKey && idStr === selectedKey) {
           ds.hiddenBySelected = "1";
-          el.style.visibility = "hidden";
-        } else if (ds.hiddenBySelected === "1") {
-          // 선택 해제 시 다시 보이게
-          delete ds.hiddenBySelected;
-          el.style.visibility = "";
+
+          if (process.env.NODE_ENV !== "production") {
+            console.log("[useUpdateZIndexAndLabels] hide label overlay", {
+              idStr,
+              rawLabel: ds.rawLabel,
+            });
+          }
+
+          try {
+            // 라벨을 통째로 지도에서 떼버림
+            ov.setMap?.(null);
+          } catch {
+            /* ignore */
+          }
+          return; // 이 라벨에 대해서는 추가 처리 X
         }
 
         // ✅ 주소 임시 라벨은 배지 안 붙임

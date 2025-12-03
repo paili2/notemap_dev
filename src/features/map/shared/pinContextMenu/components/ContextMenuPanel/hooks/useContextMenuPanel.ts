@@ -14,11 +14,11 @@ import type { ContextMenuPanelProps } from "../types";
 import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
-import { getPinDraftDetailOnce } from "@/shared/api/pins";
 import type {
   CreateMode,
   ReserveRequestPayload,
 } from "../../PinContextMenu/types";
+import { getPinDraftDetailOnce } from "@/shared/api/pins";
 /** 느슨한 불리언 변환 (true/"true"/1/"1") */
 const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
 

@@ -41,6 +41,7 @@ export function registerLabel(
   lng: number,
   map: kakao.maps.Map
 ) {
+  console.log("[registerLabel]", { lat, lng, text: el.textContent });
   entries.add({ el, lat, lng, map });
   el.dataset.mapLabel = "1";
   el.style.pointerEvents = "none";

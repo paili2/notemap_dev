@@ -9,14 +9,14 @@ import {
 } from "react";
 import type { LatLng } from "@/lib/geo/types";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
-import type { PropertyViewDetails } from "@/features/properties/components/modals/PropertyViewModal/types";
 import { applyPatchToItem } from "@/features/properties/lib/view/applyPatchToItem";
 import { toViewDetails } from "@/features/properties/lib/view/toViewDetails";
 import { toViewSourceFromPropertyItem, normalizeLL } from "./mapHome.utils";
 import type { LocalCreateFromPinArgs } from "./mapHome.types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
-import { buildEditPatchWithMedia } from "@/features/properties/components/modals/PropertyEditModal/lib/buildEditPatch";
 import type { PinKind } from "@/features/pins/types";
+import { PropertyViewDetails } from "@/features/properties/view/types";
+import { buildEditPatchWithMedia } from "@/features/properties/edit/lib/buildEditPatch";
 
 type UsePropertyModalsArgs = {
   items: PropertyItem[];

@@ -6,34 +6,56 @@ import type { Viewport } from "./mapHome.types";
 export const PIN_MENU_MAX_LEVEL = 5;
 export const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
 
-/** 부동소수점 비교 오차 보정 */
-export const sameCoord = (a?: LatLng | null, b?: LatLng | null, eps = 1e-7) =>
-  !!a && !!b && Math.abs(a.lat - b.lat) < eps && Math.abs(a.lng - b.lng) < eps;
+/** Kakao LatLng 객체/POJO 모두 대응 정규화 */
+export function normalizeLL(v: unknown): LatLng | null {
+  if (!v) return null;
+
+  // kakao.maps.LatLng 인스턴스
+  if (
+    typeof (v as any).getLat === "function" &&
+    typeof (v as any).getLng === "function"
+  ) {
+    const lat = (v as any).getLat();
+    const lng = (v as any).getLng();
+    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+  }
+
+  // { lat, lng } 형태
+  const lat = Number((v as any)?.lat);
+  const lng = Number((v as any)?.lng);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+/** 부동소수점 비교 오차 보정 (LatLng | kakao.LatLng 모두 처리) */
+export const sameCoord = (
+  a?: LatLng | { lat: number; lng: number } | null,
+  b?: LatLng | { lat: number; lng: number } | null,
+  eps = 1e-7
+): boolean => {
+  if (!a || !b) return false;
+
+  const aa = normalizeLL(a);
+  const bb = normalizeLL(b);
+  if (!aa || !bb) return false;
+
+  return Math.abs(aa.lat - bb.lat) < eps && Math.abs(aa.lng - bb.lng) < eps;
+};
 
 export const sameViewport = (
   a?: Viewport | null,
   b?: Viewport | null,
   eps = 1e-7
-) => {
+): boolean => {
   if (!a || !b) return false;
-  const eq = (p: LatLng, q: LatLng) =>
-    Math.abs(p.lat - q.lat) < eps && Math.abs(p.lng - q.lng) < eps;
+
   return (
     a.zoomLevel === b.zoomLevel &&
-    eq(a.leftTop, b.leftTop) &&
-    eq(a.leftBottom, b.leftBottom) &&
-    eq(a.rightTop, b.rightTop) &&
-    eq(a.rightBottom, b.rightBottom)
+    sameCoord(a.leftTop, b.leftTop, eps) &&
+    sameCoord(a.leftBottom, b.leftBottom, eps) &&
+    sameCoord(a.rightTop, b.rightTop, eps) &&
+    sameCoord(a.rightBottom, b.rightBottom, eps)
   );
 };
-
-/** Kakao LatLng 객체/POJO 모두 대응 정규화 */
-export function normalizeLL(v: any): LatLng {
-  if (v && typeof v.getLat === "function" && typeof v.getLng === "function") {
-    return { lat: v.getLat(), lng: v.getLng() };
-  }
-  return { lat: Number(v?.lat), lng: Number(v?.lng) };
-}
 
 /** PropertyItem -> ViewSource (얇은 어댑터) */
 export function toViewSourceFromPropertyItem(p: PropertyItem): ViewSource {

@@ -4,7 +4,7 @@ import {
   normalizeImages,
   flattenCards,
 } from "@/features/properties/lib/media/normalize";
-import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
+import { PropertyViewDetails } from "../../view/types";
 
 /**
  * View에서 넘어온 patch(Partial<PropertyViewDetails>)를 기존 PropertyItem에 병합.

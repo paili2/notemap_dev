@@ -2,7 +2,6 @@
 "use client";
 
 import type { MutableRefObject } from "react";
-import { distM } from "@/features/map/hooks/poi/shared/geometry";
 import {
   parseStationAndExit,
   pickBestStation,
@@ -18,6 +17,7 @@ import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
 // ✅ 라벨 직접 숨기기용
 import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
+import { distM } from "@/features/map/poi/lib/geometry";
 
 type SearchDeps = {
   kakaoSDK: any;
@@ -35,7 +35,7 @@ type SearchDeps = {
   }) => void;
   clearTempMarkers: () => void;
   onSubmitSearch?: (q: string) => void;
-  // 🔹 기존 메뉴 오픈 콜백 (임시핀용)
+  // 🔹 기존 메뉴 오픈 콜백 (임시핀 & 실핀 공통)
   onOpenMenu?: (args: {
     position: { lat: number; lng: number };
     propertyId: string | number;
@@ -44,7 +44,7 @@ type SearchDeps = {
   }) => void;
   onChangeHideLabelForId?: (id?: string) => void;
   lastSearchCenterRef: MutableRefObject<{ lat: number; lng: number } | null>;
-  // 🔹 새로 추가: "해당 핀을 클릭한 것처럼" 처리하는 콜백
+  // 🔹 선택된 핀을 “리스트/사이드바 쪽에서도 클릭” 처리하고 싶을 때
   onMarkerClick?: (id: string | number) => void;
 };
 
@@ -67,10 +67,14 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
   const query = text.trim();
   if (!query || !kakaoSDK || !mapInstance) return;
 
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[searchPlaceOnMap] start", { query });
+  }
+
   onSubmitSearch?.(query);
 
   const setCenterOnly = (lat: number, lng: number) => {
-    console.log("[setCenterOnly]", { lat, lng, query });
+    console.log("[searchPlaceOnMap] setCenterOnly", { lat, lng, query });
     const ll = new kakaoSDK.maps.LatLng(lat, lng);
     mapInstance.setCenter(ll);
     mapInstance.setLevel(3);
@@ -109,7 +113,7 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
     lng: number,
     label?: string | null
   ) => {
-    const NEAR_THRESHOLD_M = 450;
+    const NEAR_THRESHOLD_M = 800;
 
     type RealAroundPin = {
       id: string;
@@ -189,7 +193,9 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
 
     let bestReal = findBestRealAround();
 
-    console.log("[DEBUG bestReal]", bestReal);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[searchPlaceOnMap] bestReal (first)", bestReal);
+    }
 
     // 못 찾았으면 뷰포트 강제 새로고침 한 번 시도
     if (!bestReal && kakaoSDK && mapInstance?.getLevel) {
@@ -203,8 +209,13 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
       } catch {}
 
       bestReal = findBestRealAround();
+
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[searchPlaceOnMap] bestReal (after refresh)", bestReal);
+      }
     }
 
+    // ✅ 근처에서 실제 매물을 찾은 경우 → 바로 그 매물 기준으로 메뉴 열기 + 라벨 숨기기
     if (bestReal) {
       const {
         id,
@@ -217,6 +228,16 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
       const pinKind: PinKind = (kind ?? "question") as PinKind;
 
       runAfterIdle(() => {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[searchPlaceOnMap] open REAL pin from search", {
+            id,
+            realLat,
+            realLng,
+            title,
+            pinKind,
+          });
+        }
+
         clearTempMarkers();
 
         lastSearchCenterRef.current = {
@@ -224,30 +245,34 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
           lng: realLng,
         };
 
-        // ✅ 1) state 기반 라벨 숨김 시도
-        onChangeHideLabelForId?.(String(id));
-
-        // ✅ 2) 혹시 몰라서, 해당 위치 주변 라벨을 직접 숨김
+        // 🔥 좌표 기준으로 라벨 직접 숨기기
         try {
           if (mapInstance) {
             hideLabelsAround(mapInstance, realLat, realLng, 56);
+            if (process.env.NODE_ENV !== "production") {
+              console.log("[searchPlaceOnMap] hideLabelsAround(real pin)", {
+                realLat,
+                realLng,
+              });
+            }
           }
         } catch (e) {
           console.warn("[searchPlaceOnMap] hideLabelsAround error", e);
         }
 
-        // ✅ 3) “핀 클릭한 것처럼” 처리
-        if (onMarkerClick) {
-          onMarkerClick(id);
-        } else {
-          // 안전장치: onMarkerClick이 없으면 기존 방식으로
-          onOpenMenu?.({
-            position: { lat: realLat, lng: realLng },
-            propertyId: id,
-            propertyTitle: title,
-            pin: { kind: pinKind, isFav: false },
-          });
-        }
+        // 🔥 이 매물 id 기준으로 라벨 숨김 상태 유지
+        onChangeHideLabelForId?.(String(id));
+
+        // ✅ 메뉴를 "실제 매물 id" 기준으로 연다
+        onOpenMenu?.({
+          position: { lat: realLat, lng: realLng },
+          propertyId: id,
+          propertyTitle: title,
+          pin: { kind: pinKind, isFav: false },
+        });
+
+        // 리스트/사이드바 동기화
+        onMarkerClick?.(id);
       });
 
       return;
@@ -280,6 +305,15 @@ export async function searchPlaceOnMap(text: string, deps: SearchDeps) {
     lastSearchCenterRef.current = { lat, lng };
 
     const id = "__search__";
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[searchPlaceOnMap] create __search__ marker", {
+        id,
+        lat,
+        lng,
+        label,
+      });
+    }
 
     upsertDraftMarker({
       id,

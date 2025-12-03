@@ -1,6 +1,7 @@
+// features/map/pages/MapHomeUI/MapHomeUI.tsx
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect } from "react";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 
@@ -34,6 +35,7 @@ import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 import { focusMapToPosition } from "./lib/viewUtils";
 import { TopRegion } from "./components/TopRegion";
 import usePlaceSearchOnMap from "./hooks/usePlaceSearchOnMap";
+import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
 
 type ViewportBounds = {
   sw: { lat: number; lng: number };
@@ -151,28 +153,35 @@ export function MapHomeUI(props: MapHomeUIProps) {
     searchRes,
   });
 
-  // 🔁 메뉴 오픈 핸들러 래핑: 임시핀/실핀에 따라 hideLabelForId 설정
+  // 🔁 메뉴 오픈 핸들러 래핑: 클릭된 핀 id 기준으로 라벨 숨김
   const handleOpenMenuInternal = useCallback(
     (args: {
       position: { lat: number; lng: number };
       propertyId: string | number;
       propertyTitle: string;
       pin?: { kind: PinKind; isFav: boolean };
+      // searchPlaceOnMap 쪽에서만 넣는 디버그 필드
+      source?: string;
     }) => {
       const idStr = String(args.propertyId);
 
-      const isPureDraft =
-        idStr === "__draft__" || idStr.startsWith("__search__");
-
-      if (isPureDraft) {
-        onChangeHideLabelForId?.("__draft__");
-      } else {
-        onChangeHideLabelForId?.(idStr);
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[MapHomeUI] handleOpenMenuInternal", {
+          from: (args as any).source ?? "unknown",
+          propertyId: args.propertyId,
+          idStr,
+          prevHideLabelForId: hideLabelForId,
+          menuOpen,
+          menuAnchor,
+        });
       }
+
+      // 🔥 임시핀(__search__)이든 실핀이든 "그 핀 id 그대로"
+      onChangeHideLabelForId?.(idStr);
 
       onOpenMenu?.(args);
     },
-    [onOpenMenu, onChangeHideLabelForId]
+    [onOpenMenu, onChangeHideLabelForId, hideLabelForId, menuOpen, menuAnchor]
   );
 
   // 🔍 상단 장소 검색 + 검색핀 관리
@@ -273,10 +282,33 @@ export function MapHomeUI(props: MapHomeUIProps) {
   );
 
   const activeMenu = (filter as MapMenuKey) ?? "all";
+
+  // ✅ 메뉴가 열려 있으면 menuTargetId 기준으로 라벨 숨김 강제
+  const effectiveHideLabelForId = useMemo(() => {
+    if (menuOpen && menuTargetId != null) {
+      return String(menuTargetId);
+    }
+    return hideLabelForId ?? undefined;
+  }, [menuOpen, menuTargetId, hideLabelForId]);
+
   const visibleMarkers = useMemo(
     () => mergedWithTempDraft,
     [mergedWithTempDraft]
   );
+
+  // 🔄 메뉴가 열린 상태에서 마커 세트가 바뀌면 앵커 주변 라벨 다시 숨기기
+  useEffect(() => {
+    if (!menuOpen || !menuAnchor) return;
+    if (!kakaoSDK || !mapInstance) return;
+
+    try {
+      hideLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
+    } catch (e) {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[MapHomeUI] hideLabelsAround on markers change error", e);
+      }
+    }
+  }, [menuOpen, menuAnchor, visibleMarkers, kakaoSDK, mapInstance]);
 
   // 🔄 /map 다시 치도록 하는 함수: 현재 뷰포트(또는 overrideBounds)로 onViewportChange 호출
   const refreshViewportPins = useCallback(
@@ -372,7 +404,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         pinsError={pinsError || searchError}
         menuOpen={menuOpen}
         menuAnchor={menuAnchor}
-        hideLabelForId={hideLabelForId}
+        hideLabelForId={effectiveHideLabelForId}
         onMarkerClick={onMarkerClick}
         onOpenMenu={handleOpenMenuInternal}
         onChangeHideLabelForId={onChangeHideLabelForId}

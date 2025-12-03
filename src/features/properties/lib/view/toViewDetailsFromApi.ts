@@ -1,5 +1,5 @@
-import { PropertyViewDetails } from "../../components/modals/PropertyViewModal/types";
 import { OrientationRow, OrientationValue } from "../../types/property-domain";
+import { PropertyViewDetails } from "../../view/types";
 import { mapBadgeToPinKind } from "../badge";
 
 /** 서버 핀 상세 타입 */

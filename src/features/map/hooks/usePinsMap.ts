@@ -64,8 +64,6 @@ export function usePinsMap() {
   const load = useCallback(
     async (overrideFilters?: Filters) => {
       if (!bounds) {
-        // bounds 가 아직 없으면 아무 것도 하지 않음
-        // console.log("[usePinsMap] skip load: no bounds");
         return;
       }
 
@@ -73,8 +71,6 @@ export function usePinsMap() {
         ...filters,
         ...(overrideFilters ?? {}),
       };
-
-      // console.log("[usePinsMap] load()", { bounds, finalFilters });
 
       abortRef.current?.abort();
       const ctrl = new AbortController();
