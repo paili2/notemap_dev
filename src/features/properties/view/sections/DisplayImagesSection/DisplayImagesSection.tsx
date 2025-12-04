@@ -200,15 +200,6 @@ export default function DisplayImagesSection({
   const [cardIdxs, setCardIdxs] = useState<number[]>([]);
 
   useEffect(() => {
-    const lengthKey = cardGroups.map((g) => g.items?.length ?? 0).join(",");
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[DisplayImagesSection] cardGroups effect", {
-        groups: cardGroups.length,
-        lengths: lengthKey,
-      });
-    }
-
     const next = [...cardIdxs];
     let changed = false;
 
@@ -237,15 +228,6 @@ export default function DisplayImagesSection({
   const [fileIdxs, setFileIdxs] = useState<number[]>([]);
 
   useEffect(() => {
-    const lengthKey = fileGroups.map((g) => g.items?.length ?? 0).join(",");
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.debug("[DisplayImagesSection] fileGroups effect", {
-        groups: fileGroups.length,
-        lengths: lengthKey,
-      });
-    }
-
     const next = [...fileIdxs];
     let changed = false;
 

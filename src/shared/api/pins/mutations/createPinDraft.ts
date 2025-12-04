@@ -1,5 +1,4 @@
 import { api } from "../../api";
-import { DEV, assertNoTruncate } from "../utils";
 import type { CreatePinDraftDto } from "../types";
 
 type CreatePinDraftResponse = {
@@ -42,14 +41,6 @@ export async function createPinDraft(
       : {}),
   };
 
-  assertNoTruncate("createPinDraft", payload.lat, payload.lng);
-
-  if (DEV) {
-    console.groupCollapsed("[createPinDraft] payload");
-    console.log(payload);
-    console.groupEnd();
-  }
-
   const request = api.post<CreatePinDraftResponse>("/pin-drafts", payload, {
     withCredentials: true,
     headers: {
@@ -61,13 +52,6 @@ export async function createPinDraft(
   });
 
   const { data, headers, status } = await request;
-
-  if (DEV) {
-    console.groupCollapsed("[createPinDraft] response");
-    console.log("status:", status);
-    console.log("data:", data);
-    console.groupEnd();
-  }
 
   if (status === 409) {
     throw new Error("중복 요청이 감지되었습니다. 잠시 후 다시 시도해주세요.");
@@ -81,10 +65,7 @@ export async function createPinDraft(
     (Math.abs(savedLat - payload.lat) > 1e-8 ||
       Math.abs(savedLng - payload.lng) > 1e-8)
   ) {
-    console.warn("[coords-mismatch:createPinDraft] server-truncated?", {
-      sent: { lat: payload.lat, lng: payload.lng },
-      saved: { lat: savedLat, lng: savedLng },
-    });
+    // 좌표 mismatch — 디버그용이었으므로 지금은 아무 처리하지 않음
   }
 
   let draftId: string | number | undefined =
@@ -109,5 +90,6 @@ export async function createPinDraft(
     e.responseData = data;
     throw e;
   }
+
   return { id: String(draftId) };
 }

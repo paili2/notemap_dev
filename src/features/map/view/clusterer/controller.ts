@@ -73,13 +73,6 @@ export function mountClusterMode(
           }
         }
       );
-
-      console.log(
-        "[cleanup-overlays-at]",
-        lat,
-        lng,
-        "→ 중복 오버레이/마커 정리 완료"
-      );
     });
   }
 

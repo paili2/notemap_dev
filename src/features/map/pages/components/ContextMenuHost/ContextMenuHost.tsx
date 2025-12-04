@@ -1,4 +1,3 @@
-// features/map/pages/components/ContextMenuHost/ContextMenuHost.tsx
 "use client";
 
 import { useMemo, useRef } from "react";
@@ -11,11 +10,7 @@ import { useReservationVersion } from "@/features/survey-reservations/store/useR
 import PinContextMenuContainer from "@/features/map/shared/pinContextMenu/components/PinContextMenu/PinContextMenuContainer";
 import { CreateFromPinArgs } from "@/features/map/shared/pinContextMenu/components/PinContextMenu/types";
 
-import {
-  assertNoTruncate,
-  normalizeLL,
-  toGroupingPosKeyFromPos,
-} from "./utils";
+import { normalizeLL, toGroupingPosKeyFromPos } from "./utils";
 import { useContextMenuAnchor } from "./useContextMenuAnchor";
 import { ContextMenuHostProps, LatLng, ReserveFromMenuArgs } from "./types";
 import { createPinDraft } from "@/shared/api/pins";
@@ -91,12 +86,6 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
 
   type LatLngRO = Readonly<{ lat: number; lng: number }>;
   const anchorPosRO: LatLngRO = { lat: anchorPos.lat, lng: anchorPos.lng };
-
-  assertNoTruncate(
-    "ContextMenuHost:anchorPos",
-    anchorPosRO.lat,
-    anchorPosRO.lng
-  );
 
   /** 핀 모델: effectiveTarget 기준 */
   const pin = effectiveTarget.marker
@@ -174,7 +163,6 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
 
       // 새 draft 핀 만들고 예약
       const { lat, lng, title, roadAddress, jibunAddress, dateISO } = args;
-      assertNoTruncate("ContextMenuHost:onReserve:createDraft", lat, lng);
 
       const draft = await createPinDraft({
         lat,
@@ -306,8 +294,6 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
         const basePos = effectiveTarget.marker?.position
           ? normalizeLL(effectiveTarget.marker.position)
           : anchorPosRO;
-
-        assertNoTruncate("ContextMenuHost:onCreate", basePos.lat, basePos.lng);
 
         let fromPinDraftId: number | undefined;
         let createMode: CreateFromPinArgs["createMode"] = "NORMAL";

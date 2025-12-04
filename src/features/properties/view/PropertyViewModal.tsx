@@ -51,14 +51,24 @@ function toViewPatchFromEdit(
   return patch;
 }
 
+/** 🔧 수정: 항상 usePinDetail(qData) 결과를 우선 사용하고,
+ *  쿼리 데이터가 없을 때만 data.editInitial 를 fallback 으로 사용
+ */
 function ensureInitialForEdit(args: {
   qData: any;
   data?: ViewDataWithEdit | null;
   effectiveId?: string | number | null | undefined;
 }) {
   const { qData, data, effectiveId } = args;
+
   const raw = qData?.raw ?? null;
-  const view = (qData?.view ?? data ?? null) as
+  const viewFromQuery = qData?.view ?? null;
+
+  // data 쪽 view 는 쿼리 결과가 없을 때만 fallback으로 사용
+  const fallbackView =
+    (data as any)?.view ?? (data as any as PropertyViewDetails | null) ?? null;
+
+  const view = (viewFromQuery || fallbackView) as
     | PropertyViewDetails
     | (PropertyViewDetails & { editInitial?: any })
     | null;
@@ -69,21 +79,29 @@ function ensureInitialForEdit(args: {
     (raw && raw.id) ??
     (view as any)?.id ??
     (data as any)?.id ??
+    (data as any)?.propertyId ??
     effectiveId ??
     null;
 
   const ensuredView =
     ensuredId != null ? { ...(view as any), id: ensuredId } : (view as any);
 
-  const fromProp = (data as any)?.editInitial;
-  if (fromProp && (fromProp.view || fromProp.raw)) {
-    if (fromProp.view && ensuredId != null) {
-      fromProp.view = { ...(fromProp.view ?? {}), id: ensuredId };
+  const hasQueryData = !!(qData && (qData.raw || qData.view));
+
+  // 🔥 쿼리 데이터가 없을 때만 editInitial 사용
+  if (!hasQueryData) {
+    const fromProp = (data as any)?.editInitial;
+    if (fromProp && (fromProp.view || fromProp.raw)) {
+      if (fromProp.view && ensuredId != null) {
+        fromProp.view = { ...(fromProp.view ?? {}), id: ensuredId };
+      }
+      return fromProp;
     }
-    return fromProp;
   }
 
-  if (raw || qData?.view) return { raw, view: ensuredView };
+  if (raw || qData?.view) {
+    return { raw, view: ensuredView };
+  }
   return { view: ensuredView };
 }
 

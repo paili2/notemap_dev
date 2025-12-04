@@ -67,7 +67,8 @@ type BuildUpdateArgs = {
   realAreaMaxPy?: string | number | null;
 
   // 등기/등급/엘리베이터
-  elevator?: "O" | "X";
+  /** 🔥 undefined일 때는 패치에서 완전히 제외하기 위함 */
+  elevator?: "O" | "X" | undefined;
   registry?: RegistryUi;
   registryOne?: RegistryUi;
   slopeGrade?: Grade;

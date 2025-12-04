@@ -89,8 +89,6 @@ export default function ModalsHost(props: {
     onCloseRoadview,
   } = props;
 
-  console.debug("[ModalsHost] draftHeaderPrefill =", draftHeaderPrefill);
-
   // 뷰 진입 가능 여부
   const canShowView = !!viewOpen && !!selectedViewItem;
 

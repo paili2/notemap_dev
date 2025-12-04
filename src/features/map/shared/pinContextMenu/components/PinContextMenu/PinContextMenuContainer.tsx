@@ -1,4 +1,3 @@
-// features/map/components/ContextMenuHost/PinContextMenuContainer.tsx
 "use client";
 
 import * as React from "react";
@@ -353,43 +352,6 @@ export default function PinContextMenuContainer(props: Props) {
 
   /** ✅ 최종 삭제 가능 여부: 매물 삭제 || 답사예정지 삭제 */
   const canDelete = canDeleteProperty || canDeleteDraft;
-
-  React.useEffect(() => {
-    console.debug("[PinContextMenu] position", {
-      lat: position.getLat(),
-      lng: position.getLng(),
-      propertyId,
-      propertyIdClean,
-      pinId: (pin as any)?.id,
-      isSearchDraft,
-      offsetPx,
-      version,
-      hasReservationAtPos,
-      resolvedDraftState,
-      reserved,
-      planned,
-      draftStateForPanel,
-      draftId,
-      canDeleteProperty,
-      canDeleteDraft,
-    });
-  }, [
-    position,
-    propertyId,
-    propertyIdClean,
-    pin,
-    isSearchDraft,
-    offsetPx,
-    version,
-    hasReservationAtPos,
-    resolvedDraftState,
-    reserved,
-    planned,
-    draftStateForPanel,
-    draftId,
-    canDeleteProperty,
-    canDeleteDraft,
-  ]);
 
   /** 🔥 메뉴가 떠 있는 동안 라벨 숨기기: 여기서 id를 강제로 세팅 */
   React.useEffect(() => {

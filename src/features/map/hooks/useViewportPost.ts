@@ -74,9 +74,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
     (raw?: Viewport) => {
       // ✅ 최상단에서 Viewport 형태 검증
       if (!isValidViewport(raw)) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn("[viewport] _notify called with invalid viewport:", raw);
-        }
         return;
       }
 
@@ -100,9 +97,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
         lats.some((v) => !Number.isFinite(v)) ||
         lngs.some((v) => !Number.isFinite(v))
       ) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn("[viewport] invalid lat/lng", { lats, lngs, q });
-        }
         return;
       }
 
@@ -128,9 +122,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
 
       // 보고/전달 지점: 콜백 + 개발로그
       onChange?.({ swLat, swLng, neLat, neLng, zoom, key });
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[viewport]", { swLat, swLng, neLat, neLng, zoom, key });
-      }
     },
     [buildKey, minDelta, onChange, round]
   );
@@ -138,12 +129,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
   const sendViewportQuery = useCallback(
     (q?: Viewport) => {
       if (!isValidViewport(q)) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn(
-            "[viewport] sendViewportQuery called with invalid viewport:",
-            q
-          );
-        }
         return;
       }
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -156,12 +141,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
   const flushViewport = useCallback(
     (q?: Viewport) => {
       if (!isValidViewport(q)) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn(
-            "[viewport] flushViewport called with invalid viewport:",
-            q
-          );
-        }
         return;
       }
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -170,7 +149,6 @@ export function useViewportPost(opts: UseViewportPostOptions = {}) {
     [_notify]
   );
 
-  // 마지막 키 제공(디버깅/중복 확인용)
   const lastKey = useMemo(() => lastKeyRef.current, []);
 
   useEffect(() => {

@@ -19,6 +19,7 @@ import type {
   ReserveRequestPayload,
 } from "../../PinContextMenu/types";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
+
 /** 느슨한 불리언 변환 (true/"true"/1/"1") */
 const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
 
@@ -144,33 +145,56 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
     return true;
   }, [propertyId]);
 
-  /** 제목이 비어 있고 조회 가능한 등록핀이라면 1회 조회 후 제목 채우기 */
+  /** 제목이 비어 있고 조회 가능한 등록핀이라면 1회 조회 후 제목 채우기
+   *  ⚙️ React Query 캐시/페치 사용 → StrictMode 에서도 네트워크는 1번만
+   */
   useEffect(() => {
     if (displayTitle) return;
     if (!canView) return;
     if (!propertyId) return;
 
-    let alive = true;
-    getPinRaw(String(propertyId))
-      .then((pin: any) => {
-        if (!alive) return;
+    const idStr = String(propertyId).trim();
+    if (!idStr) return;
 
-        const name =
-          pin?.property?.title ??
-          pin?.title ??
-          pin?.name ??
-          pin?.property?.name ??
-          pin?.data?.title ??
-          pin?.data?.name ??
-          "";
+    let cancelled = false;
 
-        if (name) setDisplayTitle(String(name).trim());
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
+    const fillFromPin = (pinLike: any) => {
+      if (cancelled || !pinLike) return;
+
+      const raw = (pinLike as any)?.data ?? pinLike;
+
+      const name =
+        raw?.property?.title ??
+        raw?.title ??
+        raw?.name ??
+        raw?.property?.name ??
+        "";
+
+      if (name) {
+        setDisplayTitle(String(name).trim());
+      }
     };
-  }, [displayTitle, canView, propertyId]);
+
+    // 1️⃣ 캐시에 있으면 네트워크 없이 바로 사용
+    const cached = qc.getQueryData<any>(pinKeys.detail(idStr));
+    if (cached) {
+      fillFromPin(cached);
+      return;
+    }
+
+    // 2️⃣ 없으면 fetchQuery (동일 key 중복 호출은 React Query가 하나로 dedupe)
+    qc.fetchQuery({
+      queryKey: pinKeys.detail(idStr),
+      queryFn: () => getPinRaw(idStr),
+      staleTime: 60_000,
+    })
+      .then(fillFromPin)
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayTitle, canView, propertyId, qc]);
 
   /** ✅ 답사예정/답사지예약(임시핀)일 때 pin-drafts 기반으로 제목 채우기 */
   useEffect(() => {

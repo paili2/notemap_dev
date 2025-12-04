@@ -1,4 +1,3 @@
-// features/map/pages/MapHomeUI/hooks/searchPlaceOnMap.ts
 "use client";
 
 import type { MutableRefObject } from "react";

@@ -56,28 +56,29 @@ export default function BasicInfoView({
         </div>
       </Field>
 
-      {/* 분양사무실 번호 */}
-      <Field label="분양사무실">
+      <Field label="분양사무실" align="start" contentClassName="-mt-[3px]">
         {phones.length === 0 ? (
           <div className="h-9 flex items-center text-sm text-slate-800">-</div>
         ) : (
-          <div className="h-9 flex items-center text-sm text-slate-800 gap-6">
+          <div
+            className="
+        flex flex-col gap-1
+        sm:flex-row sm:gap-6 sm:items-center
+        text-sm text-slate-800
+      "
+          >
             {phones.map((phone) => (
               <div key={phone} className="flex items-center gap-1">
                 <span>{phone}</span>
 
-                {/* 모바일 → 전화걸기 수화기 아이콘 */}
-                {isMobile && (
+                {isMobile ? (
                   <a
                     href={`tel:${toTel(phone)}`}
                     aria-label={`${phone}로 전화 걸기`}
                   >
                     <Phone className="w-4 h-4 text-blue-500 hover:text-blue-600" />
                   </a>
-                )}
-
-                {/* 데스크탑 → 복사 아이콘 + 토스트 */}
-                {!isMobile && (
+                ) : (
                   <button
                     type="button"
                     onClick={() => copyToClipboard(phone)}

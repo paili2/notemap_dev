@@ -2,7 +2,10 @@
 
 import type { UnitLine } from "@/features/properties/types/property-domain";
 
-type Props = { lines?: UnitLine[] };
+type Props = {
+  lines?: UnitLine[];
+  showTitle?: boolean; // 컨테이너에서 제목 따로 그릴 때 false로 사용
+};
 
 /** any → number | undefined (문자열 숫자/쉼표 허용) */
 const toNum = (v: unknown): number | undefined => {
@@ -30,21 +33,30 @@ const toInt = (v: unknown, fallback = 0) => {
 const toBool = (v: unknown) =>
   v === true || v === "true" || v === 1 || v === "1" || v === "Y" || v === "y";
 
-export default function StructureLinesList({ lines = [] }: Props) {
+export default function StructureLinesList({
+  lines = [],
+  showTitle = true,
+}: Props) {
   const hasLines = Array.isArray(lines) && lines.length > 0;
 
   if (!hasLines) {
     return (
       <div className="text-sm">
-        <span className="font-medium">구조별 입력</span>
-        <div className="mt-1 text-muted-foreground">-</div>
+        {showTitle && <span className="font-medium">구조별 입력</span>}
+        <div
+          className={
+            showTitle ? "mt-1 text-muted-foreground" : "text-muted-foreground"
+          }
+        >
+          -
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">구조별 입력</div>
+      {showTitle && <div className="text-sm font-medium">구조별 입력</div>}
 
       <div className="space-y-2">
         {lines.map((l, idx) => {
@@ -86,24 +98,24 @@ export default function StructureLinesList({ lines = [] }: Props) {
                 {/* | */}
                 <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
 
-                {/* 특징 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
+                {/* 특징 (모바일 폰트 축소) */}
+                <div className="flex-1 min-w-0 text-center text-[11px] sm:text-sm truncate">
                   {features}
                 </div>
 
                 {/* | */}
                 <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
 
-                {/* 최소 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
+                {/* 최소 (모바일에서 폭 좁게) */}
+                <div className="flex-[0.6] sm:flex-1 min-w-0 text-center text-sm truncate">
                   {minText}
                 </div>
 
                 {/* | */}
                 <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
 
-                {/* 최대 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
+                {/* 최대 (모바일에서 폭 좁게) */}
+                <div className="flex-[0.6] sm:flex-1 min-w-0 text-center text-sm truncate">
                   {maxText}
                 </div>
               </div>

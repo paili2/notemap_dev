@@ -5,32 +5,6 @@ import { CreatePinAreaGroupDto } from "@/features/properties/types/area-group-dt
 /* 개발환경 플래그 */
 export const DEV = process.env.NODE_ENV !== "production";
 
-/* ───────────── 로컬 좌표 디버그 유틸(외부 의존 제거) ───────────── */
-export function assertNoTruncate(tag: string, lat: number, lng: number) {
-  const latStr = String(lat);
-  const lngStr = String(lng);
-  const latDec = latStr.split(".")[1]?.length ?? 0;
-  const lngDec = lngStr.split(".")[1]?.length ?? 0;
-  if (DEV) {
-    // eslint-disable-next-line no-console
-    console.debug(`[coords-send:${tag}]`, {
-      lat,
-      lng,
-      latStr,
-      lngStr,
-      latDecimals: latDec,
-      lngDecimals: lngDec,
-    });
-    if (latDec < 6 || lngDec < 6) {
-      // eslint-disable-next-line no-console
-      console.warn(`[coords-low-precision:${tag}] 소수 자릿수 부족`, {
-        latStr,
-        lngStr,
-      });
-    }
-  }
-}
-
 /* ───────────── 유틸 ───────────── */
 export function makeIdempotencyKey() {
   try {
@@ -256,15 +230,6 @@ export function sanitizeUnits(
   }));
 
   return mapped;
-}
-
-/* ───────────── 내부 헬퍼: 부분 좌표 PATCH 안전 검사 ───────────── */
-export function safeAssertNoTruncate(origin: string, lat?: any, lng?: any) {
-  const latOk = Number.isFinite(Number(lat));
-  const lngOk = Number.isFinite(Number(lng));
-  if (latOk && lngOk) {
-    assertNoTruncate(origin, Number(lat), Number(lng));
-  }
 }
 
 /* 🔹 export: draft id 보정 유틸 */

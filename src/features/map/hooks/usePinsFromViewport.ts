@@ -39,17 +39,6 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
   const lng = Number((p as any).lng ?? (p as any).x);
   const displayName = String(pickDisplayName(p)).trim();
 
-  console.debug("[pinPointToMarker]", {
-    id: String((p as any).id),
-    name: (p as any).name,
-    title: (p as any).title,
-    picked: displayName,
-    addressLine: (p as any).addressLine,
-    lat,
-    lng,
-    source,
-  });
-
   return {
     id: String(p.id),
     position: { lat, lng },
@@ -119,9 +108,6 @@ export function usePinsFromViewport({
 
       // ✅ 같은 BBox로 이미 호출했다면 /map 재요청 스킵
       if (isSameBBox(lastBBoxRef.current, curBBox)) {
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[usePinsFromViewport] skip duplicated BBox", curBBox);
-        }
         return;
       }
 
@@ -136,19 +122,6 @@ export function usePinsFromViewport({
         ...(typeof isNew === "boolean" ? { isNew } : {}),
         ...(typeof isOld === "boolean" ? { isOld } : {}),
       });
-
-      console.table(
-        (res?.data?.points ?? []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          title: p.title,
-          propertyName: (p as any).propertyName,
-          addressLine: p.addressLine,
-          isNew: (p as any).isNew,
-          isOld: (p as any).isOld,
-        })),
-        ["id", "name", "title", "propertyName", "addressLine", "isNew", "isOld"]
-      );
 
       setPoints(res.data.points ?? []);
       setDrafts(res.data.drafts ?? []);
@@ -183,18 +156,6 @@ export function usePinsFromViewport({
       pinPointToMarker(p, "draft")
     );
     const all = [...live, ...draftMarkers];
-
-    console.debug(
-      "[usePinsFromViewport] markers",
-      all.map((m) => ({
-        id: String(m.id),
-        name: (m as any).name,
-        title: m.title,
-        address: (m as any).address,
-        lat: m.position.lat,
-        lng: m.position.lng,
-      }))
-    );
 
     return all;
   }, [points, drafts]);

@@ -8,7 +8,6 @@ import { EMPTY_ASPECTS } from "./constants";
 import {
   BuildingType,
   Grade,
-  normalizeBuildingTypeLabelToEnum,
 } from "@/features/properties/types/property-domain";
 import { RegistryUi } from "./registry";
 import { useInjectInitialData } from "./useInjectInitialData";
@@ -80,7 +79,16 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   /** 🔥 헤더 R 인풋과 연결될 리베이트 텍스트(만원 단위) */
   const [rebateText, setRebateText] = useState<string>("");
 
-  const [elevator, setElevator] = useState<"O" | "X" | undefined>();
+  /** ✅ 엘리베이터 상태 + touched 플래그 */
+  const [elevator, _setElevator] = useState<"O" | "X" | undefined>();
+  const [elevatorTouched, setElevatorTouched] = useState(false);
+
+  const setElevator = useCallback((v: "O" | "X" | null | undefined) => {
+    const normalized: "O" | "X" | undefined =
+      v === "O" ? "O" : v === "X" ? "X" : undefined;
+    _setElevator(normalized);
+    setElevatorTouched(true);
+  }, []);
 
   const [buildingGrade, setBuildingGrade] = useState<BuildingGrade>("");
 
@@ -147,7 +155,8 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       realMaxPy: "",
     });
     setExtraAreaSets([]);
-    setElevator("O");
+    _setElevator("O"); // ✔ 그냥 초기값만 세팅
+    setElevatorTouched(false); // ✔ touched 리셋
     setBuildingGrade("");
     setRegistry(undefined);
     setSlopeGrade(undefined);
@@ -199,7 +208,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
     // 면적/건물
     setBaseAreaSet,
     setExtraAreaSets,
-    setElevator,
+    setElevator, // ✅ touched 포함된 setter
     setBuildingGrade,
     setRegistry,
     setSlopeGrade,
@@ -289,6 +298,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspectsTouched,
       rebateText,
       areaSetsTouched,
+      elevatorTouched, // ✅ 추가
       // 🔥 HeaderForm에서 바로 쓸 수 있게 alias 제공
       rebateRaw: rebateText,
     }),
@@ -330,6 +340,7 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
       aspectsTouched,
       rebateText,
       areaSetsTouched,
+      elevatorTouched,
     ]
   );
 

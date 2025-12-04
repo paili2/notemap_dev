@@ -31,13 +31,19 @@ export default function Field({
       ? "items-end"
       : "items-center";
 
-  // 기본은 auto(= max-content 1fr), labelWidth가 있으면 고정폭
+  // 🔹 안쪽 flex 정렬에도 align을 반영
+  const innerAlignClass =
+    align === "start"
+      ? "items-start"
+      : align === "end"
+      ? "items-end"
+      : "items-center";
+
   const gridCols =
     typeof labelWidth === "number" || typeof labelWidth === "string"
       ? `${typeof labelWidth === "number" ? `${labelWidth}px` : labelWidth} 1fr`
       : "max-content 1fr";
 
-  // 긴 라벨 처리
   const isTruncate = longLabelMode === "truncate";
   const longLabelClass = isTruncate
     ? "truncate overflow-hidden"
@@ -60,8 +66,8 @@ export default function Field({
         // @ts-ignore htmlFor는 <label>일 때만 의미 있음
         htmlFor={renderAsLabel ? htmlFor : undefined}
         className={cn(
-          // 수직 가운데 + 동일 라인높이 간섭 제거
-          "flex items-center text-muted-foreground leading-none",
+          "flex text-muted-foreground leading-none",
+          innerAlignClass, // ⬅️ 여기
           noWrapLabel && longLabelMode !== "wrap" && "whitespace-nowrap",
           dense && "pt-0.5",
           longLabelClass,
@@ -80,7 +86,8 @@ export default function Field({
 
       <div
         className={cn(
-          "min-w-0 flex items-center leading-none",
+          "min-w-0 flex leading-none",
+          innerAlignClass, // ⬅️ 그리고 여기
           contentClassName
         )}
         style={{

@@ -153,13 +153,29 @@ export default function PropertyEditModalBody({
     const initPinKind =
       src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
 
-    const out = {
+    const out: any = {
       ...src,
       ...(salePrice !== undefined ? { salePrice } : {}),
       ...(bt !== undefined ? { buildingType: bt } : {}),
       ...(reg !== undefined ? { registry: reg } : {}),
       ...(initPinKind !== undefined ? { pinKind: initPinKind } : {}),
     };
+
+    /* ───────── 엘리베이터 초기 스냅샷(hasElevator) ───────── */
+    let initialHasElevator: boolean | null | undefined =
+      src?.initialHasElevator ?? src?.hasElevator;
+
+    // view 쪽에서 elevator("O"/"X")만 있는 경우 보완
+    if (initialHasElevator == null && src?.elevator != null) {
+      const ev = String(src.elevator).toUpperCase();
+      if (ev === "O") initialHasElevator = true;
+      else if (ev === "X") initialHasElevator = false;
+    }
+
+    if (initialHasElevator != null) {
+      out.hasElevator = initialHasElevator;
+      out.initialHasElevator = initialHasElevator;
+    }
 
     console.log("[init] bridgedInitial:", {
       id: out?.id,
@@ -168,6 +184,8 @@ export default function PropertyEditModalBody({
       registrationType: out?.registrationType,
       registrationTypeName: out?.registrationTypeName,
       registrationTypeId: out?.registrationTypeId,
+      hasElevator: out?.hasElevator,
+      initialHasElevator: out?.initialHasElevator,
     });
 
     return out;

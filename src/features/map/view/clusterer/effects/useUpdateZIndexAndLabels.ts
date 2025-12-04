@@ -1,4 +1,3 @@
-// features/map/hooks/useClustererWithLabels/effects/useUpdateZIndexAndLabels.ts
 "use client";
 
 import { useEffect } from "react";

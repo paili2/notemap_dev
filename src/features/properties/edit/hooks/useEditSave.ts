@@ -155,7 +155,26 @@ export function useEditSave({
     let hasFormChanges = false;
 
     try {
-      const raw = toPinPatch(f, (bridgedInitial ?? {}) as InitialSnapshot);
+      /** 🔸 toPinPatch 에 넘길 초기 스냅샷 준비 */
+      const initialForPatch: InitialSnapshot = {
+        ...((bridgedInitial ?? {}) as any),
+      };
+
+      // 🔥 title/name 초기값을 일관되게 맞춰준다
+      const initialTitle =
+        (
+          (initialForPatch as any).title ??
+          (initialForPatch as any).name ??
+          ""
+        )?.trim() ?? "";
+      (initialForPatch as any).title = initialTitle;
+      (initialForPatch as any).name =
+        (initialForPatch as any).name ?? initialTitle;
+
+      const raw = toPinPatch(
+        f,
+        initialForPatch as InitialSnapshot
+      ) as UpdatePinDto;
 
       // 초기 데이터에 향/방향 값이 전무하면 이번 PATCH에서 삭제 (directions는 유지)
       const initAspectBundle = {
@@ -217,30 +236,28 @@ export function useEditSave({
         (dto as any).isOld = buildingGrade === "old";
       }
 
-      // 🔥 엘리베이터 / 건물유형: "초기값과 다를 때만" PATCH 에 포함
+      // 🔥 엘리베이터 diff
+      const nextHasElevator =
+        f.elevator === "O" ? true : f.elevator === "X" ? false : null;
+
       const initialHasElevator: boolean | null =
         (bridgedInitial as any)?.hasElevator ??
         (bridgedInitial as any)?.initialHasElevator ??
         null;
 
-      const nextHasElevator =
-        f.elevator === "O" ? true : f.elevator === "X" ? false : null;
-
-      console.log("[save] elevator diff check:", {
-        initialHasElevator,
+      console.log("[save] elevator final:", {
         formElevator: f.elevator,
         nextHasElevator,
+        initialHasElevator,
       });
 
-      if (nextHasElevator === initialHasElevator) {
-        // 차이 없으면 dto에서 제거(혹시 toPinPatch가 넣었어도 덮어씀)
-        delete (dto as any).hasElevator;
-      } else if (typeof nextHasElevator === "boolean") {
+      if (typeof nextHasElevator === "boolean") {
         (dto as any).hasElevator = nextHasElevator;
       } else {
         delete (dto as any).hasElevator;
       }
 
+      // 🔥 buildingType diff
       const initialBuildingType: BuildingType | null =
         (bridgedInitial as any)?.buildingType ??
         (bridgedInitial as any)?.initialBuildingType ??
@@ -258,9 +275,35 @@ export function useEditSave({
       } else if (nextBuildingType != null) {
         (dto as any).buildingType = nextBuildingType;
       } else {
-        // null 로 보내고 싶으면 여기서 명시, 아니면 삭제
         delete (dto as any).buildingType;
       }
+
+      // 🔥 특정 필드는 “현재 bridgedInitial 값과 같으면” 강제로 잘라낸다
+      const removeIfSameAsInitial = (key: string) => {
+        if (!dto || !(key in dto)) return;
+        const cur = (dto as any)[key];
+        let base = (bridgedInitial as any)?.[key];
+
+        // name 은 title 과 엮여 있을 수 있어서 title 도 같이 비교
+        if (key === "name" && base == null) {
+          base = (bridgedInitial as any)?.title;
+        }
+
+        const same =
+          typeof cur === "object"
+            ? JSON.stringify(cur) === JSON.stringify(base)
+            : cur === base;
+
+        if (same) {
+          delete (dto as any)[key];
+        }
+      };
+
+      removeIfSameAsInitial("name");
+      removeIfSameAsInitial("hasElevator");
+      removeIfSameAsInitial("buildingType");
+      removeIfSameAsInitial("areaGroups");
+      removeIfSameAsInitial("privateMemo");
 
       console.log("[save] final toggles (diffed):", {
         buildingGrade,
@@ -274,6 +317,7 @@ export function useEditSave({
         hasElevator: (dto as any).hasElevator,
       });
 
+      // 최종 dto 기준으로 의미있는 변경 판단
       hasFormChanges = hasMeaningfulPatch(dto);
 
       console.groupCollapsed("[save] after toPinPatch+strip (diffed only)");
@@ -308,9 +352,17 @@ export function useEditSave({
         console.log("PATCH /pins/:id payload", dto);
         await updatePin(propertyId, dto);
 
+        // 🔥⭐ PATCH 성공 후: 초기 스냅샷(bridgedInitial)을 최신 서버 상태로 업데이트
+        if (bridgedInitial && typeof bridgedInitial === "object") {
+          Object.assign(bridgedInitial as any, dto);
+          console.log(
+            "[save] bridgedInitial updated with dto:",
+            bridgedInitial
+          );
+        }
+
         const idStr = String(propertyId);
 
-        // ✅ 상세 정보/사진 관련 쿼리 캐시 무효화
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: pinDetailKey(idStr),
@@ -323,7 +375,6 @@ export function useEditSave({
           }),
         ]);
 
-        // 🔥 여기서: 수정 성공 시마다 map 갱신 콜백 호출
         if (onLabelChanged) {
           try {
             await onLabelChanged();
@@ -386,6 +437,10 @@ export function useEditSave({
           ? buildingGrade
           : undefined;
 
+      // 🔽 elevator는 null → undefined 로 정규화
+      const elevatorForPayload: "O" | "X" | undefined =
+        f.elevator === "O" || f.elevator === "X" ? f.elevator : undefined;
+
       const payload = buildUpdatePayload(
         {
           title: f.title,
@@ -414,7 +469,7 @@ export function useEditSave({
           baseAreaTitleOut,
           extraAreaTitlesOut,
 
-          elevator: f.elevator,
+          elevator: elevatorForPayload,
           slopeGrade: f.slopeGrade,
           structureGrade: f.structureGrade,
 

@@ -3,7 +3,6 @@ import type { PinKind } from "@/features/pins/types";
 import { mapPinKindToBadge } from "@/features/properties/lib/badge";
 import {
   DEV,
-  assertNoTruncate,
   round6,
   normalizeParkingGradeStr,
   toServerBuildingType,
@@ -258,8 +257,6 @@ export async function createPin(
     console.log(payload);
     console.groupEnd();
   }
-
-  assertNoTruncate("createPin", payload.lat, payload.lng);
 
   const request = api.post<CreatePinResponse>("/pins", payload, {
     withCredentials: true,

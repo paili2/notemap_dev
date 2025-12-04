@@ -32,8 +32,7 @@ type Args = {
   safeLabelMax: number;
   clusterMinLevel: number;
   selectedKey: string | null;
-  realMarkersKey: string; // 키 변경 시 재생성
-  // refs
+  realMarkersKey: string;
   markerObjsRef: React.MutableRefObject<Record<string, any>>;
   markerClickHandlersRef: React.MutableRefObject<
     Record<string, ((...a: any[]) => void) | null>
@@ -67,7 +66,6 @@ export function useRebuildScene(args: Args) {
     onMarkerClickRef,
   } = args;
 
-  // markers 내용 변화에 반응하도록 안정적인 키 생성
   const sceneKey = useMemo(() => buildSceneKey(markers), [markers]);
 
   useEffect(() => {
@@ -87,22 +85,22 @@ export function useRebuildScene(args: Args) {
     Object.values(markerObjsRef.current).forEach((mk: any) => mk.setMap(null));
     markerObjsRef.current = {};
 
-    // ① 미리 isPlan 판정 + posKey 계산
+    // ① enrich
     const enriched: EnrichedMarker[] = enrichMarkers(
       markers,
       reservationOrderMap,
       reservationOrderByPosKey
     );
 
-    // ② 라벨을 posKey 단위로 1개만 유지하기 위한 저장소
+    // ② posKey 단위로 라벨 1개만 유지
     const labelByPos: Record<string, { ov: any; isPlan: boolean }> = {};
 
-    // ③ 렌더 순서: 일반 먼저 → plan(답사 관련) 나중
+    // ③ 렌더 순서: 일반 → plan 나중
     const ordered = enriched.sort((a, b) =>
       a.isPlan === b.isPlan ? 0 : a.isPlan ? 1 : -1
     );
 
-    // 거리(m)
+    // 거리 계산 유틸
     const distM = (lat1: number, lng1: number, lat2: number, lng2: number) => {
       const R = 6371000;
       const toRad = (d: number) => (d * Math.PI) / 180;
@@ -146,24 +144,9 @@ export function useRebuildScene(args: Args) {
       ({ m, key, order, isDraft, isPlan, isAddressOnly, posKey }) => {
         const pos = new kakao.maps.LatLng(m.position.lat, m.position.lng);
 
-        // 🔹 name이 주소랑 같은 경우는 라벨 후보에서 제외하기 위한 전처리
-        const nameCandidate = (() => {
-          const n = (m as any).name;
-          const addr = (m as any).address ?? (m as any).addressLine;
-          if (
-            typeof n === "string" &&
-            n.trim().length > 0 &&
-            (!addr || n.trim() !== String(addr).trim())
-          ) {
-            return n; // 주소와 다른 진짜 이름만 허용
-          }
-          return undefined;
-        })();
-
-        // ✅ "매물명" 계열을 최우선으로 한 번 더 잡아준다
         const primaryName =
           firstNonEmpty(
-            cleanLabelCandidate((m as any).name), // MapMarker.name (대부분 매물명)
+            cleanLabelCandidate((m as any).name),
             cleanLabelCandidate((m as any).propertyName),
             cleanLabelCandidate((m as any).property?.name),
             cleanLabelCandidate((m as any).data?.propertyName)
@@ -172,27 +155,16 @@ export function useRebuildScene(args: Args) {
         const displayName =
           primaryName ||
           firstNonEmpty(
-            // 1순위: 그 밖의 title 기반 이름
             cleanLabelCandidate((m as any).property?.title),
-
-            // 2순위: MapMarker.name (주소랑 다를 때만)
-            cleanLabelCandidate(nameCandidate),
-
-            // 3순위: 기타 name 계열
-            cleanLabelCandidate((m as any).point?.name),
             cleanLabelCandidate((m as any).data?.name),
-
-            // 4순위: 그 다음에야 title(주소 등)
             cleanLabelCandidate(m.title),
-
-            // 5순위: 그래도 없으면 id (내부키는 cleanLabelCandidate로 필터)
             cleanLabelCandidate(String(m.id ?? ""))
           ) ||
           "";
 
         const planText = `${m.regionLabel ?? ""} 답사예정`.trim();
 
-        // ── 마커 ─────────────────────────────────────────────
+        // ── marker 생성 ──────────────────────────────
         const mk = createMarker(kakao, pos, {
           isDraft,
           key,
@@ -201,33 +173,26 @@ export function useRebuildScene(args: Args) {
         });
         markerObjsRef.current[key] = mk;
 
-        // 🔥 임시 question 핀 / 답사예정 placeholder 들은 항상 맨 뒤로
         if (
-          key === "__draft__" || // 지도 빈 곳 클릭해서 생기는 임시핀
-          key === DRAFT_ID || // DRAFT_ID 상수 (보통 "__draft__")
-          key.startsWith("__visit__") // serverDrafts에서 온 답사예정핀
+          key === "__draft__" ||
+          key === DRAFT_ID ||
+          key.startsWith("__visit__")
         ) {
           mk.setZIndex(-99999);
         }
 
-        // 클릭 핸들러
         const handler = () => onMarkerClickRef.current?.(key);
         kakao.maps.event.addListener(mk, "click", handler);
         markerClickHandlersRef.current[key] = handler;
 
-        /** 🔒 주소 임시핀은 라벨을 아예 만들지 않는다. (히트박스만) */
         if (isAddressOnly) {
           const hitOv = createHitboxOverlay(kakao, pos, hitboxSizePx, () =>
             onMarkerClickRef.current?.(key)
           );
           hitboxOvRef.current[key] = hitOv;
-          return; // ⬅️ 여기서 끝!
+          return;
         }
 
-        /** ✅ 같은 위치에 이미 "매물 라벨(비 plan)"이 있으면,
-         *    이 핀(plan)은 라벨 없이 히트박스만 만든다.
-         *    → 매물등록핀 라벨만 남기기 위함
-         */
         if (isPlan && posKey && labelByPos[posKey]?.isPlan === false) {
           const hitOv = createHitboxOverlay(kakao, pos, hitboxSizePx, () =>
             onMarkerClickRef.current?.(key)
@@ -238,7 +203,6 @@ export function useRebuildScene(args: Args) {
 
         const labelText = isPlan ? planText : displayName;
 
-        // plan 라벨이 들어오면 같은 위치/근접 라벨들 제거
         if (isPlan) {
           if (posKey) hideLabelsByPosKey(posKey);
           const lat = m.position?.lat;
@@ -248,11 +212,9 @@ export function useRebuildScene(args: Args) {
           }
         }
 
-        // 🔁 기존 라벨이 있으면 제거하지 말고 텍스트 + 위치만 업데이트
         const prev = labelOvRef.current[key];
         if (prev) {
           const el = prev.getContent?.() as HTMLElement | null;
-
           const titleEl = el?.querySelector?.(
             '[data-role="label-title"]'
           ) as HTMLElement | null;
@@ -266,10 +228,9 @@ export function useRebuildScene(args: Args) {
           prev.setPosition(pos);
           prev.setMap(map);
 
-          return; // ⬅️ 새 라벨 생성 로직을 건너뛰고 끝!
+          return;
         }
 
-        // 같은 posKey의 기존 라벨 제거 후 교체 (plan → 교체 가능)
         if (isPlan && posKey && labelByPos[posKey]) {
           try {
             labelByPos[posKey].ov.setMap?.(null);
@@ -277,7 +238,6 @@ export function useRebuildScene(args: Args) {
           delete labelByPos[posKey];
         }
 
-        // 새 라벨 생성 (dataset에는 "원본 좌표"도 심어둔다 — 반올림 금지)
         const labelOv = createLabelOverlay(
           kakao,
           pos,
@@ -285,49 +245,24 @@ export function useRebuildScene(args: Args) {
           labelGapPx,
           typeof order === "number" ? order : undefined
         );
+
         try {
           const el = labelOv.getContent?.() as HTMLDivElement | null;
           if (el) {
             (el as any).dataset = (el as any).dataset || {};
             (el as any).dataset.rawLabel = labelText;
-            (el as any).dataset.posKey = posKey ?? ""; // 그룹핑 전용 키
+            (el as any).dataset.posKey = posKey ?? "";
             (el as any).dataset.posLat = String(m.position?.lat ?? "");
             (el as any).dataset.posLng = String(m.position?.lng ?? "");
             (el as any).dataset.labelType = isPlan ? "plan" : "property";
-
-            const titleEl = (el as any).querySelector?.(
-              '[data-role="label-title"]'
-            );
-            if (titleEl) {
-              if (titleEl.textContent !== labelText) {
-                titleEl.textContent = labelText;
-              }
-            } else if (!el.childElementCount) {
-              if (!el.textContent || el.textContent !== labelText) {
-                el.textContent = labelText;
-              }
-            }
           }
         } catch {}
 
-        // 🔗 여기서 ref에 등록
         labelOvRef.current[key] = labelOv;
         if (posKey) {
           labelByPos[posKey] = { ov: labelOv, isPlan };
         }
 
-        // 🔥 여기 아래에 디버그 로그 추가
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[labelOvRef] add label", {
-            key,
-            labelText,
-            posKey,
-            pos: m.position,
-            isPlan,
-          });
-        }
-
-        // 히트박스
         const hitOv = createHitboxOverlay(kakao, pos, hitboxSizePx, () =>
           onMarkerClickRef.current?.(key)
         );
@@ -335,7 +270,6 @@ export function useRebuildScene(args: Args) {
       }
     );
 
-    // ── initial mode ─────────────────────────────────────────────
     const level = map.getLevel();
     if (level <= safeLabelMax) {
       clustererRef.current?.clear?.();
@@ -370,7 +304,6 @@ export function useRebuildScene(args: Args) {
       Object.values(hitboxOvRef.current).forEach((ov: any) => ov.setMap(map));
     }
 
-    // ── cleanup ─────────────────────────────────────────────
     return () => {
       Object.entries(markerClickHandlersRef.current).forEach(
         ([id, handler]) => {
@@ -391,10 +324,9 @@ export function useRebuildScene(args: Args) {
       hitboxOvRef.current = {};
       markerObjsRef.current = {};
     };
-    // realMarkersKey 또는 markers 내용(sceneKey) 변경 시 재구성
   }, [
     isReady,
-    sceneKey, // markers 변화에 반응
+    sceneKey,
     realMarkersKey,
     kakao,
     map,

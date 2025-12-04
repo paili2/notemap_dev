@@ -189,19 +189,6 @@ export function useContextMenuAnchor({
       (effectiveTarget.marker as any).kind === "question"
         ? normalizeLL((effectiveTarget.marker as any).position)
         : null;
-
-    // eslint-disable-next-line no-console
-    console.debug("[ContextMenuHost] anchorPos", {
-      anchorBase,
-      anchorPos,
-      menuTargetId,
-      effectiveId: effectiveTarget.id,
-      targetPinPos: targetPin ? normalizeLL((targetPin as any).position) : null,
-      underlyingId: underlyingMarker ? underlyingMarker.id : null,
-      draftMarkerPos,
-    });
-    // eslint-disable-next-line no-console
-    console.debug("[usePinsFromViewport] markers ▶", visibleMarkers);
   }, [
     shouldRender,
     anchorPos?.lat,

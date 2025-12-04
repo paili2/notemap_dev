@@ -1,5 +1,3 @@
-// features/properties/view/.../EditStage.tsx
-
 "use client";
 
 import type { PropertyViewDetails } from "../../types";

@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import StructureLinesList from "../../sections/StructureLinesList";
 
 type UnitView = {
@@ -45,86 +44,37 @@ export default function StructureLinesListContainer({
   lines?: any[];
   units?: UnitView[];
 }) {
-  // 🔍 디버그
-  if (typeof window !== "undefined") {
-    // eslint-disable-next-line no-console
-    console.debug(
-      "[StructureLinesListContainer] units.len:",
-      units?.length ?? 0,
-      {
-        sample: units?.[0],
-        linesLen: Array.isArray(lines) ? lines.length : 0,
-      }
-    );
-  }
-
   // units 우선, 없으면 lines를 변환해서라도 4열로 표시
   const effUnits: UnitView[] =
     Array.isArray(units) && units.length > 0
       ? units
       : convertLinesToUnits(lines);
 
-  // 둘 다 없으면 예전 리스트(하이픈 표시)로 폴백
+  // 둘 다 없으면 옛 리스트(하이픈 표시) 구조 재사용
   if (effUnits.length === 0) {
-    return <StructureLinesList lines={[]} />;
+    return (
+      <section className="rounded-xl border p-4">
+        <StructureLinesList lines={[]} showTitle />
+      </section>
+    );
   }
+
+  // UnitView → StructureLinesList가 이해하는 모양으로 변환
+  const effLines = effUnits.map((u, idx) => ({
+    id: idx,
+    rooms: u.rooms,
+    baths: u.baths,
+    duplex: u.hasLoft,
+    terrace: u.hasTerrace,
+    minPrice: u.minPrice,
+    maxPrice: u.maxPrice,
+  }));
 
   return (
     <section className="rounded-xl border p-4">
       <h3 className="mb-3 text-sm font-medium">구조별 입력</h3>
-
-      <div className="space-y-2">
-        {effUnits.map((u, idx) => {
-          const features =
-            [u.hasLoft ? "복층" : null, u.hasTerrace ? "테라스" : null]
-              .filter(Boolean)
-              .join(", ") || "-";
-
-          const minText =
-            typeof u.minPrice === "number" && Number.isFinite(u.minPrice)
-              ? String(u.minPrice)
-              : "-";
-          const maxText =
-            typeof u.maxPrice === "number" && Number.isFinite(u.maxPrice)
-              ? String(u.maxPrice)
-              : "-";
-
-          return (
-            <div
-              key={idx}
-              className="min-w-0 rounded-md border bg-white px-2 py-2"
-            >
-              <div className="flex items-center min-w-0">
-                {/* 방/욕실 */}
-                <div className="flex-1 min-w-0 text-center text-sm">
-                  {u.rooms ?? 0}/{u.baths ?? 0}
-                </div>
-
-                <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
-
-                {/* 특징 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
-                  {features}
-                </div>
-
-                <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
-
-                {/* 최소 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
-                  {minText}
-                </div>
-
-                <div className="h-5 w-px bg-gray-200 mx-2 shrink-0" />
-
-                {/* 최대 */}
-                <div className="flex-1 min-w-0 text-center text-sm truncate">
-                  {maxText}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* 안쪽 리스트는 타이틀 없이 재사용 */}
+      <StructureLinesList lines={effLines as any[]} showTitle={false} />
     </section>
   );
 }

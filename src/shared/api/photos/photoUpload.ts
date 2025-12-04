@@ -191,13 +191,6 @@ export async function uploadPhotos(
           }
         );
 
-        // 업로드 응답 전체 로깅 (디버깅용)
-        console.log("=== 업로드 API 응답 ===");
-        console.log("전체 응답:", JSON.stringify(data, null, 2));
-        console.log("data.data:", data?.data);
-        console.log("data.data 객체의 모든 키:", Object.keys(data?.data || {}));
-        console.log("data.data.urls:", data?.data?.urls);
-        console.log("data.data.keys:", data?.data?.keys);
         // 다른 가능한 URL 필드 확인
         if (data?.data) {
           Object.entries(data.data).forEach(([key, value]) => {

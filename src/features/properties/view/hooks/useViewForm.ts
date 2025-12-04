@@ -176,23 +176,6 @@ export function useViewForm({
       cardTitles = cardsHydrated.map((_, idx) => `사진 폴더 ${idx + 1}`);
     }
 
-    // 디버그(필요시 콘솔에서 확인)
-    if (typeof window !== "undefined") {
-      console.debug("[useViewForm] units.len:", units.length, {
-        sample: units[0],
-        pickedKeys: Object.keys(d || {}).filter((k) =>
-          /(unit|structure)/i.test(k)
-        ),
-      });
-      console.debug("[useViewForm] media:", {
-        preferCards,
-        cardsHydratedLen: cardsHydrated?.length,
-        filesHydratedLen: filesHydrated?.length,
-        legacyImagesHydratedLen: imagesProp?.length,
-      });
-      console.debug("[useViewForm] cardTitles:", cardTitles);
-    }
-
     return {
       // 헤더/기본
       title: d.title ?? "",
