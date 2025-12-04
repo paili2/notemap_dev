@@ -357,22 +357,9 @@ export default function PinContextMenuContainer(props: Props) {
     const id = propertyIdClean ?? undefined;
     if (!id) return;
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[PinContextMenuContainer] set hideLabelForId by menu", {
-        lat: position.getLat(),
-        lng: position.getLng(),
-        propertyId: id,
-      });
-    }
-
     onChangeHideLabelForId?.(id);
 
     return () => {
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[PinContextMenuContainer] clear hideLabelForId by menu", {
-          propertyId: id,
-        });
-      }
       onChangeHideLabelForId?.(undefined);
     };
   }, [propertyIdClean, onChangeHideLabelForId, position]);

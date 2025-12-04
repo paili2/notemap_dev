@@ -65,13 +65,6 @@ export function useViewModalState({
         };
 
         queryClient.setQueryData(key, cacheValue);
-
-        if (process.env.NODE_ENV !== "production") {
-          console.log("[useViewModalState] setQueryData(pinDetail):", {
-            key,
-            cacheValue,
-          });
-        }
       } catch (e) {
         console.error(e);
         setViewOpenLocal(false);

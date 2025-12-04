@@ -274,12 +274,6 @@ export function useMergedMarkers(params: {
     });
 
     if (hasRealMarkerNearAnchor) {
-      if (process.env.NODE_ENV !== "production") {
-        console.log(
-          "[MergedMarkers] skip temp __draft__ (real marker near anchor)",
-          { anchor: menuAnchor }
-        );
-      }
       return mergedMarkers;
     }
 

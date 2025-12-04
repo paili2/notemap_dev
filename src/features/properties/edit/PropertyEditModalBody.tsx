@@ -77,7 +77,6 @@ export default function PropertyEditModalBody({
     const view = src?.view ?? null;
 
     if (!raw && !view) {
-      console.log("[init] normalizedInitial(fallback src):", src);
       return src ?? null;
     }
 
@@ -90,12 +89,6 @@ export default function PropertyEditModalBody({
         }
       }
     }
-
-    console.log("[init] normalizedInitial(merged raw+view non-null):", {
-      raw,
-      view,
-      merged,
-    });
 
     return merged;
   }, [initialData]);
@@ -177,17 +170,6 @@ export default function PropertyEditModalBody({
       out.initialHasElevator = initialHasElevator;
     }
 
-    console.log("[init] bridgedInitial:", {
-      id: out?.id,
-      buildingType: out?.buildingType,
-      registry: out?.registry,
-      registrationType: out?.registrationType,
-      registrationTypeName: out?.registrationTypeName,
-      registrationTypeId: out?.registrationTypeId,
-      hasElevator: out?.hasElevator,
-      initialHasElevator: out?.initialHasElevator,
-    });
-
     return out;
   }, [normalizedInitial]);
 
@@ -196,7 +178,6 @@ export default function PropertyEditModalBody({
     const src = initialData as any;
     const id = src?.id ?? src?.raw?.id ?? src?.view?.id ?? "";
     const s = String(id ?? "");
-    console.log("[init] propertyId:", s);
     return s;
   }, [initialData]);
 
@@ -213,11 +194,7 @@ export default function PropertyEditModalBody({
       imagesVertical: v?.imagesVertical ?? null,
       fileItems: v?.fileItems ?? null,
     };
-    console.log("[init] initialImages:", {
-      hasFolders: !!out.imageFolders,
-      hasVertical: !!out.verticalImages,
-      files: Array.isArray(out.fileItems) ? out.fileItems.length : 0,
-    });
+
     return out;
   }, [bridgedInitial]);
 
@@ -329,28 +306,8 @@ export default function PropertyEditModalBody({
     ]
   );
 
-  console.log("[EditModal] initialData(raw) =", initialData);
-  console.log(
-    "[EditModal] bridgedInitial(before useEditForm) =",
-    bridgedInitial
-  );
-
   // 폼 훅
   const f = useEditForm({ initialData: bridgedInitial });
-
-  useEffect(() => {
-    console.log("[form] mounted/useEditForm snapshot:", {
-      title: f.title,
-      pinKind: f.pinKind,
-      buildingType: f.buildingType,
-      registry: (f as any).registry,
-      parkingGrade: f.parkingGrade,
-    });
-  }, []); // mount 1회
-
-  useEffect(() => {
-    console.log("[form] pinKind changed:", f.pinKind);
-  }, [f.pinKind]);
 
   /** 건물 연식 관련 훅 */
   const {
@@ -411,13 +368,6 @@ export default function PropertyEditModalBody({
     ]
   );
 
-  useEffect(() => {
-    console.log("[headerForm] snapshot:", {
-      buildingGrade: headerForm.buildingGrade,
-      pinKind: headerForm.pinKind,
-    });
-  }, [headerForm]);
-
   // ParkingContainer 지연 마운트
   const [mountParking, setMountParking] = useState(false);
   useEffect(() => {
@@ -460,11 +410,6 @@ export default function PropertyEditModalBody({
       label: initialLabel,
       pinKind: initialPinKind ?? null,
     };
-
-    console.log("[EditModal] initialVisualRef set:", {
-      label: initialLabel,
-      pinKind: initialPinKind,
-    });
   }, [bridgedInitial]);
 
   /** ⭐ 저장 성공 시, title / pinKind 변경 여부를 계산해서 상위로 올리는 래퍼 */
@@ -478,16 +423,6 @@ export default function PropertyEditModalBody({
       String(prev.pinKind ?? "") !== String(nextPinKind ?? "");
 
     const changed = labelChanged || pinKindChanged;
-
-    console.log("[EditModal] visual changed check:", {
-      prevLabel: prev.label,
-      nextLabel,
-      prevPinKind: prev.pinKind,
-      nextPinKind,
-      labelChanged,
-      pinKindChanged,
-      changed,
-    });
 
     // 🔥 실제로 label 또는 pinKind 가 바뀐 경우에만 상위 콜백 실행
     if (changed) {

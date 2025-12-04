@@ -160,17 +160,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }) => {
       const idStr = String(args.propertyId);
 
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[MapHomeUI] handleOpenMenuInternal", {
-          from: (args as any).source ?? "unknown",
-          propertyId: args.propertyId,
-          idStr,
-          prevHideLabelForId: hideLabelForId,
-          menuOpen,
-          menuAnchor,
-        });
-      }
-
       // 🔥 임시핀(__search__)이든 실핀이든 "그 핀 id 그대로"
       onChangeHideLabelForId?.(idStr);
 

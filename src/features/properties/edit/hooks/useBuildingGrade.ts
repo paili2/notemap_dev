@@ -58,10 +58,6 @@ export function useBuildingGrade({
 
   /** 초기값/bridgedInitial 바뀔 때 form 내부 상태와 동기화 */
   useEffect(() => {
-    console.log(
-      "[useBuildingGrade] sync from bridgedInitial:",
-      initialBuildingGrade
-    );
     _setBuildingGrade(initialBuildingGrade);
     setBuildingGradeTouched(false);
     form?.setBuildingGrade?.(initialBuildingGrade);
@@ -72,7 +68,6 @@ export function useBuildingGrade({
   /** UI에서 선택됐을 때 form과 동기화 */
   const setBuildingGrade = useCallback(
     (v: GradeWithNull) => {
-      console.log("[useBuildingGrade] buildingGrade selected:", v);
       _setBuildingGrade(v);
       setBuildingGradeTouched(true);
       form?.setBuildingGrade?.(v);

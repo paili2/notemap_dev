@@ -270,11 +270,6 @@ export function useInjectInitialData({
         }
       }
 
-      console.log("[inject] buildingType candidates →", {
-        rawCandidates,
-        resolvedBt,
-      });
-
       api.setBuildingType(resolvedBt);
     }
 

@@ -69,13 +69,6 @@ export function useUpdateZIndexAndLabels(
         if (selectedKey && idStr === selectedKey) {
           ds.hiddenBySelected = "1";
 
-          if (process.env.NODE_ENV !== "production") {
-            console.log("[useUpdateZIndexAndLabels] hide label overlay", {
-              idStr,
-              rawLabel: ds.rawLabel,
-            });
-          }
-
           try {
             // 라벨을 통째로 지도에서 떼버림
             ov.setMap?.(null);
