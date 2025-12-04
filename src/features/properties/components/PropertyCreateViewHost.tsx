@@ -55,6 +55,9 @@ type Props = {
 
   /** ✅ 뷰 모달 안에서 수정모달 저장 성공 시 map 핀 갱신용 콜백 */
   onLabelChanged?: () => void | Promise<void>;
+
+  /** ✅ 생성/답사예정 저장 후 현재 뷰포트 기준 핀 refetch (usePinsMap.refetch) */
+  refetchPins?: () => void | Promise<void>;
 };
 
 export default function PropertyCreateViewHost({
@@ -73,6 +76,7 @@ export default function PropertyCreateViewHost({
   onSaveViewPatch,
   onDeleteFromView,
   onLabelChanged,
+  refetchPins, // ⭐ 새로 추가된 prop 구조분해
 }: Props) {
   const [stage, setStage] = useState<Stage>(initialStage);
   const [createdPinId, setCreatedPinId] = useState<string | number | null>(
@@ -160,6 +164,8 @@ export default function PropertyCreateViewHost({
         pinDraftId={resolvedPinDraftId}
         initialPinKind={initialPinKind ?? undefined}
         draftHeaderPrefill={draftHeaderPrefill ?? null}
+        /** ⭐ 답사예정 저장 시 useCreateSave에서 직접 refetchPins 호출 */
+        refetchPins={refetchPins}
       />
     );
   } else {

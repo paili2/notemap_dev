@@ -35,6 +35,7 @@ type Props = Omit<PropertyCreateModalProps, "open"> & {
     title?: string;
     officePhone?: string;
   } | null;
+  refetchPins?: () => void;
 };
 
 export default function PropertyCreateModalBody({
@@ -47,6 +48,7 @@ export default function PropertyCreateModalBody({
   asInner,
   initialPinKind,
   draftHeaderPrefill,
+  refetchPins,
 }: Props) {
   const form = useCreateForm({
     initialAddress,
@@ -90,6 +92,7 @@ export default function PropertyCreateModalBody({
     media,
     onSubmit,
     onClose,
+    refetchPins,
   });
 
   // AreaSetsContainer용 어댑터

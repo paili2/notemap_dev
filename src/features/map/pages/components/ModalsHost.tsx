@@ -57,6 +57,9 @@ export default function ModalsHost(props: {
     officePhone?: string;
   };
 
+  /** ✅ 현재 뷰포트 기준 핀 다시 불러오기 (usePinsMap.refetch) */
+  refetchPins?: () => void | Promise<void>;
+
   /** Roadview */
   roadviewVisible: boolean;
   roadviewContainerRef: any;
@@ -79,6 +82,7 @@ export default function ModalsHost(props: {
     pinDraftId,
     createPinKind,
     draftHeaderPrefill,
+    refetchPins,
     // roadview
     roadviewVisible,
     roadviewContainerRef,
@@ -133,6 +137,8 @@ export default function ModalsHost(props: {
               onDeleteFromView={onDeleteFromView}
               /* ✅ 뷰 → 수정 → 저장 후 map GET용 콜백 */
               onLabelChanged={onLabelChanged}
+              /* ✅ 생성/답사예정 저장 후 map 핀 다시 불러오기 */
+              refetchPins={refetchPins}
             />
           </div>
         </div>

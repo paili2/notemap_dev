@@ -1,3 +1,4 @@
+// features/map/hooks/usePinsFromViewport.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,23 +13,16 @@ type UsePinsOpts = {
   isOld?: boolean;
 };
 
-/** 🔹 그룹핑/매칭 전용 키 (표시·클러스터 용)
- *  - 절대 이 값을 split(',').map(Number)로 역파싱해 payload 좌표로 사용하지 말 것!
- *  - 실제 전송 좌표는 반드시 원본 lat/lng 값을 그대로 사용
- */
+/** 🔹 그룹핑/매칭 전용 키 (표시·클러스터 용) */
 function toPosKey(lat?: number, lng?: number) {
   return Number.isFinite(lat) && Number.isFinite(lng)
     ? `${(lat as number).toFixed(5)},${(lng as number).toFixed(5)}`
     : undefined;
 }
 
-/** 🔹 라벨에 사용할 "매물명/이름" 선택
- *  - 주소 계열 필드(addressLine, address, address_name)는 **절대 라벨 텍스트로 사용하지 않음**
- *  - 주소는 MapMarker.address에만 보관
- */
+/** 🔹 라벨에 사용할 이름 선택 */
 function pickDisplayName(p: any): string {
   return (
-    // 매물명/타이틀 계열 우선
     p?.title ??
     p?.name ??
     p?.displayName ??
@@ -36,21 +30,16 @@ function pickDisplayName(p: any): string {
     p?.propertyName ??
     p?.property?.name ??
     p?.property?.title ??
-    // 그래도 없으면 id fallback
     String(p?.id ?? "")
   );
 }
 
-/** PinPoint -> MapMarker 변환
- *  ⚠️ position.lat/lng 은 원본 double 그대로 (가공 금지)
- *  posKey 만 toFixed(5) 사용
- */
+/** PinPoint -> MapMarker 변환 */
 function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
   const lat = Number((p as any).lat ?? (p as any).y);
   const lng = Number((p as any).lng ?? (p as any).x);
   const displayName = String(pickDisplayName(p)).trim();
 
-  // 디버그 로그 (원본 좌표/라벨명 확인용)
   console.debug("[pinPointToMarker]", {
     id: String((p as any).id),
     name: (p as any).name,
@@ -64,15 +53,14 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
 
   return {
     id: String(p.id),
-    position: { lat, lng }, // ✅ 원본 좌표 보존 (절삭/반올림 없음)
+    position: { lat, lng },
     name: displayName,
     title: displayName,
-    // ✅ 주소는 별도 필드에만 저장 (라벨 텍스트 X)
     address: (p as any).addressLine ?? (p as any).address ?? undefined,
     kind: ((p as any).pinKind ?? "1room") as any,
     source,
     pinDraftId: (p as any).draftId ?? (p as any).pin_draft_id ?? undefined,
-    posKey: toPosKey(lat, lng), // 🔹 그룹 키만 고정 소수
+    posKey: toPosKey(lat, lng),
     isNew: (p as any).isNew ?? undefined,
   };
 }
@@ -88,6 +76,8 @@ export function usePinsFromViewport({
   const [points, setPoints] = useState<PinPoint[]>([]);
   const [drafts, setDrafts] = useState<PinPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  /** idle 디바운싱용 타이머 */
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async () => {
@@ -103,12 +93,10 @@ export function usePinsFromViewport({
         neLat: b.getNorthEast().getLat(),
         neLng: b.getNorthEast().getLng(),
         draftState,
-        // 🔹 신축/구옥 필터 함께 전송
         ...(typeof isNew === "boolean" ? { isNew } : {}),
         ...(typeof isOld === "boolean" ? { isOld } : {}),
       });
 
-      // 서버 응답 요약 로그 (좌표는 굳이 찍지 않음)
       console.table(
         (res?.data?.points ?? []).map((p: any) => ({
           id: p.id,
@@ -131,14 +119,29 @@ export function usePinsFromViewport({
     }
   }, [map, draftState, isNew, isOld]);
 
+  /** ✅ 외부에서 강제로 refetch 할 때 쓰는 함수
+   *   - pendding 되어 있는 디바운스 타이머를 먼저 지우고
+   *   - load()를 한 번만 호출
+   */
+  const refetch = useCallback(async () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    await load();
+  }, [load]);
+
   useEffect(() => {
     if (!map) return;
+
     const schedule = () => {
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(load, debounceMs);
     };
+
     kakao.maps.event.addListener(map, "idle", schedule);
-    schedule();
+    schedule(); // 최초 한 번
+
     return () => {
       if (timer.current) clearTimeout(timer.current);
       kakao.maps.event.removeListener(map, "idle", schedule);
@@ -152,7 +155,6 @@ export function usePinsFromViewport({
     );
     const all = [...live, ...draftMarkers];
 
-    // 최종 산출물 로그 (여기서도 원본 좌표/라벨명 확인)
     console.debug(
       "[usePinsFromViewport] markers",
       all.map((m) => ({
@@ -160,7 +162,7 @@ export function usePinsFromViewport({
         name: (m as any).name,
         title: m.title,
         address: (m as any).address,
-        lat: m.position.lat, // ✅ 소수 절삭 없이 그대로
+        lat: m.position.lat,
         lng: m.position.lng,
       }))
     );
@@ -168,5 +170,15 @@ export function usePinsFromViewport({
     return all;
   }, [points, drafts]);
 
-  return { loading, points, drafts, markers, error, reload: load };
+  return {
+    loading,
+    points,
+    drafts,
+    markers,
+    error,
+    /** 예전 이름 유지용 */
+    reload: load,
+    /** 🔥 외부(refetchPins)에서 사용하는 전용 refetch */
+    refetch,
+  };
 }

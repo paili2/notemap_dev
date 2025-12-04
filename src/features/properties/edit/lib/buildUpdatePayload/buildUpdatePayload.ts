@@ -277,32 +277,17 @@ export function buildUpdatePayload(
     put("parkingGrade", parkingGradeVal, initial?.parkingGrade);
   }
 
-  // 🔥 elevator ("O" | "X") ↔ hasElevator(boolean/null) 동기화
+  // 🔥 elevator ("O" | "X") ↔ hasElevator(boolean | null) 동기화
   if (defined(a.elevator)) {
     const nextHasElevator =
       a.elevator === "O" ? true : a.elevator === "X" ? false : null;
 
-    // 초기 hasElevator: initial.initialHasElevator → hasElevator → boolean elevator
-    const prevHasElevator =
-      (initial as any)?.initialHasElevator ?? // view 전용
-      (initial as any)?.hasElevator ?? // 서버 필드
-      (typeof (initial as any)?.elevator === "boolean"
-        ? (initial as any).elevator
-        : null); // 레거시
+    // ✅ diff 따지지 말고, 선택되어 있으면 그냥 항상 PATCH에 포함
+    (patch as any).hasElevator = nextHasElevator;
 
-    // ✅ hasElevator: 진짜 바뀌었을 때만 PATCH
-    putAllowNull("hasElevator", nextHasElevator, prevHasElevator);
-
-    // 선택적으로 elevator 문자열 자체도 비교해서 보낼 수 있음
-    const prevElevatorStr =
-      (initial as any)?.elevator ??
-      (typeof prevHasElevator === "boolean"
-        ? prevHasElevator
-          ? "O"
-          : "X"
-        : undefined);
-
-    put("elevator", a.elevator, prevElevatorStr);
+    // 문자열 필드도 서버가 쓰고 있다면 같이 맞춰서 보내기
+    (patch as any).elevator =
+      nextHasElevator === null ? undefined : nextHasElevator ? "O" : "X";
   }
 
   /* ===== 숫자 ===== */

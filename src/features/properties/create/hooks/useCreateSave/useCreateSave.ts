@@ -37,6 +37,7 @@ type Args = {
   media: MediaDeps;
   onSubmit?: PropertyCreateModalProps["onSubmit"];
   onClose?: () => void;
+  refetchPins?: () => void;
 };
 
 export function useCreateSave({
@@ -48,6 +49,7 @@ export function useCreateSave({
   media,
   onSubmit,
   onClose,
+  refetchPins,
 }: Args) {
   const { removeByPinDraftId: removeDraft } = useScheduledReservations();
 
@@ -147,6 +149,7 @@ export function useCreateSave({
             mode: "visit-plan-only",
           } as any)
         );
+        refetchPins?.();
 
         // 기존 동작 유지: 모달 닫기
         onClose?.();
@@ -391,6 +394,7 @@ export function useCreateSave({
     onSubmit,
     pinDraftId,
     removeDraft,
+    refetchPins,
   ]);
 
   console.log("[canSave]", {

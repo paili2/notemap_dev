@@ -511,7 +511,6 @@ export function MapHomeUI(props: MapHomeUIProps) {
           ...createHostHandlers,
           onAfterCreate: async (res) => {
             await handleAfterCreate(res);
-            await refreshViewportPins();
           },
           onOpenViewAfterCreate: handleOpenViewAfterCreate,
         }}
@@ -524,6 +523,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
         onLabelChanged={() => refreshViewportPins()}
+        refetchPins={() => refreshViewportPins()}
       />
 
       <NoResultDialog

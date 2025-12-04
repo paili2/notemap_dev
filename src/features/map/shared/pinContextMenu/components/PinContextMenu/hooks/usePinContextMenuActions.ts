@@ -82,36 +82,20 @@ export function usePinContextMenuActions({
   onClose,
   onCreate,
 }: Args) {
-  const { toast } = useToast(); // ✅ 토스트 훅
+  const { toast } = useToast();
 
-  /** ⭐ 답사예정 생성 */
   const handlePlanClick = useCallback(async () => {
     const lat = position.getLat();
     const lng = position.getLng();
 
     const result = (await handlePlan()) as PlanResult;
 
+    // 낙관 플래그는 그대로
     optimisticPlannedPosSet.add(posK);
 
-    let refreshed = false;
-    const box = getBoundsBox();
-    if (refreshViewportPins && box) {
-      try {
-        await refreshViewportPins(box);
-        refreshed = true;
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.warn("[PinContextMenu] refreshViewportPins failed:", e);
-      }
-    }
-
-    if (
-      !refreshed &&
-      result &&
-      "payload" in result &&
-      result.payload &&
-      upsertDraftMarker
-    ) {
+    // 🔁 서버 쪽 /map 새로고침은 onAfterCreate / idle 로직에 맡김
+    //    여기서는 필요하면 로컬 드래프트 마커만 보정
+    if (result && "payload" in result && result.payload && upsertDraftMarker) {
       const id = (result.draftId ?? `__temp_${Date.now()}`) as string | number;
       upsertDraftMarker({
         id,
@@ -121,6 +105,7 @@ export function usePinContextMenuActions({
       });
     }
 
+    // 오버레이 정리
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         cleanupOverlaysAt(lat, lng);
@@ -128,16 +113,7 @@ export function usePinContextMenuActions({
     });
 
     bump();
-  }, [
-    position,
-    handlePlan,
-    posK,
-    getBoundsBox,
-    refreshViewportPins,
-    upsertDraftMarker,
-    cleanupOverlaysAt,
-    bump,
-  ]);
+  }, [position, handlePlan, posK, upsertDraftMarker, cleanupOverlaysAt, bump]);
 
   /** 예약 */
   const [reserving, setReserving] = useState(false);
