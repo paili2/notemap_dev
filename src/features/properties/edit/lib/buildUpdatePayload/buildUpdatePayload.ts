@@ -282,12 +282,12 @@ export function buildUpdatePayload(
     const nextHasElevator =
       a.elevator === "O" ? true : a.elevator === "X" ? false : null;
 
-    // ✅ diff 따지지 말고, 선택되어 있으면 그냥 항상 PATCH에 포함
-    (patch as any).hasElevator = nextHasElevator;
+    // 디버깅용 로그 (잠깐 써 보고 나중에 지워도 됨)
+    console.log("[UPDATE] elevator in args =", a.elevator);
+    console.log("[UPDATE] nextHasElevator =", nextHasElevator);
 
-    // 문자열 필드도 서버가 쓰고 있다면 같이 맞춰서 보내기
-    (patch as any).elevator =
-      nextHasElevator === null ? undefined : nextHasElevator ? "O" : "X";
+    // 선택한 경우에는 무조건 PATCH에 포함
+    (patch as any).hasElevator = nextHasElevator;
   }
 
   /* ===== 숫자 ===== */

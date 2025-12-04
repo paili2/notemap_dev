@@ -216,6 +216,23 @@ export function useEditSave({
         (dto as any).isOld = buildingGrade === "old";
       }
 
+      // 🔥 엘리베이터: 최종 dto를 폼 상태로 강제 오버라이드
+      const nextHasElevator =
+        f.elevator === "O" ? true : f.elevator === "X" ? false : undefined;
+
+      console.log("[save] override hasElevator from form:", {
+        formElevator: f.elevator,
+        nextHasElevator,
+      });
+
+      if (typeof nextHasElevator === "boolean") {
+        // O → true, X → false
+        (dto as any).hasElevator = nextHasElevator;
+      } else {
+        // 선택 해제(null/undefined)인 경우는 PATCH 안 보냄 (필요하면 여기서 null로 보내도록 변경 가능)
+        delete (dto as any).hasElevator;
+      }
+
       console.log("[save] final toggles (diffed):", {
         buildingGrade,
         buildingGradeTouched,
@@ -225,6 +242,7 @@ export function useEditSave({
         pinKind: (dto as any).pinKind ?? f.pinKind,
         buildingType: (dto as any).buildingType,
         registry: (dto as any).registry,
+        hasElevator: (dto as any).hasElevator,
       });
 
       hasFormChanges = hasMeaningfulPatch(dto);
