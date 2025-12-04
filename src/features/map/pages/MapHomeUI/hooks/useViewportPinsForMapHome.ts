@@ -35,6 +35,7 @@ export function useViewportPinsForMapHome({
     () => (filter === "new" ? true : undefined),
     [filter]
   );
+
   const isOldFlag = useMemo(
     () => (filter === "old" ? true : undefined),
     [filter]
@@ -45,6 +46,7 @@ export function useViewportPinsForMapHome({
     drafts: serverDrafts,
     loading: pinsLoading,
     error: pinsError,
+    reload, // 👈 usePinsFromViewport에서 넘어오는 reload
   } = usePinsFromViewport({
     map: mapInstance,
     debounceMs: 300,
@@ -58,6 +60,7 @@ export function useViewportPinsForMapHome({
       serverPoints?.map((p) => ({ ...p, title: p.title ?? undefined })) ?? [],
     [serverPoints]
   );
+
   const normServerDrafts = useMemo(
     () =>
       serverDrafts?.map((d) => ({ ...d, title: d.title ?? undefined })) ?? [],
@@ -85,5 +88,6 @@ export function useViewportPinsForMapHome({
     pinsError,
     effectiveServerPoints,
     effectiveServerDrafts,
+    reloadPins: reload,
   };
 }

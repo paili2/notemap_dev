@@ -12,15 +12,20 @@ import { normalizeBuildingType } from "../../lib/buildingType";
 import { StarStr } from "@/features/properties/types/property-dto";
 import { UseEditFormArgs } from "../../types/editForm.types";
 
+/** buildUpdatePayload 에 넘길 초기 스냅샷 타입 */
 export type InitialForPatch = {
   contactMainPhone: string;
   contactSubPhone: string;
   minRealMoveInCost: string;
   unitLines: UnitLine[];
   initialName?: string;
-  /** ✅ 유저가 모달 열었을 때의 엘리베이터 상태 */
+
+  /** ✅ diff 에서 직접 쓰는 키들 */
+  hasElevator?: boolean | null;
+  buildingType?: BuildingType | null;
+
+  /** ✅ 참고/디버깅용(초기 상태 보존) */
   initialHasElevator?: boolean | null;
-  /** ✅ 유저가 모달 열었을 때의 등기/건물유형(enum) */
   initialBuildingType?: BuildingType | null;
 };
 
@@ -65,6 +70,9 @@ export function useInjectInitialData({
     contactSubPhone: "",
     minRealMoveInCost: "",
     unitLines: [],
+    hasElevator: null,
+    buildingType: null,
+    initialHasElevator: null,
     initialBuildingType: null,
   });
 
@@ -134,7 +142,7 @@ export function useInjectInitialData({
     api.setBaseAreaSet(normalized.baseArea);
     api.setExtraAreaSets(normalized.extraAreas);
 
-    /** 🔵 엘리베이터: 서버 값 → "O" | "X" 로 안전 정규화 */
+    /** 🔵 엘리베이터: 서버 값 → "O" | "X" 로 안전 정규화 (UI 상태용) */
     {
       const raw =
         (normalized as any).elevator ?? (normalized as any).hasElevator;
@@ -270,7 +278,18 @@ export function useInjectInitialData({
       api.setBuildingType(resolvedBt);
     }
 
-    // 🔥 initialForPatch 스냅샷
+    // 🔥 initialForPatch 스냅샷 (buildUpdatePayload 에서 diff 기준으로 사용)
+    const initialHasElevator: boolean | null =
+      (normalized as any).hasElevator ??
+      (typeof (normalized as any).elevator === "boolean"
+        ? (normalized as any).elevator
+        : (sourceData as any)?.hasElevator ??
+          (typeof (sourceData as any)?.elevator === "boolean"
+            ? (sourceData as any).elevator
+            : null));
+
+    const initialBuildingType: BuildingType | null = resolvedBt;
+
     initialForPatchRef.current = {
       contactMainPhone: normalized.officePhone ?? "",
       contactSubPhone: normalized.officePhone2 ?? "",
@@ -284,15 +303,14 @@ export function useInjectInitialData({
         (sourceData as any)?.title ??
         (sourceData as any)?.name ??
         "",
-      initialHasElevator:
-        (normalized as any).hasElevator ??
-        (typeof (normalized as any).elevator === "boolean"
-          ? (normalized as any).elevator
-          : (sourceData as any)?.hasElevator ??
-            (typeof (sourceData as any)?.elevator === "boolean"
-              ? (sourceData as any).elevator
-              : null)),
-      initialBuildingType: resolvedBt,
+
+      // ✅ buildUpdatePayload 가 직접 참조하는 키
+      hasElevator: initialHasElevator,
+      buildingType: initialBuildingType,
+
+      // ✅ 참고용(이름은 그대로 유지)
+      initialHasElevator: initialHasElevator,
+      initialBuildingType: initialBuildingType,
     };
   }, [initKey, normalized, sourceData, api, aspectsTouchedRef]);
 

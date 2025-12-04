@@ -46,7 +46,9 @@ function normalizeStarStr(v: unknown): StarStr {
 export default function PropertyEditModalBody({
   onClose,
   onSubmit,
-  /** 🔁 지도 핀 다시 불러오고 싶을 때 (예: get /map) */
+  /** 🔁 지도 핀 다시 불러오고 싶을 때 (예: get /map)
+   *  👉 label/pinKind 실제 변경이 있을 때만 콜백 호출
+   */
   onLabelChanged,
   initialData,
   embedded = false,
@@ -424,6 +426,62 @@ export default function PropertyEditModalBody({
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
+  /** ⭐ 라벨/핀 변경 감지용 초기 스냅샷 */
+  const initialVisualRef = useRef<{ label: string; pinKind: any }>({
+    label: "",
+    pinKind: null,
+  });
+
+  useEffect(() => {
+    const src = bridgedInitial as any;
+    const initialLabel = (src?.title ?? src?.name ?? "").trim();
+    const initialPinKind =
+      src?.pinKind ?? (src?.badge ? mapBadgeToPinKind(src.badge) : undefined);
+
+    initialVisualRef.current = {
+      label: initialLabel,
+      pinKind: initialPinKind ?? null,
+    };
+
+    console.log("[EditModal] initialVisualRef set:", {
+      label: initialLabel,
+      pinKind: initialPinKind,
+    });
+  }, [bridgedInitial]);
+
+  /** ⭐ 저장 성공 시, title / pinKind 변경 여부를 계산해서 상위로 올리는 래퍼 */
+  const handleLabelChangedInternal = useCallback(() => {
+    const prev = initialVisualRef.current;
+    const nextLabel = (f.title ?? "").trim();
+    const nextPinKind = f.pinKind;
+
+    const labelChanged = prev.label !== nextLabel;
+    const pinKindChanged =
+      String(prev.pinKind ?? "") !== String(nextPinKind ?? "");
+
+    const changed = labelChanged || pinKindChanged;
+
+    console.log("[EditModal] visual changed check:", {
+      prevLabel: prev.label,
+      nextLabel,
+      prevPinKind: prev.pinKind,
+      nextPinKind,
+      labelChanged,
+      pinKindChanged,
+      changed,
+    });
+
+    // 🔥 실제로 label 또는 pinKind 가 바뀐 경우에만 상위 콜백 실행
+    if (changed) {
+      onLabelChanged?.();
+      // 이후 비교를 위해 최신 스냅샷으로 갱신
+      initialVisualRef.current = {
+        label: nextLabel,
+        pinKind: nextPinKind,
+      };
+    }
+  }, [onLabelChanged, f.title, f.pinKind]);
+
   /** 저장 로직 훅으로 분리 */
   const { save, canSaveNow } = useEditSave({
     form: f,
@@ -442,8 +500,8 @@ export default function PropertyEditModalBody({
     showAlert,
     onSubmit,
     onClose,
-    // ⭐ 여기서 지도 갱신 콜백까지 넘겨줌
-    onLabelChanged,
+    // ⭐ 여기서는 인자 없는 콜백만 넘김
+    onLabelChanged: handleLabelChangedInternal,
   });
 
   /* ───────── 레이아웃 분기 ───────── */

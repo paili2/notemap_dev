@@ -1,3 +1,5 @@
+// features/properties/view/.../EditStage.tsx
+
 "use client";
 
 import type { PropertyViewDetails } from "../../types";
@@ -12,7 +14,7 @@ type Props = {
   onClose: () => void;
   onSubmit: (p: UpdatePayload & Partial<CreatePayload>) => void | Promise<void>;
 
-  // ⭐ 지도 핀 다시 불러오는 콜백 (ex. usePinsMap.refetch)
+  // ⭐ 지도 핀 다시 불러오는 콜백 (label/pinKind 실제 변경 시에만 호출됨)
   onLabelChanged?: () => void | Promise<void>;
 
   asInner?: boolean;
@@ -25,14 +27,13 @@ export default function EditStage({
   onLabelChanged,
   asInner,
 }: Props) {
-  // asInner는 나중에 PropertyEditModalBody에서 또 쓸 수 있으면 같이 넘겨도 됨
   return (
     <PropertyEditModalBody
       embedded // ✅ 카드 안에서 쓰는 모드
       initialData={initialData}
       onClose={onClose}
       onSubmit={onSubmit}
-      // ⭐ 여기에서 Body로 연결
+      // ⭐ Body로 그대로 넘김 (인자 없는 콜백)
       onLabelChanged={onLabelChanged}
     />
   );

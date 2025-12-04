@@ -23,6 +23,7 @@ import {
   toPinPatch,
 } from "../lib/toPinPatch";
 import { useEditForm } from "./useEditForm/useEditForm";
+import { pinDetailKey } from "./useEditForm/usePinDetail";
 
 /** useEditForm 반환 타입 추출 */
 type UseEditFormReturn = ReturnType<typeof useEditForm>;
@@ -216,21 +217,49 @@ export function useEditSave({
         (dto as any).isOld = buildingGrade === "old";
       }
 
-      // 🔥 엘리베이터: 최종 dto를 폼 상태로 강제 오버라이드
-      const nextHasElevator =
-        f.elevator === "O" ? true : f.elevator === "X" ? false : undefined;
+      // 🔥 엘리베이터 / 건물유형: "초기값과 다를 때만" PATCH 에 포함
+      const initialHasElevator: boolean | null =
+        (bridgedInitial as any)?.hasElevator ??
+        (bridgedInitial as any)?.initialHasElevator ??
+        null;
 
-      console.log("[save] override hasElevator from form:", {
+      const nextHasElevator =
+        f.elevator === "O" ? true : f.elevator === "X" ? false : null;
+
+      console.log("[save] elevator diff check:", {
+        initialHasElevator,
         formElevator: f.elevator,
         nextHasElevator,
       });
 
-      if (typeof nextHasElevator === "boolean") {
-        // O → true, X → false
+      if (nextHasElevator === initialHasElevator) {
+        // 차이 없으면 dto에서 제거(혹시 toPinPatch가 넣었어도 덮어씀)
+        delete (dto as any).hasElevator;
+      } else if (typeof nextHasElevator === "boolean") {
         (dto as any).hasElevator = nextHasElevator;
       } else {
-        // 선택 해제(null/undefined)인 경우는 PATCH 안 보냄 (필요하면 여기서 null로 보내도록 변경 가능)
         delete (dto as any).hasElevator;
+      }
+
+      const initialBuildingType: BuildingType | null =
+        (bridgedInitial as any)?.buildingType ??
+        (bridgedInitial as any)?.initialBuildingType ??
+        null;
+
+      const nextBuildingType = f.buildingType as BuildingType | null;
+
+      console.log("[save] buildingType diff check:", {
+        initialBuildingType,
+        nextBuildingType,
+      });
+
+      if (nextBuildingType === initialBuildingType) {
+        delete (dto as any).buildingType;
+      } else if (nextBuildingType != null) {
+        (dto as any).buildingType = nextBuildingType;
+      } else {
+        // null 로 보내고 싶으면 여기서 명시, 아니면 삭제
+        delete (dto as any).buildingType;
       }
 
       console.log("[save] final toggles (diffed):", {
@@ -279,10 +308,20 @@ export function useEditSave({
         console.log("PATCH /pins/:id payload", dto);
         await updatePin(propertyId, dto);
 
-        // 상세 쿼리 invalidate
-        await queryClient.invalidateQueries({
-          queryKey: ["pinDetail", propertyId],
-        });
+        const idStr = String(propertyId);
+
+        // ✅ 상세 정보/사진 관련 쿼리 캐시 무효화
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: pinDetailKey(idStr),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["photoGroupsByPin", idStr],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["groupPhotosByPin", idStr],
+          }),
+        ]);
 
         // 🔥 여기서: 수정 성공 시마다 map 갱신 콜백 호출
         if (onLabelChanged) {

@@ -272,7 +272,7 @@ export function buildUpdatePayload(
   );
   put("completionDate", a.completionDate, initial?.completionDate);
 
-  /* ===== 평점/엘리베이터 ===== */
+  /* ===== 평점 ===== */
   if (defined(a.parkingGrade) && parkingGradeVal !== undefined) {
     put("parkingGrade", parkingGradeVal, initial?.parkingGrade);
   }
@@ -282,12 +282,13 @@ export function buildUpdatePayload(
     const nextHasElevator =
       a.elevator === "O" ? true : a.elevator === "X" ? false : null;
 
-    // 디버깅용 로그 (잠깐 써 보고 나중에 지워도 됨)
-    console.log("[UPDATE] elevator in args =", a.elevator);
-    console.log("[UPDATE] nextHasElevator =", nextHasElevator);
+    // ⬇️ initial.hasElevator 없으면 initial.initialHasElevator 를 사용
+    const prevHasElevator =
+      (initial as any)?.hasElevator ??
+      (initial as any)?.initialHasElevator ??
+      null;
 
-    // 선택한 경우에는 무조건 PATCH에 포함
-    (patch as any).hasElevator = nextHasElevator;
+    putAllowNull("hasElevator", nextHasElevator, prevHasElevator);
   }
 
   /* ===== 숫자 ===== */
@@ -332,11 +333,12 @@ export function buildUpdatePayload(
 
   // ✅ 건물유형(도생/근생/주택 등) PATCH
   if (defined(a.buildingType)) {
-    putAllowNull(
-      "buildingType",
-      a.buildingType ?? null,
-      (initial as any)?.buildingType
-    );
+    const prevBuildingType =
+      (initial as any)?.buildingType ??
+      (initial as any)?.initialBuildingType ??
+      null;
+
+    putAllowNull("buildingType", a.buildingType ?? null, prevBuildingType);
   }
 
   /* ===== 옵션/메모 ===== */

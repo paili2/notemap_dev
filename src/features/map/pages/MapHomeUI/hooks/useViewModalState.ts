@@ -1,11 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+
 import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { toViewDetailsFromApi } from "@/features/properties/lib/view/toViewDetailsFromApi";
 import { ensureViewForEdit } from "../lib/viewUtils";
 import { togglePinDisabled } from "@/shared/api/pins";
 import { PropertyViewDetails } from "@/features/properties/view/types";
+import {
+  pinDetailKey,
+  PinDetailQueryData,
+} from "@/features/properties/edit/hooks/useEditForm/usePinDetail";
 
 type Args = {
   selectedViewItem: PropertyViewDetails | null;
@@ -26,30 +32,53 @@ export function useViewModalState({
   const [viewDataLocal, setViewDataLocal] =
     useState<PropertyViewDetails | null>(null);
 
-  const handleViewFromMenuLocal = useCallback(async (pinId: string) => {
-    setViewOpenLocal(true);
-    setViewDataLocal(null);
-    try {
-      const apiPin = await getPinRaw(pinId);
+  const queryClient = useQueryClient();
 
-      const raw = (apiPin as any)?.data ?? apiPin;
-      const base = toViewDetailsFromApi(raw) as PropertyViewDetails;
+  const handleViewFromMenuLocal = useCallback(
+    async (pinId: string) => {
+      setViewOpenLocal(true);
+      setViewDataLocal(null);
 
-      const withEditInitial = {
-        ...base,
-        id: (base as any).id ?? pinId,
-        editInitial: {
-          view: { ...base },
+      try {
+        const apiPin = await getPinRaw(pinId);
+
+        // 🔹 ApiEnvelope({ data })든 raw 객체든 모두 대응
+        const raw = (apiPin as any)?.data ?? apiPin;
+        const base = toViewDetailsFromApi(raw) as PropertyViewDetails;
+
+        const withEditInitial = {
+          ...base,
+          id: (base as any).id ?? pinId,
+          editInitial: {
+            view: { ...base },
+            raw,
+          },
+        } as PropertyViewDetails & { editInitial: any };
+
+        setViewDataLocal(withEditInitial);
+
+        // 🔹 여기서 react-query 캐시에도 동일 데이터 심어줌
+        const key = pinDetailKey(pinId);
+        const cacheValue: PinDetailQueryData = {
           raw,
-        },
-      } as PropertyViewDetails & { editInitial: any };
+          view: base,
+        };
 
-      setViewDataLocal(withEditInitial);
-    } catch (e) {
-      console.error(e);
-      setViewOpenLocal(false);
-    }
-  }, []);
+        queryClient.setQueryData(key, cacheValue);
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[useViewModalState] setQueryData(pinDetail):", {
+            key,
+            cacheValue,
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        setViewOpenLocal(false);
+      }
+    },
+    [queryClient]
+  );
 
   const handleViewFromMenu = useCallback(
     (id: string) => {

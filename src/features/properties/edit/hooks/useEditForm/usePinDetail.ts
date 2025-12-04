@@ -6,7 +6,8 @@ import { PropertyViewDetails } from "@/features/properties/view/types";
 export const pinDetailKey = (id: string | number) =>
   ["pinDetail", String(id)] as const;
 
-type PinDetailQueryData = {
+// 🔹 캐시에 들어가는 형태를 export (useViewModalState에서 같이 씀)
+export type PinDetailQueryData = {
   raw: any;
   view: PropertyViewDetails;
 };
@@ -28,9 +29,13 @@ export function usePinDetail(pinId?: string | number | null, enabled = true) {
     queryKey: key,
     queryFn: async () => {
       const apiPin = await getPinRaw(idStr); // ApiEnvelope 표준 fetcher
+
+      // 🔹 ApiEnvelope({ data })든 raw 객체든 모두 대응
+      const raw = (apiPin as any)?.data ?? apiPin;
+
       return {
-        raw: apiPin,
-        view: toViewDetailsFromApi(apiPin),
+        raw,
+        view: toViewDetailsFromApi(raw),
       };
     },
     enabled: enabled && hasId,

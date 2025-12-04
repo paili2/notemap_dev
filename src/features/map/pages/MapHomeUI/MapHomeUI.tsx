@@ -37,11 +37,6 @@ import { TopRegion } from "./components/TopRegion";
 import usePlaceSearchOnMap from "./hooks/usePlaceSearchOnMap";
 import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
 
-type ViewportBounds = {
-  sw: { lat: number; lng: number };
-  ne: { lat: number; lng: number };
-};
-
 export function MapHomeUI(props: MapHomeUIProps) {
   const {
     appKey,
@@ -147,6 +142,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     pinsError,
     effectiveServerPoints,
     effectiveServerDrafts,
+    reloadPins, // ✅ 추가
   } = useViewportPinsForMapHome({
     mapInstance,
     filter: filter as MapMenuKey,
@@ -310,37 +306,13 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
   }, [menuOpen, menuAnchor, visibleMarkers, kakaoSDK, mapInstance]);
 
-  // 🔄 /map 다시 치도록 하는 함수: 현재 뷰포트(또는 overrideBounds)로 onViewportChange 호출
-  const refreshViewportPins = useCallback(
-    (overrideBounds?: ViewportBounds) => {
-      if (!onViewportChange) return;
-
-      let viewport: ViewportBounds | null = overrideBounds ?? null;
-
-      if (!viewport && mapInstance?.getBounds) {
-        try {
-          const b = mapInstance.getBounds();
-          viewport = {
-            sw: {
-              lat: b.getSouthWest().getLat(),
-              lng: b.getSouthWest().getLng(),
-            },
-            ne: {
-              lat: b.getNorthEast().getLat(),
-              lng: b.getNorthEast().getLng(),
-            },
-          };
-        } catch {
-          viewport = null;
-        }
-      }
-
-      if (!viewport) return;
-
-      onViewportChange(viewport as any);
-    },
-    [onViewportChange, mapInstance]
-  );
+  // 🔄 /map 다시 치도록 하는 함수: 이제는 훅의 reloadPins 사용
+  const refreshViewportPins = useCallback(() => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[MapHomeUI] refreshViewportPins → reloadPins()");
+    }
+    reloadPins?.();
+  }, [reloadPins]);
 
   const {
     viewOpenLocal,
@@ -522,7 +494,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
         onCloseRoadview={close}
         createPinKind={createPinKind ?? null}
         draftHeaderPrefill={draftHeaderPrefill ?? undefined}
-        onLabelChanged={() => refreshViewportPins()}
+        onLabelChanged={() => {
+          refreshViewportPins();
+        }}
         refetchPins={() => refreshViewportPins()}
       />
 

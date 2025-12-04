@@ -29,20 +29,19 @@ export function useMapCore({
 
   const sendViewportQuery = useCallback(
     (vp: Viewport, opts?: { force?: boolean }) => {
+      // 같은 뷰포트면 중복 호출 방지
       if (!opts?.force && sameViewport(vp, lastViewportRef.current)) return;
       lastViewportRef.current = vp;
 
+      // /viewport POST
       (postViewport as any)?.sendViewportQuery
         ? (postViewport as any).sendViewportQuery(vp)
         : (postViewport as any)(vp);
 
-      if (kakaoSDK && mapInstance) {
-        kakaoSDK.maps.event.trigger(mapInstance, "idle");
-        requestAnimationFrame(() =>
-          kakaoSDK.maps.event.trigger(mapInstance, "idle")
-        );
-      }
+      // ❌ 여기서는 idle 이벤트를 강제로 쏘지 않는다
+      //    핀 조회는 usePinsFromViewport의 idle 리스너 한 곳에서만 담당
 
+      // bounds 상태 업데이트
       try {
         const sw = vp.leftBottom;
         const ne = vp.rightTop;
@@ -54,7 +53,7 @@ export function useMapCore({
         });
       } catch {}
     },
-    [postViewport, kakaoSDK, mapInstance, setBounds]
+    [postViewport, setBounds]
   );
 
   const onViewportChange = useCallback(

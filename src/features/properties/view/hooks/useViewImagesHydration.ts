@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { hydrateRefsToMedia } from "@/lib/media/refs";
 
 /* 🔧 그룹/사진 API */
@@ -88,106 +89,92 @@ export function useViewImagesHydration({
     data?.view?._fileItemRefs,
   ]);
 
-  /* 2) 서버 사진 그룹/사진 조회 (열렸을 때만) — isDocument 기준으로 세로/가로 분리 */
-  const [_cardsFromServer, setCardsFromServer] = useState<ImagesGroup[]>([]);
-  const [_filesFromServer, setFilesFromServer] = useState<ImagesGroup[]>([]);
+  /* 2) 서버 사진 그룹/사진 조회 — 이제 React Query로 dedupe */
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !pinId) {
-      setCardsFromServer([]);
-      setFilesFromServer([]);
-      return;
+  // 2-1) 그룹 목록: /photo-groups/:pinId
+  const { data: groups = [] } = useQuery({
+    queryKey: ["photoGroupsByPin", pinId],
+    queryFn: async () => {
+      if (!pinId) return [];
+      const res = await listPhotoGroupsByPin(pinId);
+      return res ?? [];
+    },
+    enabled: open && !!pinId,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // 2-2) 각 그룹별 사진 목록: /photos/:groupId
+  const { data: photosList = [] } = useQuery({
+    queryKey: ["groupPhotosByPin", pinId],
+    queryFn: async () => {
+      if (!pinId) return [];
+      if (!groups || !groups.length) return [];
+      return await Promise.all(
+        groups.map((g: any) =>
+          listGroupPhotos(g.id as any).catch(() => [] as any[])
+        )
+      );
+    },
+    enabled: open && !!pinId && !!groups && groups.length > 0,
+    staleTime: 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // 2-3) React Query 결과를 ImagesGroup 형태로 가공
+  const serverCards: ImagesGroup[] = [];
+  const serverFiles: ImagesGroup[] = [];
+
+  // ✅ 세로 그룹 판별: isDocument만 사용
+  const isVerticalGroup = (g: any) => g?.isDocument === true;
+
+  (groups as any[]).forEach((g, idx) => {
+    const items = (photosList[idx] ?? []) as Array<{
+      url: string;
+      sortOrder?: number;
+      name?: string;
+      caption?: string;
+    }>;
+
+    const images = items
+      .slice()
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((p) => ({
+        url: p.url,
+        name: p.name ?? "",
+        ...(p.caption ? { caption: p.caption } : {}),
+      })) as HydratedImg[];
+
+    if (!images.length) return;
+
+    const rawTitle =
+      typeof (g as any)?.title === "string" ? (g as any).title.trim() : "";
+
+    const vertical = isVerticalGroup(g);
+    const title: string | undefined = rawTitle || undefined;
+
+    const groupObj: ImagesGroup = { title, images };
+
+    if (vertical) {
+      serverFiles.push(groupObj);
+    } else {
+      serverCards.push(groupObj);
     }
-
-    (async () => {
-      try {
-        const groups = await listPhotoGroupsByPin(pinId);
-        if (!groups?.length) {
-          if (!cancelled) {
-            setCardsFromServer([]);
-            setFilesFromServer([]);
-          }
-          return;
-        }
-
-        const photosList = await Promise.all(
-          groups.map((g) =>
-            listGroupPhotos(g.id as any).catch(() => [] as any[])
-          )
-        );
-
-        const serverCards: ImagesGroup[] = [];
-        const serverFiles: ImagesGroup[] = [];
-
-        // ✅ 세로 그룹 판별: isDocument만 사용
-        const isVerticalGroup = (g: any) => g?.isDocument === true;
-
-        groups.forEach((g, idx) => {
-          const items = (photosList[idx] ?? []) as Array<{
-            url: string;
-            sortOrder?: number;
-            name?: string;
-            caption?: string;
-          }>;
-
-          const images = items
-            .slice()
-            .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-            .map((p) => ({
-              url: p.url,
-              name: p.name ?? "",
-              ...(p.caption ? { caption: p.caption } : {}),
-            })) as HydratedImg[];
-
-          if (!images.length) return;
-
-          const rawTitle =
-            typeof (g as any)?.title === "string"
-              ? (g as any).title.trim()
-              : "";
-
-          const vertical = isVerticalGroup(g);
-          const title: string | undefined = rawTitle || undefined;
-
-          const groupObj: ImagesGroup = { title, images };
-
-          if (vertical) {
-            serverFiles.push(groupObj);
-          } else {
-            serverCards.push(groupObj);
-          }
-        });
-
-        if (!cancelled) {
-          setCardsFromServer(serverCards);
-          setFilesFromServer(serverFiles);
-        }
-      } catch (e) {
-        console.warn("[useViewImagesHydration] server fetch failed:", e);
-        if (!cancelled) {
-          setCardsFromServer([]);
-          setFilesFromServer([]);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, pinId]);
+  });
 
   /* 3) 우선순위: 서버 → refs */
   const cardsHydrated: ImagesGroup[] =
-    _cardsFromServer.length > 0
-      ? _cardsFromServer
+    serverCards.length > 0
+      ? serverCards
       : _cardsFromRefs.length > 0
       ? _cardsFromRefs
       : [];
 
   const filesHydrated: ImagesGroup[] =
-    _filesFromServer.length > 0
-      ? _filesFromServer
+    serverFiles.length > 0
+      ? serverFiles
       : _filesFromRefs.length > 0
       ? _filesFromRefs
       : [];

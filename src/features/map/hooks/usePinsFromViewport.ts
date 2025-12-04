@@ -1,4 +1,3 @@
-// features/map/hooks/usePinsFromViewport.ts
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,7 +19,7 @@ function toPosKey(lat?: number, lng?: number) {
     : undefined;
 }
 
-/** 🔹 라벨에 사용할 이름 선택 */
+/** 🔹 라벨에 사용할 "매물명/이름" 선택 */
 function pickDisplayName(p: any): string {
   return (
     p?.title ??
@@ -65,6 +64,26 @@ function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
   };
 }
 
+type BBox = {
+  swLat: number;
+  swLng: number;
+  neLat: number;
+  neLng: number;
+};
+
+/** 🔍 BBox 거의 같은지 비교 (애니메이션 중 미세한 오차 방지용) */
+function isSameBBox(a: BBox | null, b: BBox | null) {
+  if (!a || !b) return false;
+  const EPS = 1e-6;
+  return (
+    Math.abs(a.swLat - b.swLat) +
+      Math.abs(a.swLng - b.swLng) +
+      Math.abs(a.neLat - b.neLat) +
+      Math.abs(a.neLng - b.neLng) <
+    EPS
+  );
+}
+
 export function usePinsFromViewport({
   map,
   debounceMs = 250,
@@ -76,22 +95,43 @@ export function usePinsFromViewport({
   const [points, setPoints] = useState<PinPoint[]>([]);
   const [drafts, setDrafts] = useState<PinPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  /** idle 디바운싱용 타이머 */
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🔒 마지막으로 호출한 BBox
+  const lastBBoxRef = useRef<BBox | null>(null);
+
+  // 필터 바뀌면 “다음 BBox는 무조건 다시 호출”
+  useEffect(() => {
+    lastBBoxRef.current = null;
+  }, [draftState, isNew, isOld]);
 
   const load = useCallback(async () => {
     if (!map) return;
     try {
-      setLoading(true);
-      setError(null);
-
+      // 현재 BBox 계산
       const b = map.getBounds();
-      const res = await fetchPinsByBBox({
+      const curBBox: BBox = {
         swLat: b.getSouthWest().getLat(),
         swLng: b.getSouthWest().getLng(),
         neLat: b.getNorthEast().getLat(),
         neLng: b.getNorthEast().getLng(),
+      };
+
+      // ✅ 같은 BBox로 이미 호출했다면 /map 재요청 스킵
+      if (isSameBBox(lastBBoxRef.current, curBBox)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[usePinsFromViewport] skip duplicated BBox", curBBox);
+        }
+        return;
+      }
+
+      lastBBoxRef.current = curBBox;
+
+      setLoading(true);
+      setError(null);
+
+      const res = await fetchPinsByBBox({
+        ...curBBox,
         draftState,
         ...(typeof isNew === "boolean" ? { isNew } : {}),
         ...(typeof isOld === "boolean" ? { isOld } : {}),
@@ -119,18 +159,7 @@ export function usePinsFromViewport({
     }
   }, [map, draftState, isNew, isOld]);
 
-  /** ✅ 외부에서 강제로 refetch 할 때 쓰는 함수
-   *   - pendding 되어 있는 디바운스 타이머를 먼저 지우고
-   *   - load()를 한 번만 호출
-   */
-  const refetch = useCallback(async () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    await load();
-  }, [load]);
-
+  // 🔁 지도 idle 시 자동 로드 + 디바운스
   useEffect(() => {
     if (!map) return;
 
@@ -140,7 +169,7 @@ export function usePinsFromViewport({
     };
 
     kakao.maps.event.addListener(map, "idle", schedule);
-    schedule(); // 최초 한 번
+    schedule();
 
     return () => {
       if (timer.current) clearTimeout(timer.current);
@@ -170,15 +199,13 @@ export function usePinsFromViewport({
     return all;
   }, [points, drafts]);
 
-  return {
-    loading,
-    points,
-    drafts,
-    markers,
-    error,
-    /** 예전 이름 유지용 */
-    reload: load,
-    /** 🔥 외부(refetchPins)에서 사용하는 전용 refetch */
-    refetch,
-  };
+  /** 🧼 수정 모달 등에서 강제로 다시 불러오고 싶을 때 사용
+   *  - lastBBoxRef를 초기화해서, 같은 BBox여도 다음 load에서 다시 GET 나가도록 함
+   */
+  const reload = useCallback(() => {
+    lastBBoxRef.current = null;
+    return load();
+  }, [load]);
+
+  return { loading, points, drafts, markers, error, reload };
 }
