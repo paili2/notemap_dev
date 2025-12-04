@@ -19,7 +19,7 @@ import MemosContainer from "../containers/MemosContainer";
 import MetaInfoContainer from "../../sections/MetaInfoContainer";
 
 import { cn } from "@/lib/cn";
-import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
+import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode";
 import { useIsMobileBreakpoint } from "@/hooks/useIsMobileBreakpoint";
 import { ALLOW_MOBILE_PROPERTY_EDIT } from "@/features/properties/constants";
 import { useToast } from "@/hooks/use-toast";

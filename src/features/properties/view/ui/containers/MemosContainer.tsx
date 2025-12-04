@@ -2,7 +2,7 @@
 
 import MemoPanel from "../../sections/MemoPanel";
 import { MemoTab } from "../../types";
-import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode";
+import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode";
 
 export default function MemosContainer({
   publicMemo = "",

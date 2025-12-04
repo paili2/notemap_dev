@@ -16,8 +16,22 @@ type Args = {
 };
 
 export function useVisitPlanMode({ form, pinDraftId, initialPinKind }: Args) {
-  /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부 */
-  const isVisitPlanPin = !pinDraftId && isVisitPlanPinKind(initialPinKind);
+  const anyForm = form as any;
+
+  // 🔹 현재 폼에 설정된 핀 종류 (유저가 클릭으로 바꾼 값)
+  const currentKind = anyForm.pinKind as PinKind | null | undefined;
+
+  // 🔹 현재값이 있으면 그걸 우선, 없으면 initialPinKind 사용
+  const effectiveKind: PinKind | null =
+    (currentKind as PinKind | null | undefined) ??
+    (initialPinKind as PinKind | null | undefined) ??
+    null;
+
+  /** 🔍 이 모달이 '답사예정 전용 모드'인지 여부
+   *  - draft 가 없고
+   *  - 현재(또는 초기) pinKind 가 "question" 인 경우만 visit-plan 모드
+   */
+  const isVisitPlanPin = !pinDraftId && isVisitPlanPinKind(effectiveKind);
 
   // 최초 마운트 시 pinKind 초기값 설정
   const didInitPinKindRef = useRef(false);

@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Bounds } from "../shared/types/bounds";
 import {
-  fetchPinsInBounds,
-  PinsMapDraft,
-  PinsMapPoint,
-} from "@/shared/api/pins/queries/pinsMap";
+  getPinsInBounds,
+  type PinsMapDraft,
+  type PinsMapPoint,
+} from "@/shared/api/pins/queries/getPinsInBounds";
 
 /** 간단 디바운스 */
 function debounce<T extends (...a: any[]) => void>(fn: T, ms = 250) {
@@ -79,7 +79,7 @@ export function usePinsMap() {
       setError(null);
 
       try {
-        const data = await fetchPinsInBounds(
+        const data = await getPinsInBounds(
           { ...bounds, ...finalFilters },
           ctrl.signal
         );

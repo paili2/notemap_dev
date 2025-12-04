@@ -1,13 +1,11 @@
 "use client";
 
-import * as React from "react";
-
 import { useSidebar } from "@/features/sidebar";
 import { toLatLng } from "./utils/geo";
 import { useDerivedPinState } from "./hooks/useDerivedPinState";
 import { usePlanReserve } from "./hooks/usePlanReserve";
 import ContextMenuPanel from "../ContextMenuPanel/ContextMenuPanel";
-import { CreateFromPinArgs, PinContextMenuProps } from "./types";
+import { PinContextMenuProps } from "./types";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
 import { useDeletePropertyFromMenu } from "./hooks/useDeletePropertyFromMenu";
@@ -17,6 +15,7 @@ import { useReservationVersion } from "@/features/survey-reservations/store/useR
 import { usePinContextMenuActions } from "./hooks/usePinContextMenuActions";
 import { useToast } from "@/hooks/use-toast";
 import { deletePinDraft } from "@/shared/api/pins";
+import { useCallback, useEffect, useMemo } from "react";
 
 type Props = PinContextMenuProps & {
   mergedMeta?: MergedMarker[];
@@ -80,13 +79,13 @@ export default function PinContextMenuContainer(props: Props) {
 
   if (!kakao || !map || !target) return null;
 
-  const position = React.useMemo<kakao.maps.LatLng>(
+  const position = useMemo<kakao.maps.LatLng>(
     () => toLatLng(kakao, target),
     [kakao, target]
   );
 
   /** 현재 위치 근처 메타 */
-  const metaAtPos = React.useMemo(() => {
+  const metaAtPos = useMemo(() => {
     if (!mergedMeta) return undefined;
     const lat = position.getLat();
     const lng = position.getLng();
@@ -97,7 +96,7 @@ export default function PinContextMenuContainer(props: Props) {
   }, [mergedMeta, position]);
 
   /** 핀/메타에서 읽은 draftState (원본) */
-  const resolvedDraftState = React.useMemo<string | undefined>(() => {
+  const resolvedDraftState = useMemo<string | undefined>(() => {
     const fromMeta =
       metaAtPos?.source === "draft" ? metaAtPos?.draftState : undefined;
     const fromPin =
@@ -125,13 +124,13 @@ export default function PinContextMenuContainer(props: Props) {
   const isNewClick = propertyId === "__draft__" && isSearchDraft;
 
   /** 현재 위치 posKey */
-  const posK = React.useMemo(
+  const posK = useMemo(
     () => posKey(position.getLat(), position.getLng()),
     [position]
   );
 
   /** 예약 리스트 기준 "현재 위치에 예약이 존재하는지" */
-  const hasReservationAtPos = React.useMemo(() => {
+  const hasReservationAtPos = useMemo(() => {
     if (!scheduledReservations?.length) return false;
     const key = posK;
 
@@ -216,7 +215,7 @@ export default function PinContextMenuContainer(props: Props) {
   });
 
   /** 현재 지도 bounds를 {sw, ne}로 추출 */
-  const getBoundsBox = React.useCallback(() => {
+  const getBoundsBox = useCallback(() => {
     try {
       const b = map.getBounds();
       const sw = b.getSouthWest();
@@ -231,7 +230,7 @@ export default function PinContextMenuContainer(props: Props) {
   }, [map]);
 
   /** 공용 오버레이 정리 (라벨은 Host에서만 복원) */
-  const cleanupOverlaysAt = React.useCallback((lat: number, lng: number) => {
+  const cleanupOverlaysAt = useCallback((lat: number, lng: number) => {
     try {
       const anyWin = globalThis as any;
       if (typeof anyWin.__cleanupOverlaysAtPos === "function") {
@@ -271,7 +270,7 @@ export default function PinContextMenuContainer(props: Props) {
   const MENU_Z = Math.max(zIndex ?? 0, 1_000_000);
 
   /** ✅ 컨텍스트 메뉴 패널에 넘길 propertyId */
-  const propertyIdClean = React.useMemo(() => {
+  const propertyIdClean = useMemo(() => {
     if (metaAtPos?.source === "draft") {
       const n = Number((metaAtPos as any)?.id);
       if (Number.isFinite(n)) return String(n);
@@ -284,7 +283,7 @@ export default function PinContextMenuContainer(props: Props) {
   }, [propertyId, metaAtPos]);
 
   /** ✅ draft 메타일 때만 제목으로 사용 */
-  const metaTitle = React.useMemo(() => {
+  const metaTitle = useMemo(() => {
     if (!metaAtPos) return undefined;
 
     if (metaAtPos.source === "draft") {
@@ -299,7 +298,7 @@ export default function PinContextMenuContainer(props: Props) {
     return undefined;
   }, [metaAtPos]);
 
-  const derivedPropertyTitle = React.useMemo(() => {
+  const derivedPropertyTitle = useMemo(() => {
     const pinTitle =
       (pin as any)?.property?.title ??
       (pin as any)?.title ??
@@ -326,7 +325,7 @@ export default function PinContextMenuContainer(props: Props) {
     });
 
   /** ✅ 답사예정지(draft) id 추출 */
-  const draftIdFromPin = React.useMemo(() => {
+  const draftIdFromPin = useMemo(() => {
     const raw = String((pin as any)?.id ?? "");
     if (raw.startsWith("__visit__")) {
       const n = Number(raw.replace("__visit__", ""));
@@ -335,7 +334,7 @@ export default function PinContextMenuContainer(props: Props) {
     return null;
   }, [pin]);
 
-  const draftIdFromMeta = React.useMemo(() => {
+  const draftIdFromMeta = useMemo(() => {
     if (metaAtPos?.source !== "draft") return null;
     const n = Number(
       (metaAtPos as any)?.id ??
@@ -354,7 +353,7 @@ export default function PinContextMenuContainer(props: Props) {
   const canDelete = canDeleteProperty || canDeleteDraft;
 
   /** 🔥 메뉴가 떠 있는 동안 라벨 숨기기: 여기서 id를 강제로 세팅 */
-  React.useEffect(() => {
+  useEffect(() => {
     const id = propertyIdClean ?? undefined;
     if (!id) return;
 
@@ -378,12 +377,12 @@ export default function PinContextMenuContainer(props: Props) {
     };
   }, [propertyIdClean, onChangeHideLabelForId, position]);
 
-  const overlayKey = React.useMemo(
+  const overlayKey = useMemo(
     () => `ctx:${version}:${posK}:${derivedPropertyTitle || ""}`,
     [version, posK, derivedPropertyTitle]
   );
 
-  const handleDelete = React.useCallback(async () => {
+  const handleDelete = useCallback(async () => {
     if (canDeleteDraft && draftId != null) {
       const ok = window.confirm("이 답사예정지 핀을 삭제하시겠어요?");
       if (!ok) return;
@@ -435,7 +434,7 @@ export default function PinContextMenuContainer(props: Props) {
     onClose,
   ]);
 
-  const handleReserveWithToast = React.useCallback(async () => {
+  const handleReserveWithToast = useCallback(async () => {
     try {
       await handleReserveClick();
       toast({

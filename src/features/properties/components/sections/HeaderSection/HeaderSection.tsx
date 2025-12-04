@@ -54,6 +54,7 @@ export default function HeaderSection(
   /** 답사예정일 때 매물평점 / 리베이트 비활성화 */
   const ratingDisabled = !!isVisitPlanPin;
   const rebateDisabled = !!isVisitPlanPin;
+  const buildingGradeDisabled = !!isVisitPlanPin;
 
   /** ───────── 신축/구옥: 로컬 상태 + 외부 동기화 ───────── */
   const [uiValue, setUiValue] = React.useState<UiGrade>(() =>
@@ -71,6 +72,8 @@ export default function HeaderSection(
       : (_: BuildingGrade | null) => {};
 
   const handleUiChange = (v: UiGrade) => {
+    if (buildingGradeDisabled) return; // 🔹 답사예정 모드에서는 무시
+
     console.log("[BuildingGrade onChange]", v);
     // 1) 로컬 UI 상태 먼저 갱신 → 바로 파란색 옮겨감
     setUiValue(v);
@@ -79,7 +82,6 @@ export default function HeaderSection(
     if (!v) {
       setBuildingGrade(null);
     } else {
-      // BuildingGrade 타입이 "new" | "old" 라고 가정
       setBuildingGrade(v as BuildingGrade);
     }
   };
@@ -144,7 +146,7 @@ export default function HeaderSection(
         <div
           className={cn(
             "order-1 flex-shrink-0",
-            isVisitPlanPin && "opacity-60"
+            buildingGradeDisabled && "pointer-events-none opacity-60" // 🔹 클릭도 막기
           )}
         >
           <BuildingGradeSegment value={uiValue} onChange={handleUiChange} />

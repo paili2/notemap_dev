@@ -82,6 +82,13 @@ export function useMenuAndDraft({
     }
   }, []);
 
+  /** 🔹 드래프트 관련 상태 전체 초기화 (닫기/등록 완료 시 공통 사용) */
+  const clearDraftState = useCallback(() => {
+    restoredDraftPinRef.current = null;
+    setDraftPinSafe(null); // state + localStorage 둘 다 클리어
+    setCreateFromDraftId(null);
+  }, [setDraftPinSafe]);
+
   /** 메뉴 오픈 공통 로직 */
   const openMenuAt = useCallback(
     async (
@@ -124,10 +131,6 @@ export function useMenuAndDraft({
       onChangeHideLabelForId(null);
 
       setRawMenuAnchor(p);
-
-      // 과거에는 isTempId 일 때 hideLabelsAround 를 호출했지만,
-      // 검색 결과/임시핀 사라지는 버그 때문에 현재는 사용하지 않는다.
-      // 필요해지면 여기서 opts 플래그를 보고 선택적으로 다시 켜면 됨.
 
       if (opts?.roadAddress || opts?.jibunAddress) {
         setMenuRoadAddr(opts.roadAddress ?? null);
@@ -301,6 +304,7 @@ export function useMenuAndDraft({
     }
   }, [draftPin, resolveAddress, setRawMenuAnchor]);
 
+  /** 🔹 하단 카드 "닫기" 눌렀을 때 */
   const closeMenu = useCallback(() => {
     try {
       if (mapInstance && menuAnchor) {
@@ -315,16 +319,9 @@ export function useMenuAndDraft({
     setMenuJibunAddr(null);
     onChangeHideLabelForId(null);
 
-    if (draftPin) {
-      setDraftPinSafe(null);
-    }
-  }, [
-    draftPin,
-    setDraftPinSafe,
-    onChangeHideLabelForId,
-    mapInstance,
-    menuAnchor,
-  ]);
+    // ✅ 드래프트 관련 상태/스토리지 전부 초기화
+    clearDraftState();
+  }, [clearDraftState, onChangeHideLabelForId, mapInstance, menuAnchor]);
 
   /** 답사예정지 등록 완료 시 호출되는 콜백 */
   const onPlanFromMenu = useCallback(
@@ -340,7 +337,7 @@ export function useMenuAndDraft({
 
       // 메뉴를 열었던 draft 위치와 동일하면 draftPin 비우기
       if (draftPin && sameCoord(draftPin, p)) {
-        setDraftPinSafe(null);
+        clearDraftState();
       }
 
       // 메뉴 닫기 및 라벨 복원
@@ -360,7 +357,7 @@ export function useMenuAndDraft({
         console.error("[useMenuAndDraft/onPlanFromMenu] refetchPins error:", e);
       }
     },
-    [closeMenu, draftPin, setDraftPinSafe, refetchPins]
+    [closeMenu, draftPin, clearDraftState, refetchPins]
   );
 
   const onOpenMenu = useCallback(

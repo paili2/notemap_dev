@@ -1,8 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fetchPinsByBBox, type PinPoint } from "@/features/pins/api";
+
 import type { MapMarker } from "@/features/map/shared/types/map";
+import {
+  getPinsInBounds,
+  type PinsMapPoint,
+  type PinsMapDraft,
+} from "@/shared/api/pins/queries/getPinsInBounds";
 
 type UsePinsOpts = {
   map?: kakao.maps.Map | null;
@@ -33,8 +38,11 @@ function pickDisplayName(p: any): string {
   );
 }
 
-/** PinPoint -> MapMarker 변환 */
-function pinPointToMarker(p: PinPoint, source: "pin" | "draft"): MapMarker {
+/** PinsMapPoint/PinsMapDraft -> MapMarker 변환 */
+function pinPointToMarker(
+  p: PinsMapPoint | PinsMapDraft,
+  source: "pin" | "draft"
+): MapMarker {
   const lat = Number((p as any).lat ?? (p as any).y);
   const lng = Number((p as any).lng ?? (p as any).x);
   const displayName = String(pickDisplayName(p)).trim();
@@ -81,8 +89,8 @@ export function usePinsFromViewport({
   isOld,
 }: UsePinsOpts) {
   const [loading, setLoading] = useState(false);
-  const [points, setPoints] = useState<PinPoint[]>([]);
-  const [drafts, setDrafts] = useState<PinPoint[]>([]);
+  const [points, setPoints] = useState<PinsMapPoint[]>([]);
+  const [drafts, setDrafts] = useState<PinsMapDraft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -116,15 +124,15 @@ export function usePinsFromViewport({
       setLoading(true);
       setError(null);
 
-      const res = await fetchPinsByBBox({
+      const res = await getPinsInBounds({
         ...curBBox,
         draftState,
         ...(typeof isNew === "boolean" ? { isNew } : {}),
         ...(typeof isOld === "boolean" ? { isOld } : {}),
       });
 
-      setPoints(res.data.points ?? []);
-      setDrafts(res.data.drafts ?? []);
+      setPoints(res.points ?? []);
+      setDrafts(res.drafts ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load pins");
     } finally {
@@ -155,9 +163,7 @@ export function usePinsFromViewport({
     const draftMarkers = (drafts ?? []).map((p) =>
       pinPointToMarker(p, "draft")
     );
-    const all = [...live, ...draftMarkers];
-
-    return all;
+    return [...live, ...draftMarkers];
   }, [points, drafts]);
 
   /** 🧼 수정 모달 등에서 강제로 다시 불러오고 싶을 때 사용

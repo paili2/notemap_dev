@@ -22,6 +22,9 @@ export default function AspectsSection({
 }) {
   const list = ORIENTATIONS;
 
+  // 답사예정 모드일 때 비활성화 플래그
+  const disabled = !!isVisitPlanPin;
+
   // ✅ 일반핀 → 답사예정으로 바뀔 때, 모든 향(dir) 초기화
   const prevIsVisitRef = useRef<boolean | undefined>(isVisitPlanPin);
   useEffect(() => {
@@ -64,9 +67,9 @@ export default function AspectsSection({
                   <AspectCell
                     row={pair[0]}
                     orientations={list}
-                    setAspectDir={setAspectDir}
-                    removeAspect={removeAspect}
-                    canRemove={aspects.length > 1}
+                    setAspectDir={disabled ? () => {} : setAspectDir}
+                    removeAspect={disabled ? () => {} : removeAspect}
+                    canRemove={!disabled && aspects.length > 1}
                   />
                 ) : (
                   <div className="h-9" />
@@ -77,9 +80,9 @@ export default function AspectsSection({
                   <AspectCell
                     row={pair[1]}
                     orientations={list}
-                    setAspectDir={setAspectDir}
-                    removeAspect={removeAspect}
-                    canRemove={aspects.length > 1}
+                    setAspectDir={disabled ? () => {} : setAspectDir}
+                    removeAspect={disabled ? () => {} : removeAspect}
+                    canRemove={!disabled && aspects.length > 1}
                   />
                 ) : (
                   <div className="h-9" />
@@ -91,7 +94,8 @@ export default function AspectsSection({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    onClick={addAspect}
+                    onClick={disabled ? undefined : addAspect}
+                    disabled={disabled}
                     title="추가"
                     className="h-8 w-8 p-0 bg-transparent hover:bg-transparent focus-visible:ring-0 border-none shadow-none"
                   >

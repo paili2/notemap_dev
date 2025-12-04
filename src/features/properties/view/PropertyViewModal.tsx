@@ -169,8 +169,6 @@ export default function PropertyViewModal({
           }
         : null,
     };
-
-    console.log("[DEBUG buildingType fields]", JSON.stringify(debug, null, 2));
   }, [q.data]);
 
   const viewData: PropertyViewDetails | null = useMemo(() => {

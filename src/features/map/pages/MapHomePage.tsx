@@ -6,7 +6,6 @@ import { useSidebar } from "@/features/sidebar/SideBarProvider";
 import FavGroupModal from "@/features/sidebar/components/FavGroupModal";
 import type { ListItem } from "@/features/sidebar/types/sidebar";
 
-import { useToast } from "@/hooks/use-toast";
 import { useReverseGeocode } from "./hooks/useReverseGeocode";
 import { useFavModalController } from "./hooks/useFavModalController";
 import { eqId } from "@/shared/api/survey-reservations/surveyReservations";
@@ -31,7 +30,6 @@ export default function MapHomePage() {
   }
 
   const s = useMapHomeState();
-  const { toast } = useToast();
 
   // 🔍 250m(레벨 5) 이하에서만 컨텍스트 메뉴 유지
   useEffect(() => {

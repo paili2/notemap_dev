@@ -8,7 +8,7 @@ import { HeaderSectionViewProps } from "./types";
 import { getPinUrl } from "@/features/pins/lib/assets";
 import StarMeter from "../../ui/parts/StarMeter";
 import { getAgeLabel } from "@/features/properties/lib/ageLabel";
-import { useMemoViewMode } from "@/features/properties/store/useMemoViewMode"; // ✅ 추가
+import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode"; // ✅ 추가
 
 export default function HeaderSectionView({
   title,
