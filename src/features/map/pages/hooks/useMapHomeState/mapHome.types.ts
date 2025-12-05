@@ -1,5 +1,5 @@
+import { CreateFromPinArgs } from "@/features/map/components/contextMenu/PinContextMenu/types";
 import type { LatLng } from "@/lib/geo/types";
-import type { CreateFromPinArgs } from "../../../shared/pinContextMenu/components/PinContextMenu/types";
 
 /** 지도 도구 모드 (지적/로드뷰 배타적 관리) */
 export type MapToolMode = "none" | "district" | "roadview";

@@ -323,23 +323,19 @@ export default function PropertyEditModalBody({
     () => ({
       title: f.title,
       setTitle: (v: string) => {
-        console.log("[Header] title change:", v);
         f.setTitle(v);
       },
       parkingGrade: f.parkingGrade,
       setParkingGrade: (v: StarStr) => {
         const nv = normalizeStarStr(v);
-        console.log("[Header] parkingGrade change:", v, "→", nv);
         f.setParkingGrade(nv);
       },
       elevator: f.elevator,
       setElevator: (v: any) => {
-        console.log("[Header] elevator change:", v);
         f.setElevator(v);
       },
       pinKind: f.pinKind,
       setPinKind: (v: any) => {
-        console.log("[Header] pinKind selected:", v);
         f.setPinKind(v);
       },
 
@@ -348,7 +344,6 @@ export default function PropertyEditModalBody({
 
       rebateRaw: f.rebateRaw,
       setRebateRaw: (v: string) => {
-        console.log("[Header] rebateRaw change:", v);
         f.setRebateRaw(v);
       },
     }),

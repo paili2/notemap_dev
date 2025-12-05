@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { normalizeLL, toGroupingPosKeyFromPos } from "./utils";
+import {
+  normalizeLL,
+  toGroupingPosKeyFromPos,
+} from "../../../shared/utils/coords";
 import { useLabelMaskOnMenuOpen } from "./useLabelMaskOnMenuOpen";
 import { MapMarker } from "@/features/map/shared/types/map";
 

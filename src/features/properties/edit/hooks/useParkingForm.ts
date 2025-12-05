@@ -18,7 +18,6 @@ export function useParkingForm({ form }: UseParkingFormArgs): ParkingFormSlice {
   // Parking setters 프록시 + 로그
   const setParkingType = useCallback(
     (v: string | null) => {
-      console.log("[Parking] type change:", v);
       form?.setParkingType?.(v);
     },
     [form]
@@ -26,7 +25,6 @@ export function useParkingForm({ form }: UseParkingFormArgs): ParkingFormSlice {
 
   const setTotalParkingSlots = useCallback(
     (v: string | null) => {
-      console.log("[Parking] total slots change:", v);
       form?.setTotalParkingSlots?.(v ?? "");
     },
     [form]

@@ -49,11 +49,6 @@ export function useCreateForm({
     const headerActions: any = header.actions;
     const basicActions: any = basic.actions;
 
-    console.log("[useCreateForm] effect start", {
-      pinDraftId,
-      draftHeaderPrefill,
-    });
-
     // 1) 상위(MapHome)에서 직접 내려준 값 우선 적용
     const titleFromProps = String(draftHeaderPrefill?.title ?? "").trim();
     const phoneFromProps = String(draftHeaderPrefill?.officePhone ?? "").trim();
@@ -70,7 +65,6 @@ export function useCreateForm({
 
     const idNum = Number(pinDraftId);
     if (!Number.isFinite(idNum)) {
-      console.warn("[useCreateForm] invalid pinDraftId:", pinDraftId);
       return;
     }
 
@@ -84,8 +78,6 @@ export function useCreateForm({
         // 🔍 /pin-drafts/:id 응답이 { path, data } 또는 그냥 { ... } 둘 다 대응
         const anyDraft: any = draftRaw;
         const draft = anyDraft.data ?? anyDraft;
-
-        console.log("[useCreateForm] fetched draft =", draft);
 
         const name = String(draft.name ?? "").trim();
         const phone = String(draft.contactMainPhone ?? "").trim();

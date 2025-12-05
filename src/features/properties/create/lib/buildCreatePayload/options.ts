@@ -17,7 +17,7 @@ export function buildOptionsForServer(
   optionEtc: string
 ): OptionsForServer {
   const set = new Set(selected ?? []);
-  const etcText = s(optionEtc);
+  const etcText = s(optionEtc); // 공백 트림 + "" 처리
 
   const out: OptionsForServer = {
     hasAircon: set.has("에어컨"),
@@ -28,8 +28,15 @@ export function buildOptionsForServer(
     hasAirPurifier: set.has("공기순환기"),
   };
 
-  if (etcChecked && etcText) {
-    out.extraOptionsText = etcText;
+  if (etcChecked) {
+    // ✅ 직접입력 ON
+    // - 글자가 있으면 그 값 그대로
+    // - 글자가 없으면 "" 로 명시적으로 보내서 기존 값 삭제 트리거
+    out.extraOptionsText = etcText ?? "";
+  } else {
+    // ✅ 직접입력 OFF
+    // - 무조건 "" 로 보내서 DB 값 지우게 만들기
+    out.extraOptionsText = "";
   }
 
   return out;

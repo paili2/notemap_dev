@@ -247,12 +247,18 @@ export default function OptionsSection({
       setCustomInputs((prev) => {
         const copy = [...prev];
         copy.splice(idx, 1);
-        if (copy.length === 0) copy.push("");
+
+        // ✅ 모든 칸을 X 눌러서 "하나도 안 남았을 때"만 직접입력 자동 OFF
+        if (copy.length === 0) {
+          setEtcOn(false);
+          safeSetEtcChecked(false);
+        }
+
         syncOptionsDebounced(copy);
         return copy;
       });
     },
-    [syncOptionsDebounced]
+    [syncOptionsDebounced, safeSetEtcChecked]
   );
 
   // IME 안전: 로컬만 즉시 업데이트, 부모는 디바운스

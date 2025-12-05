@@ -87,30 +87,17 @@ export function useEditSave({
   );
 
   const save = useCallback(async () => {
-    console.groupCollapsed("[save] start");
-    console.log("[save] current buildingGrade:", buildingGrade);
-    console.log(
-      "[save] buildingGradeTouched:",
-      buildingGradeTouched,
-      "hadAgeFlags:",
-      hadAgeFlags
-    );
-    console.log("[save] current pinKind:", f.pinKind);
-
     if (!f.title.trim()) {
-      console.groupEnd();
       showAlert("이름(제목)을 입력하세요.");
       return;
     }
 
     // ✅ 전화번호 형식 검증
     if (!isValidPhoneKR(f.officePhone)) {
-      console.groupEnd();
       showAlert("전화번호를 입력해주세요");
       return;
     }
     if ((f.officePhone2 ?? "").trim() && !isValidPhoneKR(f.officePhone2)) {
-      console.groupEnd();
       showAlert("전화번호를 입력해주세요");
       return;
     }
@@ -122,7 +109,6 @@ export function useEditSave({
         const normalized = normalizeDateInput(raw);
         if (normalized !== raw) f.setCompletionDate(normalized);
         if (!isValidIsoDateStrict(normalized)) {
-          console.groupEnd();
           showAlert(
             " 준공일은 YYYY-MM-DD 형식으로 입력해주세요.\n예: 2024-04-14"
           );
@@ -135,7 +121,6 @@ export function useEditSave({
     {
       const msg = validateAreaRanges(f.baseAreaSet, f.extraAreaSets);
       if (msg) {
-        console.groupEnd();
         showAlert(msg);
         return;
       }
@@ -145,7 +130,6 @@ export function useEditSave({
     {
       const msg = validateUnitPriceRanges(f.unitLines);
       if (msg) {
-        console.groupEnd();
         showAlert(msg);
         return;
       }
@@ -212,17 +196,12 @@ export function useEditSave({
 
       // 🔧 무의미한 null/빈값 제거 + [] 방지 (directions/units 보존)
       dto = stripNoopNulls(dto, bridgedInitial) as UpdatePinDto;
-      console.log(
-        "[save] stripNoopNulls 이후 dto.areaGroups:",
-        (dto as any).areaGroups
-      );
 
       if (
         (dto as any)?.areaGroups &&
         Array.isArray((dto as any).areaGroups) &&
         (dto as any).areaGroups.length === 0
       ) {
-        console.log("[save] areaGroups가 빈 배열 → 키 제거");
         delete (dto as any).areaGroups;
       }
 
@@ -240,17 +219,6 @@ export function useEditSave({
       const nextHasElevator =
         f.elevator === "O" ? true : f.elevator === "X" ? false : null;
 
-      const initialHasElevator: boolean | null =
-        (bridgedInitial as any)?.hasElevator ??
-        (bridgedInitial as any)?.initialHasElevator ??
-        null;
-
-      console.log("[save] elevator final:", {
-        formElevator: f.elevator,
-        nextHasElevator,
-        initialHasElevator,
-      });
-
       if (typeof nextHasElevator === "boolean") {
         (dto as any).hasElevator = nextHasElevator;
       } else {
@@ -264,11 +232,6 @@ export function useEditSave({
         null;
 
       const nextBuildingType = f.buildingType as BuildingType | null;
-
-      console.log("[save] buildingType diff check:", {
-        initialBuildingType,
-        nextBuildingType,
-      });
 
       if (nextBuildingType === initialBuildingType) {
         delete (dto as any).buildingType;
@@ -305,28 +268,10 @@ export function useEditSave({
       removeIfSameAsInitial("areaGroups");
       removeIfSameAsInitial("privateMemo");
 
-      console.log("[save] final toggles (diffed):", {
-        buildingGrade,
-        buildingGradeTouched,
-        hadAgeFlags,
-        isNew: (dto as any).isNew,
-        isOld: (dto as any).isOld,
-        pinKind: (dto as any).pinKind ?? f.pinKind,
-        buildingType: (dto as any).buildingType,
-        registry: (dto as any).registry,
-        hasElevator: (dto as any).hasElevator,
-      });
-
       // 최종 dto 기준으로 의미있는 변경 판단
       hasFormChanges = hasMeaningfulPatch(dto);
-
-      console.groupCollapsed("[save] after toPinPatch+strip (diffed only)");
-      console.log("[save] dto:", dto);
-      console.log("[save] hasFormChanges:", hasFormChanges);
-      console.groupEnd();
     } catch (e: any) {
       console.error("[toPinPatch] 실패:", e);
-      console.groupEnd();
       showAlert(e?.message || "변경 사항 계산 중 오류가 발생했습니다.");
       return;
     }
@@ -336,7 +281,6 @@ export function useEditSave({
       await (commitImageChanges?.() ?? commitPending?.());
     } catch (e: any) {
       console.error("[images.commit] 실패:", e);
-      console.groupEnd();
       showAlert(e?.message || "이미지 변경사항 반영에 실패했습니다.");
       return;
     }
@@ -347,18 +291,12 @@ export function useEditSave({
     }
 
     if (hasFormChanges && dto && Object.keys(dto).length > 0) {
-      console.log("[save] → will PATCH /pins/:id", propertyId, "with", dto);
       try {
-        console.log("PATCH /pins/:id payload", dto);
         await updatePin(propertyId, dto);
 
         // 🔥⭐ PATCH 성공 후: 초기 스냅샷(bridgedInitial)을 최신 서버 상태로 업데이트
         if (bridgedInitial && typeof bridgedInitial === "object") {
           Object.assign(bridgedInitial as any, dto);
-          console.log(
-            "[save] bridgedInitial updated with dto:",
-            bridgedInitial
-          );
         }
 
         const idStr = String(propertyId);
@@ -384,12 +322,9 @@ export function useEditSave({
         }
       } catch (e: any) {
         console.error("[PATCH /pins/:id] 실패:", e);
-        console.groupEnd();
         showAlert(e?.message || "핀 수정 중 오류가 발생했습니다.");
         return;
       }
-    } else {
-      console.log("[save] no form changes → skip PATCH");
     }
 
     // 3) 로컬 view 갱신 + 뷰 모달로 복귀
@@ -502,12 +437,6 @@ export function useEditSave({
         (bridgedInitial as any) ?? {}
       );
 
-      console.log("[save] onSubmit payload (view sync):", {
-        buildingGrade: normalizedBuildingGrade,
-        pinKind: f.pinKind,
-        title: payload.title,
-      });
-
       if (onSubmit) {
         await onSubmit(payload as any);
       }
@@ -518,7 +447,6 @@ export function useEditSave({
           "화면 갱신 중 오류가 발생했지만,\n서버에는 변경 사항이 저장되었습니다."
       );
     } finally {
-      console.groupEnd();
       onClose();
     }
   }, [

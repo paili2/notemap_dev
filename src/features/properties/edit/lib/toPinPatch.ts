@@ -48,7 +48,26 @@ const toStrictAreaSet = (s: any): StrictAreaSet => ({
 const buildOptionsFromForm = (f: any) => {
   const selected: string[] = Array.isArray(f.options) ? f.options : [];
   const has = (label: string) => selected.includes(label);
+
   const extraRaw = String(f.optionEtc ?? "").trim();
+  const hasExplicitEtcFlag = typeof f.etcChecked === "boolean";
+
+  let extraOptionsText: string | null | undefined;
+
+  if (hasExplicitEtcFlag) {
+    // ✳️ 실제 폼에서 사용하는 케이스 (OptionsSection 의 etcChecked 사용)
+    if (f.etcChecked) {
+      // 직접입력 ON → 글자가 있으면 그 값, 없으면 null 로 보내서 기존값 삭제
+      extraOptionsText = extraRaw ? extraRaw.slice(0, 255) : null;
+    } else {
+      // 직접입력 OFF → 항상 null 보내서 DB 값 지우기
+      extraOptionsText = null;
+    }
+  } else {
+    // ✳️ 옛날/호환용: etcChecked 없는 폼
+    // 글자가 있으면 그 값, 없으면 null
+    extraOptionsText = extraRaw ? extraRaw.slice(0, 255) : null;
+  }
 
   const out: any = {
     hasAircon: has("에어컨"),
@@ -58,7 +77,9 @@ const buildOptionsFromForm = (f: any) => {
     hasBidet: has("비데"),
     hasAirPurifier: has("공기순환기"),
   };
-  if (extraRaw) out.extraOptionsText = extraRaw.slice(0, 255);
+
+  // ✅ 항상 키 생성 (문자열이든 null 이든)
+  out.extraOptionsText = extraOptionsText;
 
   const any =
     out.hasAircon ||
@@ -67,7 +88,7 @@ const buildOptionsFromForm = (f: any) => {
     out.hasDryer ||
     out.hasBidet ||
     out.hasAirPurifier ||
-    !!out.extraOptionsText;
+    extraOptionsText !== null; // null 패치도 의미 있는 변경으로 취급
 
   return any ? out : null;
 };

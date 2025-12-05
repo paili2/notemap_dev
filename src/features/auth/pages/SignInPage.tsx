@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { AuthPageLayout } from "@/features/auth/layouts/AuthPageLayout";
 import { LoginForm } from "@/features/auth/components/LoginForm/LoginForm";
 import { ForgotPasswordForm } from "../components/ForgotPasswordForm";
@@ -9,7 +8,6 @@ import { ForgotPasswordForm } from "../components/ForgotPasswordForm";
 export default function SignInPage() {
   type Mode = "login" | "forgot";
   const [mode, setMode] = useState<Mode>("login");
-  const router = useRouter();
 
   const title = mode === "login" ? "로그인" : "비밀번호 찾기";
   const subtitle =

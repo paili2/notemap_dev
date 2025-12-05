@@ -3,7 +3,7 @@
 import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import type { PinKind } from "@/features/pins/types";
-import RoadviewHost from "../../view/roadview/RoadviewHost";
+import RoadviewHost from "../../../../view/roadview/RoadviewHost";
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost";
 import { PropertyViewDetails } from "@/features/properties/view/types";
 

@@ -66,10 +66,6 @@ export function useMapCore({
       setKakaoSDK(kakao);
       setMapInstance(map);
 
-      requestAnimationFrame(() => {
-        // fitAllOnce는 index.ts에서 별도 관리
-      });
-
       setTimeout(() => {
         map.relayout?.();
         kakao.maps.event.trigger(map, "resize");

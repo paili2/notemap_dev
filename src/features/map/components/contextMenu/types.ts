@@ -1,8 +1,8 @@
 "use client";
 
 import { MapMarker } from "@/features/map/shared/types/map";
-import type { MergedMarker } from "../../hooks/useMergedMarkers";
-import type { CreateFromPinArgs } from "@/features/map/shared/pinContextMenu/components/PinContextMenu/types";
+import { MergedMarker } from "../../pages/hooks/useMergedMarkers";
+import { CreateFromPinArgs } from "./PinContextMenu/types";
 
 export type LatLng = {
   lat: number;

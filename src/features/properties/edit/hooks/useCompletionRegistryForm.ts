@@ -17,7 +17,6 @@ export function useCompletionRegistryForm({
 }: UseCompletionRegistryFormArgs): CompletionRegistryFormSlice {
   const setCompletionDate = useCallback(
     (v: string) => {
-      console.log("[Completion] date change:", v);
       form?.setCompletionDate?.(v);
     },
     [form]
@@ -26,7 +25,6 @@ export function useCompletionRegistryForm({
   const setMinRealMoveInCost = useCallback(
     (v: string | number | null) => {
       const s = v == null ? "" : String(v);
-      console.log("[Completion] minRealMoveInCost change:", v, "→", s);
       // 내부에서는 salePrice 한 필드로 관리
       form?.setSalePrice?.(s);
     },
@@ -36,7 +34,6 @@ export function useCompletionRegistryForm({
   const setSalePrice = useCallback(
     (v: string | number | null) => {
       const s = v == null ? "" : String(v);
-      console.log("[Completion] salePrice change:", v, "→", s);
       form?.setSalePrice?.(s);
     },
     [form]
@@ -44,7 +41,6 @@ export function useCompletionRegistryForm({
 
   const setElevator = useCallback(
     (v: any) => {
-      console.log("[Completion] elevator change:", v);
       form?.setElevator?.(v);
     },
     [form]
@@ -52,7 +48,6 @@ export function useCompletionRegistryForm({
 
   const setSlopeGrade = useCallback(
     (v?: Grade) => {
-      console.log("[Completion] slopeGrade change:", v);
       form?.setSlopeGrade?.(() => v);
     },
     [form]
@@ -60,7 +55,6 @@ export function useCompletionRegistryForm({
 
   const setStructureGrade = useCallback(
     (v?: Grade) => {
-      console.log("[Completion] structureGrade change:", v);
       form?.setStructureGrade?.(() => v);
     },
     [form]
@@ -69,7 +63,6 @@ export function useCompletionRegistryForm({
   /** ✅ UI에서 전달되는 enum 그대로 사용 (추가 정규화 X) */
   const setBuildingType = useCallback(
     (v: BuildingType | null) => {
-      console.log("[Completion] buildingType change:", v);
       form?.setBuildingType?.(v);
     },
     [form]
@@ -78,7 +71,6 @@ export function useCompletionRegistryForm({
   const setRebateText = useCallback(
     (v: string | null) => {
       const s = v ?? "";
-      console.log("[Completion] rebateText change:", v, "→", s);
       form?.setRebateText?.(s);
     },
     [form]

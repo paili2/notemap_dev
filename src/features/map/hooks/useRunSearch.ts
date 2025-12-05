@@ -82,7 +82,6 @@ export function useRunSearch({
       });
 
       if (byName) {
-        console.log("[useRunSearch] matched by name:", byName);
         await onMatchedPin(byName);
         return;
       }
@@ -152,11 +151,6 @@ export function useRunSearch({
         } else if (nearest && nearestDist < SEARCH_NEAR_THRESHOLD_M) {
           picked = nearest;
         }
-
-        console.log("[useRunSearch] picked (geo) =", picked, {
-          bestByNameOrAddrDist,
-          nearestDist,
-        });
 
         if (picked) {
           await onMatchedPin(picked);

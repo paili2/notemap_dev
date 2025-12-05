@@ -397,13 +397,6 @@ export function useCreateSave({
     refetchPins,
   ]);
 
-  console.log("[canSave]", {
-    rawIsSaveEnabled: f.isSaveEnabled,
-    ...debug,
-    isVisitPlanPin,
-    hasImageFolderWithTitle: media.hasImageFolderWithTitle,
-  });
-
   return { save, canSave, isSaving };
 }
 

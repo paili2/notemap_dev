@@ -74,7 +74,6 @@ export default function HeaderSection(
   const handleUiChange = (v: UiGrade) => {
     if (buildingGradeDisabled) return; // 🔹 답사예정 모드에서는 무시
 
-    console.log("[BuildingGrade onChange]", v);
     // 1) 로컬 UI 상태 먼저 갱신 → 바로 파란색 옮겨감
     setUiValue(v);
 

@@ -7,13 +7,15 @@ import { useToast } from "@/hooks/use-toast";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import { useReservationVersion } from "@/features/survey-reservations/store/useReservationVersion";
 
-import PinContextMenuContainer from "@/features/map/shared/pinContextMenu/components/PinContextMenu/PinContextMenuContainer";
-import { CreateFromPinArgs } from "@/features/map/shared/pinContextMenu/components/PinContextMenu/types";
-
-import { normalizeLL, toGroupingPosKeyFromPos } from "./utils";
-import { useContextMenuAnchor } from "./useContextMenuAnchor";
+import {
+  normalizeLL,
+  toGroupingPosKeyFromPos,
+} from "../../shared/utils/coords";
+import { useContextMenuAnchor } from "./hooks/useContextMenuAnchor";
 import { ContextMenuHostProps, LatLng, ReserveFromMenuArgs } from "./types";
 import { createPinDraft } from "@/shared/api/pins";
+import { CreateFromPinArgs } from "./PinContextMenu/types";
+import PinContextMenuContainer from "./PinContextMenu/PinContextMenuContainer";
 
 export default function ContextMenuHost(props: ContextMenuHostProps) {
   const {
@@ -311,13 +313,6 @@ export default function ContextMenuHost(props: ContextMenuHostProps) {
         }
 
         const visitPlanOnly = !!panelArgs?.visitPlanOnly;
-
-        console.debug("[ContextMenuHost:onCreate] panelArgs =", panelArgs, {
-          basePos,
-          fromPinDraftId,
-          createMode,
-          visitPlanOnly,
-        });
 
         const args = {
           latFromPin: basePos.lat,

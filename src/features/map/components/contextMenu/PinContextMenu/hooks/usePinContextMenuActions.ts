@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 
 import type { MergedMarker } from "@/features/map/pages/hooks/useMergedMarkers";
-import type { CreateFromPinArgs } from "../types";
 import {
   createSurveyReservation,
   fetchUnreservedDrafts,
@@ -16,6 +15,7 @@ import {
   optimisticPlannedPosSet,
 } from "../lib/draftMatching";
 import { useToast } from "@/hooks/use-toast"; // ✅ 토스트 추가
+import { CreateFromPinArgs } from "../types";
 
 type BoundsBox =
   | {
@@ -157,20 +157,10 @@ export function usePinContextMenuActions({
   const handleReserveClick = useCallback(async () => {
     try {
       setReserving(true);
-      // eslint-disable-next-line no-console
-      console.log("[reserve] 클릭됨");
 
       const draftId = await getDraftIdForReservation();
-      // eslint-disable-next-line no-console
-      console.log("[reserve] resolved draftId:", draftId);
 
       if (draftId == null) {
-        // eslint-disable-next-line no-console
-        console.error("No pinDraftId resolved for reservation", {
-          pin,
-          propertyId,
-          pos: [position.getLat(), position.getLng()],
-        });
         toast({
           title: "답사지 예약 실패",
           description: "이미 다른 사원이 예약한 핀입니다.",
