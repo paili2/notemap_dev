@@ -12,7 +12,7 @@ import { isTooBroadKeyword } from "../../../shared/utils/isTooBroadKeyword";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 import type { Viewport } from "./mapHome.types";
-import { PoiKind } from "../../../view/overlays/poiOverlays";
+import { PoiKind } from "@/features/map/poi/lib/poiTypes";
 
 type UseSearchAndPoiArgs = {
   kakaoSDK: any;

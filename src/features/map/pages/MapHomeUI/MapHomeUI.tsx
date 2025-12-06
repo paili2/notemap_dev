@@ -4,8 +4,8 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 
 import { useSidebar as useSidebarCtx, Sidebar } from "@/features/sidebar";
 
-import { useMergedMarkers } from "../../hooks/useMergedMarkers";
-import MapCanvas from "../MapCanvas";
+import { useMergedMarkers } from "../hooks/useMergedMarkers";
+import MapCanvas from "./components/MapCanvas";
 import ModalsHost from "./components/ModalsHost";
 
 import type { PinKind } from "@/features/pins/types";
@@ -15,10 +15,10 @@ import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { useBounds } from "@/features/map/hooks/useBounds";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
-import { MapHomeUIProps } from "../../types";
-import { useBoundsRaw } from "../../../hooks/useBoundsRaw";
-import { usePlannedDrafts } from "../../../hooks/usePlannedDrafts";
-import { FilterFab, FilterSearch } from "../../../components/filterSearch";
+import { MapHomeUIProps } from "../types";
+import { useBoundsRaw } from "../../hooks/useBoundsRaw";
+import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
+import { FilterFab, FilterSearch } from "../../components/filterSearch";
 
 import { useViewModalState } from "./hooks/useViewModalState";
 import { usePanelsAndToggles } from "./hooks/usePanelsAndToggles";
@@ -32,8 +32,8 @@ import { useAfterCreateHandler } from "./hooks/useAfterCreateHandler";
 import { focusMapToPosition } from "./lib/viewUtils";
 import { TopRegion } from "./components/TopRegion";
 import usePlaceSearchOnMap from "./hooks/usePlaceSearchOnMap";
-import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
-import ContextMenuHost from "../../../components/contextMenu/ContextMenuHost";
+import ContextMenuHost from "../../components/contextMenu/ContextMenuHost";
+import { hideLabelsAround } from "../../components/mapview/overlays/labelRegistry";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {

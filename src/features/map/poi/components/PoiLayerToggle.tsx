@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { POI_LABEL, PoiKind } from "@/features/map/view/overlays/poiOverlays";
 import { cn } from "@/lib/cn";
+import { PoiKind } from "../lib/poiTypes";
+import { POI_LABEL } from "../lib/poiMeta";
 
 const CANDIDATES: PoiKind[] = ["convenience", "cafe", "pharmacy", "subway"];
 

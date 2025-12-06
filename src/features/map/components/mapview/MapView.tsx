@@ -11,8 +11,8 @@ import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
 import type { MapViewProps } from "./types";
 import { PoiKind } from "./overlays/poiOverlays";
-import { PoiLayerToggle } from "../poi/components/PoiLayerToggle";
-import usePoiLayer from "../poi/hooks/usePoiLayer";
+import usePoiLayer from "../../poi/hooks/usePoiLayer";
+import { PoiLayerToggle } from "../../poi/components/PoiLayerToggle";
 
 type Props = MapViewProps;
 

@@ -10,7 +10,7 @@ import { useReverseGeocode } from "./hooks/useReverseGeocode";
 import { useFavModalController } from "./hooks/useFavModalController";
 import { eqId } from "@/shared/api/survey-reservations/surveyReservations";
 import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
-import MapHomeUI from "./components/MapHomeUI/MapHomeUI";
+import MapHomeUI from "./MapHomeUI/MapHomeUI";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { createPinDraft } from "@/shared/api/pins";
 import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/types";

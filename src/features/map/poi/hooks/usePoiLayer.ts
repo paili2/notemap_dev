@@ -1,12 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import {
-  PoiKind,
-  KAKAO_CATEGORY,
-  KAKAO_KEYWORD,
-  createPoiOverlay,
-} from "@/features/map/view/overlays/poiOverlays";
+
 import {
   DEFAULTS,
   IDLE_THROTTLE_MS,
@@ -29,7 +24,13 @@ import {
   searchCategoryAllPagesByBounds,
   searchKeywordAllPagesByBounds,
 } from "../lib/search";
-import { calcPoiSizeByLevel } from "@/features/map/poi/lib/poiMeta";
+import {
+  calcPoiSizeByLevel,
+  KAKAO_CATEGORY,
+  KAKAO_KEYWORD,
+} from "@/features/map/poi/lib/poiMeta";
+import { PoiKind } from "../lib/poiTypes";
+import { createPoiOverlay } from "../../components/mapview/overlays/poiOverlays";
 
 export function usePoiLayer({
   kakaoSDK,

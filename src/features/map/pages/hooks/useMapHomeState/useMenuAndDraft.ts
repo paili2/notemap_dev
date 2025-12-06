@@ -3,10 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
-import {
-  hideLabelsAround, // 지금은 안 쓰지만, 혹시 나중에 다시 쓸 수도 있어서 import는 남겨둠
-  showLabelsAround,
-} from "@/features/map/view/overlays/labelRegistry";
+
 import {
   normalizeLL,
   PIN_MENU_MAX_LEVEL,
@@ -14,6 +11,7 @@ import {
   sameCoord,
 } from "./mapHome.utils";
 import type { OpenMenuOpts } from "./mapHome.types";
+import { showLabelsAround } from "@/features/map/components/mapview/overlays/labelRegistry";
 
 type UseMenuAndDraftArgs = {
   kakaoSDK: any;

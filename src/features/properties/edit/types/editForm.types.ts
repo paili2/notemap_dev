@@ -67,7 +67,7 @@ export type NormalizedEditData = {
 
   // 옵션/메모/유닛
   options: string[];
-  : string;
+  optionEtc: string;
   etcChecked: boolean;
   publicMemo: string;
   secretMemo: string;

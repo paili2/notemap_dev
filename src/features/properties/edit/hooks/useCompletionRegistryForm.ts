@@ -76,6 +76,14 @@ export function useCompletionRegistryForm({
     [form]
   );
 
+  /** 🆕 건물 연식 그레이드 */
+  const setBuildingGrade = useCallback(
+    (v: CompletionRegistryFormSlice["buildingGrade"]) => {
+      form?.setBuildingGrade?.(v);
+    },
+    [form]
+  );
+
   const completionRegistryForm = useMemo<CompletionRegistryFormSlice>(
     () => ({
       // ─── 준공일 ───
@@ -102,13 +110,17 @@ export function useCompletionRegistryForm({
       structureGrade: form?.structureGrade,
       setStructureGrade,
 
-      // ✅ 등기/건물 타입: 이미 useEditForm에서 정규화된 enum 값을 그대로 씀
+      // ✅ 등기/건물 타입
       buildingType: (form?.buildingType ?? null) as BuildingType | null,
       setBuildingType,
 
       // ⭐ 리베이트 텍스트
       rebateText: form?.rebateText ?? "",
       setRebateText,
+
+      // 🆕 건물 연식 그레이드
+      buildingGrade: form?.buildingGrade ?? null,
+      setBuildingGrade,
     }),
     [
       form?.completionDate,
@@ -118,6 +130,7 @@ export function useCompletionRegistryForm({
       form?.structureGrade,
       form?.buildingType,
       form?.rebateText,
+      form?.buildingGrade,
       setCompletionDate,
       setMinRealMoveInCost,
       setSalePrice,
@@ -126,6 +139,7 @@ export function useCompletionRegistryForm({
       setStructureGrade,
       setBuildingType,
       setRebateText,
+      setBuildingGrade,
     ]
   );
 

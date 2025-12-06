@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import ToggleSidebar from "./ToggleSidebar/ToggleSidebar";
-import { PoiKind } from "@/features/map/view/overlays/poiOverlays";
 import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/hooks/use-toast";
 import { MapMenuKey } from "@/features/map/components/menu/components/types";
 import MapMenu from "@/features/map/components/menu/MapMenu";
+import { PoiKind } from "../poi/lib/poiTypes";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned";

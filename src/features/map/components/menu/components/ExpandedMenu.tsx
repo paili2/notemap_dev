@@ -18,10 +18,11 @@ import {
 } from "lucide-react";
 
 import type { MapMenuKey } from "./types";
-import { PoiKind, POI_LABEL } from "@/features/map/view/overlays/poiOverlays";
 import { FilterSection } from "./FilterSection";
 import RoadviewToggleButton from "./RoadviewToggleButton";
 import DistrictToggleButton from "./DistrictToggleButton";
+import { POI_LABEL } from "../../mapview/overlays/poiOverlays";
+import { PoiKind } from "@/features/map/poi/lib/poiTypes";
 
 // top 모듈에 있는 로드뷰 토글 (기존 default export 유지)
 

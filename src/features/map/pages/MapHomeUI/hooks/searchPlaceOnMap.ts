@@ -15,8 +15,8 @@ import type { MapMarker } from "@/features/map/shared/types/map";
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";
 import { getDisplayPinKind } from "@/features/pins/lib/getDisplayPinKind";
 // ✅ 라벨 직접 숨기기용
-import { hideLabelsAround } from "@/features/map/view/overlays/labelRegistry";
 import { distM } from "@/features/map/poi/lib/geometry";
+import { hideLabelsAround } from "@/features/map/components/mapview/overlays/labelRegistry";
 
 type SearchDeps = {
   kakaoSDK: any;

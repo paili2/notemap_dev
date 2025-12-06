@@ -10,7 +10,15 @@ import {
 } from "react";
 import type React from "react";
 
-import type { ContextMenuPanelProps } from "../types";
+import {
+  computeHeaderTitle,
+  computePanelState,
+  extractDraftIdFromPropertyId,
+  getLatLngFromPosition,
+  isDraftLikeId,
+  type ContextMenuPanelProps,
+} from "../types";
+
 import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
@@ -19,49 +27,6 @@ import type {
   ReserveRequestPayload,
 } from "../../PinContextMenu/types";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
-
-/** 느슨한 불리언 변환 (true/"true"/1/"1") */
-const asBool = (v: any) => v === true || v === 1 || v === "1" || v === "true";
-
-/** 서버 draftState → planned/reserved 매핑 */
-function mapDraftState(s?: string | null) {
-  const v = String(s ?? "")
-    .trim()
-    .toUpperCase();
-  const planned = v === "BEFORE" || v === "PENDING" || v === "PLANNED";
-  const reserved = v === "SCHEDULED" || v === "RESERVED";
-  return { planned, reserved };
-}
-
-/** __visit__/__reserved__/__plan__/__planned__ 형태에서 숫자 ID 추출 */
-function extractDraftIdFromPropertyId(
-  propertyId?: string | number | null
-): number | undefined {
-  if (propertyId == null) return undefined;
-  const raw = String(propertyId).trim();
-  if (!raw) return undefined;
-
-  const m = raw.match(
-    /^(?:__visit__|__reserved__|__plan__|__planned__)(\d+)$/i
-  );
-  if (m && m[1]) {
-    const n = Number(m[1]);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-/** kakao LatLng | POJO 모두 지원 */
-function getLatLng(pos: ContextMenuPanelProps["position"]) {
-  if (typeof (pos as any)?.getLat === "function") {
-    return {
-      lat: (pos as any).getLat() as number,
-      lng: (pos as any).getLng() as number,
-    };
-  }
-  return { lat: (pos as any).lat as number, lng: (pos as any).lng as number };
-}
 
 export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
   const {
@@ -97,40 +62,31 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
     setDisplayTitle((propertyTitle ?? "").trim());
   }, [propertyTitle]);
 
-  /** 파생 상태: 예약 > 예정 > 드래프트 > 일반  */
-  const { draft, reserved, planned } = useMemo(() => {
-    const idStr = String(propertyId ?? "").trim();
-    const idLow = idStr.toLowerCase();
+  /** 파생 상태: reserved > planned > draft > normal */
+  const panelState = useMemo(
+    () =>
+      computePanelState({
+        propertyId,
+        draftState,
+        isPlanPin,
+        isVisitReservedPin,
+      }),
+    [propertyId, draftState, isPlanPin, isVisitReservedPin]
+  );
 
-    const byState = mapDraftState(draftState);
-    const reservedByProp = asBool(isVisitReservedPin);
-    const plannedByProp = asBool(isPlanPin);
-
-    const reservedById =
-      /(^|[_:. -])(visit|reserved|reserve|rsvd)([_:. -]|$)/i.test(idStr) ||
-      idLow.startsWith("__visit__") ||
-      idLow.startsWith("__reserved__");
-    const plannedById =
-      /(^|[_:. -])(plan|planned|planning|previsit)([_:. -]|$)/i.test(idStr) ||
-      idLow.startsWith("__plan__") ||
-      idLow.startsWith("__planned__");
-
-    const reserved = byState.reserved || reservedByProp || reservedById;
-    const planned =
-      !reserved && (byState.planned || plannedByProp || plannedById);
-
-    const isLegacyDraft = !idStr || idLow === "__draft__";
-    const draft = !reserved && !planned && isLegacyDraft;
-
-    return { draft, reserved, planned };
-  }, [propertyId, draftState, isPlanPin, isVisitReservedPin]);
+  const draft = panelState === "draft";
+  const reserved = panelState === "reserved";
+  const planned = panelState === "planned";
 
   // 상세보기 가능 여부
   const canView = useMemo(() => {
     const s = String(propertyId ?? "").trim();
     if (!s) return false;
+
+    // 임시 id(빈값, __draft__, __new__, 숫자 아닌 것)는 상세보기 불가
+    if (isDraftLikeId(propertyId)) return false;
+
     const low = s.toLowerCase();
-    if (low === "__draft__") return false;
     if (
       /(^|[_:. -])(visit|reserved|reserve|rsvd|plan|planned|planning|previsit)([_:. -]|$)/i.test(
         s
@@ -142,6 +98,10 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
     ) {
       return false;
     }
+
+    // 안전하게: 숫자 id만 상세보기 허용
+    if (!/^\d+$/.test(s)) return false;
+
     return true;
   }, [propertyId]);
 
@@ -248,31 +208,18 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
     };
   }, [propertyId, planned, reserved, displayTitle]);
 
-  /** 최종 헤더 타이틀 */
-  const headerTitle = useMemo(() => {
-    if (draft) return "선택 위치";
-
-    const name = (displayTitle || propertyTitle || "").trim();
-    if (name) return name;
-
-    if (reserved) return "답사지예약";
-
-    if (planned) {
-      const addr = (roadAddress || jibunAddress || "").trim();
-      if (addr) return addr;
-      return "답사예정";
-    }
-
-    return "선택 위치";
-  }, [
-    draft,
-    reserved,
-    planned,
-    displayTitle,
-    propertyTitle,
-    roadAddress,
-    jibunAddress,
-  ]);
+  /** 최종 헤더 타이틀 (도메인 규칙은 types.ts로 위임) */
+  const headerTitle = useMemo(
+    () =>
+      computeHeaderTitle({
+        panelState,
+        displayTitle,
+        propertyTitle,
+        roadAddress,
+        jibunAddress,
+      }),
+    [panelState, displayTitle, propertyTitle, roadAddress, jibunAddress]
+  );
 
   /** 초기 포커스/복귀 */
   useEffect(() => {
@@ -317,7 +264,7 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
 
   const handleCreateClick = useCallback(() => {
     const pinDraftId = extractDraftIdFromPropertyId(propertyId);
-    const { lat, lng } = getLatLng(position);
+    const { lat, lng } = getLatLngFromPosition(position);
 
     const createMode: CreateMode = draft
       ? "PLAN_FROM_DRAFT"

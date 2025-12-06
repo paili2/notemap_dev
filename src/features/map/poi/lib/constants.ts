@@ -1,4 +1,4 @@
-import { PoiKind } from "@/features/map/view/overlays/poiOverlays";
+import { PoiKind } from "./poiTypes";
 
 export const DEFAULTS = {
   maxResultsPerKind: 80,

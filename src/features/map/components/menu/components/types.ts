@@ -1,4 +1,4 @@
-import { PoiKind } from "@/features/map/view/overlays/poiOverlays";
+import { PoiKind } from "../../mapview/overlays/poiOverlays";
 
 export type MapMenuKey = "all" | "new" | "old" | "plannedOnly";
 export type MapMenuSubmenu = "filter" | "edit";

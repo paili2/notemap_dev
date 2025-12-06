@@ -3,13 +3,13 @@
 import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import type { PinKind } from "@/features/pins/types";
-import RoadviewHost from "../../../../view/roadview/RoadviewHost";
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost";
 import { PropertyViewDetails } from "@/features/properties/view/types";
 
 /** ✅ draft 상세 조회용 */
 import { useQuery } from "@tanstack/react-query";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
+import RoadviewHost from "@/features/map/components/mapview/roadview/RoadviewHost";
 
 export default function ModalsHost(props: {
   /** View Modal */

@@ -1,7 +1,7 @@
 import type { PinKind } from "@/features/pins/types";
 import type { LatLng } from "@/lib/geo/types";
 import type { MapMarker } from "@/features/map/shared/types/map";
-import type { PoiKind } from "@/features/map/view/overlays/poiOverlays";
+import { PoiKind } from "./overlays/poiOverlays";
 
 /** 뷰포트 변경 payload: 4꼭짓점 + 줌레벨 */
 type MapViewportChange = {
