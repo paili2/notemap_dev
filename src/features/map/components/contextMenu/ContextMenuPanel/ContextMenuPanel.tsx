@@ -4,9 +4,9 @@ import { Button } from "@/components/atoms/Button/Button";
 import { Plus, Star, Trash2 } from "lucide-react";
 
 import type React from "react";
-import type { ContextMenuPanelProps } from "./types";
 
 import { useContextMenuPanelLogic } from "./hooks/useContextMenuPanel";
+import type { ContextMenuPanelProps } from "./panel.types";
 
 export default function ContextMenuPanel(props: ContextMenuPanelProps) {
   const {

@@ -1,4 +1,4 @@
-import type { BoundsBox } from "../types";
+import type { BoundsBox } from "../usePoiLayer.types";
 import { distM } from "./geometry";
 import { SCALEBAR_PX, DESIRED_SCALEBAR_M } from "./constants";
 

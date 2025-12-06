@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { PinKind } from "@/features/pins/types";
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 
 export function useSearchDraftMarkers() {
   const [localDraftMarkers, setLocalDraftMarkers] = useState<MapMarker[]>([]);

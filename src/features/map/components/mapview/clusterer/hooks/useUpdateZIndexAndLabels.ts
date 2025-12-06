@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 import type { MutableRefObject } from "react";
-import { applyOrderBadgeToLabel, DRAFT_ID, SELECTED_Z } from "../styles";
+import {
+  applyOrderBadgeToLabel,
+  DRAFT_ID,
+  SELECTED_Z,
+} from "../overlays/overlayStyles";
 
 export function useUpdateZIndexAndLabels(
   isReady: boolean,

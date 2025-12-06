@@ -9,7 +9,11 @@ import {
   RADIUS_BY_KIND,
 } from "../lib/constants";
 import { useThrottle } from "../lib/throttle";
-import { BoundsBox, OverlayInst, UsePoiLayerOptions } from "../types";
+import {
+  BoundsBox,
+  OverlayInst,
+  UsePoiLayerOptions,
+} from "../usePoiLayer.types";
 import {
   calcScalebarPass,
   ensurePlacesInstance,

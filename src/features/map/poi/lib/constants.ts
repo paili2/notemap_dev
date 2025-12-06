@@ -32,3 +32,6 @@ export const RADIUS_BY_KIND: Record<PoiKind, number> = {
   culture: 1500,
   park: 800,
 };
+
+// 편의시설이 보이기 시작하는 축척(단위 m)
+export const POI_VISIBLE_MIN_SCALE_M = 50;

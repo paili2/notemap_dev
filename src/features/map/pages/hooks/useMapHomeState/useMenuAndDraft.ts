@@ -4,14 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 
-import {
-  normalizeLL,
-  PIN_MENU_MAX_LEVEL,
-  DRAFT_PIN_STORAGE_KEY,
-  sameCoord,
-} from "./mapHome.utils";
 import type { OpenMenuOpts } from "./mapHome.types";
 import { showLabelsAround } from "@/features/map/components/mapview/overlays/labelRegistry";
+import { normalizeLL, sameCoord } from "./mapHome.utils";
+import {
+  DRAFT_PIN_STORAGE_KEY,
+  PIN_MENU_MAX_LEVEL,
+} from "@/features/map/shared/constants";
 
 type UseMenuAndDraftArgs = {
   kakaoSDK: any;
@@ -80,7 +79,7 @@ export function useMenuAndDraft({
     }
   }, []);
 
-  /** 🔹 드래프트 관련 상태 전체 초기화 (닫기/등록 완료 시 공통 사용) */
+  /** 🔹 드래프트 관련 상태 전체 초기화 (답사예정 등록 등에서 사용) */
   const clearDraftState = useCallback(() => {
     restoredDraftPinRef.current = null;
     setDraftPinSafe(null); // state + localStorage 둘 다 클리어
@@ -125,7 +124,7 @@ export function useMenuAndDraft({
         setCreateFromDraftId(null);
       }
 
-      // ✅ 이제는 어떤 경우에도 특정 id 라벨을 숨기지 않는다
+      // ✅ 지금은 특정 id 라벨을 따로 숨기지 않는다
       onChangeHideLabelForId(null);
 
       setRawMenuAnchor(p);
@@ -317,9 +316,9 @@ export function useMenuAndDraft({
     setMenuJibunAddr(null);
     onChangeHideLabelForId(null);
 
-    // ✅ 드래프트 관련 상태/스토리지 전부 초기화
-    clearDraftState();
-  }, [clearDraftState, onChangeHideLabelForId, mapInstance, menuAnchor]);
+    // ❌ 여기서는 draft 상태를 비우지 않는다.
+    //    createFromDraftId 는 모달이 열릴 때까지 유지되어야 함.
+  }, [onChangeHideLabelForId, mapInstance, menuAnchor]);
 
   /** 답사예정지 등록 완료 시 호출되는 콜백 */
   const onPlanFromMenu = useCallback(

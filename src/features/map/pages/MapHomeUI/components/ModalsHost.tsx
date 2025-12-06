@@ -4,7 +4,7 @@ import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import type { PinKind } from "@/features/pins/types";
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost";
-import { PropertyViewDetails } from "@/features/properties/view/types";
+import type { PropertyViewDetails } from "@/features/properties/view/types";
 
 /** ✅ draft 상세 조회용 */
 import { useQuery } from "@tanstack/react-query";
@@ -105,16 +105,15 @@ export default function ModalsHost(props: {
   // 처음 열릴 때 어떤 단계로 시작할지
   const initialStage: "create" | "view" = canShowView ? "view" : "create";
 
-  /** ✅ 매물정보입력(생성 모달)에서 사용할 draft 헤더 프리필용 id */
-  const draftIdForHeader = createOpen && pinDraftId ? pinDraftId : null;
+  /** ✅ 매물정보입력(생성 모달)에서 사용할 draft 헤더 프리필용 id
+   *    - createOpen 여부와 상관없이, 숫자 id만 있으면 사용
+   */
+  const draftIdForHeader = typeof pinDraftId === "number" ? pinDraftId : null;
 
   /** ✅ pin-drafts/{id} 상세 조회 (이름 / 분양사무실 전화번호) */
   const { data: draftDetail } = useQuery({
     queryKey: ["pinDraftDetail", draftIdForHeader],
-    queryFn: () =>
-      draftIdForHeader != null
-        ? getPinDraftDetailOnce(draftIdForHeader)
-        : Promise.resolve(null),
+    queryFn: () => getPinDraftDetailOnce(draftIdForHeader as number),
     enabled: draftIdForHeader != null,
   });
 

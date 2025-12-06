@@ -213,6 +213,9 @@ export function useMapHomeState() {
     // host bridge
     createHostHandlers,
     editHostHandlers,
+
+    /** ✅ ModalsHost로 넘길 pin-drafts용 id (number) */
+    pinDraftId,
   } = usePropertyModals({
     items,
     setItems,
@@ -387,5 +390,8 @@ export function useMapHomeState() {
     // ⭐ 외부에서 지도 포커스 이동용
     focusMapTo,
     draftHeaderPrefill,
+
+    /** ✅ ModalsHost로 내려줄 draft numeric id */
+    pinDraftId,
   } as const;
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { applyMode } from "../controller";
-import type { KakaoDeps, RefsBag } from "../types";
+import { applyMode } from "../applyMode";
+import type { KakaoDeps, RefsBag } from "../clusterer.types";
 
 export function useZoomModeSwitch(
   isReady: boolean,

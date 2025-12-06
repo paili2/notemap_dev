@@ -13,9 +13,9 @@ import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 
 import { useRoadview } from "@/features/map/hooks/useRoadview";
 import { useBounds } from "@/features/map/hooks/useBounds";
-import { MapMenuKey } from "@/features/map/components/menu/components/types";
+import { MapMenuKey } from "@/features/map/components/menu/types/mapMenu.types";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
-import { MapHomeUIProps } from "../types";
+import { MapHomeUIProps } from "../mapHomeUI.types";
 import { useBoundsRaw } from "../../hooks/useBoundsRaw";
 import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
 import { FilterFab, FilterSearch } from "../../components/filterSearch";
@@ -81,7 +81,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
     onReserveFromMenu,
     onViewFromMenu,
     closeView,
-    createFromDraftId,
+    /** ✅ 숫자로 내려오는 draft id */
+    pinDraftId,
   } = props;
 
   const getBoundsLLB = useBounds(kakaoSDK, mapInstance);
@@ -140,7 +141,7 @@ export function MapHomeUI(props: MapHomeUIProps) {
     pinsError,
     effectiveServerPoints,
     effectiveServerDrafts,
-    reloadPins, // ✅ 추가
+    reloadPins, // ✅ /map 다시 치는 훅
   } = useViewportPinsForMapHome({
     mapInstance,
     filter: filter as MapMenuKey,
@@ -222,9 +223,9 @@ export function MapHomeUI(props: MapHomeUIProps) {
     }
 
     const anchor =
-      selectedPos ??
-      menuAnchor ??
-      draftPin ??
+      selectedPos ?? // 선택된 매물 위치
+      menuAnchor ?? // 컨텍스트 메뉴 앵커
+      draftPin ?? // 임시핀
       (mapInstance?.getCenter
         ? {
             lat: mapInstance.getCenter().getLat(),
@@ -286,18 +287,11 @@ export function MapHomeUI(props: MapHomeUIProps) {
 
     try {
       hideLabelsAround(mapInstance, menuAnchor.lat, menuAnchor.lng, 56);
-    } catch (e) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[MapHomeUI] hideLabelsAround on markers change error", e);
-      }
-    }
+    } catch (e) {}
   }, [menuOpen, menuAnchor, visibleMarkers, kakaoSDK, mapInstance]);
 
   // 🔄 /map 다시 치도록 하는 함수: 이제는 훅의 reloadPins 사용
   const refreshViewportPins = useCallback(() => {
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[MapHomeUI] refreshViewportPins → reloadPins()");
-    }
     reloadPins?.();
   }, [reloadPins]);
 
@@ -473,9 +467,8 @@ export function MapHomeUI(props: MapHomeUIProps) {
           },
           onOpenViewAfterCreate: handleOpenViewAfterCreate,
         }}
-        pinDraftId={
-          createFromDraftId != null ? Number(createFromDraftId) : undefined
-        }
+        /* ✅ 훅에서 숫자로 내려온 pinDraftId 그대로 전달 */
+        pinDraftId={pinDraftId}
         roadviewVisible={roadviewVisible}
         roadviewContainerRef={roadviewContainerRef}
         onCloseRoadview={close}

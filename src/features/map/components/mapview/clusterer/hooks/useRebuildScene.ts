@@ -1,23 +1,23 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 import type { PinKind } from "@/features/pins/types";
 
+import { buildSceneKey } from "@/features/map/engine/scene/buildSceneKey";
+import { firstNonEmpty } from "@/features/map/engine/scene/firstNonEmpty";
+import { cleanLabelCandidate } from "@/features/map/engine/scene/cleanLabelCandidate";
 import {
-  createMarker,
-  createLabelOverlay,
-  createHitboxOverlay,
-} from "../overlays";
-import { mountClusterMode } from "../controller";
-import { DRAFT_ID, SELECTED_Z } from "../styles";
-import {
-  buildSceneKey,
-  cleanLabelCandidate,
+  EnrichedMarker,
   enrichMarkers,
-  firstNonEmpty,
-} from "./rebuildScene.helpers";
-import type { EnrichedMarker } from "./rebuildScene.helpers";
+} from "@/features/map/engine/scene/enrichMarkers";
+import { mountClusterMode } from "../mountClusterMode";
+import {
+  createHitboxOverlay,
+  createLabelOverlay,
+  createMarker,
+} from "../overlays/pinOverlays";
+import { DRAFT_ID, SELECTED_Z } from "../overlays/overlayStyles";
 
 type Args = {
   isReady: boolean;

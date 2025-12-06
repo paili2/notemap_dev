@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { DRAFT_ID, SELECTED_Z } from "../styles";
+import { DRAFT_ID, SELECTED_Z } from "../overlays/overlayStyles";
 
 export function useSelectionEffect(
   isReady: boolean,

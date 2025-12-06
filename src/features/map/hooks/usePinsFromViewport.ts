@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 import {
   getPinsInBounds,
   type PinsMapPoint,

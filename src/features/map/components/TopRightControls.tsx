@@ -6,16 +6,14 @@ import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
 import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/hooks/use-toast";
-import { MapMenuKey } from "@/features/map/components/menu/components/types";
+import { MapMenuKey } from "@/features/map/components/menu/types/mapMenu.types";
 import MapMenu from "@/features/map/components/menu/MapMenu";
 import { PoiKind } from "../poi/lib/poiTypes";
+import { POI_VISIBLE_MIN_SCALE_M } from "../poi/lib/constants";
 
 function isPlannedKey(k: MapMenuKey | string) {
   return k === "planned";
 }
-
-// 편의시설이 보이기 시작하는 축척(단위 m)
-const POI_VISIBLE_MIN_SCALE_M = 50;
 
 // 카카오맵 level → 대략적인 m 단위로 변환
 const getScaleMetersFromLevel = (level: number) => {

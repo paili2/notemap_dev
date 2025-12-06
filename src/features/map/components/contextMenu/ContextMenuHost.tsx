@@ -12,10 +12,14 @@ import {
   toGroupingPosKeyFromPos,
 } from "../../shared/utils/coords";
 import { useContextMenuAnchor } from "./hooks/useContextMenuAnchor";
-import { ContextMenuHostProps, LatLng, ReserveFromMenuArgs } from "./types";
+
 import { createPinDraft } from "@/shared/api/pins";
-import { CreateFromPinArgs } from "./PinContextMenu/types";
+import { CreateFromPinArgs } from "./PinContextMenu/pinContextMenu.types";
 import PinContextMenuContainer from "./PinContextMenu/PinContextMenuContainer";
+import {
+  ContextMenuHostProps,
+  ReserveFromMenuArgs,
+} from "./contextMenuHost.types";
 
 export default function ContextMenuHost(props: ContextMenuHostProps) {
   const {

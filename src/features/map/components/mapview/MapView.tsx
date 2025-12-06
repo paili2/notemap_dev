@@ -9,10 +9,11 @@ import React, {
 import useKakaoMap from "./hooks/useKakaoMap/useKakaoMap";
 import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
 import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
-import type { MapViewProps } from "./types";
+import type { MapViewProps } from "./mapView.types";
 import { PoiKind } from "./overlays/poiOverlays";
 import usePoiLayer from "../../poi/hooks/usePoiLayer";
 import { PoiLayerToggle } from "../../poi/components/PoiLayerToggle";
+import { PIN_MENU_MAX_LEVEL } from "../../shared/constants";
 
 type Props = MapViewProps;
 
@@ -30,8 +31,6 @@ export type MapViewHandle = {
   ) => void;
   panTo: (p: { lat: number; lng: number }) => void;
 };
-
-const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
 
 const MapView = React.forwardRef<MapViewHandle, Props>(function MapView(
   {

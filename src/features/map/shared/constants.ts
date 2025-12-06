@@ -28,3 +28,9 @@ export const KOREA_BOUNDS = {
   sw: { lat: 33.0, lng: 124.0 },
   ne: { lat: 39.5, lng: 132.0 },
 } as const;
+
+export const PIN_MENU_MAX_LEVEL = 5;
+
+export const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
+
+export const DEFAULT_VIEWPORT_DEBOUNCE = 120;

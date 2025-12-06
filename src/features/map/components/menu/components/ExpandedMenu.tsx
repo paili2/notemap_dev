@@ -17,12 +17,17 @@ import {
   TreePine,
 } from "lucide-react";
 
-import type { MapMenuKey } from "./types";
+import type { MapMenuKey } from "../types/mapMenu.types";
 import { FilterSection } from "./FilterSection";
 import RoadviewToggleButton from "./RoadviewToggleButton";
 import DistrictToggleButton from "./DistrictToggleButton";
 import { POI_LABEL } from "../../mapview/overlays/poiOverlays";
 import { PoiKind } from "@/features/map/poi/lib/poiTypes";
+import {
+  POI_CATEGORY_ITEMS,
+  POI_CATEGORY_KEYS,
+  POI_CATEGORY_LABEL,
+} from "../lib/poiCategories";
 
 // top 모듈에 있는 로드뷰 토글 (기존 default export 유지)
 
@@ -48,33 +53,7 @@ interface ExpandedMenuProps {
   onToggleRoadview: () => void;
 }
 
-/* ───────── POI 카테고리 정의 ───────── */
-
-const POI_CATEGORY_KEYS = [
-  "transport",
-  "convenience",
-  "medical",
-  "public",
-  "leisure",
-] as const;
-
-type PoiCategoryKey = (typeof POI_CATEGORY_KEYS)[number];
-
-const POI_CATEGORY_LABEL: Record<PoiCategoryKey, string> = {
-  transport: "교통",
-  convenience: "편의",
-  medical: "의료",
-  public: "공공",
-  leisure: "여가",
-};
-
-const POI_CATEGORY_ITEMS: Record<PoiCategoryKey, PoiKind[]> = {
-  transport: ["subway", "parking"],
-  convenience: ["convenience", "mart"],
-  medical: ["pharmacy", "hospital"],
-  public: ["school", "safety"],
-  leisure: ["cafe", "park", "culture"],
-};
+export type PoiCategoryKey = (typeof POI_CATEGORY_KEYS)[number];
 
 /* ───────── 메뉴용 아이콘 ───────── */
 

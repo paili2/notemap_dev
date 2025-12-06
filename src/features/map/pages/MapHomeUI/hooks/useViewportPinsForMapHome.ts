@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { MapMenuKey } from "@/features/map/components/menu/components/types";
+import { MapMenuKey } from "@/features/map/components/menu/types/mapMenu.types";
 import { usePinsFromViewport } from "@/features/map/hooks/usePinsFromViewport";
 import type { PinSearchResult } from "@/features/pins/types/pin-search";
 import {

@@ -4,7 +4,11 @@ import * as React from "react";
 import { Map } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 import { cn } from "@/lib/cn";
-import { MapMenuKey, MapMenuProps, MapMenuSubmenu } from "./components/types";
+import {
+  MapMenuKey,
+  MapMenuProps,
+  MapMenuSubmenu,
+} from "./types/mapMenu.types";
 import { useMapMenuState } from "../../hooks/useMapMenuState";
 import { ExpandedMenu } from "./components/ExpandedMenu";
 

@@ -9,7 +9,7 @@ import {
   shouldCreateSearchPin,
 } from "../lib/searchUtils";
 import type { PinKind } from "@/features/pins/types";
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 
 // ✅ 매물 핀 kind 계산용 (MapHome에서 쓰는 것과 동일하게)
 import { mapBadgeToPinKind } from "@/features/properties/lib/badge";

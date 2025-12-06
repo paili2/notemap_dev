@@ -1,4 +1,4 @@
-import type { MapMarkerTagged } from "@/features/map/shared/types/map";
+import type { MapMarkerTagged } from "@/features/map/shared/types/mapMarker.type";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 

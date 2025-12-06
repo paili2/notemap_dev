@@ -7,7 +7,7 @@ import {
   applyHitboxStyles,
   applyLabelStyles,
   applyOrderBadgeToLabel,
-} from "./styles";
+} from "./overlayStyles";
 
 /** 1x1 투명 PNG (data URI) — 아이콘이 없어도 동일 규격 MarkerImage를 강제하기 위한 폴백 */
 const TRANSPARENT_DOT =

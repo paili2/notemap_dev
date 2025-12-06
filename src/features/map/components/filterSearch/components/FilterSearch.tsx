@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 
-import { FilterSearchProps, FilterState } from "../types/types";
+import { FilterSearchProps, FilterState } from "../types/filterSearch.types";
 import { FILTER_OPTIONS, initialFilterState } from "../utils/filterOptions";
 import {
   formatNumberWithCommas,

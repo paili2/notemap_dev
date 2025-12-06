@@ -3,9 +3,6 @@ import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { ViewSource } from "@/features/properties/lib/view/types";
 import type { Viewport } from "./mapHome.types";
 
-export const PIN_MENU_MAX_LEVEL = 5;
-export const DRAFT_PIN_STORAGE_KEY = "maphome:draftPin";
-
 /** Kakao LatLng 객체/POJO 모두 대응 정규화 */
 export function normalizeLL(v: unknown): LatLng | null {
   if (!v) return null;

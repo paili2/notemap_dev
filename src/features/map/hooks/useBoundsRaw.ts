@@ -1,6 +1,6 @@
 "use client";
 
-import type { Bounds } from "@/features/map/shared/types/bounds";
+import type { Bounds } from "@/features/map/shared/types/bounds.type";
 import { useBounds } from "./useBounds";
 import { boundsToRaw } from "@/features/map/shared/utils/boundsToRaw";
 

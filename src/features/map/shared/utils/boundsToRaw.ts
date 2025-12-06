@@ -1,4 +1,4 @@
-import { Bounds } from "../types/bounds";
+import { Bounds } from "../types/bounds.type";
 
 export function boundsToRaw(b?: kakao.maps.LatLngBounds): Bounds | undefined {
   if (!b) return undefined;

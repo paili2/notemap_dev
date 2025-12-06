@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 import type { PinKind } from "@/features/pins/types";
 import { LABEL, HITBOX } from "@/features/map/shared/constants";
 import { useSidebar } from "@/features/sidebar";
-import type { ClustererWithLabelsOptions, RefsBag } from "./types";
-import { usePreloadIcons } from "./effects/usePreloadIcons";
-import { useInitClusterer } from "./effects/useInitClusterer";
-import { useRebuildScene } from "./effects/useRebuildScene";
-import { useFitBounds } from "./effects/useFitBounds";
-import { useZoomModeSwitch } from "./effects/useZoomModeSwitch";
-import { useSelectionEffect } from "./effects/useSelectionEffect";
-import { useRestoreClosedBubbles } from "./effects/useRestoreClosedBubbles";
-import { useUpdateZIndexAndLabels } from "./effects/useUpdateZIndexAndLabels";
+import type { ClustererWithLabelsOptions, RefsBag } from "./clusterer.types";
+import { usePreloadIcons } from "./hooks/usePreloadIcons";
+import { useInitClusterer } from "./hooks/useInitClusterer";
+import { useRebuildScene } from "./hooks/useRebuildScene";
+import { useFitBounds } from "./hooks/useFitBounds";
+import { useZoomModeSwitch } from "./hooks/useZoomModeSwitch";
+import { useSelectionEffect } from "./hooks/useSelectionEffect";
+import { useRestoreClosedBubbles } from "./hooks/useRestoreClosedBubbles";
+import { useUpdateZIndexAndLabels } from "./hooks/useUpdateZIndexAndLabels";
 
 type Opts = ClustererWithLabelsOptions & { enableDebug?: boolean };
 

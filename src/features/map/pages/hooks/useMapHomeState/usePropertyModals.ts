@@ -15,7 +15,7 @@ import { toViewSourceFromPropertyItem, normalizeLL } from "./mapHome.utils";
 import type { LocalCreateFromPinArgs } from "./mapHome.types";
 import type { CreatePayload } from "@/features/properties/types/property-dto";
 import type { PinKind } from "@/features/pins/types";
-import { PropertyViewDetails } from "@/features/properties/view/types";
+import type { PropertyViewDetails } from "@/features/properties/view/types";
 import { buildEditPatchWithMedia } from "@/features/properties/edit/lib/buildEditPatch";
 
 type UsePropertyModalsArgs = {
@@ -137,6 +137,7 @@ export function usePropertyModals({
       const isVisitPlanOnly = !!args?.visitPlanOnly;
       setCreatePinKind(isVisitPlanOnly ? "question" : null);
 
+      // 상단 헤더 프리필 초기화
       setDraftHeaderPrefill(null);
 
       const titleFromArgs =
@@ -157,6 +158,7 @@ export function usePropertyModals({
         });
       }
 
+      // 1순위: args.fromPinDraftId, 2순위: 기존 createFromDraftId
       const explicitDraftId =
         args?.fromPinDraftId != null ? String(args.fromPinDraftId) : null;
       const effectiveDraftId = explicitDraftId ?? createFromDraftId;
@@ -222,10 +224,12 @@ export function usePropertyModals({
       setPrefillAddress(prefill);
       setCreateOpen(true);
 
-      console.debug("[openCreateFromMenu]", {
-        args,
-        effectiveDraftId,
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[openCreateFromMenu]", {
+          args,
+          effectiveDraftId,
+        });
+      }
     },
     [
       drafts,

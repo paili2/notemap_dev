@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { LatLng } from "@/lib/geo/types";
-import type { MapMarker } from "@/features/map/shared/types/map";
+import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 
 // 🔹 핀 타입/뱃지 ↔ kind 매핑 유틸 추가
 import type { PinKind } from "@/features/pins/types";

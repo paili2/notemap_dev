@@ -1,8 +1,8 @@
 "use client";
 
-import { MapMarker } from "@/features/map/shared/types/map";
+import { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 import { MergedMarker } from "../../pages/hooks/useMergedMarkers";
-import { CreateFromPinArgs } from "./PinContextMenu/types";
+import { CreateFromPinArgs } from "./PinContextMenu/pinContextMenu.types";
 import { LatLng } from "@/lib/geo/types";
 
 /** 컨텍스트 메뉴에서 예약 생성 시 전달되는 payload */

@@ -1,5 +1,5 @@
 import { Button } from "@/components/atoms/Button/Button";
-import { SelectableButtonProps } from "../types/types";
+import { SelectableButtonProps } from "../types/filterSearch.types";
 
 export const SelectableButton = ({
   label,

@@ -3,9 +3,9 @@ import { PropertyItem } from "@/features/properties/types/propertyItem";
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { PinKind } from "@/features/pins/types";
-import { MapMarker, MapMarkerTagged } from "../shared/types/map";
+import { MapMarker, MapMarkerTagged } from "../shared/types/mapMarker.type";
 import { PropertyViewDetails } from "@/features/properties/view/types";
-import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/types";
+import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/pinContextMenu.types";
 import { PoiKind } from "../poi/lib/poiTypes";
 
 type ReserveFromMenuPayload =
@@ -132,10 +132,15 @@ export type MapHomeUIProps = {
   /** 시청역 답사예정핀 등에서 create 눌렀을 때 연결할 draftId (문자열) */
   createFromDraftId?: string | null;
 
+  /** 생성 모달 기본 핀 종류 */
   createPinKind?: PinKind | null;
 
+  /** 생성 모달 헤더 프리필 (이름 / 분양사무실 전화번호) */
   draftHeaderPrefill?: {
     title?: string;
     officePhone?: string;
   } | null;
+
+  /** ✅ pin-drafts/{id} 조회용 numeric id */
+  pinDraftId?: number;
 };

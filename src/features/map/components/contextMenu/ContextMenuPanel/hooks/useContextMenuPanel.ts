@@ -10,23 +10,21 @@ import {
 } from "react";
 import type React from "react";
 
-import {
-  computeHeaderTitle,
-  computePanelState,
-  extractDraftIdFromPropertyId,
-  getLatLngFromPosition,
-  isDraftLikeId,
-  type ContextMenuPanelProps,
-} from "../types";
-
 import { getPinRaw } from "@/shared/api/pins/queries/getPin";
 import { pinKeys } from "@/features/pins/hooks/usePin";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   CreateMode,
   ReserveRequestPayload,
-} from "../../PinContextMenu/types";
+} from "../../PinContextMenu/pinContextMenu.types";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
+import { ContextMenuPanelProps } from "../panel.types";
+import { computeHeaderTitle, computePanelState } from "../panel.state";
+import {
+  extractDraftIdFromPropertyId,
+  getLatLngFromPosition,
+  isDraftLikeId,
+} from "../panel.utils";
 
 export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
   const {

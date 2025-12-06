@@ -4,7 +4,7 @@ import { forwardRef, useCallback } from "react";
 import { cn } from "@/lib/cn";
 import SearchForm from "@/features/map/components/SearchForm/SearchForm";
 import TopRightControls from "@/features/map/components/TopRightControls";
-import type { MapMenuKey } from "@/features/map/components/menu/components/types";
+import type { MapMenuKey } from "@/features/map/components/menu/types/mapMenu.types";
 import { PoiKind } from "@/features/map/poi/lib/poiTypes";
 
 type TopRegionProps = {

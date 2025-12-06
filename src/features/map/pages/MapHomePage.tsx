@@ -13,10 +13,9 @@ import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 import MapHomeUI from "./MapHomeUI/MapHomeUI";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { createPinDraft } from "@/shared/api/pins";
-import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/types";
+import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/pinContextMenu.types";
 import { buildAddressLine } from "../components/contextMenu/PinContextMenu/utils/geo";
-
-const PIN_MENU_MAX_LEVEL = 5; // 250m 까지 메뉴 허용
+import { PIN_MENU_MAX_LEVEL } from "../shared/constants";
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;
@@ -283,9 +282,13 @@ export default function MapHomePage() {
       onOpenMenu: handleOpenMenu,
       onChangeHideLabelForId,
       onReserveFromMenu,
+
       createFromDraftId: s.createFromDraftId,
       createPinKind: (s as any).createPinKind ?? null,
       draftHeaderPrefill: (s as any).draftHeaderPrefill ?? null,
+
+      /** ✅ ModalsHost까지 전달할 draft numeric id */
+      pinDraftId: (s as any).pinDraftId,
     }),
     [
       KAKAO_MAP_KEY,

@@ -1,4 +1,4 @@
-import type { FilterState } from "../types/types";
+import type { FilterState } from "../types/filterSearch.types";
 import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import { BuildingType } from "@/features/properties/types/property-domain";
 import { convertPriceToWon } from "../utils/formatters";

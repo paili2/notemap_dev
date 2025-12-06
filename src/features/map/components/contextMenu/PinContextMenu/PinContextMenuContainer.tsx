@@ -5,7 +5,7 @@ import { toLatLng } from "./utils/geo";
 import { useDerivedPinState } from "./hooks/useDerivedPinState";
 import { usePlanReserve } from "./hooks/usePlanReserve";
 import ContextMenuPanel from "../ContextMenuPanel/ContextMenuPanel";
-import { PinContextMenuProps } from "./types";
+import { PinContextMenuProps } from "./pinContextMenu.types";
 import { useScheduledReservations } from "@/features/survey-reservations/hooks/useScheduledReservations";
 import CustomOverlay from "../CustomOverlay/CustomOverlay";
 import { useDeletePropertyFromMenu } from "./hooks/useDeletePropertyFromMenu";

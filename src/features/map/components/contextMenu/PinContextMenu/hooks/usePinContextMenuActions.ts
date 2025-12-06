@@ -15,7 +15,7 @@ import {
   optimisticPlannedPosSet,
 } from "../lib/draftMatching";
 import { useToast } from "@/hooks/use-toast"; // ✅ 토스트 추가
-import { CreateFromPinArgs } from "../types";
+import { CreateFromPinArgs } from "../pinContextMenu.types";
 
 type BoundsBox =
   | {

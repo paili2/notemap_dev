@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
-import { KOREA_BOUNDS } from "@/features/map/shared/constants";
+import {
+  DEFAULT_VIEWPORT_DEBOUNCE,
+  KOREA_BOUNDS,
+} from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import { useToast } from "@/hooks/use-toast";
 import { installHttpsImagePatch, patchKakaoHttps } from "./httpsPatch";
@@ -31,8 +34,6 @@ type Args = {
     zoomLevel: number;
   }) => void;
 };
-
-const DEFAULT_VIEWPORT_DEBOUNCE = 120;
 
 function useStableRef<T>(value: T) {
   const ref = useRef(value);
