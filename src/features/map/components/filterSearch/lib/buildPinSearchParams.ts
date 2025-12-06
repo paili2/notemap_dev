@@ -2,8 +2,7 @@ import type { FilterState } from "../types/types";
 import type { PinSearchParams } from "@/features/pins/types/pin-search";
 import { BuildingType } from "@/features/properties/types/property-domain";
 import { convertPriceToWon } from "../utils/formatters";
-
-const PYEONG_TO_M2 = 3.305785;
+import { PYEONG_TO_M2 } from "@/features/properties/lib/area";
 
 const toInt = (s: string) => {
   const n = Number((s ?? "").replaceAll(",", "").trim());

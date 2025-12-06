@@ -1,4 +1,4 @@
-const PYEONG_TO_M2 = 3.305785;
+import { PYEONG_TO_M2 } from "@/features/properties/lib/area";
 
 export const toM2 = (s: string) => {
   const n = Number((s ?? "").replaceAll(",", "").trim());

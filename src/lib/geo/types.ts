@@ -1,1 +1,4 @@
-export type LatLng = Readonly<{ lat: number; lng: number }>;
+export type LatLng = {
+  lat: number;
+  lng: number;
+};

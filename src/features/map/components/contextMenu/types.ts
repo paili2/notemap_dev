@@ -3,11 +3,7 @@
 import { MapMarker } from "@/features/map/shared/types/map";
 import { MergedMarker } from "../../pages/hooks/useMergedMarkers";
 import { CreateFromPinArgs } from "./PinContextMenu/types";
-
-export type LatLng = {
-  lat: number;
-  lng: number;
-};
+import { LatLng } from "@/lib/geo/types";
 
 /** 컨텍스트 메뉴에서 예약 생성 시 전달되는 payload */
 export type ReserveFromMenuArgs =

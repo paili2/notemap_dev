@@ -8,8 +8,7 @@ import {
 } from "../../../shared/utils/coords";
 import { useLabelMaskOnMenuOpen } from "./useLabelMaskOnMenuOpen";
 import { MapMarker } from "@/features/map/shared/types/map";
-
-type LatLng = { lat: number; lng: number };
+import { LatLng } from "@/lib/geo/types";
 
 export type EffectiveTarget = {
   id: string;

@@ -1,4 +1,3 @@
-// src/features/properties/view/components/stages/ViewStage.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";

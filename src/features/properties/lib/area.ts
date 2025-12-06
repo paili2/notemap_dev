@@ -1,5 +1,5 @@
 /** 1평 = 3.305785㎡ */
-const PYEONG = 3.305785 as const;
+export const PYEONG_TO_M2 = 3.305785 as const;
 
 /** 내부 유틸: 숫자/문자 입력을 안전하게 숫자로 정규화 */
 function sanitizeNum(input: unknown): number | null {
@@ -28,14 +28,14 @@ function normDecimals(d?: number): number {
 export const toPy = (m2?: string | number, decimals = 2): string => {
   const n = sanitizeNum(m2);
   if (n == null) return "";
-  return (n / PYEONG).toFixed(normDecimals(decimals));
+  return (n / PYEONG_TO_M2).toFixed(normDecimals(decimals));
 };
 
 /** 평 → ㎡ (소수 n자리, 기본 2자리) */
 export const toM2 = (py?: string | number, decimals = 2): string => {
   const n = sanitizeNum(py);
   if (n == null) return "";
-  return (n * PYEONG).toFixed(normDecimals(decimals));
+  return (n * PYEONG_TO_M2).toFixed(normDecimals(decimals));
 };
 
 /** "a~b" 포맷으로 합치기 (a/b 빈칸 허용) */
@@ -117,7 +117,7 @@ const chooseM2 = (m2: unknown, py: unknown): number | undefined => {
   const m = toNum(m2);
   if (m !== undefined) return m;
   const p = toNum(py);
-  return p !== undefined ? p * PYEONG : undefined;
+  return p !== undefined ? p * PYEONG_TO_M2 : undefined;
 };
 
 /** 단일 AreaSet → CreatePinAreaGroupDto (빈행/필수값 검증 포함) */

@@ -1,4 +1,3 @@
-// src/features/properties/view/containers/OptionsBadgesContainer.tsx
 "use client";
 
 import OptionsBadges from "../../sections/OptionsBadges";

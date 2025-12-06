@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-
-type LatLng = { lat: number; lng: number };
+import { LatLng } from "@/lib/geo/types";
 
 type Options = {
   kakaoSDK?: any; // window.kakao를 주입받을 수도 있음

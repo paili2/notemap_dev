@@ -5,8 +5,7 @@ import {
   hideLabelsAround,
   showLabelsAround,
 } from "../../mapview/overlays/labelRegistry";
-
-type LatLng = { lat: number; lng: number };
+import { LatLng } from "@/lib/geo/types";
 
 type UseLabelMaskOnMenuOpenArgs = {
   open: boolean;
