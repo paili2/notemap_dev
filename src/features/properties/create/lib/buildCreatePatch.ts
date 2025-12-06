@@ -137,8 +137,8 @@ function buildCreatePatch(payload: CreatePayload, { id, pos }: BuildOpts) {
       slopeGrade: payload.slopeGrade,
       structureGrade: payload.structureGrade,
 
+      // ✅ 옵션은 배열만 사용 (직접입력 옵션도 이미 options 안에 포함됨)
       options: payload.options,
-      optionEtc: payload.optionEtc,
 
       registry:
         typeof (payload as any).registry === "string"

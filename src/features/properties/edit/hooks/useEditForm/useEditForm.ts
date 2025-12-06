@@ -240,10 +240,10 @@ export function useEditForm({ initialData }: UseEditFormArgs) {
   });
 
   /* ========== 파생값/유효성 ========== */
-  const optionsValid = useMemo(
-    () => options.length > 0 || (etcChecked && optionEtc.trim().length > 0),
-    [options, etcChecked, optionEtc]
-  );
+
+  // ✅ 정책: 체크박스/직접입력으로 만들어진 옵션 라벨이 1개 이상이면 OK
+  // (optionEtc 텍스트는 설명용이라 필수 아님)
+  const optionsValid = useMemo(() => options.length > 0, [options]);
 
   const isSaveEnabled = useMemo<boolean>(() => {
     const hasTitle = filled(title);

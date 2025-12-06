@@ -139,14 +139,26 @@ type Normalized = {
 export function normalizeInitialData(initialData: any | null): Normalized {
   const d = initialData ?? {};
 
-  // 면적(기본)
+  // ───────── 면적(기본) ─────────
   const ex = unpackRange(d.exclusiveArea);
   const re = unpackRange(d.realArea);
   const baseAreaTitle = asStr(
     d.baseAreaTitle ?? d.areaTitle ?? d.areaSetTitle ?? ""
   );
 
-  // 면적(추가)
+  const baseArea: AreaSet = {
+    title: baseAreaTitle,
+    exMinM2: ex.min,
+    exMaxM2: ex.max,
+    exMinPy: toPy(ex.min),
+    exMaxPy: toPy(ex.max),
+    realMinM2: re.min,
+    realMaxM2: re.max,
+    realMinPy: toPy(re.min),
+    realMaxPy: toPy(re.max),
+  };
+
+  // ───────── 면적(추가) ─────────
   const extraExclusive = Array.isArray(d.extraExclusiveAreas)
     ? d.extraExclusiveAreas
     : [];
@@ -160,12 +172,15 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     extraReal.length,
     extraTitles.length
   );
-  const extraSets: AreaSet[] = Array.from({ length: len }, (_, i) => {
+
+  const extraAreas: AreaSet[] = Array.from({ length: len }, (_, i) => {
     const exi = unpackRange(extraExclusive[i] ?? "");
     const rei = unpackRange(extraReal[i] ?? "");
     const title = asStr(extraTitles[i] ?? "");
+
     const hasAny = title || exi.min || exi.max || rei.min || rei.max;
     if (!hasAny) return null as any;
+
     return {
       title: title || `세트 ${i + 1}`,
       exMinM2: exi.min,
@@ -179,7 +194,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     };
   }).filter((v): v is AreaSet => Boolean(v));
 
-  // 향
+  // ───────── 향/aspects ─────────
   const aspects: AspectRowLite[] =
     Array.isArray(d.orientations) && d.orientations.length
       ? (d.orientations as unknown[]).map((o, idx) => ({
@@ -212,7 +227,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
         ? String(listingStars)
         : "") as StarStr);
 
-  // units → unitLines
+  // ───────── units → unitLines ─────────
   const unitLines: UnitLine[] = Array.isArray(d.units)
     ? (d.units as any[]).map((u) => ({
         rooms: asNum(u?.rooms ?? 0, 0),
@@ -229,7 +244,6 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     : [];
 
   // 🔥 buildingType 정규화
-  //    👉 건물유형 전용 필드에서만 추출 (registry/registration* 은 등기 전용)
   const buildingTypeSource = d.buildingType ?? d.propertyType ?? d.type ?? null;
   const buildingType: BuildingType | null =
     normalizeBuildingType(buildingTypeSource);
@@ -253,7 +267,7 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     if (o.hasAirPurifier) options.push("공기순환기");
   }
 
-  // 2) 직접입력 텍스트: extraOptionsText + options.extraOptionsText 모두 보기
+  // 2) 직접입력 텍스트: extraOptionsText + 여러 백필드에서 추출
   const optionEtc = asStr(
     d.extraOptionsText ??
       d.options?.extraOptionsText ??
@@ -301,18 +315,8 @@ export function normalizeInitialData(initialData: any | null): Normalized {
     salePrice: asStr(d.salePrice ?? d.minRealMoveInCost),
 
     // 면적
-    baseArea: {
-      title: baseAreaTitle,
-      exMinM2: ex.min,
-      exMaxM2: ex.max,
-      exMinPy: toPy(ex.min),
-      exMaxPy: toPy(ex.max),
-      realMinM2: re.min,
-      realMaxM2: re.max,
-      realMinPy: toPy(re.min),
-      realMaxPy: toPy(re.max),
-    },
-    extraAreas: extraSets,
+    baseArea,
+    extraAreas,
 
     // 설비/등급/등기
     elevator,

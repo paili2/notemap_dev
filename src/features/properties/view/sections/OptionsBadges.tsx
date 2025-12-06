@@ -3,8 +3,14 @@
 type OptionsBadgesProps = {
   /** 어댑터에서 넘어오는 옵션 라벨들(예: ["에어컨", "세탁기"]) */
   options?: string[] | null;
-  /** 기타 입력(자유 텍스트: "노트북, 컴퓨터" 이런 문자열) */
+
+  /**
+   * 기타 입력(자유 텍스트: "노트북, 컴퓨터" 이런 문자열)
+   * - 뷰 레이어에서는 optionEtc 로 주로 쓰임
+   * - 백엔드 options.extraOptionsText 를 그대로 넘기는 경우도 고려
+   */
   optionEtc?: string | null;
+  extraOptionsText?: string | null;
 };
 
 const SPLIT_RE = /[,\n;/]+/;
@@ -13,6 +19,7 @@ const normalize = (s: string) => s.trim().toLowerCase();
 export default function OptionsBadges({
   options,
   optionEtc,
+  extraOptionsText,
 }: OptionsBadgesProps) {
   // 1) 기본 옵션 라벨 정리(문자만, 공백 제거)
   const base: string[] = Array.isArray(options)
@@ -32,14 +39,20 @@ export default function OptionsBadges({
     }
   }
 
-  // 2) optionEtc 문자열을 여러 개로 분리하여 추가
-  const extras: string[] =
+  // 2) 기타 입력 문자열(source: optionEtc 우선, 없으면 extraOptionsText) → 여러 개로 분리 후 추가
+  const etcSource =
     typeof optionEtc === "string"
       ? optionEtc
-          .split(SPLIT_RE)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0)
-      : [];
+      : typeof extraOptionsText === "string"
+      ? extraOptionsText
+      : "";
+
+  const extras: string[] = etcSource
+    ? etcSource
+        .split(SPLIT_RE)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
+    : [];
 
   const extrasDedup: string[] = [];
   for (const label of extras) {

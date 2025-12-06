@@ -1,3 +1,5 @@
+"use client";
+
 import type {
   Grade,
   Registry,
@@ -8,7 +10,7 @@ import type {
 import type {
   CreatePayload,
   UpdatePayload,
-  CreatePinOptionsDto, // ✅ 옵션 DTO 타입 가져오기
+  CreatePinOptionsDto, // ✅ 옵션 DTO 타입
 } from "@/features/properties/types/property-dto";
 
 import { PropertyViewDetails } from "../view/types";
@@ -80,8 +82,10 @@ export type PropertyEditItem = {
   totalHouseholds?: string;
   remainingHouseholds?: string;
 
+  /** 옵션: 체크박스/직접입력 문자열 배열 + 기타 텍스트 */
   options?: string[];
   optionEtc?: string;
+
   publicMemo?: string;
   secretMemo?: string;
 
@@ -155,14 +159,10 @@ function normalizeYearMonth(v?: string | Date | null): string | undefined {
   return undefined;
 }
 
-/** 옵션/기타 정리 → string[] */
-function normalizeOptions(
-  options?: string[] | null,
-  optionEtc?: string | null
-): string[] {
-  const base = Array.isArray(options) ? options : [];
-  const etc = optionEtc ? [optionEtc] : [];
-  return [...base, ...etc].filter(Boolean);
+/** 옵션 문자열 배열 정규화 (기본 트림/필터만) */
+function normalizeOptions(options?: string[] | null): string[] {
+  if (!Array.isArray(options)) return [];
+  return options.map((v) => String(v ?? "").trim()).filter((v) => v.length > 0);
 }
 
 type AspectInput = { no: number; dir: OrientationValue | "" };
@@ -248,15 +248,43 @@ function numericStringOrUndefined(v: string | number | null | undefined) {
   return undefined;
 }
 
-/** string[] → CreatePinOptionsDto 변환 */
+/** string[] + optionEtc → CreatePinOptionsDto 변환 */
 function toOptionsDto(
-  list: string[] | undefined
+  list: string[] | undefined,
+  optionEtc?: string | null
 ): CreatePinOptionsDto | undefined {
-  if (!list || !list.length) return undefined;
+  const selected = Array.isArray(list) ? list : [];
+  const set = new Set(selected);
 
-  // ⚠️ 여기서 필드명은 CreatePinOptionsDto 정의에 맞게 수정해야 함.
-  // 예: { names: list } / { options: list } / { values: list } 등
-  return { names: list } as CreatePinOptionsDto;
+  // 👉 프리셋 라벨들(체크박스 문자열과 맞춰야 함)
+  const hasAircon = set.has("에어컨");
+  const hasFridge = set.has("냉장고");
+  const hasWasher = set.has("세탁기");
+  const hasDryer = set.has("건조기");
+  const hasBidet = set.has("비데");
+  const hasAirPurifier = set.has("공기순환기");
+
+  const extraTextRaw = (optionEtc ?? "").trim();
+
+  const dto: CreatePinOptionsDto = {
+    hasAircon,
+    hasFridge,
+    hasWasher,
+    hasDryer,
+    hasBidet,
+    hasAirPurifier,
+  };
+
+  // isDirectLease 같은 건, 실제로 쓰는 프리셋 라벨이 생기면 여기에서 매핑하면 됨.
+  // 예: const isDirectLease = set.has("직영분양"); dto.isDirectLease = isDirectLease;
+
+  if (extraTextRaw) {
+    dto.extraOptionsText = extraTextRaw;
+  }
+
+  // 아무 필드도 없으면 굳이 options 자체를 PATCH 안 보내도 되지만,
+  // "전체 해제" 케이스에서 false 로 보내야 할 수 있어서 그냥 항상 리턴한다.
+  return dto;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -290,8 +318,8 @@ export function mapEditItemToUpdatePayload(
   const [aspect1, aspect2, aspect3] = dirs;
 
   // 5) 옵션 리스트 & DTO 변환
-  const optionList = normalizeOptions(item.options, item.optionEtc);
-  const optionsDto = toOptionsDto(optionList);
+  const optionList = normalizeOptions(item.options);
+  const optionsDto = toOptionsDto(optionList, item.optionEtc);
 
   // 6) 전송 페이로드
   const payload: UpdatePayload & Partial<CreatePayload> = {

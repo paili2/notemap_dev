@@ -119,7 +119,7 @@ export type CreatePayload = {
 
   // 옵션/메모/등기/구조
   options: CreatePinOptionsDto;
-  optionEtc?: string;
+  extraOptionsText?: string | null;
   publicMemo?: string | null;
   secretMemo?: string | null;
   /** @deprecated use secretMemo */
@@ -222,7 +222,8 @@ export type UpdatePayload = {
 
   // 옵션/메모/등기/구조
   options?: CreatePinOptionsDto | null;
-  optionEtc?: string;
+  extraOptionsText?: string | null;
+
   publicMemo?: string | null;
   secretMemo?: string | null;
   registry?: Registry;

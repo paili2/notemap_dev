@@ -7,6 +7,10 @@ import RoadviewHost from "../../../../view/roadview/RoadviewHost";
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost";
 import { PropertyViewDetails } from "@/features/properties/view/types";
 
+/** ✅ draft 상세 조회용 */
+import { useQuery } from "@tanstack/react-query";
+import { getPinDraftDetailOnce } from "@/shared/api/pins";
+
 export default function ModalsHost(props: {
   /** View Modal */
   viewOpen: boolean;
@@ -101,6 +105,29 @@ export default function ModalsHost(props: {
   // 처음 열릴 때 어떤 단계로 시작할지
   const initialStage: "create" | "view" = canShowView ? "view" : "create";
 
+  /** ✅ 매물정보입력(생성 모달)에서 사용할 draft 헤더 프리필용 id */
+  const draftIdForHeader = createOpen && pinDraftId ? pinDraftId : null;
+
+  /** ✅ pin-drafts/{id} 상세 조회 (이름 / 분양사무실 전화번호) */
+  const { data: draftDetail } = useQuery({
+    queryKey: ["pinDraftDetail", draftIdForHeader],
+    queryFn: () =>
+      draftIdForHeader != null
+        ? getPinDraftDetailOnce(draftIdForHeader)
+        : Promise.resolve(null),
+    enabled: draftIdForHeader != null,
+  });
+
+  /** ✅ 서버 응답 + 상위에서 내려온 프리필을 합쳐 최종 헤더 프리필로 사용 */
+  const effectiveDraftHeaderPrefill =
+    draftDetail && draftIdForHeader != null
+      ? {
+          title: draftDetail.name ?? draftHeaderPrefill?.title,
+          officePhone:
+            draftDetail.contactMainPhone ?? draftHeaderPrefill?.officePhone,
+        }
+      : draftHeaderPrefill;
+
   // 카드 닫기 시: 생성/뷰 쪽 둘 다 닫기 시도
   const handleCloseCard = () => {
     createHostHandlers.onClose();
@@ -127,8 +154,8 @@ export default function ModalsHost(props: {
               onAfterCreate={createHostHandlers.onAfterCreate}
               /* 생성 모달 기본 핀종류 */
               initialPinKind={createPinKind ?? undefined}
-              /* ✅ 임시핀에서 가져온 헤더 프리필 */
-              draftHeaderPrefill={draftHeaderPrefill}
+              /* ✅ pin-drafts/{id} + 상위 프리필을 합친 최종 헤더 프리필 */
+              draftHeaderPrefill={effectiveDraftHeaderPrefill}
               /* 뷰 단계 props */
               initialViewData={selectedViewItem ?? undefined}
               onSaveViewPatch={onSaveViewPatch}

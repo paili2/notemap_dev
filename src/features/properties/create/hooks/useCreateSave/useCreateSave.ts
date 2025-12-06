@@ -262,6 +262,15 @@ export function useCreateSave({
         (rawPinKindLocal ? mapPinKindToBadge(rawPinKindLocal) : "") ||
         undefined;
 
+      /** 🔹 옵션 배열 → extraOptionsText용 문자열로 변환
+       *  - 지금은 모든 옵션을 join, 필요하면 나중에 "프리셋 외의 옵션만"으로 좁혀도 됨
+       */
+      const optionsArray: string[] = Array.isArray(f.options)
+        ? f.options.map((v: any) => String(v).trim()).filter(Boolean)
+        : [];
+      const extraOptionsText = optionsArray.join(", ");
+      const hasExtraOptionsText = extraOptionsText.trim().length > 0;
+
       const payload = buildCreatePayload({
         title: f.title,
         address: f.address,
@@ -303,9 +312,11 @@ export function useCreateSave({
         buildingType: (f as any).buildingType ?? null,
         registrationTypeId: (f as any).registrationTypeId ?? null,
 
-        options: f.options,
-        etcChecked: f.etcChecked,
-        optionEtc: f.optionEtc,
+        // ✅ 옵션 배열 + extraOptionsText 소스
+        options: optionsArray,
+        etcChecked: hasExtraOptionsText,
+        optionEtc: extraOptionsText,
+
         publicMemo: f.publicMemo,
         secretMemo: f.secretMemo,
 

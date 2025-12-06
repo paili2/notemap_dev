@@ -300,6 +300,13 @@ export function usePropertyModals({
     return null;
   }, [createPos, menuAnchor, draftPin, selected]);
 
+  /** ✅ createFromDraftId(string) → pinDraftId(number) 변환 */
+  const pinDraftIdForCreate = useMemo(() => {
+    if (!createFromDraftId) return undefined;
+    const n = Number(createFromDraftId);
+    return Number.isFinite(n) ? n : undefined;
+  }, [createFromDraftId]);
+
   return {
     // selection
     selectedId,
@@ -339,5 +346,8 @@ export function usePropertyModals({
     // host bridge
     createHostHandlers,
     editHostHandlers,
+
+    /** ✅ ModalsHost로 넘길 pin-drafts용 id (number) */
+    pinDraftId: pinDraftIdForCreate,
   } as const;
 }

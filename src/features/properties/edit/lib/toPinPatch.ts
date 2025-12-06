@@ -44,7 +44,7 @@ const toStrictAreaSet = (s: any): StrictAreaSet => ({
   realMaxPy: String(s?.realMaxPy ?? ""),
 });
 
-/* ✅ 옵션 빌드/정규화 */
+/* ✅ 옵션 빌드/정규화 (핀 PATCH용) */
 const buildOptionsFromForm = (f: any) => {
   const selected: string[] = Array.isArray(f.options) ? f.options : [];
   const has = (label: string) => selected.includes(label);
@@ -76,21 +76,12 @@ const buildOptionsFromForm = (f: any) => {
     hasDryer: has("건조기"),
     hasBidet: has("비데"),
     hasAirPurifier: has("공기순환기"),
+    // ✅ 항상 키 생성 (문자열이든 null 이든)
+    extraOptionsText: extraOptionsText ?? null,
   };
 
-  // ✅ 항상 키 생성 (문자열이든 null 이든)
-  out.extraOptionsText = extraOptionsText;
-
-  const any =
-    out.hasAircon ||
-    out.hasFridge ||
-    out.hasWasher ||
-    out.hasDryer ||
-    out.hasBidet ||
-    out.hasAirPurifier ||
-    extraOptionsText !== null; // null 패치도 의미 있는 변경으로 취급
-
-  return any ? out : null;
+  // 🔥 항상 객체를 리턴해서 options 패치가 가능하게
+  return out;
 };
 
 /* ⚠️ 비교용 옵션 정규화(빈 값 제거) */
@@ -294,8 +285,8 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
   /* ✅ 옵션 diff */
   {
     const nowOpts = buildOptionsFromForm(f);
-    const initOptsObj = (initial as any)?.options ?? null;
 
+    // 초기 상태를 "슬라이스 + 옵션텍스트" 기준으로 재구성
     const initFromSlices = buildOptionsFromForm({
       options:
         (initial as any)?.options ??
@@ -305,18 +296,16 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
         [],
       optionEtc:
         (initial as any)?.optionEtc ?? (initial as any)?.extraOptionsText ?? "",
+      etcChecked: true,
     });
-
-    const sameByServerObj =
-      JSON.stringify(normalizeOptionsForCompare(initOptsObj)) ===
-      JSON.stringify(normalizeOptionsForCompare(nowOpts));
 
     const sameBySlices =
       JSON.stringify(normalizeOptionsForCompare(initFromSlices)) ===
       JSON.stringify(normalizeOptionsForCompare(nowOpts));
 
-    if (!(sameByServerObj || sameBySlices)) {
-      (patch as any).options = nowOpts; // 객체(upsert) 또는 null(삭제)
+    // 🔥 슬라이스 기준으로라도 달라졌으면 무조건 options 패치
+    if (!sameBySlices) {
+      (patch as any).options = nowOpts; // 객체(upsert) – extraOptionsText 포함
     }
   }
 
@@ -348,16 +337,18 @@ export function toPinPatch(f: any, initial: InitialSnapshot): UpdatePinDto {
     }
   }
 
-  // --- 등기/건물타입: 폼 값을 진실로 보고 그대로 전송 ---
+  // --- 건물유형: 폼 buildingType 을 그대로 normalize 해서 전송 ---
   {
     const btNowUI = (f as any)?.buildingType ?? null;
     const btNow = normalizeBuildingType(btNowUI);
+    const btInit = normalizeBuildingType(
+      (initial as any)?.buildingType ?? (initial as any)?.initialBuildingType
+    );
 
-    // btNow === null → 사용자가 선택 해제한 것으로 보고 null 전송
-    // btNow 가 undefined 이면(인식 못한 값) 그냥 아무 것도 안 보냄
-    if (btNow !== undefined) {
+    // btNow === null → 선택 해제, null 전송
+    // btNow 가 undefined 이면(인식 못한 값) → 아무 것도 안 보냄
+    if (btNow !== undefined && !jsonEq2Local(btInit, btNow)) {
       (patch as any).buildingType = btNow ?? null;
-      (patch as any).registry = btNow ?? null;
     }
   }
 

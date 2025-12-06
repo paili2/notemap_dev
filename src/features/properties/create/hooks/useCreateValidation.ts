@@ -34,9 +34,8 @@ type Args = {
   totalHouseholds: string;
   remainingHouseholds: string;
 
+  /** ✅ 옵션은 이제 options 배열만으로 판단 (직접입력 포함) */
   options: string[];
-  etcChecked: boolean;
-  optionEtc: string;
 
   unitLinesLen: number;
   /** ⭐ listingStars 제거 → parkingGrade 사용 */
@@ -110,11 +109,10 @@ export function useCreateValidation(a: Args) {
   );
   const hasUnitsAny = baseHasUnits || extrasHaveUnits;
 
-  const optionsValid = useMemo(
-    () =>
-      a.options.length > 0 || (a.etcChecked && a.optionEtc.trim().length > 0),
-    [a.options, a.etcChecked, a.optionEtc]
-  );
+  /** ✅ 옵션 유효성: options 배열에 하나 이상 들어 있으면 OK
+   *  (프리셋 + 직접입력 모두 options에 들어가므로 이것만 보면 됨)
+   */
+  const optionsValid = useMemo(() => a.options.length > 0, [a.options]);
 
   const aspectsValid = useMemo(
     () => a.aspects.length > 0 && a.aspects[0].dir.trim().length > 0,

@@ -9,7 +9,7 @@ import { PropertyViewDetails } from "../../view/types";
 /**
  * View에서 넘어온 patch(Partial<PropertyViewDetails>)를 기존 PropertyItem에 병합.
  * - 이미지 관련(카드/세로)은 normalize 해서 반영
- * - 레거시 호환 필드(imagesByCard, imageCardCounts, imagesVertical)도 유지
+ * - 레거시 호환 필드(imageCards/imagesByCard/imageCardCounts/imagesVertical)는 유지
  * - pinKind는 item 레벨 + view 레벨 모두 동기화(있을 때만)
  */
 export function applyPatchToItem(
@@ -103,8 +103,13 @@ export function applyPatchToItem(
           : (p as any).view?.elevator,
 
       parkingType: (patch as any).parkingType ?? (p as any).view?.parkingType,
+
+      // ✅ parkingCount: totalParkingSlots도 함께 고려
       parkingCount:
-        (patch as any).parkingCount ?? (p as any).view?.parkingCount,
+        (patch as any).parkingCount ??
+        (patch as any).totalParkingSlots ??
+        (p as any).view?.parkingCount,
+
       slopeGrade: (patch as any).slopeGrade ?? (p as any).view?.slopeGrade,
       structureGrade:
         (patch as any).structureGrade ?? (p as any).view?.structureGrade,
@@ -143,6 +148,11 @@ export function applyPatchToItem(
         (patch as any).extraAreaTitles !== undefined
           ? (patch as any).extraAreaTitles
           : (p as any).view?.extraAreaTitles,
+
+      // ✅ 건물유형 & 리베이트 텍스트도 반영
+      buildingType:
+        (patch as any).buildingType ?? (p as any).view?.buildingType,
+      rebateText: (patch as any).rebateText ?? (p as any).view?.rebateText,
     },
   };
 }

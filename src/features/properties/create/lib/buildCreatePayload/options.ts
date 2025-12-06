@@ -1,4 +1,4 @@
-import { s } from "./numeric";
+// import { s } from "./numeric"; // ✅ 더 이상 사용하지 않으니 제거해도 됨
 
 export type OptionsForServer = {
   hasAircon?: boolean;
@@ -10,34 +10,69 @@ export type OptionsForServer = {
   extraOptionsText?: string | null;
 };
 
-/** UI 의 options 배열 + 직접입력 → 서버용 options 객체로 변환 */
-export function buildOptionsForServer(
-  selected: string[],
-  etcChecked: boolean,
-  optionEtc: string
-): OptionsForServer {
-  const set = new Set(selected ?? []);
-  const etcText = s(optionEtc); // 공백 트림 + "" 처리
+/** 소문자 + 트림 정규화 */
+const norm = (s: string) => s.trim().toLowerCase();
 
-  const out: OptionsForServer = {
-    hasAircon: set.has("에어컨"),
-    hasFridge: set.has("냉장고"),
-    hasWasher: set.has("세탁기"),
-    hasDryer: set.has("건조기"),
-    hasBidet: set.has("비데"),
-    hasAirPurifier: set.has("공기순환기"),
+/** UI 의 options 배열 → 서버용 options 객체로 변환 */
+export function buildOptionsForServer(selected: string[]): OptionsForServer {
+  const labels = Array.isArray(selected) ? selected : [];
+
+  const normalized = labels.map((v) => v.trim()).filter(Boolean);
+
+  const set = new Set(normalized.map(norm));
+
+  const hasAny = (candidates: string[]) =>
+    candidates.some((c) => set.has(norm(c)));
+
+  const hasAircon = hasAny(["에어컨", "에어컨 있음", "aircon"]);
+  const hasFridge = hasAny(["냉장고", "냉장고 있음", "fridge"]);
+  const hasWasher = hasAny([
+    "세탁기",
+    "세탁기 있음",
+    "washer",
+    "washing machine",
+  ]);
+  const hasDryer = hasAny(["건조기", "드럼건조기", "dryer"]);
+  const hasBidet = hasAny(["비데", "비데 있음", "bidet"]);
+  const hasAirPurifier = hasAny(["공기순환기", "공기청정기", "air purifier"]);
+
+  // 🔹 프리셋으로 이미 의미가 있는 옵션들은 extraOptionsText에서 제외
+  const presetNorms = new Set(
+    [
+      "에어컨",
+      "에어컨 있음",
+      "aircon",
+      "냉장고",
+      "냉장고 있음",
+      "fridge",
+      "세탁기",
+      "세탁기 있음",
+      "washer",
+      "washing machine",
+      "건조기",
+      "드럼건조기",
+      "dryer",
+      "비데",
+      "비데 있음",
+      "bidet",
+      "공기순환기",
+      "공기청정기",
+      "air purifier",
+    ].map(norm)
+  );
+
+  const extraList = normalized.filter((label) => !presetNorms.has(norm(label)));
+
+  // 🔹 기타 옵션 문자열 (없으면 "" 또는 null 둘 중 하나 선택 가능)
+  const extraOptionsText = extraList.length > 0 ? extraList.join(", ") : "";
+
+  return {
+    hasAircon: hasAircon || undefined,
+    hasFridge: hasFridge || undefined,
+    hasWasher: hasWasher || undefined,
+    hasDryer: hasDryer || undefined,
+    hasBidet: hasBidet || undefined,
+    hasAirPurifier: hasAirPurifier || undefined,
+    extraOptionsText,
   };
-
-  if (etcChecked) {
-    // ✅ 직접입력 ON
-    // - 글자가 있으면 그 값 그대로
-    // - 글자가 없으면 "" 로 명시적으로 보내서 기존 값 삭제 트리거
-    out.extraOptionsText = etcText ?? "";
-  } else {
-    // ✅ 직접입력 OFF
-    // - 무조건 "" 로 보내서 DB 값 지우게 만들기
-    out.extraOptionsText = "";
-  }
-
-  return out;
 }

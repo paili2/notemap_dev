@@ -126,7 +126,9 @@ export function toViewDetails(p: ViewSource): PropertyViewDetails {
     : [];
   const unitLines = Array.isArray(v.unitLines) ? v.unitLines : [];
   const optionEtc = toStrOr(v.optionEtc);
-  const registry = isNonEmpty(v.registry) ? String(v.registry) : "주택";
+
+  // ✅ registry는 이제 건물유형이 아니라 등기 상태에만 사용 → 값 없으면 undefined
+  const registry = isNonEmpty(v.registry) ? String(v.registry) : undefined;
 
   // ✅ 연식 플래그: 서버 view 블록에 있으면 그대로 사용
   const isNew = typeof v.isNew === "boolean" ? (v.isNew as boolean) : undefined;
@@ -134,6 +136,17 @@ export function toViewDetails(p: ViewSource): PropertyViewDetails {
   const buildingAgeType = isNonEmpty(v.buildingAgeType)
     ? String(v.buildingAgeType).toUpperCase()
     : undefined;
+
+  // ✅ 리베이트 텍스트: 여러 키( view / raw )를 통합
+  const rebateTextRaw =
+    v.rebateText ??
+    v.rebate ??
+    v.rebateMemo ??
+    (p as any)?.rebateText ??
+    (p as any)?.rebate ??
+    (p as any)?.rebateMemo ??
+    "";
+  const rebateText = isNonEmpty(rebateTextRaw) ? String(rebateTextRaw) : "";
 
   return {
     // 상단 메타
@@ -172,6 +185,9 @@ export function toViewDetails(p: ViewSource): PropertyViewDetails {
     isNew,
     isOld,
     buildingAgeType,
+
+    // ✅ 리베이트 텍스트
+    rebateText,
 
     // 면적 (숫자/배열 그대로 통과, undefined 허용)
     exclusiveArea: Number.isFinite(Number(v.exclusiveArea))

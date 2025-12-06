@@ -49,8 +49,8 @@ export type ViewSource = {
     completionDate?: string | null;
     exclusiveArea?: number | string | null;
     realArea?: number | string | null;
-    extraExclusiveAreas?: (number | null)[] | null;
-    extraRealAreas?: (number | null)[] | null;
+    extraExclusiveAreas?: (number | string | null)[] | null;
+    extraRealAreas?: (number | string | null)[] | null;
 
     /* 수량 정보 */
     totalBuildings?: number | string | null;
@@ -61,6 +61,11 @@ export type ViewSource = {
     /* 등급 */
     slopeGrade?: string | null;
     structureGrade?: string | null;
+
+    /* 연식/건물연령 플래그 (신규) */
+    isNew?: boolean | null;
+    isOld?: boolean | null;
+    buildingAgeType?: string | null; // "NEW" | "OLD" 등 서버 문자열
 
     /* 메모/작성정보 */
     publicMemo?: string | null;

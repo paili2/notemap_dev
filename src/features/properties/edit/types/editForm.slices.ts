@@ -62,27 +62,34 @@ export type BasicInfoFormSlice = {
   setOfficePhone2: (v: string) => void;
 };
 
-/** ✅ registryOne 제거, buildingType 기반으로 단순화 */
+/** ✅ registryOne 제거, buildingType + 신축/구옥 + 엘리베이터로 단순화 */
 export type CompletionRegistryFormSlice = {
   completionDate: string;
   setCompletionDate: (v: string) => void;
 
-  /** 레거시 최저실입(예전 필드) – 그대로 유지 */
+  /** 레거시 최저실입(예전 필드) – 그대로 유지 (원본 서버 salePrice 호환) */
   salePrice: string | number | null;
   setSalePrice: (v: string | number | null) => void;
 
-  /** ✅ 신규: 최저 실입(정수, 만원 단위) */
+  /** ✅ 신규: 최저 실입(정수, 만원 단위) - 내부 연산/스냅샷용 */
   minRealMoveInCost: number | string | null;
   setMinRealMoveInCost: (v: number | string | null) => void;
 
+  /** 리베이트 텍스트 */
   rebateText: string | null;
   setRebateText: (v: string | null) => void;
 
+  /** 경사 등급 */
   slopeGrade?: Grade;
   setSlopeGrade: (v?: Grade) => void;
 
+  /** 구조 등급 */
   structureGrade?: Grade;
   setStructureGrade: (v?: Grade) => void;
+
+  /** ✅ 신축/구옥 UI ("new" | "old" | "") */
+  buildingGrade: "" | "new" | "old";
+  setBuildingGrade: (v: "" | "new" | "old") => void;
 
   /** 서버 enum (건물유형) */
   buildingType: BuildingType | null;
@@ -93,9 +100,25 @@ export type CompletionRegistryFormSlice = {
   setElevator: (v: "O" | "X" | null) => void;
 };
 
+/** ✅ 주차 전용 슬라이스 (주차타입/별점/대수) */
+export type ParkingFormSlice = {
+  /** 주차 평점 ("1"~"5" | "" ) */
+  parkingGrade: "" | "1" | "2" | "3" | "4" | "5";
+  setParkingGrade: (v: "" | "1" | "2" | "3" | "4" | "5") => void;
+
+  /** 주차 유형(자유 입력 문자열, 빈 값일 때 null 처리) */
+  parkingType: string | null;
+  setParkingType: (v: string | null) => void;
+
+  /** 전체 주차 대수 (문자열 입력, 저장 시 숫자로 파싱) */
+  totalParkingSlots: string;
+  setTotalParkingSlots: (v: string) => void;
+};
+
 export type MemoFormSlice = {
   publicMemo: string;
   setPublicMemo: (v: string) => void;
+
   secretMemo: string;
   setSecretMemo: (v: string) => void;
 };
@@ -118,9 +141,11 @@ export type OptionsFormSlice = {
   options: string[];
   setOptions: (v: string[]) => void;
 
+  /** ✅ "직접입력" 체크 여부 (extraOptionsText 제어용) */
   etcChecked: boolean;
   setEtcChecked: (v: boolean) => void;
 
+  /** ✅ 옵션 직접입력 텍스트 (콤마 구분) */
   optionEtc: string;
   setOptionEtc: (v: string) => void;
 };
@@ -145,6 +170,8 @@ export type StructureLinesFormSlice = {
 export type EditFormAPI = AreaSetsFormSlice &
   AspectsFormSlice &
   BasicInfoFormSlice &
+  CompletionRegistryFormSlice &
+  ParkingFormSlice &
   MemoFormSlice &
   NumbersFormSlice &
   OptionsFormSlice &

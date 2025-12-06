@@ -9,6 +9,7 @@ import type {
 } from "@/features/properties/types/property-domain";
 import type { ImageItem } from "@/features/properties/types/media";
 import type { PinKind } from "@/features/pins/types";
+
 import {
   deepEq,
   defined,
@@ -21,6 +22,7 @@ import { areaSetsToGroups, normalizeAreaGroupsForCompare } from "./area";
 import { unitLinesChanged } from "./unit";
 import { createPatchHelpers } from "./patchHelpers";
 import { AreaSet } from "../../types/editForm.types";
+import { PRESET_OPTIONS } from "@/features/properties/components/constants";
 
 /* ───────── UI 등기(용도) 타입 ───────── */
 export type RegistryUi = "주택" | "APT" | "OP" | "도/생" | "근/생";
@@ -84,6 +86,8 @@ type BuildUpdateArgs = {
   options?: string[];
   etcChecked?: boolean;
   optionEtc?: string;
+  /** ✅ 서버 options.extraOptionsText 로 매핑될 값(없어도 됨) */
+  extraOptionsText?: string | null;
   publicMemo?: string | null;
   secretMemo?: string | null;
 
@@ -119,6 +123,29 @@ type BuildUpdateArgs = {
 /** 초기 스냅샷: 자유 키 접근 허용 */
 type InitialSnapshot = Partial<BuildUpdateArgs> & { [key: string]: any };
 
+/* ───────── 헬퍼: 옵션에서 커스텀 라벨만 추출 ───────── */
+const normalizeLabel = (s: string) => s.trim().toLowerCase();
+const PRESET_SET = new Set(PRESET_OPTIONS.map(normalizeLabel));
+
+function extractCustomOptionLabels(options?: string[]): string[] {
+  if (!Array.isArray(options)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of options) {
+    if (typeof raw !== "string") continue;
+    const t = raw.trim();
+    if (!t) continue;
+    const key = t.toLowerCase();
+    // 프리셋(에어컨/냉장고/...)은 제외
+    if (PRESET_SET.has(key)) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
 /* ───────── 메인 ───────── */
 export function buildUpdatePayload(
   a: BuildUpdateArgs,
@@ -144,6 +171,7 @@ export function buildUpdatePayload(
     for (const img of a.verticalImages) pushUrl(urlsVertical, img?.url);
   }
 
+  // 기존 optionEtc 필드는 일단 그대로 유지(서버에서 아직 참고하고 있을 수 있으므로)
   const optionEtcFinal = a.etcChecked
     ? (a.optionEtc ?? "").trim()
     : a.optionEtc ?? "";
@@ -343,9 +371,37 @@ export function buildUpdatePayload(
   }
 
   /* ===== 옵션/메모 ===== */
+
+  // 1) 프리셋 + 커스텀 옵션 문자열 배열 그대로 PATCH (서버 toPinPatch 에서 해석)
   putKeepEmptyArray("options", a.options, initial?.options);
-  if (defined(a.optionEtc))
+
+  // 2) 옵션 배열에서 "에어컨/냉장고/..." 를 제외한 **커스텀 라벨만 모아서**
+  //    options.extraOptionsText 로 보낼 문자열 생성
+  const customLabels = extractCustomOptionLabels(a.options);
+
+  // - 직접입력 토글이 false 면 무조건 null 로 보내서 서버 값 제거
+  // - 그 외엔 커스텀 라벨이 있으면 "자전거, 데스크탑" 이런 식으로 join, 없으면 null
+  let nextExtraFromOptions: string | null =
+    customLabels.length > 0 ? customLabels.join(", ") : null;
+
+  if (a.etcChecked === false) {
+    nextExtraFromOptions = null;
+  }
+
+  // (혹시 a.extraOptionsText 를 직접 채워서 부른 경우가 있으면, 그 값이 우선)
+  if (defined(a.extraOptionsText)) {
+    const raw = (a.extraOptionsText ?? "").toString().trim();
+    nextExtraFromOptions = raw.length === 0 ? null : raw;
+  }
+
+  const prevExtraText = (initial as any)?.extraOptionsText ?? null;
+  putAllowNull("extraOptionsText", nextExtraFromOptions, prevExtraText);
+
+  // 기존 optionEtc 필드도 그대로 유지(혹시 다른 곳에서 쓰고 있을 수 있으므로)
+  if (defined(a.optionEtc)) {
     put("optionEtc", optionEtcFinal, initial?.optionEtc);
+  }
+
   put("publicMemo", a.publicMemo, initial?.publicMemo);
   put("secretMemo", a.secretMemo, initial?.secretMemo);
 

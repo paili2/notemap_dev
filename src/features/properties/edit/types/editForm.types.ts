@@ -4,11 +4,22 @@ import type {
   OrientationValue,
   Registry,
   UnitLine,
+  BuildingType,
 } from "@/features/properties/types/property-domain";
 import type { PinKind } from "@/features/pins/types";
 import type { AreaSet } from "@/features/properties/components/sections/AreaSetsSection/types";
+import type { StarStr } from "@/features/properties/types/property-dto";
 
-export type { Grade, OrientationValue, Registry, UnitLine, AreaSet, PinKind };
+export type {
+  Grade,
+  OrientationValue,
+  Registry,
+  UnitLine,
+  AreaSet,
+  PinKind,
+  BuildingType,
+  StarStr,
+};
 
 // 도메인 AspectRowLite를 그대로 지역 alias로 사용
 export type AspectRowLite = DomainAspectRowLite;
@@ -32,8 +43,9 @@ export type NormalizedEditData = {
 
   // 별점/주차/준공/매매
   listingStars: number;
-  parkingType: string; // UI는 문자열 보유
-  totalParkingSlots: string; // ✅ 신규: 총 주차 대수 (문자열로 보관)
+  parkingGrade: StarStr; // "1"~"5" | ""
+  parkingType: string | null; // ✅ 문자열 or null
+  totalParkingSlots: string; // ✅ 총 주차 대수 (문자열로 보관)
   completionDate: string;
   salePrice: string;
 
@@ -41,7 +53,7 @@ export type NormalizedEditData = {
   baseArea: AreaSet;
   extraAreas: AreaSet[];
 
-  // 등기/등급
+  // 설비/등기/등급
   elevator: "O" | "X";
   registryOne: Registry | undefined;
   slopeGrade: Grade | undefined;
@@ -55,7 +67,7 @@ export type NormalizedEditData = {
 
   // 옵션/메모/유닛
   options: string[];
-  optionEtc: string;
+  : string;
   etcChecked: boolean;
   publicMemo: string;
   secretMemo: string;
@@ -63,4 +75,10 @@ export type NormalizedEditData = {
 
   // 향
   aspects: AspectRowLite[];
+
+  // 건물유형(enum)
+  buildingType: BuildingType | null;
+
+  // 리베이트(만원 단위 텍스트)
+  rebateText: string;
 };

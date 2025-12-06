@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import type React from "react";
 
 import { normalizeInitialData } from "./normalize";
 import { resolveRegistryUi } from "./registry";
@@ -90,6 +91,7 @@ export function useInjectInitialData({
     api.setAspectsTouched(false);
     api.setAreaSetsTouched(false);
 
+    // 기본 필드
     api.setPinKind(normalized.pinKind);
     api.setTitle(normalized.title);
     api.setAddress(normalized.address);
@@ -101,9 +103,11 @@ export function useInjectInitialData({
     api.setRoomNo(normalized.roomNo);
     api.setStructure(normalized.structure);
 
+    // 별점(주차평점)
     const pg = (normalized as any)?.parkingGrade as StarStr | undefined;
     api.setParkingGrade(pg && ["1", "2", "3", "4", "5"].includes(pg) ? pg : "");
 
+    // 주차 타입/대수
     api.setParkingType(
       (normalized as any).parkingType != null
         ? (normalized as any).parkingType
@@ -115,6 +119,7 @@ export function useInjectInitialData({
         ? String((normalized as any).totalParkingSlots)
         : ""
     );
+
     api.setCompletionDate(normalized.completionDate);
     api.setSalePrice(normalized.salePrice);
 
@@ -139,6 +144,7 @@ export function useInjectInitialData({
         : ""
     );
 
+    // 면적 세트
     api.setBaseAreaSet(normalized.baseArea);
     api.setExtraAreaSets(normalized.extraAreas);
 
@@ -157,6 +163,7 @@ export function useInjectInitialData({
       api.setElevator(next);
     }
 
+    // 건물 연식 그레이드
     const normGrade =
       (normalized as any)?.building?.grade ??
       (normalized as any)?.buildingGrade ??
@@ -204,18 +211,11 @@ export function useInjectInitialData({
     );
 
     // ✅ 옵션/직접입력 주입
-    const normalizedOptions: any = (normalized as any).options;
-
-    const presetOptions: string[] = Array.isArray(normalizedOptions)
-      ? normalizedOptions
-      : Array.isArray(normalizedOptions?.presetOptions)
-      ? normalizedOptions.presetOptions
-      : [];
+    const normalizedOptions: string[] = (normalized as any).options ?? [];
 
     const extraCandidatesRaw: unknown[] = [
       (normalized as any).optionEtc,
       (normalized as any).extraOptionsText,
-      normalizedOptions?.extraOptionsText,
       (sourceData as any)?.optionEtc,
       (sourceData as any)?.extraOptionsText,
       (sourceData as any)?.options?.extraOptionsText,
@@ -231,7 +231,7 @@ export function useInjectInitialData({
 
     const mergedOptionEtc = extraCandidates.join(", ");
 
-    api.setOptions(presetOptions);
+    api.setOptions(normalizedOptions);
     api.setOptionEtc(mergedOptionEtc);
 
     api.setEtcChecked(
@@ -289,9 +289,7 @@ export function useInjectInitialData({
       contactMainPhone: normalized.officePhone ?? "",
       contactSubPhone: normalized.officePhone2 ?? "",
       minRealMoveInCost: normalized.salePrice ?? "",
-      unitLines: (normalized.unitLines ?? []).map((u: UnitLine) => ({
-        ...u,
-      })),
+      unitLines: (normalized.unitLines ?? []).map((u: UnitLine) => ({ ...u })),
       initialName:
         (normalized as any).title ??
         (normalized as any).name ??

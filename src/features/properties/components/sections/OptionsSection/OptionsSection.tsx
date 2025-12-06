@@ -14,7 +14,6 @@ import { OptionsSectionProps } from "./types";
 import OptionCell from "./OptionCell";
 import { Button } from "@/components/atoms/Button/Button";
 
-const SPLIT_RE = /[,\n;/]+/;
 const normalize = (s: string) => s.trim().toLowerCase();
 const isEtcLabel = (s: string) =>
   ["직접입력", "기타", "etc"].includes(normalize(s));
@@ -34,6 +33,8 @@ const dedupNormalized = (items: readonly string[]) => {
   return out;
 };
 
+const SPLIT_RE = /[,\n;/]+/;
+
 export default function OptionsSection({
   PRESET_OPTIONS,
   options,
@@ -48,6 +49,7 @@ export default function OptionsSection({
     typeof setOptions === "function" ? setOptions : (_: string[]) => {};
   const safeSetEtcChecked =
     typeof setEtcChecked === "function" ? setEtcChecked : (_: boolean) => {};
+  const safeOptionEtc = typeof optionEtc === "string" ? optionEtc : "";
   const safeSetOptionEtc =
     typeof setOptionEtc === "function" ? setOptionEtc : (_: string) => {};
 
@@ -59,32 +61,35 @@ export default function OptionsSection({
   const customFromOptions = safeOptions.filter(
     (v) => !presetSet.has(normalize(v))
   );
-  const legacyEtc = (optionEtc ?? "")
-    .split(SPLIT_RE)
-    .map((s) => s.trim())
-    .filter(Boolean);
+
+  // optionEtc 쪽에서도 커스텀 후보 추출
+  const customFromOptionEtc: string[] =
+    typeof safeOptionEtc === "string"
+      ? safeOptionEtc
+          .split(SPLIT_RE)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : [];
 
   // ----- 로컬 입력 필드 상태 (한 번만 초기화) -----
   const [customInputs, setCustomInputs] = useState<string[]>(() => {
-    const merged = dedupNormalized([...customFromOptions, ...legacyEtc]);
-    return merged.length > 0 ? merged : [""];
+    const merged = dedupNormalized([
+      ...customFromOptions,
+      ...customFromOptionEtc,
+    ]);
+    return merged.length > 0 ? merged : [""]; // 최소 1칸
   });
 
   const [etcOn, setEtcOn] = useState<boolean>(() => {
-    const hasLegacy = legacyEtc.length > 0;
-    const hasCustom = customFromOptions.length > 0;
-    return Boolean(etcChecked || hasLegacy || hasCustom);
+    const hasCustom =
+      customFromOptions.length > 0 || customFromOptionEtc.length > 0;
+    return Boolean(etcChecked || hasCustom);
   });
 
-  // 🔥 부모(useEditForm)에서 옵션/직접입력 초기값을 나중에 채워줬을 때 한 번 더 동기화
+  // 🔥 부모(useEditForm)에서 옵션 초기값을 나중에 채워줬을 때 한 번 더 동기화
   const hydratedRef = useRef(false);
   useEffect(() => {
     if (hydratedRef.current) return;
-
-    const latestLegacy = (optionEtc ?? "")
-      .split(SPLIT_RE)
-      .map((s) => s.trim())
-      .filter(Boolean);
 
     const presetSetLocal = new Set(
       PRESET_OPTIONS.filter((op) => !isEtcLabel(op)).map((v) => normalize(v))
@@ -94,15 +99,24 @@ export default function OptionsSection({
       (v) => !presetSetLocal.has(normalize(v))
     );
 
-    const hasLegacy = latestLegacy.length > 0;
-    const hasCustom = latestCustomFromOptions.length > 0;
-    const shouldHydrate = Boolean(etcChecked || hasLegacy || hasCustom);
+    const latestCustomFromOptionEtc: string[] =
+      typeof safeOptionEtc === "string"
+        ? safeOptionEtc
+            .split(SPLIT_RE)
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0)
+        : [];
+
+    const hasCustom =
+      latestCustomFromOptions.length > 0 ||
+      latestCustomFromOptionEtc.length > 0;
+    const shouldHydrate = Boolean(etcChecked || hasCustom);
 
     if (!shouldHydrate) return;
 
     const merged = dedupNormalized([
       ...latestCustomFromOptions,
-      ...latestLegacy,
+      ...latestCustomFromOptionEtc,
     ]);
 
     setCustomInputs(merged.length > 0 ? merged : [""]);
@@ -110,7 +124,13 @@ export default function OptionsSection({
     safeSetEtcChecked(true);
 
     hydratedRef.current = true;
-  }, [optionEtc, etcChecked, safeOptions, PRESET_OPTIONS, safeSetEtcChecked]);
+  }, [
+    etcChecked,
+    safeOptions,
+    PRESET_OPTIONS,
+    safeOptionEtc,
+    safeSetEtcChecked,
+  ]);
 
   // ref로 현재 customInputs 보관 (commitSync에서 사용)
   const customInputsRef = useRef<string[]>(customInputs);
@@ -128,24 +148,17 @@ export default function OptionsSection({
         (t) => !presetSet.has(t.toLowerCase())
       );
 
+      // options 배열: 프리셋 + 커스텀
       const nextOptions = [...presetSelected, ...customsNotPreset];
       if (!arrShallowEqual(safeOptions, nextOptions)) {
         safeSetOptions(nextOptions);
       }
 
-      const nextEtc = customsNotPreset.join(", ");
-      if ((optionEtc ?? "") !== nextEtc) {
-        safeSetOptionEtc(nextEtc);
-      }
+      // optionEtc 문자열: 커스텀 옵션들을 ", " 로 합치기
+      const extraText = customsNotPreset.join(", ");
+      safeSetOptionEtc(extraText);
     },
-    [
-      presetSelected,
-      presetSet,
-      safeOptions,
-      safeSetOptions,
-      optionEtc,
-      safeSetOptionEtc,
-    ]
+    [presetSelected, presetSet, safeOptions, safeSetOptions, safeSetOptionEtc]
   );
 
   const syncOptionsDebounced = useCallback(
@@ -201,11 +214,14 @@ export default function OptionsSection({
       safeSetEtcChecked(next);
 
       if (!next) {
-        // 직접입력 끄면 커스텀 옵션 제거하고 프리셋만 남김
+        // 직접입력 OFF → 커스텀 옵션 제거
+        setCustomInputs([""]); // 인풋 리셋
+        safeSetOptionEtc(""); // extraOptionsText도 비우기
+
         if (!arrShallowEqual(safeOptions, presetSelected)) {
           safeSetOptions(presetSelected);
         }
-        if ((optionEtc ?? "") !== "") safeSetOptionEtc("");
+        return;
       } else {
         // 켤 때 입력칸이 없으면 하나 만들기
         setCustomInputs((prev) => (prev.length === 0 ? [""] : prev));
@@ -218,9 +234,8 @@ export default function OptionsSection({
       safeOptions,
       presetSelected,
       safeSetOptions,
-      optionEtc,
-      safeSetOptionEtc,
       syncOptionsDebounced,
+      safeSetOptionEtc,
     ]
   );
 
@@ -252,13 +267,14 @@ export default function OptionsSection({
         if (copy.length === 0) {
           setEtcOn(false);
           safeSetEtcChecked(false);
+          safeSetOptionEtc("");
         }
 
         syncOptionsDebounced(copy);
         return copy;
       });
     },
-    [syncOptionsDebounced, safeSetEtcChecked]
+    [syncOptionsDebounced, safeSetEtcChecked, safeSetOptionEtc]
   );
 
   // IME 안전: 로컬만 즉시 업데이트, 부모는 디바운스
@@ -308,8 +324,6 @@ export default function OptionsSection({
 
       {/* 직접입력 영역 */}
       <div className="space-y-2">
-        {/* 🔹 모바일: auto | 1fr | 1fr | auto (가변 폭)
-            🔹 데스크탑: auto | 220px | 220px | auto */}
         <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] md:grid-cols-[auto_220px_220px_auto] gap-x-4 md:gap-x-7 gap-y-2 items-center">
           {etcOn ? (
             <>

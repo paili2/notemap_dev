@@ -68,8 +68,6 @@ export function buildCreatePayload(args: BuildArgs) {
     registrationTypeId,
 
     options,
-    etcChecked,
-    optionEtc,
     publicMemo,
     secretMemo,
     aspects,
@@ -157,16 +155,7 @@ export function buildCreatePayload(args: BuildArgs) {
   const rebateTextSafe = s(rebateText);
 
   // ─────────────────────────────────────────────
-  // ✅ 서버 전송용 units: 구조별 최소/최대 매매가 포함
-  //    - normalizeUnits: rooms/baths/복층/테라스 등 기본 필드
-  //    - 같은 index의 unitLines 에서 primary/secondary 값을 읽어서
-  //      minPrice / maxPrice 에 주입
-  // ─────────────────────────────────────────────
-  // ─────────────────────────────────────────────
   // ✅ 서버 전송용 units: 구조별 최소/최대 매매가 + 복층/테라스 반영
-  //    - normalizeUnits: rooms/baths/기본 구조 필드 정규화
-  //    - 같은 index의 unitLines에서
-  //      duplex/terrace + primary/secondary 를 읽어와서 덮어쓰기
   // ─────────────────────────────────────────────
   const unitsBase = normalizeUnits(unitLines);
   const unitsForServer = unitsBase.map((u: any, idx: number) => {
@@ -201,6 +190,10 @@ export function buildCreatePayload(args: BuildArgs) {
       maxPrice,
     };
   });
+
+  // ✅ 옵션: 배열만 받아서 서버 DTO(CreatePinOptionsDto)에 맞게 변환
+  //    - buildOptionsForServer 내부에서 extraOptionsText까지 구성
+  const optionsForServer = buildOptionsForServer(options ?? []);
 
   /* 6) 최종 payload 조립 */
   const payload: CreatePayload & {
@@ -328,10 +321,8 @@ export function buildCreatePayload(args: BuildArgs) {
     slopeGrade,
     structureGrade,
 
-    options: buildOptionsForServer(options ?? [], etcChecked, optionEtc),
-
-    // (필요하면 UI 쪽에서 계속 쓰라고 그대로 둠 — 서버는 무시)
-    optionEtc: etcChecked ? s(optionEtc) : "",
+    // ✅ 서버용 옵션 DTO (hasAircon... + extraOptionsText 포함)
+    options: optionsForServer,
 
     publicMemo,
     secretMemo,

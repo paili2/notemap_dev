@@ -1,3 +1,4 @@
+// src/features/properties/view/components/stages/ViewStage.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
@@ -114,6 +115,28 @@ export default function ViewStage({
 
     return fromForm ?? fromView ?? fromMetaRoot ?? fromRaw ?? null;
   }, [f, data, metaDetails]);
+
+  /** ✅ 옵션 직접입력(기타) 텍스트도 여러 소스에서 합쳐서 사용 */
+  const optionEtcResolved = useMemo(() => {
+    const fromForm = (f as any)?.optionEtc;
+    const fromView = (data as any)?.optionEtc;
+    const fromMetaRoot = (metaDetails as any)?.optionEtc;
+    const fromRaw = (metaDetails as any)?.raw?.optionEtc;
+    // 서버가 extraOptionsText 로만 갖고 있고 뷰로 아직 안 들어온 경우까지 방어
+    const fromExtra =
+      (metaDetails as any)?.extraOptionsText ??
+      (metaDetails as any)?.raw?.extraOptionsText;
+
+    return fromForm ?? fromView ?? fromMetaRoot ?? fromRaw ?? fromExtra ?? null;
+  }, [f, data, metaDetails]);
+
+  /** ✅ raw.extraOptionsText 도 그대로 넘겨주기(OptionsBadges에서 optionEtc 없을 때 사용) */
+  const extraOptionsTextResolved = useMemo(() => {
+    const fromMeta = (metaDetails as any)?.extraOptionsText;
+    const fromRaw = (metaDetails as any)?.raw?.extraOptionsText;
+    const fromView = (data as any)?.extraOptionsText;
+    return fromMeta ?? fromRaw ?? fromView ?? null;
+  }, [metaDetails, data]);
 
   // 🔁 전역 메모 보기 모드 (K&N / R)
   const memoViewMode = useMemoViewMode((s) => s.mode); // "public" | "secret"
@@ -361,7 +384,8 @@ export default function ViewStage({
               />
               <OptionsBadgesContainer
                 options={f.options}
-                optionEtc={f.optionEtc}
+                optionEtc={optionEtcResolved}
+                extraOptionsText={extraOptionsTextResolved}
               />
 
               {/* 🔁 전역 토글 상태에 따라 한 종류의 메모만 전달 */}

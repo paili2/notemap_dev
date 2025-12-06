@@ -11,8 +11,6 @@ export default function OptionsContainer({
     setOptions: (v: string[]) => void;
     etcChecked: boolean;
     setEtcChecked: (v: boolean) => void;
-    optionEtc: string;
-    setOptionEtc: (v: string) => void;
   };
   PRESET_OPTIONS: readonly string[];
 }) {
@@ -23,8 +21,6 @@ export default function OptionsContainer({
       setOptions={form.setOptions}
       etcChecked={form.etcChecked}
       setEtcChecked={form.setEtcChecked}
-      optionEtc={form.optionEtc}
-      setOptionEtc={form.setOptionEtc}
     />
   );
 }

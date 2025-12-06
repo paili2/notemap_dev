@@ -3,6 +3,7 @@ import {
   Registry,
   UnitLine,
   OrientationRow,
+  BuildingType,
 } from "@/features/properties/types/property-domain";
 import type { PinKind } from "@/features/pins/types";
 import { ImageItem } from "@/features/properties/types/media";
@@ -100,6 +101,9 @@ export type PropertyViewDetails = {
   /** ✅ 최저 실입(정수 금액, 만원 단위 등) */
   minRealMoveInCost?: number | null;
 
+  /** ✅ 리베이트 텍스트 (헤더 R 인풋과 매핑) */
+  rebateText?: string | null;
+
   // 면적 요약
   exclusiveArea?: string;
   realArea?: string;
@@ -147,10 +151,15 @@ export type PropertyViewDetails = {
 
   /** ✅ 신축/구옥: 서버 GET 그대로 표시 전용 */
   ageType?: "NEW" | "OLD" | null;
-  // isNew?: boolean | null;
-  // isOld?: boolean | null;
-  // /** 서버가 문자열로 줄 때 대비 (예: "NEW" | "OLD") */
-  // buildingAgeType?: "NEW" | "OLD" | "" | null;
+
+  /** ✅ view 블록에서 직접 내려주는 연식 플래그 (toViewDetails에서 그대로 매핑) */
+  isNew?: boolean | null;
+  isOld?: boolean | null;
+  /** 서버가 문자열로 줄 때 대비 (예: "NEW" | "OLD") */
+  buildingAgeType?: "NEW" | "OLD" | "" | null;
+
+  /** ✅ 수정모달에서 선택한 건물유형 (도생/근생/주택 등) – 필요 시 사용 */
+  buildingType?: BuildingType | null;
 };
 
 export type UIImg = { url: string; name?: string; caption?: string };

@@ -202,6 +202,9 @@ export function useViewForm({
       // ✅ 금액
       minRealMoveInCost,
 
+      // ✅ 리베이트 텍스트
+      rebateText: (d as any)?.rebateText ?? "",
+
       // 구조
       unitLines: Array.isArray((d as any)?.unitLines)
         ? (d as any).unitLines
@@ -272,6 +275,9 @@ export function useViewForm({
       slopeGrade: view.slopeGrade,
       structureGrade: view.structureGrade,
       minRealMoveInCost: view.minRealMoveInCost,
+
+      // ✅ 리베이트 텍스트
+      rebateText: view.rebateText,
 
       // 구조
       unitLines: view.unitLines,

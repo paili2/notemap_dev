@@ -112,7 +112,6 @@ export function useVisitPlanMode({ form, pinDraftId, initialPinKind }: Args) {
 
       anyForm.setOptions?.([]);
       anyForm.setEtcChecked?.(false);
-      anyForm.setOptionEtc?.("");
       anyForm.setPublicMemo?.("");
       anyForm.setSecretMemo?.("");
     }

@@ -37,7 +37,7 @@ function buildEditPatch(payload: any, selectedId?: string) {
     slopeGrade: payload.slopeGrade,
     structureGrade: payload.structureGrade,
 
-    // ✅ 옵션 라벨 배열
+    // ✅ 옵션 라벨 배열 (뷰단에서는 string[])
     options: payload.options,
 
     // ✅ 옵션 직접입력: 여러 케이스 다 커버

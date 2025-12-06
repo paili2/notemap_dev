@@ -108,7 +108,7 @@ function boolToOX(b?: boolean | null): "O" | "X" | undefined {
   return undefined;
 }
 
-/** buildingType → 라벨 (등기/용도 표기용) */
+/** buildingType → 라벨 (표시용) */
 const BUILDING_TYPE_LABEL: Record<string, string> = {
   APT: "아파트",
   OP: "오피스텔",
@@ -152,10 +152,10 @@ function mapAreaGroups(api: ApiPin) {
   const groups = Array.isArray(api.areaGroups) ? api.areaGroups.slice() : [];
   if (!groups.length) {
     return {
-      baseAreaTitle: undefined,
+      baseAreaTitle: undefined as string | undefined,
       extraAreaTitles: undefined as string[] | undefined,
-      exclusiveArea: undefined,
-      realArea: undefined,
+      exclusiveArea: undefined as string | undefined,
+      realArea: undefined as string | undefined,
       extraExclusiveAreas: undefined as string[] | undefined,
       extraRealAreas: undefined as string[] | undefined,
     };

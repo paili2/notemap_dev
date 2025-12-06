@@ -121,13 +121,16 @@ export function isEmpty(obj: object | null | undefined) {
   return !obj || Object.keys(obj).length === 0;
 }
 
-/* 옵션 sanitize: boolean은 !!로, extraOptionsText는 255자로 제한 */
-export function sanitizeOptions(o?: CreatePinOptionsDto) {
-  if (!o) return undefined;
-  const clip255 = (s: any) => {
-    const t = String(s ?? "").trim();
-    return t ? t.slice(0, 255) : undefined;
-  };
+/* 옵션 sanitize: boolean은 !!로, extraOptionsText는 255자로 제한
+   - extraOptionsText 가 null 로 넘어오면 null 을 그대로 유지해서
+     DB 기존 값을 삭제할 수 있게 함
+*/
+export function sanitizeOptions(
+  o?: CreatePinOptionsDto | null
+): CreatePinOptionsDto | null | undefined {
+  // null 그대로 넘길 일은 거의 없지만 혹시 대비
+  if (o == null) return o;
+
   const payload: any = {
     hasAircon: !!o.hasAircon,
     hasFridge: !!o.hasFridge,
@@ -136,8 +139,30 @@ export function sanitizeOptions(o?: CreatePinOptionsDto) {
     hasBidet: !!o.hasBidet,
     hasAirPurifier: !!o.hasAirPurifier,
   };
-  const txt = clip255(o.extraOptionsText);
-  if (txt !== undefined) payload.extraOptionsText = txt;
+
+  // extraOptionsText 키가 실제로 들어왔는지 여부
+  const hasExtraKey = Object.prototype.hasOwnProperty.call(
+    o,
+    "extraOptionsText"
+  );
+  const raw = (o as any).extraOptionsText;
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim().slice(0, 255);
+
+    if (trimmed) {
+      // 글자가 있으면 잘라서 그대로 보냄
+      payload.extraOptionsText = trimmed;
+    } else if (hasExtraKey) {
+      // "" 이지만 키가 명시적으로 온 경우 → 삭제 의도라고 보고 null 전송
+      payload.extraOptionsText = null;
+    }
+  } else if (raw === null && hasExtraKey) {
+    // 명시적으로 null 이 넘어온 경우 → 그대로 null 유지 (DB 값 삭제)
+    payload.extraOptionsText = null;
+  }
+  // raw 가 undefined 이고 키도 없으면 아무 것도 안 붙임 (옵션 텍스트 건드리지 않은 케이스)
+
   return payload;
 }
 
