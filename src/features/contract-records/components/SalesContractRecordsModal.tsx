@@ -489,6 +489,8 @@ export function SalesContractRecordsModal({
                             locale={ko}
                             i18nLocale="ko-KR"
                             captionLayout="dropdown"
+                            fromYear={2020}
+                            toYear={2050}
                             onSelect={(date) => {
                               if (date) {
                                 handleDataChange({
@@ -563,6 +565,8 @@ export function SalesContractRecordsModal({
                             locale={ko}
                             i18nLocale="ko-KR"
                             captionLayout="dropdown"
+                            fromYear={2020}
+                            toYear={2050}
                             onSelect={(date) => {
                               if (date) {
                                 handleDataChange({

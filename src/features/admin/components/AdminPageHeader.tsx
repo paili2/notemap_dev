@@ -20,6 +20,7 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
       href: "/admin/team-management",
     },
     { key: "account-create", label: "계정생성", href: "/admin/account-create" },
+    { key: "accounts", label: "계정목록", href: "/admin/accounts" },
     {
       key: "team-favorites",
       label: "팀즐겨찾기",

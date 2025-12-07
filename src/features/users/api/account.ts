@@ -247,6 +247,29 @@ export async function getCredentialDetail(
   }
 }
 
+// 계정 목록 조회 (admin only)
+export type AccountListItem = {
+  id: string;
+  email: string;
+  role: "admin" | "manager" | "staff";
+  disabled: boolean;
+  name: string | null;
+  phone: string | null;
+};
+
+export async function getAccountsList(): Promise<AccountListItem[]> {
+  try {
+    const response = await api.get<{
+      message: string;
+      data: AccountListItem[];
+    }>("/dashboard/accounts/credentials");
+    return response.data.data;
+  } catch (error: any) {
+    console.error("계정 목록 조회 실패:", error);
+    throw error;
+  }
+}
+
 // accountId로 credentialId 조회
 // 참고: 백엔드 API에 accountId로 credentialId를 직접 조회하는 API가 없으므로,
 // credentials 목록을 조회하여 찾으려고 시도합니다.
