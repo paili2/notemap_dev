@@ -49,6 +49,13 @@ export function AdminMainPage() {
       color: "bg-cyan-500",
     },
     {
+      title: "계정 목록",
+      description: "등록된 계정 조회 및 관리",
+      href: "/admin/accounts",
+      icon: Users,
+      color: "bg-indigo-500",
+    },
+    {
       title: "팀즐겨찾기",
       description: "즐겨찾기한 팀원 관리",
       href: "/admin/team-favorites",
