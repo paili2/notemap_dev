@@ -1,6 +1,6 @@
 /* ───────── POI 카테고리 정의 ───────── */
 
-import { PoiKind } from "../../mapview/overlays/poiOverlays";
+import { PoiKind } from "../../../engine/overlays/poiOverlays";
 import { PoiCategoryKey } from "../components/ExpandedMenu";
 
 export const POI_CATEGORY_KEYS = [

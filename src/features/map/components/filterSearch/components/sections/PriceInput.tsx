@@ -1,8 +1,8 @@
 import { Input } from "@/components/atoms/Input/Input";
 import {
-  formatNumberWithCommas,
   formatKoreanCurrency,
-} from "../utils/formatters";
+  formatNumberWithCommas,
+} from "../../utils/formatters";
 
 interface PriceInputProps {
   value: string;

@@ -1,4 +1,3 @@
-import { PIN_MARKER, LABEL, HITBOX, Z } from "@/features/map/shared/constants";
 import { getPinUrl } from "@/features/pins/lib/assets";
 import type { PinKind } from "@/features/pins/types";
 
@@ -8,6 +7,12 @@ import {
   applyLabelStyles,
   applyOrderBadgeToLabel,
 } from "./overlayStyles";
+import {
+  HITBOX,
+  LABEL,
+  PIN_MARKER,
+  Z,
+} from "@/features/map/shared/constants/markerUi";
 
 /** 1x1 투명 PNG (data URI) — 아이콘이 없어도 동일 규격 MarkerImage를 강제하기 위한 폴백 */
 const TRANSPARENT_DOT =

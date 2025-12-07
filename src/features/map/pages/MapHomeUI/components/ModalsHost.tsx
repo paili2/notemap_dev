@@ -1,6 +1,5 @@
 "use client";
 
-import { DEFAULT_CENTER } from "@/features/map/shared/constants";
 import type { LatLng } from "@/lib/geo/types";
 import type { PinKind } from "@/features/pins/types";
 import PropertyCreateViewHost from "@/features/properties/components/PropertyCreateViewHost";
@@ -9,7 +8,8 @@ import type { PropertyViewDetails } from "@/features/properties/view/types";
 /** ✅ draft 상세 조회용 */
 import { useQuery } from "@tanstack/react-query";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
-import RoadviewHost from "@/features/map/components/mapview/roadview/RoadviewHost";
+import RoadviewHost from "@/features/map/engine/roadview/RoadviewHost";
+import { DEFAULT_CENTER } from "@/features/map/shared/constants/mapDefaults";
 
 export default function ModalsHost(props: {
   /** View Modal */

@@ -5,12 +5,10 @@ import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 
 import type { OpenMenuOpts } from "./mapHome.types";
-import { showLabelsAround } from "@/features/map/components/mapview/overlays/labelRegistry";
+import { showLabelsAround } from "@/features/map/engine/overlays/labelRegistry";
 import { normalizeLL, sameCoord } from "./mapHome.utils";
-import {
-  DRAFT_PIN_STORAGE_KEY,
-  PIN_MENU_MAX_LEVEL,
-} from "@/features/map/shared/constants";
+import { DRAFT_PIN_STORAGE_KEY } from "@/features/map/shared/constants/storageKeys";
+import { PIN_MENU_MAX_LEVEL } from "@/features/map/shared/constants/mapLevels";
 
 type UseMenuAndDraftArgs = {
   kakaoSDK: any;

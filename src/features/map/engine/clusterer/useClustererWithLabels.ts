@@ -3,7 +3,6 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import type { MapMarker } from "@/features/map/shared/types/mapMarker.type";
 import type { PinKind } from "@/features/pins/types";
-import { LABEL, HITBOX } from "@/features/map/shared/constants";
 import { useSidebar } from "@/features/sidebar";
 import type { ClustererWithLabelsOptions, RefsBag } from "./clusterer.types";
 import { usePreloadIcons } from "./hooks/usePreloadIcons";
@@ -14,6 +13,7 @@ import { useZoomModeSwitch } from "./hooks/useZoomModeSwitch";
 import { useSelectionEffect } from "./hooks/useSelectionEffect";
 import { useRestoreClosedBubbles } from "./hooks/useRestoreClosedBubbles";
 import { useUpdateZIndexAndLabels } from "./hooks/useUpdateZIndexAndLabels";
+import { HITBOX, LABEL } from "../../shared/constants/markerUi";
 
 type Opts = ClustererWithLabelsOptions & { enableDebug?: boolean };
 

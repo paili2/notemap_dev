@@ -6,14 +6,14 @@ import React, {
   useImperativeHandle,
   useRef,
 } from "react";
-import useKakaoMap from "./hooks/useKakaoMap/useKakaoMap";
-import { useClustererWithLabels } from "./clusterer/useClustererWithLabels";
-import { useDistrictOverlay } from "./hooks/useDistrictOverlay";
+import useKakaoMap from "../../engine/hooks/useKakaoMap/useKakaoMap";
+import { useClustererWithLabels } from "../../engine/clusterer/useClustererWithLabels";
+import { useDistrictOverlay } from "../../engine/hooks/useDistrictOverlay";
 import type { MapViewProps } from "./mapView.types";
-import { PoiKind } from "./overlays/poiOverlays";
+import { PoiKind } from "../../engine/overlays/poiOverlays";
 import usePoiLayer from "../../poi/hooks/usePoiLayer";
 import { PoiLayerToggle } from "../../poi/components/PoiLayerToggle";
-import { PIN_MENU_MAX_LEVEL } from "../../shared/constants";
+import { PIN_MENU_MAX_LEVEL } from "../../shared/constants/mapLevels";
 
 type Props = MapViewProps;
 

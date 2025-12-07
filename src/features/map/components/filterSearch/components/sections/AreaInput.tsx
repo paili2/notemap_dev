@@ -1,8 +1,8 @@
 import { Input } from "@/components/atoms/Input/Input";
 import {
-  formatNumberWithCommas,
   convertPyeongToSquareMeter,
-} from "../utils/formatters";
+  formatNumberWithCommas,
+} from "../../utils/formatters";
 
 interface AreaInputProps {
   value: string;

@@ -21,7 +21,7 @@ import type { MapMenuKey } from "../types/mapMenu.types";
 import { FilterSection } from "./FilterSection";
 import RoadviewToggleButton from "./RoadviewToggleButton";
 import DistrictToggleButton from "./DistrictToggleButton";
-import { POI_LABEL } from "../../mapview/overlays/poiOverlays";
+import { POI_LABEL } from "../../../engine/overlays/poiOverlays";
 import { PoiKind } from "@/features/map/poi/lib/poiTypes";
 import {
   POI_CATEGORY_ITEMS,

@@ -6,8 +6,8 @@ import type { LatLng } from "@/lib/geo/types";
 
 import { useToast } from "@/hooks/use-toast";
 import { useResolveAddress } from "@/hooks/useResolveAddress";
-import { useViewportPost } from "../../../hooks/useViewportPost";
-import { usePinsMap } from "../../../hooks/usePinsMap";
+import { useViewportPost } from "../../../hooks/viewport/useViewportPost";
+import { usePinsMap } from "../../../hooks/pins/usePinsMap";
 import { usePanToWithOffset } from "../../../hooks/useKakaoTools";
 
 import type { MapToolMode, Viewport } from "./mapHome.types";

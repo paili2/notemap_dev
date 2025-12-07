@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import {
   hideLabelsAround,
   showLabelsAround,
-} from "../../mapview/overlays/labelRegistry";
+} from "../../../engine/overlays/labelRegistry";
 import { LatLng } from "@/lib/geo/types";
 
 type UseLabelMaskOnMenuOpenArgs = {

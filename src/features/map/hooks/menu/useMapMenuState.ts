@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { MapMenuSubmenu } from "../components/menu/types/mapMenu.types";
+import { MapMenuSubmenu } from "../../components/menu/types/mapMenu.types";
 
 const DEFAULT_SUBMENU: MapMenuSubmenu = "filter";
 

@@ -1,4 +1,4 @@
-import { CreateFromPinArgs } from "@/features/map/components/contextMenu/PinContextMenu/pinContextMenu.types";
+import { CreateFromPinArgs } from "@/features/map/components/contextMenu/PinContextMenu/PinContextMenuContainer.types";
 import type { LatLng } from "@/lib/geo/types";
 
 /** 지도 도구 모드 (지적/로드뷰 배타적 관리) */

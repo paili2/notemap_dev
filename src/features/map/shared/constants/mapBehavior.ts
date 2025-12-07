@@ -1,0 +1,1 @@
+export const DEFAULT_VIEWPORT_DEBOUNCE = 120;

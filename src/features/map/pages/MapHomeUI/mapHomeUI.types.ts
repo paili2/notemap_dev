@@ -3,10 +3,10 @@ import { PropertyItem } from "@/features/properties/types/propertyItem";
 import { LatLng } from "@/lib/geo/types";
 import { CreatePayload } from "@/features/properties/types/property-dto";
 import { PinKind } from "@/features/pins/types";
-import { MapMarker, MapMarkerTagged } from "../shared/types/mapMarker.type";
+import { MapMarker, MapMarkerTagged } from "../../shared/types/mapMarker.type";
 import { PropertyViewDetails } from "@/features/properties/view/types";
-import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/pinContextMenu.types";
-import { PoiKind } from "../poi/lib/poiTypes";
+import { CreateFromPinArgs } from "../../components/contextMenu/PinContextMenu/PinContextMenuContainer.types";
+import { PoiKind } from "../../poi/lib/poiTypes";
 
 type ReserveFromMenuPayload =
   | { visitId: string | number; dateISO?: string }

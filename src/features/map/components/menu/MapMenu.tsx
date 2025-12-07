@@ -9,8 +9,8 @@ import {
   MapMenuProps,
   MapMenuSubmenu,
 } from "./types/mapMenu.types";
-import { useMapMenuState } from "../../hooks/useMapMenuState";
 import { ExpandedMenu } from "./components/ExpandedMenu";
+import { useMapMenuState } from "../../hooks/menu/useMapMenuState";
 
 export default function MapMenu(props: MapMenuProps) {
   const {

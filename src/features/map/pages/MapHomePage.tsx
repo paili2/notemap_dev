@@ -13,9 +13,9 @@ import { useReserveFromMenu } from "./hooks/useReserveFromMenu";
 import MapHomeUI from "./MapHomeUI/MapHomeUI";
 import { useMapHomeState } from "./hooks/useMapHomeState";
 import { createPinDraft } from "@/shared/api/pins";
-import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/pinContextMenu.types";
+import { CreateFromPinArgs } from "../components/contextMenu/PinContextMenu/PinContextMenuContainer.types";
 import { buildAddressLine } from "../components/contextMenu/PinContextMenu/utils/geo";
-import { PIN_MENU_MAX_LEVEL } from "../shared/constants";
+import { PIN_MENU_MAX_LEVEL } from "../shared/constants/mapLevels";
 
 export default function MapHomePage() {
   const KAKAO_MAP_KEY = process.env.NEXT_PUBLIC_KAKAO_MAP_KEY;

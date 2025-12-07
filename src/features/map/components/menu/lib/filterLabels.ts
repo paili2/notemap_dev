@@ -1,4 +1,4 @@
-import { FILTER_KEYS, type FilterKey } from "./types";
+import { FILTER_KEYS, type FilterKey } from "../types/filterKey.types";
 
 const FILTER_LABELS: Record<FilterKey, string> = {
   all: "전체",

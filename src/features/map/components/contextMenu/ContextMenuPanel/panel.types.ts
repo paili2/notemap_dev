@@ -2,7 +2,7 @@ import type {
   CreateFromPinArgs,
   PlanRequestPayload,
   ReserveRequestPayload,
-} from "../PinContextMenu/pinContextMenu.types";
+} from "../PinContextMenu/PinContextMenuContainer.types";
 import { DRAFT_PIN_ID } from "./panel.constants";
 
 /** 드래프트 id 또는 실제 매물 id(문자열/숫자 문자열) */

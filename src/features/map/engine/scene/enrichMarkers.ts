@@ -1,4 +1,4 @@
-import { DRAFT_ID } from "../../components/mapview/clusterer/overlays/overlayStyles";
+import { DRAFT_ID } from "../clusterer/overlays/overlayStyles";
 import { MapMarker } from "../../shared/types/mapMarker.type";
 
 import { toGroupingPosKey } from "./toGroupingPosKey";

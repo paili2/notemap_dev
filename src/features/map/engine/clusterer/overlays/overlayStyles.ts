@@ -1,4 +1,4 @@
-import { HITBOX, LABEL } from "@/features/map/shared/constants";
+import { HITBOX, LABEL } from "@/features/map/shared/constants/markerUi";
 
 // 공통 색/상수
 const ACCENT = "#3B82F6";

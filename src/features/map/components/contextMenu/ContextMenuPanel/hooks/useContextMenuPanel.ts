@@ -16,7 +16,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type {
   CreateMode,
   ReserveRequestPayload,
-} from "../../PinContextMenu/pinContextMenu.types";
+} from "../../PinContextMenu/PinContextMenuContainer.types";
 import { getPinDraftDetailOnce } from "@/shared/api/pins";
 import { ContextMenuPanelProps } from "../panel.types";
 import { computeHeaderTitle, computePanelState } from "../panel.state";

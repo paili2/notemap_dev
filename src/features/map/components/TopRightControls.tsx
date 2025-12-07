@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import ToggleSidebar from "./ToggleSidebar/ToggleSidebar";
-import { usePlannedDrafts } from "../hooks/usePlannedDrafts";
+import { usePlannedDrafts } from "../hooks/pins/usePlannedDrafts";
 import { useMemoViewMode } from "@/features/properties/view/store/useMemoViewMode";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/hooks/use-toast";

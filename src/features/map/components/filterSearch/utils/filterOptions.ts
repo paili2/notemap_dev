@@ -11,14 +11,3 @@ export const FILTER_OPTIONS = {
   buildingType: ["주택", "APT", "OP", "도/생", "근/생"],
   elevator: ["있음", "없음"],
 } as const;
-
-export const initialFilterState = {
-  rooms: [] as string[],
-  deposit: "",
-  areaMin: "",
-  areaMax: "",
-  buildingTypes: [] as string[],
-  elevator: "",
-  priceMin: "",
-  priceMax: "",
-};

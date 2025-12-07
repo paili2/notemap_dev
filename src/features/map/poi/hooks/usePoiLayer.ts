@@ -34,7 +34,7 @@ import {
   KAKAO_KEYWORD,
 } from "@/features/map/poi/lib/poiMeta";
 import { PoiKind } from "../lib/poiTypes";
-import { createPoiOverlay } from "../../components/mapview/overlays/poiOverlays";
+import { createPoiOverlay } from "../../engine/overlays/poiOverlays";
 
 export function usePoiLayer({
   kakaoSDK,

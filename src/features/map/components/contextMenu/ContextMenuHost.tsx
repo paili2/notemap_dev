@@ -14,7 +14,7 @@ import {
 import { useContextMenuAnchor } from "./hooks/useContextMenuAnchor";
 
 import { createPinDraft } from "@/shared/api/pins";
-import { CreateFromPinArgs } from "./PinContextMenu/pinContextMenu.types";
+import { CreateFromPinArgs } from "./PinContextMenu/PinContextMenuContainer.types";
 import PinContextMenuContainer from "./PinContextMenu/PinContextMenuContainer";
 import {
   ContextMenuHostProps,

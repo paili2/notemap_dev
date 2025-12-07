@@ -11,13 +11,12 @@ import ModalsHost from "./components/ModalsHost";
 import type { PinKind } from "@/features/pins/types";
 import type { ListItem, SubListItem } from "@/features/sidebar/types/sidebar";
 
-import { useRoadview } from "@/features/map/hooks/useRoadview";
-import { useBounds } from "@/features/map/hooks/useBounds";
+import { useRoadview } from "@/features/map/hooks/roadview/useRoadview";
 import { MapMenuKey } from "@/features/map/components/menu/types/mapMenu.types";
 import { NoResultDialog } from "@/features/map/components/NoResultDialog";
-import { MapHomeUIProps } from "../mapHomeUI.types";
-import { useBoundsRaw } from "../../hooks/useBoundsRaw";
-import { usePlannedDrafts } from "../../hooks/usePlannedDrafts";
+import { MapHomeUIProps } from "./mapHomeUI.types";
+
+import { usePlannedDrafts } from "../../hooks/pins/usePlannedDrafts";
 import { FilterFab, FilterSearch } from "../../components/filterSearch";
 
 import { useViewModalState } from "./hooks/useViewModalState";
@@ -33,7 +32,9 @@ import { focusMapToPosition } from "./lib/viewUtils";
 import { TopRegion } from "./components/TopRegion";
 import usePlaceSearchOnMap from "./hooks/usePlaceSearchOnMap";
 import ContextMenuHost from "../../components/contextMenu/ContextMenuHost";
-import { hideLabelsAround } from "../../components/mapview/overlays/labelRegistry";
+import { hideLabelsAround } from "../../engine/overlays/labelRegistry";
+import { useBounds } from "../../hooks/viewport/useBounds";
+import { useBoundsRaw } from "../../hooks/viewport/useBoundsRaw";
 
 export function MapHomeUI(props: MapHomeUIProps) {
   const {

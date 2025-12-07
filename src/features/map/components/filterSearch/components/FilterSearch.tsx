@@ -5,17 +5,12 @@ import { X } from "lucide-react";
 import { Button } from "@/components/atoms/Button/Button";
 
 import { FilterSearchProps, FilterState } from "../types/filterSearch.types";
-import { FILTER_OPTIONS, initialFilterState } from "../utils/filterOptions";
+import { FILTER_OPTIONS } from "../utils/filterOptions";
 import {
   formatNumberWithCommas,
   formatKoreanCurrency,
   convertPriceToWon,
 } from "../utils/formatters";
-import { FilterSection } from "./FilterSection";
-import { SelectableButton } from "./SelectableButton";
-import { PriceInput } from "./PriceInput";
-import { AreaInput } from "./AreaInput";
-import { FilterActions } from "./FilterActions";
 
 import Portal from "@/components/Portal";
 
@@ -24,6 +19,12 @@ import { validateRangeLabel, toM2 } from "../lib/filterValidators";
 import { buildPinSearchParams } from "../lib/buildPinSearchParams";
 
 import { useToast } from "@/hooks/use-toast";
+import { SelectableButton } from "./sections/SelectableButton";
+import { FilterSection } from "./sections/FilterSection";
+import { PriceInput } from "./sections/PriceInput";
+import { AreaInput } from "./sections/AreaInput";
+import { FilterActions } from "./sections/FilterActions";
+import { initialFilterState } from "../utils/filterDefaults";
 
 export default function FilterSearch({
   isOpen,

@@ -3,7 +3,7 @@ import { buildAddressLine } from "../utils/geo";
 import {
   PlanRequestPayload,
   ReserveRequestPayload,
-} from "../pinContextMenu.types";
+} from "../PinContextMenuContainer.types";
 import { todayYmdKST } from "@/shared/date/todayYmdKST";
 
 type Mode = "view" | "create"; // view: 보기(토글 전용), create: 생성/예약 플로우

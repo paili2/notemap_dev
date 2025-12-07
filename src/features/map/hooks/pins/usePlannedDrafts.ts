@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { MapMarker } from "../shared/types/mapMarker.type";
+import type { MapMarker } from "../../shared/types/mapMarker.type";
 import { PinKind } from "@/features/pins/types";
 import {
   fetchUnreservedDrafts,

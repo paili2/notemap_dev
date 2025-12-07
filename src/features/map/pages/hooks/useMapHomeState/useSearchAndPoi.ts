@@ -7,12 +7,12 @@ import {
   useState,
   MutableRefObject,
 } from "react";
-import { useRunSearch } from "../../../hooks/useRunSearch";
 import { isTooBroadKeyword } from "../../../shared/utils/isTooBroadKeyword";
 import type { PropertyItem } from "@/features/properties/types/propertyItem";
 import type { LatLng } from "@/lib/geo/types";
 import type { Viewport } from "./mapHome.types";
 import { PoiKind } from "@/features/map/poi/lib/poiTypes";
+import { useRunSearch } from "@/features/map/hooks/search/useRunSearch";
 
 type UseSearchAndPoiArgs = {
   kakaoSDK: any;

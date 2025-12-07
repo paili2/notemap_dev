@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { loadKakaoOnce } from "@/lib/kakao/loader";
-import {
-  DEFAULT_VIEWPORT_DEBOUNCE,
-  KOREA_BOUNDS,
-} from "@/features/map/shared/constants";
+import { DEFAULT_VIEWPORT_DEBOUNCE } from "@/features/map/shared/constants/mapBehavior";
 import type { LatLng } from "@/lib/geo/types";
 import { useToast } from "@/hooks/use-toast";
 import { installHttpsImagePatch, patchKakaoHttps } from "./httpsPatch";
 import { createSearchController, type SearchOptions } from "./searchController";
+import { KOREA_BOUNDS } from "@/features/map/shared/constants/mapDefaults";
 
 type Args = {
   appKey: string;

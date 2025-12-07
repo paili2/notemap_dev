@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Bounds } from "../shared/types/bounds.type";
+import { Bounds } from "../../shared/types/bounds.type";
 import {
   getPinsInBounds,
   type PinsMapDraft,
