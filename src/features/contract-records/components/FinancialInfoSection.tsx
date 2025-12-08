@@ -17,7 +17,11 @@ import {
 } from "@/components/atoms/Select/Select";
 import { Textarea } from "@/components/atoms/Textarea/Textarea";
 import type { FinancialInfo } from "../types/contract-records";
-import { formatCurrency, formatNumberWithCommas, parseNumberFromFormatted } from "../utils/utils";
+import {
+  formatCurrency,
+  formatNumberWithCommas,
+  parseNumberFromFormatted,
+} from "../utils/utils";
 
 interface FinancialInfoSectionProps {
   financialInfo: FinancialInfo;
@@ -34,7 +38,8 @@ export function FinancialInfoSection({
     field: keyof FinancialInfo,
     value: string | number
   ) => {
-    const numValue = typeof value === "string" ? parseNumberFromFormatted(value) : value;
+    const numValue =
+      typeof value === "string" ? parseNumberFromFormatted(value) : value;
     onFinancialInfoChange({ ...financialInfo, [field]: numValue });
   };
 
@@ -84,7 +89,9 @@ export function FinancialInfoSection({
                 value={
                   financialInfo.brokerageFee === 0
                     ? ""
-                    : formatNumberWithCommas(financialInfo.brokerageFee.toString())
+                    : formatNumberWithCommas(
+                        financialInfo.brokerageFee.toString()
+                      )
                 }
                 onChange={(e) =>
                   handleFormattedInputChange("brokerageFee", e.target.value)
@@ -140,10 +147,15 @@ export function FinancialInfoSection({
                 value={
                   financialInfo.totalBrokerageFee === 0
                     ? ""
-                    : formatNumberWithCommas(financialInfo.totalBrokerageFee.toString())
+                    : formatNumberWithCommas(
+                        financialInfo.totalBrokerageFee.toString()
+                      )
                 }
                 onChange={(e) =>
-                  handleFormattedInputChange("totalBrokerageFee", e.target.value)
+                  handleFormattedInputChange(
+                    "totalBrokerageFee",
+                    e.target.value
+                  )
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
@@ -212,10 +224,15 @@ export function FinancialInfoSection({
                 value={
                   financialInfo.totalSupportAmount === 0
                     ? ""
-                    : formatNumberWithCommas(financialInfo.totalSupportAmount.toString())
+                    : formatNumberWithCommas(
+                        financialInfo.totalSupportAmount.toString()
+                      )
                 }
                 onChange={(e) =>
-                  handleFormattedInputChange("totalSupportAmount", e.target.value)
+                  handleFormattedInputChange(
+                    "totalSupportAmount",
+                    e.target.value
+                  )
                 }
                 className="h-7 text-xs min-w-24 w-auto"
                 placeholder="0"
@@ -283,30 +300,28 @@ export function FinancialInfoSection({
           <div className="text-xs text-muted-foreground space-y-1">
             <div>계산 공식:</div>
             <div>
-              • (중개보수금 + 부가세) +{" "}
-              {financialInfo.taxStatus === "taxable"
-                ? "(리베이트 × 0.967)"
-                : "리베이트"}{" "}
-              - 지원금액 ={" "}
+              • (중개수수료 + 부가세) + ((리베이트 - 지원금액){" "}
+              {financialInfo.taxStatus === "taxable" ? "× 0.967" : ""}) ={""}
               {(() => {
-                // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
+                // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+                // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
                 const brokerageAndVat =
                   Number(financialInfo.totalBrokerageFee) || 0;
-                const rebateAmount =
-                  financialInfo.taxStatus === "taxable"
-                    ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
-                    : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
+                const totalRebate = Number(financialInfo.totalRebate) || 0;
                 const totalSupportAmount =
                   Number(financialInfo.totalSupportAmount) || 0;
+                const rebateMinusSupport = totalRebate - totalSupportAmount;
+                const multiplier =
+                  financialInfo.taxStatus === "taxable" ? 0.967 : 1;
                 const finalTotal =
-                  brokerageAndVat - totalSupportAmount + rebateAmount;
+                  brokerageAndVat + rebateMinusSupport * multiplier;
                 return formatCurrency(finalTotal);
               })()}
               원
             </div>
             <div className="text-xs text-gray-500">
               {financialInfo.taxStatus === "taxable"
-                ? "• 과세 적용 (리베이트에만 3.3% 차감)"
+                ? "• 과세 적용 (리베이트-지원금액에 0.967 곱함)"
                 : "• 비과세 적용"}
             </div>
           </div>
@@ -316,17 +331,18 @@ export function FinancialInfoSection({
             <div className="text-sm font-medium mb-1">총 합계</div>
             <div className="text-lg font-bold text-primary">
               {(() => {
-                // totalBrokerageFee를 사용 (이미 중개보수금 + 부가세가 합산된 값)
+                // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+                // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
                 const brokerageAndVat =
                   Number(financialInfo.totalBrokerageFee) || 0;
-                const rebateAmount =
-                  financialInfo.taxStatus === "taxable"
-                    ? Number(financialInfo.totalRebate) * 0.967 // 과세시 리베이트에만 3.3% 차감
-                    : Number(financialInfo.totalRebate) || 0; // 비과세시 리베이트 그대로
+                const totalRebate = Number(financialInfo.totalRebate) || 0;
                 const totalSupportAmount =
                   Number(financialInfo.totalSupportAmount) || 0;
+                const rebateMinusSupport = totalRebate - totalSupportAmount;
+                const multiplier =
+                  financialInfo.taxStatus === "taxable" ? 0.967 : 1;
                 const finalTotal =
-                  brokerageAndVat - totalSupportAmount + rebateAmount;
+                  brokerageAndVat + rebateMinusSupport * multiplier;
                 return formatCurrency(finalTotal);
               })()}
               원

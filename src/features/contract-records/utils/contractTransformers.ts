@@ -171,14 +171,15 @@ export function transformContractResponseToSalesContract(
     staffAllocations,
     contractImages,
     // 백엔드 grandTotal 대신 프론트엔드에서 계산
-    // 계산 공식: (중개보수금합계) + (과세시 리베이트 × 0.967, 비과세시 리베이트) - 지원금액
+    // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+    // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
     totalCalculation: (() => {
       const brokerageAndVat = Number(contract.brokerageTotal) || 0;
-      const rebateAmount = contract.isTaxed
-        ? (Number(contract.rebateTotal) || 0) * 0.967
-        : Number(contract.rebateTotal) || 0;
+      const totalRebate = Number(contract.rebateTotal) || 0;
       const totalSupportAmount = Number(contract.supportAmount) || 0;
-      return brokerageAndVat - totalSupportAmount + rebateAmount;
+      const rebateMinusSupport = totalRebate - totalSupportAmount;
+      const multiplier = contract.isTaxed ? 0.967 : 1;
+      return brokerageAndVat + rebateMinusSupport * multiplier;
     })(),
     contractDate: contract.contractDate,
     status:
@@ -211,13 +212,15 @@ export function transformContractResponseToContractData(
   backendContractId: string | number;
 } {
   // 백엔드 grandTotal 대신 프론트엔드에서 계산 (반올림 방지)
+  // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+  // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
   const calculatedTotal = (() => {
     const brokerageAndVat = Number(contract.brokerageTotal) || 0;
-    const rebateAmount = contract.isTaxed
-      ? (Number(contract.rebateTotal) || 0) * 0.967
-      : Number(contract.rebateTotal) || 0;
+    const totalRebate = Number(contract.rebateTotal) || 0;
     const totalSupportAmount = Number(contract.supportAmount) || 0;
-    return brokerageAndVat - totalSupportAmount + rebateAmount;
+    const rebateMinusSupport = totalRebate - totalSupportAmount;
+    const multiplier = contract.isTaxed ? 0.967 : 1;
+    return brokerageAndVat + rebateMinusSupport * multiplier;
   })();
 
   return {
