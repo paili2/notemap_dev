@@ -95,7 +95,7 @@ export function PersonalInfoSection({
               htmlFor="sales-person-name"
               className="text-xs text-muted-foreground"
             >
-              담당자
+              이름
             </Label>
             <Input
               id="sales-person-name"

@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/atoms/Card/Card";
 import { PersonalInfoSection } from "./PersonalInfoSection";
+import { ContractSiteSection } from "./ContractSiteSection";
 import { FinancialInfoSection } from "./FinancialInfoSection";
 import type {
   SalesContractViewModalProps,
@@ -59,6 +60,11 @@ const defaultData: SalesContractData = {
   customerInfo: { name: "", contact: "" },
   salesManager: { name: "", contact: "" }, // 사용하지 않지만 기본값으로 유지
   salesPerson: { name: "", contact: "" },
+  contractSite: {
+    address: "",
+    siteName: "",
+    teamContact: "",
+  },
   financialInfo: {
     brokerageFee: 0,
     vat: 0,
@@ -210,6 +216,11 @@ export function SalesContractRecordsModal({
     handleDataChange({ ...data, salesPerson });
   };
 
+  // 계약현장 정보 변경 핸들러
+  const handleContractSiteChange = (contractSite: any) => {
+    handleDataChange({ ...data, contractSite });
+  };
+
   // 재무 정보 변경 핸들러
   const handleFinancialInfoChange = (financialInfo: any) => {
     // 부가세 자동 계산 (부가세 선택시 10%, 미부가세 선택시 0%)
@@ -228,17 +239,16 @@ export function SalesContractRecordsModal({
     };
 
     // 총 계산 자동 업데이트
-    // 계산 공식과 동일하게 맞춤:
-    // (중개보수금합계) + (과세시 리베이트 × 0.967, 비과세시 그대로) - 지원금액
+    // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+    // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
     const brokerageAndVat = Number(totalBrokerageFee) || 0;
-    const rebateAmount =
-      updatedFinancialInfo.taxStatus === "taxable"
-        ? Number(updatedFinancialInfo.totalRebate) * 0.967
-        : Number(updatedFinancialInfo.totalRebate) || 0;
+    const totalRebate = Number(updatedFinancialInfo.totalRebate) || 0;
     const totalSupportAmount =
       Number(updatedFinancialInfo.totalSupportAmount) || 0;
+    const rebateMinusSupport = totalRebate - totalSupportAmount;
+    const multiplier = updatedFinancialInfo.taxStatus === "taxable" ? 0.967 : 1;
     const totalCalculation =
-      brokerageAndVat - totalSupportAmount + rebateAmount;
+      brokerageAndVat + rebateMinusSupport * multiplier;
 
     handleDataChange({
       ...data,
@@ -657,6 +667,13 @@ export function SalesContractRecordsModal({
               salesPerson={data.salesPerson}
               onCustomerInfoChange={handleCustomerInfoChange}
               onSalesPersonChange={handleSalesPersonChange}
+              readOnly={!isEditMode}
+            />
+
+            {/* 계약현장 정보 */}
+            <ContractSiteSection
+              contractSite={data.contractSite || defaultData.contractSite!}
+              onContractSiteChange={handleContractSiteChange}
               readOnly={!isEditMode}
             />
 

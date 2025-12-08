@@ -3,6 +3,12 @@ export interface PersonInfo {
   contact: string;
 }
 
+export interface ContractSiteInfo {
+  address: string;
+  siteName: string;
+  teamContact: string;
+}
+
 export interface FinancialInfo {
   brokerageFee: number;
   vat: number;
@@ -41,6 +47,7 @@ export interface SalesContractData {
   customerInfo: PersonInfo;
   salesManager?: PersonInfo; // 선택적 필드로 변경 (사용하지 않음)
   salesPerson: PersonInfo;
+  contractSite?: ContractSiteInfo;
   financialInfo: FinancialInfo;
   staffAllocations: StaffAllocation[];
   contractImages: ContractImage[];
