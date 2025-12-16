@@ -1,15 +1,45 @@
 "use client";
 
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAccountsList, AccountListItem } from "@/features/users/api/account";
 import AccountsListPage from "@/features/users/components/_AccountsListPage";
+import AccountEditFormModal from "@/features/users/components/_AccountEditFormModal";
 import type { UserRow, RoleKey } from "@/features/users/types";
 import { api } from "@/shared/api/api";
 import { useToast } from "@/hooks/use-toast";
 
+const mockAccounts: AccountListItem[] = [
+  {
+    id: "mock-1",
+    email: "manager@example.com",
+    role: "manager",
+    disabled: false,
+    name: "홍길동",
+    phone: "010-1234-5678",
+  },
+  {
+    id: "mock-2",
+    email: "staff1@example.com",
+    role: "staff",
+    disabled: false,
+    name: "김철수",
+    phone: "010-2222-3333",
+  },
+  {
+    id: "mock-3",
+    email: "staff2@example.com",
+    role: "staff",
+    disabled: true,
+    name: "이영희",
+    phone: "010-4444-5555",
+  },
+];
+
 export default function AccountsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [editingCredentialId, setEditingCredentialId] = useState<string | null>(null);
 
   // 계정 목록 조회
   const {
@@ -82,6 +112,15 @@ export default function AccountsPage() {
 
   // 계정 제거/비활성화 핸들러
   const handleRemove = (credentialId: string) => {
+    // 모의 데이터일 때는 동작만 안내
+    if (error) {
+      toast({
+        title: "모의 데이터",
+        description: "API 오류로 임시 데이터를 표시 중입니다. 삭제는 비활성화되어 있습니다.",
+      });
+      return;
+    }
+
     // 계정 비활성화로 처리
     if (
       confirm("해당 계정을 비활성화하시겠습니까? 비활성화된 계정은 로그인할 수 없습니다.")
@@ -99,6 +138,17 @@ export default function AccountsPage() {
     console.log("역할 변경:", { id, role });
   };
 
+  // 계정 수정 핸들러
+  const handleEdit = (credentialId: string) => {
+    setEditingCredentialId(credentialId);
+  };
+
+  // 수정 완료 핸들러
+  const handleEditSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["accounts-list"] });
+    setEditingCredentialId(null);
+  };
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-7xl p-6 space-y-8">
@@ -109,19 +159,9 @@ export default function AccountsPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="mx-auto max-w-7xl p-6 space-y-8">
-        <div className="text-center py-12">
-          <p className="text-destructive">
-            계정 목록을 불러오는 중 오류가 발생했습니다.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const userRows = accountsList ? transformToUserRows(accountsList) : [];
+  const isUsingMock = Boolean(error);
+  const sourceAccounts = isUsingMock ? mockAccounts : accountsList ?? [];
+  const userRows = transformToUserRows(sourceAccounts);
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
@@ -132,13 +172,30 @@ export default function AccountsPage() {
         </p>
       </header>
 
+      {isUsingMock && (
+        <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          API 오류로 임시 데이터를 표시 중입니다. 백엔드 복구 후 다시 시도해주세요.
+        </div>
+      )}
+
       <div className="p-1 pb-8">
         <AccountsListPage
           rows={userRows}
           onChangeRole={handleChangeRole}
           onRemove={handleRemove}
+          onEdit={handleEdit}
         />
       </div>
+
+      {/* 계정 수정 모달 */}
+      {editingCredentialId && (
+        <AccountEditFormModal
+          open={true}
+          credentialId={editingCredentialId}
+          onClose={() => setEditingCredentialId(null)}
+          onSuccess={handleEditSuccess}
+        />
+      )}
     </div>
   );
 }
