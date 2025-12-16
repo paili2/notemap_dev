@@ -50,6 +50,7 @@ const UpdateUserSchema = z
         "MANAGER",
         "DEPUTY_GENERAL",
         "GENERAL_MANAGER",
+        "TEAM_LEADER",
         "DIRECTOR",
       ],
       {
@@ -139,7 +140,13 @@ export default function AccountEditFormModal({
 }: AccountEditFormModalProps) {
   if (!open) return null;
 
-  return <AccountEditFormModalBody credentialId={credentialId} onClose={onClose} onSuccess={onSuccess} />;
+  return (
+    <AccountEditFormModalBody
+      credentialId={credentialId}
+      onClose={onClose}
+      onSuccess={onSuccess}
+    />
+  );
 }
 
 function AccountEditFormModalBody({
@@ -206,7 +213,8 @@ function AccountEditFormModalBody({
             password_confirm: "",
             photo_url: account.profileUrl || "",
             id_photo_url: (account as any).docUrlIdCard || "",
-            resident_register_url: (account as any).docUrlResidentRegistration || "",
+            resident_register_url:
+              (account as any).docUrlResidentRegistration || "",
             resident_extract_url: (account as any).docUrlResidentAbstract || "",
             family_relation_url: (account as any).docUrlFamilyRelation || "",
           });
@@ -417,11 +425,11 @@ function AccountEditFormModalBody({
                           onChange={(e) => field.onChange(e.target.value)}
                           className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          <option value="STAFF">사원</option>
                           <option value="ASSISTANT_MANAGER">대리</option>
                           <option value="MANAGER">과장</option>
                           <option value="DEPUTY_GENERAL">차장</option>
                           <option value="GENERAL_MANAGER">부장</option>
+                          <option value="TEAM_LEADER">팀장</option>
                           <option value="DIRECTOR">실장</option>
                         </select>
                       </FormControl>
@@ -473,7 +481,8 @@ function AccountEditFormModalBody({
                                 setIsBirthdayOpen(false);
                               }}
                               disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
+                                date > new Date() ||
+                                date < new Date("1900-01-01")
                               }
                               initialFocus
                             />
@@ -600,7 +609,10 @@ function AccountEditFormModalBody({
                     <FormItem>
                       <FormLabel>급여계좌 *</FormLabel>
                       <FormControl>
-                        <Input placeholder="계좌번호를 입력해주세요" {...field} />
+                        <Input
+                          placeholder="계좌번호를 입력해주세요"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -675,11 +687,7 @@ function AccountEditFormModalBody({
             onClick={form.handleSubmit(handleSubmit)}
             disabled={!!uploading || isSubmitting}
           >
-            {isSubmitting
-              ? "수정 중..."
-              : uploading
-              ? "업로드 대기…"
-              : "수정"}
+            {isSubmitting ? "수정 중..." : uploading ? "업로드 대기…" : "수정"}
           </Button>
         </div>
       </div>
@@ -767,4 +775,3 @@ function fileNameFromUrl(u?: string) {
     return u.split("?")[0].split("#")[0].split("/").pop() || u;
   }
 }
-

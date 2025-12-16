@@ -105,7 +105,6 @@ export async function removeTeamMember(memberId: string): Promise<void> {
 export type AssignTeamMemberRequest = {
   teamId: string;
   accountId: string;
-  role: "manager" | "staff";
   isPrimary?: boolean;
   joinedAt?: string;
 };

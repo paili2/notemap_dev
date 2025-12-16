@@ -113,7 +113,7 @@ export type CreateAccountRequest = {
   email: string;
   password: string;
   role: "manager" | "staff";
-  team: {
+  team?: {
     teamId: string;
     isPrimary?: boolean;
     joinedAt?: string;
@@ -136,12 +136,13 @@ export type CreateEmployeeInfoRequest = {
   addressLine: string;
   salaryBankName: string;
   salaryAccount: string;
-  positionRank:
+  positionRank?:
     | "STAFF"
     | "ASSISTANT_MANAGER"
     | "MANAGER"
     | "DEPUTY_GENERAL"
     | "GENERAL_MANAGER"
+    | "TEAM_LEADER"
     | "DIRECTOR";
   profileUrl?: string;
   docUrlIdCard?: string;
@@ -266,6 +267,34 @@ export async function getAccountsList(): Promise<AccountListItem[]> {
     return response.data.data;
   } catch (error: any) {
     console.error("계정 목록 조회 실패:", error);
+    throw error;
+  }
+}
+
+// 직급 변경 API (팀장 직급일 때 팀 자동 생성)
+export type PatchPositionRankRequest = {
+  positionRank:
+    | "STAFF"
+    | "ASSISTANT_MANAGER"
+    | "MANAGER"
+    | "DEPUTY_GENERAL"
+    | "GENERAL_MANAGER"
+    | "TEAM_LEADER"
+    | "DIRECTOR";
+  teamName?: string; // TEAM_LEADER일 때만 사용
+};
+
+export async function patchPositionRank(
+  credentialId: string,
+  data: PatchPositionRankRequest
+): Promise<void> {
+  try {
+    await api.patch(
+      `/dashboard/accounts/credentials/${credentialId}/position-rank`,
+      data
+    );
+  } catch (error: any) {
+    console.error("직급 변경 API 호출 실패:", error);
     throw error;
   }
 }

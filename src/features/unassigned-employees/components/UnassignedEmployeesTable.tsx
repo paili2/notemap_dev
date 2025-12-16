@@ -39,25 +39,21 @@ export function UnassignedEmployeesTable({
     {
       key: "name",
       label: "이름",
-      width: "25%",
+      width: "40%",
       align: "left",
-    },
-    {
-      key: "email",
-      label: "이메일",
-      width: "30%",
-      align: "left",
+      render: (value) => <span className="whitespace-nowrap">{value}</span>,
     },
     {
       key: "phone",
       label: "연락처",
-      width: "25%",
+      width: "45%",
       align: "left",
+      render: (value) => <span className="whitespace-nowrap">{value}</span>,
     },
     {
       key: "actions",
       label: "추가",
-      width: "20%",
+      width: "15%",
       align: "left",
       render: (_, row) => (
         <Button

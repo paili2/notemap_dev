@@ -15,4 +15,5 @@ export type UserRow = {
   phone?: string;
   positionRank?: string;
   photo_url?: string;
+  joinedAt?: string | null; // 팀 가입일 (팀 멤버 목록용)
 };

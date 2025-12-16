@@ -5,7 +5,6 @@ import { Badge } from "@/components/atoms/Badge/Badge";
 import { Button } from "@/components/atoms/Button/Button";
 import { Users, User, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { CreateTeamForm } from "./CreateTeamForm";
 import { useTeams, useDeleteTeam } from "../hooks/useTeams";
 import { useToast } from "@/hooks/use-toast";
 
@@ -21,10 +20,6 @@ export default function TeamManagementPage() {
       variant: "destructive",
     });
   }
-
-  const handleTeamCreated = () => {
-    // React Query가 자동으로 캐시를 무효화하고 다시 불러옴
-  };
 
   const handleDeleteTeam = async (teamId: string, teamName: string) => {
     if (
@@ -56,14 +51,11 @@ export default function TeamManagementPage() {
     return (
       <div className="mx-auto max-w-7xl p-6 space-y-8">
         <header>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">팀 관리</h1>
-              <p className="text-sm text-muted-foreground">
-                전체 팀을 관리하고 각 팀의 상세 정보를 확인할 수 있습니다.
-              </p>
-            </div>
-            <CreateTeamForm onTeamCreated={handleTeamCreated} />
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">팀 관리</h1>
+            <p className="text-sm text-muted-foreground">
+              전체 팀 목록을 조회하고 각 팀의 상세 정보를 확인할 수 있습니다.
+            </p>
           </div>
         </header>
         <div className="flex items-center justify-center py-12">
@@ -81,14 +73,15 @@ export default function TeamManagementPage() {
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-8">
       <header>
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">팀 관리</h1>
-            <p className="text-sm text-muted-foreground">
-              전체 팀을 관리하고 각 팀의 상세 정보를 확인할 수 있습니다.
-            </p>
-          </div>
-          <CreateTeamForm onTeamCreated={handleTeamCreated} />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">팀 관리</h1>
+          <p className="text-sm text-muted-foreground">
+            전체 팀 목록을 조회하고 각 팀의 상세 정보를 확인할 수 있습니다.
+            <br />
+            <span className="text-xs">
+              팀은 팀장 직급 계정 생성 시 자동으로 생성됩니다.
+            </span>
+          </p>
         </div>
       </header>
 
@@ -119,11 +112,6 @@ export default function TeamManagementPage() {
 
             <div className="space-y-3 mb-6">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <User className="h-4 w-4" />
-                <span>코드: {team.code}</span>
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Users className="h-4 w-4" />
                 <span>멤버 수: {team.memberCount}명</span>
               </div>
@@ -152,7 +140,7 @@ export default function TeamManagementPage() {
           <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">팀이 없습니다</h3>
           <p className="text-muted-foreground mb-4">
-            새 팀을 생성하여 시작하세요.
+            팀장 직급으로 계정을 생성하면 팀이 자동으로 생성됩니다.
           </p>
         </div>
       )}

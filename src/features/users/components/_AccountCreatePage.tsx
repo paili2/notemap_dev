@@ -34,6 +34,7 @@ import { getTeams } from "@/features/teams";
 import {
   createAccount,
   createEmployeeInfo,
+  patchPositionRank,
 } from "@/features/users/api/account";
 import { useToast } from "@/hooks/use-toast";
 import { uploadOnePhoto, UploadDomain } from "@/shared/api/photos/photoUpload";
@@ -58,6 +59,7 @@ export type CreateAccountPayload = {
     | "MANAGER"
     | "DEPUTY_GENERAL"
     | "GENERAL_MANAGER"
+    | "TEAM_LEADER"
     | "DIRECTOR";
   phone: string;
   birthday: string; // YYYY-MM-DD (빈값 허용 시 "")
@@ -66,12 +68,14 @@ export type CreateAccountPayload = {
   salary_bank_name: string; // 은행명
   salary_account: string; // 계좌번호
 
-  // 팀 정보 (필수)
-  team: {
+  // 팀 정보 (선택 - 팀장이면 불필요)
+  team?: {
     teamId: string;
     isPrimary?: boolean;
     joinedAt?: string; // YYYY-MM-DD
   };
+  // 팀 이름 (팀장 직급일 때만 사용)
+  teamName?: string;
 
   // 추가정보(선택)
   photo_url?: string;
@@ -104,6 +108,7 @@ const CreateUserSchema = z
         "MANAGER",
         "DEPUTY_GENERAL",
         "GENERAL_MANAGER",
+        "TEAM_LEADER",
         "DIRECTOR",
       ],
       {
@@ -124,11 +129,21 @@ const CreateUserSchema = z
     address: z.string().min(1, "주소를 입력하세요.").max(200),
     salary_bank_name: z.string().min(1, "은행명을 입력하세요.").max(50),
     salary_account: z.string().min(1, "계좌번호를 입력하세요.").max(50),
-    team: z.object({
-      teamId: z.string().min(1, "팀을 선택하세요."),
-      isPrimary: z.boolean().optional(),
-      joinedAt: z.string().optional(),
-    }),
+    team: z
+      .object({
+        teamId: z.string(),
+        isPrimary: z.boolean().optional(),
+        joinedAt: z.string().optional(),
+      })
+      .optional()
+      .transform((val) => {
+        // teamId가 빈 문자열이거나 없으면 undefined로 변환
+        if (!val || !val.teamId || val.teamId.trim() === "") {
+          return undefined;
+        }
+        return val;
+      }),
+    teamName: z.string().optional(),
     photo_url: z
       .string()
       .url("URL 형식이 올바르지 않습니다.")
@@ -158,7 +173,35 @@ const CreateUserSchema = z
   .refine((data) => data.password === data.password_confirm, {
     message: "비밀번호가 일치하지 않습니다.",
     path: ["password_confirm"], // 에러를 확인 필드에 표시
-  });
+  })
+  .refine(
+    (data) => {
+      // manager/TEAM_LEADER는 팀 배정 불가
+      const isManagerOrTeamLeader =
+        data.positionRank === "TEAM_LEADER" || data.positionRank === "DIRECTOR";
+      if (isManagerOrTeamLeader && data.team) {
+        return false; // manager/TEAM_LEADER는 팀 배정 불가
+      }
+      return true;
+    },
+    {
+      message: "팀장/실장 직급은 팀 배정이 불가능합니다.",
+      path: ["team"],
+    }
+  )
+  .refine(
+    (data) => {
+      // 팀장 직급이면 팀 이름 필수
+      if (data.positionRank === "TEAM_LEADER") {
+        return !!data.teamName?.trim();
+      }
+      return true;
+    },
+    {
+      message: "팀 이름을 입력하세요.",
+      path: ["teamName"],
+    }
+  );
 type CreateUserValues = z.infer<typeof CreateUserSchema>;
 
 type UploadField =
@@ -189,11 +232,8 @@ export default function AccountCreatePage({
       address: "",
       salary_bank_name: "",
       salary_account: "",
-      team: {
-        teamId: "",
-        isPrimary: true,
-        joinedAt: "",
-      },
+      team: undefined,
+      teamName: "",
       photo_url: "",
       id_photo_url: "",
       resident_register_url: "",
@@ -214,10 +254,6 @@ export default function AccountCreatePage({
   const [teams, setTeams] = useState<
     Array<{ id: number | string; name: string; teamLeaderName: string | null }>
   >([]);
-  const [selectedTeamLeader, setSelectedTeamLeader] = useState<string | null>(
-    null
-  );
-  const [isTeamLeader, setIsTeamLeader] = useState(false);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -249,35 +285,85 @@ export default function AccountCreatePage({
 
   /** 제출 */
   const handleSubmit = async (v: CreateUserValues) => {
-    if (uploading || isSubmitting) return;
+    console.log("handleSubmit 호출됨", { v, uploading, isSubmitting });
+    
+    if (uploading || isSubmitting) {
+      console.log("제출 차단: uploading 또는 isSubmitting이 true");
+      return;
+    }
 
     setIsSubmitting(true);
+    console.log("계정 생성 시작");
 
     try {
-      // 팀장 체크박스에 따라 권한 설정 (체크하면 manager, 아니면 staff)
-      const role: "manager" | "staff" = isTeamLeader ? "manager" : "staff";
+      const isTeamLeaderRank = v.positionRank === "TEAM_LEADER";
+      const isManagerRank =
+        v.positionRank === "TEAM_LEADER" || v.positionRank === "DIRECTOR";
+
+      // manager/TEAM_LEADER는 팀 배정 불가
+      if (isManagerRank && v.team?.teamId) {
+        toast({
+          title: "입력 오류",
+          description: "팀장/실장 직급은 팀 배정이 불가능합니다.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 팀장 직급일 때는 팀 이름이 필수
+      if (isTeamLeaderRank && !v.teamName?.trim()) {
+        toast({
+          title: "입력 오류",
+          description: "팀 이름을 입력하세요.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 권한 설정: 직급 기반으로 자동 결정
+      const role: "manager" | "staff" = isManagerRank ? "manager" : "staff";
 
       // 1단계: 계정 생성 (credentials)
-      const accountData = {
+      // manager/TEAM_LEADER는 팀 배정 불가
+      // staff는 팀 배정 선택사항 (팀이 있으면 포함, 없으면 제외)
+      const accountData: {
+        email: string;
+        password: string;
+        role: "manager" | "staff";
+        team?: {
+          teamId: string;
+          isPrimary?: boolean;
+          joinedAt?: string;
+        };
+        isDisabled: boolean;
+      } = {
         email: v.email,
         password: v.password,
         role,
-        team: {
+        isDisabled: false,
+      };
+
+      // staff이고 팀이 선택된 경우에만 team 포함
+      if (role === "staff" && v.team?.teamId) {
+        accountData.team = {
           teamId: v.team.teamId,
           isPrimary: v.team.isPrimary ?? true,
           // joinedAt이 빈 문자열이면 undefined로 처리
           ...(v.team.joinedAt && v.team.joinedAt !== ""
             ? { joinedAt: v.team.joinedAt }
             : {}),
-        },
-        isDisabled: false,
-      };
+        };
+      }
 
       console.log("1단계: 계정 생성 시작", accountData);
       const accountResult = await createAccount(accountData);
       console.log("1단계: 계정 생성 완료", accountResult);
 
       // 2단계: 직원 정보 생성
+      // 팀장 직급은 직원 정보 생성 시 positionRank를 설정하지 않음
+      // (직급 변경 API를 통해 설정해야 팀이 자동 생성됨)
       const employeeData = {
         name: v.name,
         phone: v.phone,
@@ -285,7 +371,10 @@ export default function AccountCreatePage({
         addressLine: v.address,
         salaryBankName: v.salary_bank_name,
         salaryAccount: v.salary_account,
-        positionRank: v.positionRank,
+        // 팀장이 아닐 때만 positionRank 설정
+        ...(isTeamLeaderRank
+          ? {}
+          : { positionRank: v.positionRank }),
         profileUrl: v.photo_url,
         docUrlIdCard: v.id_photo_url,
         docUrlResidentRegistration: v.resident_register_url,
@@ -296,12 +385,27 @@ export default function AccountCreatePage({
       console.log("2단계: 직원 정보 생성 시작", {
         credentialId: accountResult.id,
         employeeData,
+        isTeamLeaderRank,
       });
       const employeeResult = await createEmployeeInfo(
         accountResult.id.toString(),
         employeeData
       );
       console.log("2단계: 직원 정보 생성 완료", employeeResult);
+
+      // 3단계: 팀장 직급이면 직급 변경 API 호출하여 팀 자동 생성
+      // (positionRank를 null에서 TEAM_LEADER로 변경하여 becameTeamLeader가 true가 되도록 함)
+      if (isTeamLeaderRank) {
+        console.log("3단계: 팀장 직급 - 팀 자동 생성 시작", {
+          credentialId: accountResult.id,
+          teamName: v.teamName,
+        });
+        await patchPositionRank(accountResult.id.toString(), {
+          positionRank: "TEAM_LEADER",
+          teamName: v.teamName?.trim() || undefined,
+        });
+        console.log("3단계: 팀 자동 생성 완료");
+      }
 
       await onCreate({
         email: v.email,
@@ -314,14 +418,17 @@ export default function AccountCreatePage({
         address: v.address,
         salary_bank_name: v.salary_bank_name,
         salary_account: v.salary_account,
-        team: {
-          teamId: v.team.teamId,
-          isPrimary: v.team.isPrimary ?? true,
-          joinedAt:
-            v.team.joinedAt && v.team.joinedAt !== ""
-              ? v.team.joinedAt
-              : undefined,
-        },
+        team: v.team
+          ? {
+              teamId: v.team.teamId,
+              isPrimary: v.team.isPrimary ?? true,
+              joinedAt:
+                v.team.joinedAt && v.team.joinedAt !== ""
+                  ? v.team.joinedAt
+                  : undefined,
+            }
+          : undefined,
+        teamName: v.teamName || undefined,
         photo_url: v.photo_url || undefined,
         id_photo_url: v.id_photo_url || undefined,
         resident_register_url: v.resident_register_url || undefined,
@@ -448,7 +555,19 @@ export default function AccountCreatePage({
       <CardContent>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(handleSubmit)}
+            onSubmit={form.handleSubmit(handleSubmit, (errors) => {
+              console.log("Validation 에러:", errors);
+              // 첫 번째 에러 필드로 스크롤
+              const firstErrorField = Object.keys(errors)[0];
+              if (firstErrorField) {
+                const element = document.querySelector(
+                  `[name="${firstErrorField}"]`
+                );
+                if (element) {
+                  element.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              }
+            })}
             className="grid grid-cols-1 gap-6"
           >
             {/* ===== 기본 정보 ===== */}
@@ -481,11 +600,11 @@ export default function AccountCreatePage({
                         onChange={(e) => field.onChange(e.target.value)}
                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <option value="STAFF">사원</option>
                         <option value="ASSISTANT_MANAGER">대리</option>
                         <option value="MANAGER">과장</option>
                         <option value="DEPUTY_GENERAL">차장</option>
                         <option value="GENERAL_MANAGER">부장</option>
+                        <option value="TEAM_LEADER">팀장</option>
                         <option value="DIRECTOR">실장</option>
                       </select>
                     </FormControl>
@@ -691,71 +810,78 @@ export default function AccountCreatePage({
                   </FormItem>
                 )}
               />
-              {/* 팀 선택 */}
-              <FormField
-                control={form.control}
-                name="team.teamId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>팀 *</FormLabel>
-                    <FormControl>
-                      <select
-                        value={field.value}
-                        onChange={(e) => {
-                          field.onChange(e.target.value);
-                          // 선택한 팀의 팀장 여부 확인
-                          const selectedTeam = teams.find(
-                            (t) => t.id.toString() === e.target.value
-                          );
-                          const leader = selectedTeam?.teamLeaderName || null;
-                          setSelectedTeamLeader(leader);
-                          // 팀장이 공석이면 체크박스 표시, 있으면 초기화
-                          setIsTeamLeader(leader === null);
-                        }}
-                        disabled={teamsLoading}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">
-                          {teamsLoading
-                            ? "팀 목록 로딩 중..."
-                            : "팀을 선택하세요"}
-                        </option>
-                        {teams.map((team) => (
-                          <option key={team.id} value={team.id.toString()}>
-                            {team.name}
-                          </option>
-                        ))}
-                      </select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+              {/* staff 직급일 때만 팀 선택 표시 (선택사항) */}
+              {form.watch("positionRank") !== "TEAM_LEADER" &&
+                form.watch("positionRank") !== "DIRECTOR" && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="team"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>팀 (선택사항)</FormLabel>
+                          <FormControl>
+                            <select
+                              value={field.value?.teamId || ""}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === "") {
+                                  // 빈 문자열이면 team을 undefined로 설정
+                                  field.onChange(undefined);
+                                } else {
+                                  // 값이 있으면 team 객체 설정
+                                  field.onChange({
+                                    teamId: value,
+                                    isPrimary: true,
+                                  });
+                                }
+                              }}
+                              disabled={teamsLoading}
+                              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <option value="">
+                                {teamsLoading
+                                  ? "팀 목록 로딩 중..."
+                                  : "팀을 선택하세요 (선택사항)"}
+                              </option>
+                              {teams.map((team) => (
+                                <option key={team.id} value={team.id.toString()}>
+                                  {team.name}
+                                </option>
+                              ))}
+                            </select>
+                          </FormControl>
+                          <FormMessage />
+                          <p className="text-xs text-muted-foreground">
+                            팀장/실장 직급은 팀 배정이 불가능합니다.
+                          </p>
+                        </FormItem>
+                      )}
+                    />
+                  </>
                 )}
-              />
-              {/* 팀장 여부 표시 및 선택 */}
-              {form.watch("team.teamId") && selectedTeamLeader === null && (
-                <div className="flex items-center space-x-2 p-4 border rounded-md bg-gray-50">
-                  <input
-                    type="checkbox"
-                    id="isTeamLeader"
-                    checked={isTeamLeader}
-                    onChange={(e) => setIsTeamLeader(e.target.checked)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor="isTeamLeader"
-                    className="text-sm font-medium text-gray-700"
-                  >
-                    이 직원을 팀장으로 설정합니다
-                  </label>
-                </div>
-              )}
-              {form.watch("team.teamId") && selectedTeamLeader !== null && (
-                <div className="p-4 border rounded-md bg-blue-50">
-                  <p className="text-sm text-gray-700">
-                    현재 팀장:{" "}
-                    <span className="font-semibold">{selectedTeamLeader}</span>
-                  </p>
-                </div>
+              {/* 팀장 직급일 때 팀 이름 입력 필드 표시 */}
+              {form.watch("positionRank") === "TEAM_LEADER" && (
+                <FormField
+                  control={form.control}
+                  name="teamName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>팀 이름 *</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="팀 이름을 입력하세요"
+                          {...field}
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="text-xs text-muted-foreground">
+                        팀장 직급으로 설정하면 자동으로 팀이 생성됩니다.
+                      </p>
+                    </FormItem>
+                  )}
+                />
               )}
             </div>
 
