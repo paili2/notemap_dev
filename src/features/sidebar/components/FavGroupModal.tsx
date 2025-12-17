@@ -81,65 +81,67 @@ export default function FavGroupModal({
           </button>
         </div>
 
-        {/* 그룹 목록 */}
-        <div className="space-y-1 max-h-[220px] overflow-y-auto">
-          {groups.length === 0 ? (
-            <div className="text-sm text-gray-500">아직 그룹이 없습니다.</div>
-          ) : (
-            groups.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  onSelectGroup(String(g.id)); // ✅ id로 전달
-                  onClose();
-                }}
-                className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 border border-gray-200"
-              >
-                <div className="font-medium">{g.title}</div>
-                <div className="text-xs text-gray-500">
-                  {g.subItems.length}개 저장됨
-                </div>
-              </button>
-            ))
-          )}
-        </div>
+        <>
+          {/* 그룹 목록 */}
+          <div className="space-y-1 max-h-[220px] overflow-y-auto">
+            {groups.length === 0 ? (
+              <div className="text-sm text-gray-500">아직 그룹이 없습니다.</div>
+            ) : (
+              groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => {
+                    onSelectGroup(String(g.id)); // ✅ id로 전달
+                    onClose();
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 border border-gray-200"
+                >
+                  <div className="font-medium">{g.title}</div>
+                  <div className="text-xs text-gray-500">
+                    {g.subItems.length}개 저장됨
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
 
-        {/* 새 그룹 만들기 */}
-        <div className="mt-4 border-t pt-3">
-          <label className="text-sm text-gray-600">
-            새 그룹 만들기 (고객번호 뒤 4자리)
-          </label>
-          <form
-            className="mt-2 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void handleCreateSubmit();
-            }}
-          >
-            <input
-              value={newGroupId}
-              onChange={(e) =>
-                setNewGroupId(e.target.value.replace(/\D/g, "").slice(0, 4))
-              }
-              placeholder="예: 7342"
-              className="flex-1 rounded-lg border px-3 py-2"
-              inputMode="numeric"
-              maxLength={4}
-            />
-            <button
-              type="submit"
-              disabled={!valid}
-              className={`px-3 py-2 rounded-lg ${
-                valid
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-200 text-gray-500 cursor-not-allowed"
-              }`}
+          {/* 새 그룹 만들기 */}
+          <div className="mt-4 border-t pt-3">
+            <label className="text-sm text-gray-600">
+              새 그룹 만들기 (고객번호 뒤 4자리)
+            </label>
+            <form
+              className="mt-2 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleCreateSubmit();
+              }}
             >
-              생성
-            </button>
-          </form>
-        </div>
+              <input
+                value={newGroupId}
+                onChange={(e) =>
+                  setNewGroupId(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="예: 7342"
+                className="flex-1 rounded-lg border px-3 py-2"
+                inputMode="numeric"
+                maxLength={4}
+              />
+              <button
+                type="submit"
+                disabled={!valid}
+                className={`px-3 py-2 rounded-lg ${
+                  valid
+                    ? "bg-gray-900 text-white"
+                    : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                }`}
+              >
+                생성
+              </button>
+            </form>
+          </div>
+        </>
       </div>
     </div>
   );

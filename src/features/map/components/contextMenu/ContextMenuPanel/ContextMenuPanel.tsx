@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/atoms/Button/Button";
 import { Plus, Star, Trash2 } from "lucide-react";
+import StarMeter from "@/features/properties/view/ui/parts/StarMeter";
 
 import type React from "react";
 
@@ -13,6 +14,7 @@ export default function ContextMenuPanel(props: ContextMenuPanelProps) {
     roadAddress,
     jibunAddress,
     showFav,
+    favActive,
     onAddFav,
     canDelete,
     onDelete,
@@ -30,6 +32,8 @@ export default function ContextMenuPanel(props: ContextMenuPanelProps) {
 
     // 상태
     headerTitle,
+    officePhone,
+    parkingGrade,
     draft,
     planned,
     reserved,
@@ -57,83 +61,29 @@ export default function ContextMenuPanel(props: ContextMenuPanelProps) {
       className="rounded-2xl bg-white shadow-xl border border-gray-200 p-3 w-[280px] sm:w-[320px] max-w-[90vw] outline-none"
     >
       {/* ---------------- 헤더 ---------------- */}
-      <div className="flex items-center justify-between gap-3">
-        <div
-          id={headingId}
-          className="font-semibold text-base truncate min-w-0"
+      <div className="flex items-start justify-between gap-3">
+        <div id={headingId} className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="font-semibold text-base truncate min-w-0">
+              {headerTitle}
+            </div>
+            {Number(parkingGrade) > 0 && (
+              <StarMeter value={Number(parkingGrade)} size="sm" showValue />
+            )}
+          </div>
+        </div>
+
+        {/* 닫기 버튼 (상단 유지) */}
+        <Button
+          type="button"
+          onClick={onClose}
+          aria-label="닫기"
+          variant="outline"
+          size="sm"
+          className="hover:bg-transparent"
         >
-          {headerTitle}
-        </div>
-
-        <div className="flex items-center sm:gap-2 shrink-0">
-          {/* 모바일 즐겨찾기 아이콘 */}
-          {showFav && (
-            <Button
-              type="button"
-              onClick={onAddFav}
-              aria-label="즐겨찾기"
-              variant="ghost"
-              size="icon"
-              className="sm:hidden -mr-[10px]"
-              ref={firstFocusableRef}
-            >
-              <Star className="w-5 h-5" />
-            </Button>
-          )}
-
-          {/* 모바일 삭제 */}
-          {canDelete && (
-            <Button
-              type="button"
-              onClick={onDelete}
-              aria-label="매물삭제"
-              variant="ghost"
-              size="icon"
-              className="sm:hidden text-red-500"
-            >
-              <Trash2 className="w-5 h-5" />
-            </Button>
-          )}
-
-          {/* PC 즐겨찾기 */}
-          {showFav && (
-            <Button
-              type="button"
-              onClick={onAddFav}
-              aria-label="즐겨찾기"
-              variant="outline"
-              size="sm"
-              className="hidden sm:flex"
-            >
-              즐겨찾기 <Plus />
-            </Button>
-          )}
-
-          {/* PC 삭제 */}
-          {canDelete && (
-            <Button
-              type="button"
-              onClick={onDelete}
-              aria-label="매물삭제"
-              variant="destructive"
-              size="sm"
-              className="hidden sm:flex"
-            >
-              삭제
-            </Button>
-          )}
-
-          {/* 닫기 버튼 */}
-          <Button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            variant="outline"
-            size="sm"
-          >
-            닫기
-          </Button>
-        </div>
+          닫기
+        </Button>
       </div>
 
       {/* ---------------- 주소 설명 ---------------- */}
@@ -143,17 +93,69 @@ export default function ContextMenuPanel(props: ContextMenuPanelProps) {
           : "선택된 위치의 주소 정보가 없습니다."}
       </div>
 
-      {(roadAddress || jibunAddress) && (
+      {(jibunAddress || roadAddress || officePhone) && (
         <div className="mt-2 mb-3">
-          {roadAddress && (
+          {/* 구주소(지번) */}
+          {jibunAddress && (
             <div className="text-[13px] text-gray-700 leading-snug">
+              {jibunAddress}
+            </div>
+          )}
+          {/* 도로명주소 */}
+          {roadAddress && (
+            <div className="text-[12px] text-gray-500 mt-0.5 leading-snug">
               {roadAddress}
             </div>
           )}
-          {jibunAddress && (
+          {/* 현장 대표번호 */}
+          {officePhone && (
             <div className="text-[12px] text-gray-500 mt-0.5 leading-snug">
-              (지번) {jibunAddress}
+              현장 대표번호 {officePhone}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* 즐겨찾기/매물삭제: 상세보기 버튼 위 */}
+      {(showFav || canDelete) && (
+        <div className="mt-2 mb-3 flex items-center gap-2">
+          {showFav && (
+            <Button
+              type="button"
+              onClick={onAddFav}
+              aria-label="즐겨찾기"
+              variant="outline"
+              size="sm"
+              className={`flex-1 h-9 gap-1.5 text-sm bg-transparent ${
+                favActive
+                  ? "border-yellow-300 text-yellow-700"
+                  : "text-gray-900"
+              } hover:bg-transparent hover:text-inherit hover:border-inherit`}
+              ref={firstFocusableRef}
+            >
+              <Star
+                className={`w-4 h-4 ${
+                  favActive
+                    ? "fill-yellow-500 text-yellow-500"
+                    : "fill-none text-gray-400"
+                }`}
+              />
+              <span>즐겨찾기</span>
+            </Button>
+          )}
+
+          {canDelete && (
+            <Button
+              type="button"
+              onClick={onDelete}
+              aria-label="매물삭제"
+              variant="outline"
+              size="sm"
+              className="flex-1 h-9 gap-1.5 text-sm text-red-500 border-red-200 bg-transparent hover:bg-transparent hover:text-red-500 hover:border-red-200"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>삭제</span>
+            </Button>
           )}
         </div>
       )}

@@ -6,38 +6,28 @@ type UseFavArgs = {
   ensureFavoriteGroup: (groupId: string) => void;
   addFavoriteToGroup: (groupId: string, item: ListItem) => void;
   getCurrentItem: () => ListItem | null;
+  isFavorited?: (id: string) => boolean;
+  removeFavorite?: (id: string) => void | Promise<void>;
 };
-
-// ✅ 함수 본문
-const MAP_FAVS_LS_KEY = "map:favs";
 
 export function useFavModalController(args: UseFavArgs) {
   const [favModalOpen, setFavModalOpen] = useState(false);
   const [favCandidate, setFavCandidate] = useState<ListItem | null>(null);
-  const [favById, setFavById] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
-    try {
-      const raw = localStorage.getItem(MAP_FAVS_LS_KEY);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const normalized: Record<string, boolean> = {};
-      for (const [k, v] of Object.entries(parsed))
-        normalized[k] = typeof v === "boolean" ? v : (v as any) === "true";
-      return normalized;
-    } catch {
-      return {};
-    }
-  });
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(MAP_FAVS_LS_KEY, JSON.stringify(favById));
-    } catch {}
-  }, [favById]);
-
-  const onAddFav = useCallback(() => {
+  const onAddFav = useCallback(async () => {
     const snap = args.getCurrentItem();
+    if (!snap) return;
+
+    const alreadyFav = args.isFavorited?.(snap.id) ?? false;
+    if (alreadyFav) {
+      // ✅ 이미 즐겨찾기면: 모달 없이 즉시 삭제
+      await args.removeFavorite?.(snap.id);
+      setFavModalOpen(false);
+      setFavCandidate(null);
+      return;
+    }
+
+    // ✅ 미즐겨찾기면: 그룹 선택 모달 오픈
     setFavCandidate(snap);
     setFavModalOpen(true);
   }, [args]);
@@ -48,8 +38,9 @@ export function useFavModalController(args: UseFavArgs) {
         alert("추가할 대상이 없습니다. 지도를 다시 선택해 주세요.");
         return;
       }
+      // 이미 즐겨찾기인 경우에는 추가 흐름을 막음 (삭제는 버튼에서 즉시 처리)
+      if (args.isFavorited?.(favCandidate.id) ?? false) return;
       args.addFavoriteToGroup(groupId, favCandidate);
-      setFavById((prev) => ({ ...prev, [favCandidate.id]: true }));
       setFavModalOpen(false);
       setFavCandidate(null);
     },
@@ -60,8 +51,13 @@ export function useFavModalController(args: UseFavArgs) {
     (groupId: string) => {
       args.ensureFavoriteGroup(groupId);
       if (favCandidate) {
+        // 이미 즐겨찾기인 경우에는 추가 흐름을 막음 (삭제는 버튼에서 즉시 처리)
+        if (args.isFavorited?.(favCandidate.id) ?? false) {
+          setFavModalOpen(false);
+          setFavCandidate(null);
+          return;
+        }
         args.createGroupAndAdd(groupId, favCandidate);
-        setFavById((prev) => ({ ...prev, [favCandidate.id]: true }));
       }
       setFavModalOpen(false);
       setFavCandidate(null);
@@ -75,7 +71,6 @@ export function useFavModalController(args: UseFavArgs) {
   }, []);
 
   return {
-    favById,
     onAddFav,
     favModalOpen,
     closeFavModal,

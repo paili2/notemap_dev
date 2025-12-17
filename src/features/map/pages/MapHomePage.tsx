@@ -72,6 +72,8 @@ export default function MapHomePage() {
     addFavoriteToGroup,
     createGroupAndAdd,
     ensureFavoriteGroup,
+    isFavoritePin,
+    removeFavoriteByPinId,
     reserveVisitPlan,
   } = useSidebar();
 
@@ -91,7 +93,23 @@ export default function MapHomePage() {
     addFavoriteToGroup,
     createGroupAndAdd,
     ensureFavoriteGroup,
+    isFavorited: (id) => isFavoritePin(String(id)),
+    removeFavorite: (id) => removeFavoriteByPinId(String(id)),
   });
+
+  const serverFavById = useMemo(() => {
+    // ✅ 서버에서 로드된 즐겨찾기(nestedFavorites) 기준으로 pinId 집계
+    const map: Record<string, boolean> = {};
+    for (const g of nestedFavorites ?? []) {
+      for (const it of g.subItems ?? []) {
+        const pid = String((it as any)?.pinId ?? "").trim();
+        if (pid) map[pid] = true;
+      }
+    }
+    return map;
+  }, [nestedFavorites]);
+
+  // ✅ 즐겨찾기 여부는 서버(즐겨찾기 그룹) 기준으로만 판단 (로컬 map:favs 사용 X)
 
   // ===== 콜백들 =====
   const onChangeQ = useCallback(
@@ -246,7 +264,7 @@ export default function MapHomePage() {
       onChangePoiKinds,
 
       addFav: true,
-      favById: fav.favById,
+      favById: serverFavById,
       onAddFav: fav.onAddFav,
 
       menuOpen: s.menuOpen,
@@ -293,8 +311,9 @@ export default function MapHomePage() {
     [
       KAKAO_MAP_KEY,
       s,
-      fav.favById,
       fav.onAddFav,
+      serverFavById,
+      nestedFavorites,
       onChangeQ,
       onChangeFilter,
       onSubmitSearch,

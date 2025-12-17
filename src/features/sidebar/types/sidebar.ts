@@ -2,6 +2,9 @@ export interface SubListItem {
   id: string;
   title: string;
 
+  /** ✅ 즐겨찾기 삭제/토글을 위한 원본 pinId */
+  pinId?: string;
+
   /** ✅ 지도 포커싱용 좌표 (즐겨찾기 하위 매물) */
   lat?: number | null;
   lng?: number | null;

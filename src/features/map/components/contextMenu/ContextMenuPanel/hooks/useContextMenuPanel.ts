@@ -55,6 +55,8 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
   const [displayTitle, setDisplayTitle] = useState(
     (propertyTitle ?? "").trim()
   );
+  const [displayOfficePhone, setDisplayOfficePhone] = useState<string>("");
+  const [displayParkingGrade, setDisplayParkingGrade] = useState<number>(0);
 
   useEffect(() => {
     setDisplayTitle((propertyTitle ?? "").trim());
@@ -131,6 +133,18 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
       if (name) {
         setDisplayTitle(String(name).trim());
       }
+
+      const officePhone =
+        raw?.property?.contactMainPhone ?? raw?.contactMainPhone ?? "";
+      if (officePhone) {
+        setDisplayOfficePhone(String(officePhone).trim());
+      }
+
+      const pgRaw = raw?.property?.parkingGrade ?? raw?.parkingGrade;
+      const pg = Number(pgRaw);
+      if (Number.isFinite(pg)) {
+        setDisplayParkingGrade(Math.max(0, Math.min(5, pg)));
+      }
     };
 
     // 1️⃣ 캐시에 있으면 네트워크 없이 바로 사용
@@ -192,11 +206,16 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
 
         const name = String(detail.name ?? "").trim();
         const addr = String(detail.addressLine ?? "").trim();
+        const phone = String(detail.contactMainPhone ?? "").trim();
 
         if (name) {
           setDisplayTitle(name);
         } else if (addr) {
           setDisplayTitle(addr);
+        }
+
+        if (phone) {
+          setDisplayOfficePhone(phone);
         }
       })
       .catch(() => {});
@@ -218,6 +237,15 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
       }),
     [panelState, displayTitle, propertyTitle, roadAddress, jibunAddress]
   );
+
+  const officePhone = useMemo(() => {
+    const v = String(displayOfficePhone ?? "").trim();
+    return v.length ? v : undefined;
+  }, [displayOfficePhone]);
+
+  const parkingGrade = useMemo(() => {
+    return Number.isFinite(displayParkingGrade) ? displayParkingGrade : 0;
+  }, [displayParkingGrade]);
 
   /** 초기 포커스/복귀 */
   useEffect(() => {
@@ -318,6 +346,8 @@ export function useContextMenuPanelLogic(props: ContextMenuPanelProps) {
     headerTitle,
     roadAddress,
     jibunAddress,
+    officePhone,
+    parkingGrade,
     draft,
     planned,
     reserved,

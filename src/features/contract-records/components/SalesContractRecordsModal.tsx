@@ -247,8 +247,7 @@ export function SalesContractRecordsModal({
       Number(updatedFinancialInfo.totalSupportAmount) || 0;
     const rebateMinusSupport = totalRebate - totalSupportAmount;
     const multiplier = updatedFinancialInfo.taxStatus === "taxable" ? 0.967 : 1;
-    const totalCalculation =
-      brokerageAndVat + rebateMinusSupport * multiplier;
+    const totalCalculation = brokerageAndVat + rebateMinusSupport * multiplier;
 
     handleDataChange({
       ...data,

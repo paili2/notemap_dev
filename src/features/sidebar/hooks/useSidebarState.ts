@@ -87,6 +87,7 @@ export function useSidebarState() {
     []
   );
   const [favoritesLoading, setFavoritesLoading] = useState(true);
+  const favoriteIndexRef = useRef<Record<string, { groupId: string; itemId: string }>>({});
   const { toast } = useToast();
   const pathname = usePathname();
 
@@ -105,30 +106,57 @@ export function useSidebarState() {
       });
 
       // 병렬로 핀 정보 가져오기
-      const pinInfoMap = new Map<string, string>();
+      const pinInfoMap = new Map<
+        string,
+        { title: string; lat?: number; lng?: number }
+      >();
       await Promise.all(
         Array.from(allPinIds).map(async (pinId) => {
           try {
             const pin = await getPinRaw(pinId);
             const pinName = pin.name || pin.badge || `Pin ${pinId}`;
-            pinInfoMap.set(pinId, pinName);
+            pinInfoMap.set(pinId, {
+              title: pinName,
+              lat: typeof (pin as any).lat === "number" ? (pin as any).lat : Number((pin as any).lat),
+              lng: typeof (pin as any).lng === "number" ? (pin as any).lng : Number((pin as any).lng),
+            });
           } catch (error) {
             console.error(`핀 ${pinId} 정보 가져오기 실패:`, error);
-            pinInfoMap.set(pinId, `Pin ${pinId}`);
+            pinInfoMap.set(pinId, { title: `Pin ${pinId}` });
           }
         })
       );
 
       // 백엔드 데이터를 프론트엔드 형식으로 변환
+      const nextIndex: Record<string, { groupId: string; itemId: string }> = {};
       const convertedGroups: FavorateListItem[] = groups.map((group) => ({
         id: group.id,
         title: group.title,
-        subItems: (group.items || []).map((item) => ({
-          id: item.itemId,
-          title: pinInfoMap.get(item.pinId) || `Pin ${item.pinId}`,
-        })),
+        subItems: (group.items || []).map((item) => {
+          // pinId 기반 인덱스: 삭제/토글에 사용
+          nextIndex[String(item.pinId)] = {
+            groupId: String(group.id),
+            itemId: String(item.itemId),
+          };
+
+          const info = pinInfoMap.get(item.pinId);
+          return {
+            id: item.itemId,
+            pinId: String(item.pinId),
+            title: info?.title || `Pin ${item.pinId}`,
+            lat:
+              typeof info?.lat === "number" && Number.isFinite(info.lat)
+                ? info.lat
+                : undefined,
+            lng:
+              typeof info?.lng === "number" && Number.isFinite(info.lng)
+                ? info.lng
+                : undefined,
+          };
+        }),
       }));
 
+      favoriteIndexRef.current = nextIndex;
       setNestedFavorites(convertedGroups);
     } catch (error: any) {
       console.error("즐겨찾기 로드 실패:", error);
@@ -503,6 +531,38 @@ export function useSidebarState() {
     [nestedFavorites, loadFavorites, toast]
   );
 
+  const isFavoritePin = useCallback((pinId: string) => {
+    return !!favoriteIndexRef.current[String(pinId)];
+  }, []);
+
+  const removeFavoriteByPinId = useCallback(
+    async (pinId: string) => {
+      const hit = favoriteIndexRef.current[String(pinId)];
+      if (!hit) return;
+
+      try {
+        await deleteFavoriteItem(hit.groupId, hit.itemId);
+        await loadFavorites();
+        toast({
+          title: "즐겨찾기 삭제 완료",
+          description: "즐겨찾기에서 삭제되었습니다.",
+        });
+      } catch (error: any) {
+        console.error("즐겨찾기 삭제 실패:", error);
+        toast({
+          title: "즐겨찾기 삭제 실패",
+          description: "즐겨찾기 삭제 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+      }
+    },
+    [loadFavorites, toast]
+  );
+
+  const getFavoritePinIds = useCallback((): string[] => {
+    return Object.keys(favoriteIndexRef.current);
+  }, []);
+
   const handleDeleteNestedFavorite = useCallback(async (id: string) => {
     // 그룹 삭제는 로컬에서만 처리 (백엔드 API 없음)
     setNestedFavorites((prev) => prev.filter((item) => item.id !== id));
@@ -553,6 +613,9 @@ export function useSidebarState() {
     updateFavoriteGroupTitle,
     handleDeleteNestedFavorite,
     handleDeleteSubFavorite,
+    isFavoritePin,
+    removeFavoriteByPinId,
+    getFavoritePinIds,
 
     // pending flags
     setPendingReservation,
