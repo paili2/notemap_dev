@@ -4,6 +4,7 @@ import {
   UpdateContractRequest,
   ContractResponse,
   ContractListItemResponse,
+  MyContractListItemResponse,
 } from "../api/contracts";
 import type { ContractAssigneeResponse } from "../api/assignees";
 import type { ContractFileResponse } from "../api/files";
@@ -428,6 +429,45 @@ export function transformContractListItemToContractData(
     customerContact: item.customerPhone || "",
     salesPerson: item.createdByName || "",
     salesPersonSalary: 0, // 목록 응답에 없으므로 0으로 설정 (사용하지 않음)
+    totalCalculation,
+    contractDate: item.contractDate,
+    balanceDate: item.finalPaymentDate || undefined,
+    status:
+      item.status === "done"
+        ? "completed"
+        : item.status === "canceled"
+        ? "cancelled"
+        : item.status === "rejected"
+        ? "rejected"
+        : "ongoing",
+    backendContractId: item.id,
+  };
+}
+
+// 내 계약 목록 응답을 ContractData로 변환
+export function transformMyContractListItemToContractData(
+  item: MyContractListItemResponse
+): ContractData {
+  // 프론트엔드 계산 로직 사용 (관리자 페이지와 동일)
+  // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+  // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
+  const brokerageFee = Number(item.brokerageFee) || 0;
+  const vatAmount = item.vatEnabled ? Math.round(brokerageFee * 0.1) : 0;
+  const brokerageAndVat = brokerageFee + vatAmount;
+
+  const rebateAmount = (Number(item.rebateUnits) || 0) * 1000000; // units를 원으로 변환
+  const supportAmount = Number(item.supportAmount) || 0;
+  const rebateMinusSupport = rebateAmount - supportAmount;
+  const multiplier = item.isTaxed ? 0.967 : 1;
+  const totalCalculation = brokerageAndVat + rebateMinusSupport * multiplier;
+
+  return {
+    id: String(item.id),
+    contractNumber: item.contractNo,
+    customerName: item.customerName || "",
+    customerContact: item.customerPhone || "",
+    salesPerson: item.createdByName || "",
+    salesPersonSalary: item.myAmount, // 내 정산 금액을 salesPersonSalary에 매핑
     totalCalculation,
     contractDate: item.contractDate,
     balanceDate: item.finalPaymentDate || undefined,

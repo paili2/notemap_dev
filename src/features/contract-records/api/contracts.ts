@@ -109,6 +109,18 @@ export type ContractListResponse = {
   total: number;
 };
 
+// 내 계약 목록 응답 아이템 타입 (ContractListItemResponse + mySharePercent, myAmount)
+export type MyContractListItemResponse = ContractListItemResponse & {
+  mySharePercent: number; // 내 퍼센트
+  myAmount: number; // 내 정산 금액
+};
+
+// 내 계약 목록 응답 타입
+export type MyContractListResponse = {
+  items: MyContractListItemResponse[];
+  total: number;
+};
+
 // 계약 생성 API
 export async function createContract(
   data: CreateContractRequest
@@ -195,6 +207,25 @@ export async function deleteContract(id: number): Promise<void> {
     console.log("계약 삭제 성공:", id);
   } catch (error: any) {
     console.error("계약 삭제 API 호출 실패:", error);
+    throw error;
+  }
+}
+
+// 내 계약 목록 조회 API (마이페이지용)
+export async function getMyContracts(
+  params?: ListContractsRequest
+): Promise<MyContractListResponse> {
+  try {
+    const response = await api.get<{
+      data: MyContractListResponse;
+    }>("/contracts/me", { params });
+
+    console.log("내 계약 목록 API 응답:", response.data);
+    return response.data.data;
+  } catch (error: any) {
+    console.error("내 계약 목록 API 호출 실패:", error);
+    console.error("에러 상세:", error?.response?.data);
+    console.error("에러 메시지들:", error?.response?.data?.messages);
     throw error;
   }
 }
