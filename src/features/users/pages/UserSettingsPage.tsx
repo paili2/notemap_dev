@@ -31,6 +31,7 @@ export default function UserSettingsPage({
   const assignTeamMemberMutation = useAssignTeamMember();
 
   // API에서 받은 멤버 데이터를 UserRow 형식으로 변환
+  // TODO: API 연결 시 팀 정보 조회하여 teamName 설정
   const usersFromApi = useMemo<UserRow[]>(() => {
     if (!members || members.length === 0) return [];
 
@@ -43,6 +44,7 @@ export default function UserSettingsPage({
       positionRank: member.positionRank || undefined,
       photo_url: member.photoUrl || undefined,
       joinedAt: member.joinedAt || undefined,
+      teamName: undefined, // TODO: API 연결 시 팀 이름 설정
     }));
   }, [members]);
 

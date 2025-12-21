@@ -14,7 +14,6 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
-  Heart,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
@@ -54,13 +53,6 @@ export function AdminMainPage() {
       href: "/admin/accounts",
       icon: Users,
       color: "bg-indigo-500",
-    },
-    {
-      title: "팀즐겨찾기",
-      description: "즐겨찾기한 팀원 관리",
-      href: "/admin/team-favorites",
-      icon: Heart,
-      color: "bg-pink-500",
     },
     {
       title: "계약 관리",

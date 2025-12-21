@@ -24,7 +24,11 @@ interface TeamDetailViewProps {
   selectedTeamMembers: PerformanceData[];
   selectedPeriod: string;
   selectedYear: string;
+  selectedQuarter?: string;
+  selectedMonth?: string;
   yearOptions: string[];
+  quarterOptions?: string[];
+  monthOptions?: string[];
   chartConfig: {
     totalAllowance: {
       label: string;
@@ -41,6 +45,8 @@ interface TeamDetailViewProps {
   };
   onPeriodChange: (period: string) => void;
   onYearChange: (year: string) => void;
+  onQuarterChange?: (quarter: string) => void;
+  onMonthChange?: (month: string) => void;
   onClose: () => void;
 }
 
@@ -49,10 +55,16 @@ export function TeamDetailView({
   selectedTeamMembers,
   selectedPeriod,
   selectedYear,
+  selectedQuarter,
+  selectedMonth,
   yearOptions,
+  quarterOptions,
+  monthOptions,
   chartConfig,
   onPeriodChange,
   onYearChange,
+  onQuarterChange,
+  onMonthChange,
   onClose,
 }: TeamDetailViewProps) {
   if (!selectedTeamDetail) return null;
@@ -68,9 +80,15 @@ export function TeamDetailView({
             <PerformanceFilters
               selectedPeriod={selectedPeriod}
               selectedYear={selectedYear}
+              selectedQuarter={selectedQuarter}
+              selectedMonth={selectedMonth}
               yearOptions={yearOptions}
+              quarterOptions={quarterOptions}
+              monthOptions={monthOptions}
               onPeriodChange={onPeriodChange}
               onYearChange={onYearChange}
+              onQuarterChange={onQuarterChange}
+              onMonthChange={onMonthChange}
               onClose={onClose}
             />
           </div>

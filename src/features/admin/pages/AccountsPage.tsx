@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getAccountsList, AccountListItem } from "@/features/users/api/account";
 import AccountsListPage from "@/features/users/components/_AccountsListPage";
 import AccountEditFormModal from "@/features/users/components/_AccountEditFormModal";
+import { AccountFavoritesModal } from "@/features/account-favorites";
 import type { UserRow, RoleKey } from "@/features/users/types";
 import { api } from "@/shared/api/api";
 import { useToast } from "@/hooks/use-toast";
@@ -40,8 +41,11 @@ export default function AccountsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingCredentialId, setEditingCredentialId] = useState<string | null>(null);
+  const [viewingFavoritesAccountId, setViewingFavoritesAccountId] = useState<string | null>(null);
+  const [viewingFavoritesAccountName, setViewingFavoritesAccountName] = useState<string>("");
 
-  // 계정 목록 조회
+  // 계정 목록 조회 (API 연결 전까지 비활성화)
+  // TODO: API 연결 시 활성화
   const {
     data: accountsList,
     isLoading,
@@ -49,6 +53,7 @@ export default function AccountsPage() {
   } = useQuery({
     queryKey: ["accounts-list"],
     queryFn: getAccountsList,
+    enabled: false, // API 연결 전까지 비활성화
   });
 
   // 계정 비활성화
@@ -149,18 +154,22 @@ export default function AccountsPage() {
     setEditingCredentialId(null);
   };
 
-  if (isLoading) {
-    return (
-      <div className="mx-auto max-w-7xl p-6 space-y-8">
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">계정 목록을 불러오는 중...</p>
-        </div>
-      </div>
-    );
-  }
+  // 즐겨찾기 목록 보기 핸들러
+  const handleViewFavorites = (accountId: string) => {
+    const account = userRows.find((row) => row.id === accountId);
+    setViewingFavoritesAccountId(accountId);
+    setViewingFavoritesAccountName(account?.name || "");
+  };
 
-  const isUsingMock = Boolean(error);
-  const sourceAccounts = isUsingMock ? mockAccounts : accountsList ?? [];
+  // 즐겨찾기 모달 닫기
+  const handleCloseFavoritesModal = () => {
+    setViewingFavoritesAccountId(null);
+    setViewingFavoritesAccountName("");
+  };
+
+  // API 연결 전까지 mock 데이터 사용
+  const isUsingMock = true; // API 연결 전까지 항상 mock 사용
+  const sourceAccounts = mockAccounts;
   const userRows = transformToUserRows(sourceAccounts);
 
   return (
@@ -184,6 +193,7 @@ export default function AccountsPage() {
           onChangeRole={handleChangeRole}
           onRemove={handleRemove}
           onEdit={handleEdit}
+          onViewFavorites={handleViewFavorites}
         />
       </div>
 
@@ -196,6 +206,14 @@ export default function AccountsPage() {
           onSuccess={handleEditSuccess}
         />
       )}
+
+      {/* 즐겨찾기 목록 모달 */}
+      <AccountFavoritesModal
+        open={!!viewingFavoritesAccountId}
+        accountId={viewingFavoritesAccountId}
+        accountName={viewingFavoritesAccountName}
+        onClose={handleCloseFavoritesModal}
+      />
     </div>
   );
 }

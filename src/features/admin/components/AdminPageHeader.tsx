@@ -21,11 +21,6 @@ export function AdminPageHeader({ className }: AdminPageHeaderProps) {
     },
     { key: "account-create", label: "계정생성", href: "/admin/account-create" },
     { key: "accounts", label: "계정목록", href: "/admin/accounts" },
-    {
-      key: "team-favorites",
-      label: "팀즐겨찾기",
-      href: "/admin/team-favorites",
-    },
     { key: "contracts", label: "계약관리", href: "/admin/contracts" },
     { key: "performance", label: "실적확인", href: "/admin/performance" },
     { key: "notices", label: "공지사항", href: "/admin/notices" },

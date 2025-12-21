@@ -7,6 +7,7 @@ import { StatsCards } from "./StatsCards";
 import { TeamStatsCards } from "./TeamStatsCards";
 import { TeamAllowanceBarChart } from "./TeamAllowanceBarChart";
 import { TeamDetailView } from "./TeamDetailView";
+import { PerformanceFilters } from "./PerformanceFilters";
 import {
   calculateTeamStats,
   calculateOverallStats,
@@ -18,7 +19,13 @@ import { CHART_CONFIG } from "../utils/chartConfig";
 export function Performance() {
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const currentYear = new Date().getFullYear();
+  const currentQuarter = Math.floor(new Date().getMonth() / 3) + 1;
+  const currentMonth = new Date().getMonth() + 1;
   const [selectedYear, setSelectedYear] = useState(currentYear.toString());
+  const [selectedQuarter, setSelectedQuarter] = useState(
+    currentQuarter.toString()
+  );
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
   const [selectedTeamDetail, setSelectedTeamDetail] = useState<string | null>(
     null
   );
@@ -26,6 +33,10 @@ export function Performance() {
 
   // 연도 옵션 생성
   const yearOptions = generateYearOptions(currentYear);
+  // 분기 옵션 (1~4)
+  const quarterOptions = ["1", "2", "3", "4"];
+  // 월 옵션 (1~12)
+  const monthOptions = Array.from({ length: 12 }, (_, i) => String(i + 1));
 
   // 팀별 통계 계산
   const teamStats = useMemo(() => {
@@ -47,9 +58,9 @@ export function Performance() {
   useEffect(() => {
     if (selectedTeamDetail && teamDetailRef.current) {
       setTimeout(() => {
-        teamDetailRef.current?.scrollIntoView({ 
-          behavior: "smooth", 
-          block: "start" 
+        teamDetailRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
         });
       }, 100);
     }
@@ -57,9 +68,25 @@ export function Performance() {
 
   return (
     <div className="mx-auto max-w-7xl p-6 space-y-6 bg-gray-50">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">실적 확인</h1>
-        <p className="text-gray-600 mt-1">계약기록 기반 실적 분석</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">실적 확인</h1>
+          <p className="text-gray-600 mt-1">계약기록 기반 실적 분석</p>
+        </div>
+        <PerformanceFilters
+          selectedPeriod={selectedPeriod}
+          selectedYear={selectedYear}
+          selectedQuarter={selectedQuarter}
+          selectedMonth={selectedMonth}
+          yearOptions={yearOptions}
+          quarterOptions={quarterOptions}
+          monthOptions={monthOptions}
+          onPeriodChange={setSelectedPeriod}
+          onYearChange={setSelectedYear}
+          onQuarterChange={setSelectedQuarter}
+          onMonthChange={setSelectedMonth}
+          onClose={() => {}}
+        />
       </div>
 
       {/* 1. 회사 총매출 */}
@@ -92,10 +119,16 @@ export function Performance() {
           selectedTeamMembers={selectedTeamMembers}
           selectedPeriod={selectedPeriod}
           selectedYear={selectedYear}
+          selectedQuarter={selectedQuarter}
+          selectedMonth={selectedMonth}
           yearOptions={yearOptions}
+          quarterOptions={quarterOptions}
+          monthOptions={monthOptions}
           chartConfig={CHART_CONFIG}
           onPeriodChange={setSelectedPeriod}
           onYearChange={setSelectedYear}
+          onQuarterChange={setSelectedQuarter}
+          onMonthChange={setSelectedMonth}
           onClose={() => setSelectedTeamDetail(null)}
         />
       </div>

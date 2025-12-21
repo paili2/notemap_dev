@@ -122,44 +122,18 @@ export function useCreateValidation(a: Args) {
   const gradeNum = a.parkingGrade ? Number(a.parkingGrade) : 0;
 
   const isSaveEnabled = useMemo(() => {
-    const numbersOk =
-      filled(a.totalBuildings) &&
-      filled(a.totalFloors) &&
-      filled(a.totalHouseholds) &&
-      filled(a.remainingHouseholds);
-
-    const basicOk =
+    // 필수 필드: 이름, 주소, 분양실 전화번호 (좌표는 핀 생성 시 자동 입력)
+    const requiredOk =
       filled(a.title) &&
       filled(a.address) &&
-      filled(a.officePhone) &&
-      filled(a.completionDate) &&
-      (hasExclusiveAny || hasRealAny || hasUnitsAny);
+      filled(a.officePhone);
 
-    // ⭐ 별점 필수 정책 유지
-    return (
-      basicOk &&
-      numbersOk &&
-      optionsValid &&
-      a.unitLinesLen > 0 &&
-      gradeNum > 0 &&
-      aspectsValid
-    );
+    // 나머지 필드는 모두 옵셔널
+    return requiredOk;
   }, [
     a.title,
     a.address,
     a.officePhone,
-    a.completionDate,
-    hasExclusiveAny,
-    hasRealAny,
-    hasUnitsAny,
-    a.totalBuildings,
-    a.totalFloors,
-    a.totalHouseholds,
-    a.remainingHouseholds,
-    optionsValid,
-    a.unitLinesLen,
-    gradeNum,
-    aspectsValid,
   ]);
 
   return { isSaveEnabled };

@@ -51,9 +51,9 @@ export default function HeaderSection(
   const placeholder = placeholderHint ?? "예: 성수 리버뷰 84A";
   const gradeNum = parkingGrade ? Number(parkingGrade) : 0;
 
-  /** 답사예정일 때 매물평점 / 리베이트 비활성화 */
+  /** 답사예정일 때 매물평점 비활성화 */
   const ratingDisabled = !!isVisitPlanPin;
-  const rebateDisabled = !!isVisitPlanPin;
+  const rebateDisabled = false; // 답사예정지 등록 시에도 리베이트 입력 가능
   const buildingGradeDisabled = !!isVisitPlanPin;
 
   /** ───────── 신축/구옥: 로컬 상태 + 외부 동기화 ───────── */
@@ -105,12 +105,7 @@ export default function HeaderSection(
       setBuildingGrade(null);
       // 별점 초기화
       setParkingGrade("" as HeaderSectionProps["parkingGrade"]);
-      // 리베이트 초기화
-      if (setRebate) {
-        setRebate(null);
-      } else {
-        setFallbackRebate("");
-      }
+      // 리베이트는 초기화하지 않음 (답사예정지 등록 시에도 입력 가능)
     }
 
     prevIsVisitPlanRef.current = current;

@@ -95,7 +95,7 @@ export type BuildArgs = {
   imageFolders: (ImageItem[] | { title?: string; items: ImageItem[] })[];
   fileItems: ImageItem[];
 
-  pinKind: PinKind;
+  pinKind?: PinKind | null;
 
   lat?: number | null;
   lng?: number | null;

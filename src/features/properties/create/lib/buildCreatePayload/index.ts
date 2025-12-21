@@ -349,7 +349,7 @@ export function buildCreatePayload(args: BuildArgs) {
     fileItemsRaw,
 
     /* 분류/제목 레거시 */
-    pinKind,
+    ...(pinKind ? { pinKind } : {}),
     baseAreaTitle,
     extraAreaTitles,
     areaSetTitle: baseAreaTitle,

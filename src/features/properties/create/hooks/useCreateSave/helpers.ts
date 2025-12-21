@@ -48,15 +48,11 @@ export function computeCanSave({
     Array.isArray(f.unitLines) ? (f.unitLines as any[]) : []
   );
 
-  const extraRequiredFilled =
-    hasBuildingGradeForCanSave && elevatorSelected && rebateFilled;
-
+  // 모든 추가 필드는 옵셔널 (이름, 주소, 분양실 전화번호만 필수)
   const canSave = isVisitPlanPin
     ? minimalForVisitPlan && !isSaving
     : f.isSaveEnabled &&
-      extraRequiredFilled &&
       !unitLinesPriceError &&
-      hasImageFolderWithTitle &&
       !isSaving;
 
   return {

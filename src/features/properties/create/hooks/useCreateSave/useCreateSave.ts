@@ -109,10 +109,7 @@ export function useCreateSave({
           return;
         }
 
-        if (!rawPinKindLocal) {
-          alert("핀 종류를 선택해 주세요.");
-          return;
-        }
+        // 핀 종류는 옵셔널
 
         const addressLine = (f.address && f.address.trim()) || mainTitle;
 
@@ -158,34 +155,53 @@ export function useCreateSave({
 
       /* ====== 2) 일반핀 저장(createPin) 로직 ====== */
 
-      if (!isVisitPlanPin && !hasImageFolderWithTitle) {
-        alert("사진 폴더 제목과 사진을 최소 1개 이상 등록해 주세요.");
-        return;
-      }
+      // 사진 폴더 제목과 사진은 옵셔널
 
-      if (!rawPinKindLocal) {
-        alert("핀 종류를 선택해 주세요.");
-        return;
-      }
+      // 핀 종류는 옵셔널
 
       if (!f.isSaveEnabled) {
         alert("필수 항목을 확인해 주세요.");
         return;
       }
 
-      const priceError = validateUnitPriceRanges(f.unitLines as any[]);
-      if (priceError) {
-        alert(priceError);
-        return;
+      // 가격/면적 검증은 입력된 값이 있을 때만 체크 (옵셔널)
+      const unitLinesArray = Array.isArray(f.unitLines) ? f.unitLines : [];
+      if (unitLinesArray.length > 0) {
+        const priceError = validateUnitPriceRanges(unitLinesArray as any[]);
+        if (priceError) {
+          alert(priceError);
+          return;
+        }
       }
 
-      const areaError = validateAreaSets(
-        f.baseAreaSet,
-        Array.isArray(f.extraAreaSets) ? f.extraAreaSets : []
-      );
-      if (areaError) {
-        alert(areaError);
-        return;
+      // 면적 입력이 있을 때만 검증
+      const hasAreaInput = (set: any) => {
+        if (!set) return false;
+        return !!(
+          (set.exMinM2 && set.exMinM2.trim()) ||
+          (set.exMaxM2 && set.exMaxM2.trim()) ||
+          (set.exMinPy && set.exMinPy.trim()) ||
+          (set.exMaxPy && set.exMaxPy.trim()) ||
+          (set.realMinM2 && set.realMinM2.trim()) ||
+          (set.realMaxM2 && set.realMaxM2.trim()) ||
+          (set.realMinPy && set.realMinPy.trim()) ||
+          (set.realMaxPy && set.realMaxPy.trim()) ||
+          (Array.isArray(set.units) && set.units.length > 0)
+        );
+      };
+
+      const extraAreaSetsArray = Array.isArray(f.extraAreaSets) ? f.extraAreaSets : [];
+      const hasAnyAreaInput = hasAreaInput(f.baseAreaSet) || extraAreaSetsArray.some(hasAreaInput);
+
+      if (hasAnyAreaInput) {
+        const areaError = validateAreaSets(
+          f.baseAreaSet,
+          extraAreaSetsArray
+        );
+        if (areaError) {
+          alert(areaError);
+          return;
+        }
       }
 
       const rawCompletion = normalizeDateInput(f.completionDate);
@@ -326,7 +342,7 @@ export function useCreateSave({
         imageFolders,
         fileItems,
 
-        pinKind: rawPinKindLocal,
+        pinKind: rawPinKindLocal ?? undefined,
         lat: latNum,
         lng: lngNum,
 
@@ -348,7 +364,7 @@ export function useCreateSave({
         rebateText,
         isNew: isNewForPayload ?? undefined,
         isOld: isOldForPayload ?? undefined,
-        pinKind: rawPinKindLocal,
+        pinKind: rawPinKindLocal ?? undefined,
         pinDraftId,
       } as any;
 

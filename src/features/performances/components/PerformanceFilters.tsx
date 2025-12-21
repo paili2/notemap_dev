@@ -11,18 +11,30 @@ import {
 interface PerformanceFiltersProps {
   selectedPeriod: string;
   selectedYear: string;
+  selectedQuarter?: string;
+  selectedMonth?: string;
   yearOptions: string[];
+  quarterOptions?: string[];
+  monthOptions?: string[];
   onPeriodChange: (period: string) => void;
   onYearChange: (year: string) => void;
+  onQuarterChange?: (quarter: string) => void;
+  onMonthChange?: (month: string) => void;
   onClose: () => void;
 }
 
 export function PerformanceFilters({
   selectedPeriod,
   selectedYear,
+  selectedQuarter,
+  selectedMonth,
   yearOptions,
+  quarterOptions = ["1", "2", "3", "4"],
+  monthOptions = Array.from({ length: 12 }, (_, i) => String(i + 1)),
   onPeriodChange,
   onYearChange,
+  onQuarterChange,
+  onMonthChange,
   onClose,
 }: PerformanceFiltersProps) {
   return (
@@ -35,7 +47,8 @@ export function PerformanceFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="month">이번 달</SelectItem>
-            <SelectItem value="year">올해</SelectItem>
+            <SelectItem value="monthly">월별 선택</SelectItem>
+            <SelectItem value="quarter">분기 선택</SelectItem>
             <SelectItem value="yearly">연도 선택</SelectItem>
           </SelectContent>
         </Select>
@@ -52,6 +65,62 @@ export function PerformanceFilters({
               ))}
             </SelectContent>
           </Select>
+        )}
+        {selectedPeriod === "quarter" && (
+          <>
+            <Select value={selectedYear} onValueChange={onYearChange}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedQuarter || "1"} onValueChange={onQuarterChange || (() => {})}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {quarterOptions.map((quarter) => (
+                  <SelectItem key={quarter} value={quarter}>
+                    {quarter}분기
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+        {selectedPeriod === "monthly" && (
+          <>
+            <Select value={selectedYear} onValueChange={onYearChange}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={year}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedMonth || "1"} onValueChange={onMonthChange || (() => {})}>
+              <SelectTrigger className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((month) => (
+                  <SelectItem key={month} value={month}>
+                    {month}월
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
         )}
       </div>
       <Button variant="outline" onClick={onClose}>

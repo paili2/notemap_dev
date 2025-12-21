@@ -1,12 +1,11 @@
 "use client";
 
-import { Trash2, Edit } from "lucide-react";
+import { Trash2, Edit, List } from "lucide-react";
 import {
   Avatar,
   AvatarImage,
   AvatarFallback,
 } from "@/components/atoms/Avatar/Avatar";
-import { Badge } from "@/components/atoms/Badge/Badge";
 import type { UserRow, RoleKey } from "@/features/users/types";
 
 type Props = {
@@ -14,6 +13,7 @@ type Props = {
   onChangeRole?: (id: string, role: RoleKey) => void; // optional - 필요 시 사용
   onRemove: (id: string) => void;
   onEdit?: (credentialId: string) => void; // optional - 팀 관리에서는 수정 불필요
+  onViewFavorites?: (accountId: string) => void; // 즐겨찾기 목록 보기
 };
 
 export default function AccountsListPage({
@@ -21,7 +21,12 @@ export default function AccountsListPage({
   onChangeRole,
   onRemove,
   onEdit,
+  onViewFavorites,
 }: Props) {
+  const handleViewFavorites = (accountId: string) => {
+    onViewFavorites?.(accountId);
+  };
+
   return (
     <div className="overflow-x-auto rounded-xl border">
       {rows.length === 0 ? (
@@ -35,27 +40,32 @@ export default function AccountsListPage({
               <th className="px-4 py-3 text-center font-medium">프로필 사진</th>
               <th className="px-4 py-3 text-left font-medium">이름</th>
               <th className="px-4 py-3 text-left font-medium">연락처</th>
-              <th className="px-4 py-3 text-left font-medium">팀 가입일</th>
-              <th className="px-4 py-3 text-center font-medium">팀원 삭제</th>
+              <th className="px-4 py-3 text-left font-medium">직급</th>
+              <th className="px-4 py-3 text-left font-medium">부서</th>
+              <th className="px-4 py-3 text-center font-medium">
+                즐겨찾기 목록
+              </th>
+              <th className="px-4 py-3 text-center font-medium">계정 수정</th>
+              <th className="px-4 py-3 text-center font-medium">계정 삭제</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((u) => {
               const phone = u.phone ?? "-";
-              // 날짜 포맷팅 (YYYY-MM-DD -> YYYY년 MM월 DD일)
-              const formatDate = (dateString: string | null | undefined) => {
-                if (!dateString) return "-";
-                try {
-                  const date = new Date(dateString);
-                  const year = date.getFullYear();
-                  const month = String(date.getMonth() + 1).padStart(2, "0");
-                  const day = String(date.getDate()).padStart(2, "0");
-                  return `${year}년 ${month}월 ${day}일`;
-                } catch {
-                  return dateString;
-                }
+
+              // 직급 매핑
+              const positionRankLabel = (rank?: string) => {
+                const rankMap: Record<string, string> = {
+                  ASSISTANT_MANAGER: "대리",
+                  MANAGER: "과장",
+                  DEPUTY_GENERAL: "차장",
+                  GENERAL_MANAGER: "부장",
+                  TEAM_LEADER: "팀장",
+                  DIRECTOR: "실장",
+                  STAFF: "사원",
+                };
+                return rank ? rankMap[rank] || rank : "-";
               };
-              const joinedAtFormatted = formatDate(u.joinedAt);
 
               // 이름 첫 글자로 아바타 초기값 생성
               const initials = u.name ? u.name.charAt(0).toUpperCase() : "?";
@@ -80,38 +90,46 @@ export default function AccountsListPage({
                   </td>
                   <td className="px-4 py-3 font-medium">{u.name}</td>
                   <td className="px-4 py-3">{phone}</td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {joinedAtFormatted}
+                  <td className="px-4 py-3">
+                    {positionRankLabel(u.positionRank)}
+                  </td>
+                  <td className="px-4 py-3">{u.teamName || "-"}</td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
+                      onClick={() => handleViewFavorites(u.id)}
+                      title="즐겨찾기 목록"
+                    >
+                      <List className="h-4 w-4" />
+                      목록
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      {onEdit && (
-                        <button
-                          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50"
-                          onClick={() => onEdit(u.id)}
-                          title="수정"
-                        >
-                          <Edit className="h-4 w-4" />
-                          수정
-                        </button>
-                      )}
-                      {/* 팀장(team_leader)은 삭제 불가, 뱃지 표시 */}
-                      {u.role === "team_leader" ? (
-                        <Badge variant="info">팀장</Badge>
-                      ) : (
-                        <button
-                          className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
-                          onClick={() => {
-                            if (confirm("해당 계정을 팀에서 삭제하시겠습니까?"))
-                              onRemove(u.id);
-                          }}
-                          title="삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          삭제
-                        </button>
-                      )}
-                    </div>
+                    {onEdit ? (
+                      <button
+                        className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs text-blue-600 hover:bg-blue-50"
+                        onClick={() => onEdit(u.id)}
+                        title="수정"
+                      >
+                        <Edit className="h-4 w-4" />
+                        수정
+                      </button>
+                    ) : (
+                      "-"
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <button
+                      className="inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs text-red-600 hover:bg-red-50"
+                      onClick={() => {
+                        if (confirm("해당 계정을 삭제하시겠습니까?"))
+                          onRemove(u.id);
+                      }}
+                      title="삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      삭제
+                    </button>
                   </td>
                 </tr>
               );
