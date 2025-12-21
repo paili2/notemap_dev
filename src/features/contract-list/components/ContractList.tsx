@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ContractListProps {
   title: string;
-  loadContracts: (page: number) => Promise<ContractData[]>;
+  loadContracts: (page: number) => Promise<ContractData[]> | Promise<{ items: ContractData[]; total: number }>;
   initialLoading?: boolean;
   searchPlaceholder?: string;
   emptyMessage?: string;
@@ -34,6 +34,7 @@ export function ContractList({
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [contracts, setContracts] = useState<ContractData[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [isLoadingContracts, setIsLoadingContracts] = useState(initialLoading);
   const [selectedContract, setSelectedContract] =
     useState<SalesContractData | null>(null);
@@ -44,11 +45,21 @@ export function ContractList({
   const loadContracts = React.useCallback(async () => {
     try {
       setIsLoadingContracts(true);
-      const loadedContracts = await loadContractsFn(currentPage);
-      setContracts(loadedContracts);
+      const result = await loadContractsFn(currentPage);
+      
+      // 백엔드 페이지네이션 사용 여부 확인
+      if (result && typeof result === 'object' && 'items' in result && 'total' in result) {
+        setContracts(result.items);
+        setTotalCount(result.total);
+      } else {
+        // 기존 형식 (배열만 반환)
+        setContracts(result as ContractData[]);
+        setTotalCount((result as ContractData[]).length);
+      }
     } catch (error: any) {
       console.error("계약 목록 로드 실패:", error);
       setContracts([]);
+      setTotalCount(0);
 
       toast({
         title: "계약 목록 로드 실패",
@@ -64,15 +75,40 @@ export function ContractList({
     loadContracts();
   }, [loadContracts]);
 
-  // 데이터 처리
+  // 데이터 처리 (백엔드 페이지네이션 사용 시 클라이언트 사이드 검색만 적용)
   const { processedData, pagination } = useMemo(() => {
+    // 백엔드에서 페이지네이션을 처리한 경우
+    if (totalCount > 0 && contracts.length <= paginationConfig.listsPerPage) {
+      // 클라이언트 사이드 검색만 적용
+      const filtered = searchTerm
+        ? contracts.filter((contract) =>
+            searchKeys.some((key) => {
+              const value = contract[key as keyof ContractData];
+              return value?.toString().toLowerCase().includes(searchTerm.toLowerCase());
+            })
+          )
+        : contracts;
+
+      const totalPages = Math.ceil(totalCount / paginationConfig.listsPerPage);
+      return {
+        processedData: filtered,
+        pagination: {
+          currentPage,
+          totalPages,
+          listsPerPage: paginationConfig.listsPerPage,
+          totalLists: totalCount,
+        },
+      };
+    }
+    
+    // 기존 방식 (프론트엔드 페이지네이션)
     return processTableData(contracts, {
       searchTerm,
       searchKeys: [...searchKeys],
       currentPage,
       listsPerPage: paginationConfig.listsPerPage,
     });
-  }, [contracts, searchTerm, currentPage]);
+  }, [contracts, searchTerm, currentPage, totalCount]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -83,19 +119,11 @@ export function ContractList({
     try {
       const id = Number(row.backendContractId ?? row.id);
 
-      // 1) 기본 계약 정보
+      // 계약 상세 정보 조회 (백엔드에서 assignees와 urls를 포함해서 반환)
       const contract = await getContract(id);
 
-      // 2) 담당자 분배 / 계약 파일 병렬 조회
-      const [assignees, files] = await Promise.all([
-        getContractAssignees(id),
-        getContractFiles(id),
-      ]);
-
-      const fullData = transformContractResponseToSalesContract(contract, {
-        assignees,
-        files,
-      });
+      // 변환 (백엔드 응답에 assignees와 urls가 이미 포함되어 있음)
+      const fullData = transformContractResponseToSalesContract(contract);
       setSelectedContract(fullData);
       setIsModalOpen(true);
     } catch (error) {

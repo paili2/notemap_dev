@@ -21,13 +21,24 @@ export const statusConfigMap: StatusConfigMap = {
 };
 
 // 금액 포맷팅 함수 (반올림 없이 정확한 값 표시)
-export const formatCurrency = (amount: number): string => {
+export const formatCurrency = (amount: number | string): string => {
+  // 이미 문자열로 포맷팅된 경우를 대비해 숫자로 변환
+  const numAmount =
+    typeof amount === "string"
+      ? parseFloat(amount.replace(/,/g, "")) || 0
+      : Number(amount) || 0;
+
+  // NaN 체크
+  if (isNaN(numAmount)) {
+    return "0원";
+  }
+
   // 정수인지 확인
-  if (amount % 1 === 0) {
-    return `${amount.toLocaleString("ko-KR", { maximumFractionDigits: 0, useGrouping: true })}원`;
+  if (numAmount % 1 === 0) {
+    return `${numAmount.toLocaleString("ko-KR", { maximumFractionDigits: 0, useGrouping: true })}원`;
   }
   // 소수점이 있으면 모든 자릿수 표시 (반올림 방지)
-  return `${amount.toLocaleString("ko-KR", { maximumFractionDigits: 20, useGrouping: true })}원`;
+  return `${numAmount.toLocaleString("ko-KR", { maximumFractionDigits: 20, useGrouping: true })}원`;
 };
 
 // 날짜 포맷팅 함수

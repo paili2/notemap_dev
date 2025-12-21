@@ -40,15 +40,6 @@ export const contractTableColumns: TableColumn<ContractData>[] = [
     ),
   },
   {
-    key: "salesPersonSalary",
-    label: "담당자 급여",
-    width: "120px",
-    align: "center",
-    render: (value) => (
-      <div className="font-medium">{formatCurrency(value)}</div>
-    ),
-  },
-  {
     key: "balanceDate",
     label: "잔금일",
     width: "110px",

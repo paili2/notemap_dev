@@ -30,7 +30,7 @@ import {
   updateContract,
   deleteContract,
 } from "../api/contracts";
-import { transformSalesContractToCreateRequest } from "../utils/contractTransformers";
+import { transformSalesContractToCreateRequest, transformSalesContractToUpdateRequest } from "../utils/contractTransformers";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { getProfile } from "@/features/users/api/account";
@@ -336,10 +336,50 @@ export function SalesContractRecordsModal({
       });
       return;
     }
-    if (!data.salesPerson.name.trim()) {
+    if (!data.customerInfo.contact.trim()) {
       toast({
         title: "입력 오류",
-        description: "담당자를 선택해주세요.",
+        description: "고객 연락처를 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!data.contractSite?.address.trim()) {
+      toast({
+        title: "입력 오류",
+        description: "현장 주소를 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!data.contractSite?.siteName.trim()) {
+      toast({
+        title: "입력 오류",
+        description: "현장명을 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!data.contractSite?.teamContact.trim()) {
+      toast({
+        title: "입력 오류",
+        description: "분양팀 연락처를 입력해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!data.contractDate) {
+      toast({
+        title: "입력 오류",
+        description: "계약일을 선택해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!data.balanceDate) {
+      toast({
+        title: "입력 오류",
+        description: "잔금일자를 선택해주세요.",
         variant: "destructive",
       });
       return;
@@ -355,30 +395,15 @@ export function SalesContractRecordsModal({
 
     setIsLoading(true);
     try {
-      // 백엔드 API 형식으로 변환
-      const requestData = transformSalesContractToCreateRequest(data, profile);
-      console.log("변환된 요청 데이터:", requestData);
-
-      // 필수 필드 검증
-      if (
-        typeof requestData.brokerageFee !== "number" ||
-        typeof requestData.vat !== "number" ||
-        typeof requestData.brokerageTotal !== "number" ||
-        typeof requestData.rebateTotal !== "number" ||
-        typeof requestData.supportAmount !== "number" ||
-        typeof requestData.grandTotal !== "number" ||
-        typeof requestData.isTaxed !== "boolean"
-      ) {
-        throw new Error("필수 필드의 데이터 타입이 올바르지 않습니다.");
-      }
-
       let contractData: SalesContractData;
       const now = new Date();
 
       if (data.id) {
         // 수정 모드
         const contractId = Number(data.id);
-        const result = await updateContract(contractId, requestData);
+        const updateRequest = transformSalesContractToUpdateRequest(data, profile);
+        console.log("변환된 수정 요청 데이터:", updateRequest);
+        const result = await updateContract(contractId, updateRequest);
         console.log("계약 수정 API 응답:", result);
 
         contractData = {
@@ -395,13 +420,29 @@ export function SalesContractRecordsModal({
         setIsEditMode(false); // 수정 후 읽기 전용 모드로 전환
       } else {
         // 생성 모드
+        // 백엔드 API 형식으로 변환
+        const requestData = transformSalesContractToCreateRequest(data, profile);
+        console.log("변환된 요청 데이터:", requestData);
+
+        // 필수 필드 검증 (타입 체크)
+        if (
+          typeof requestData.brokerageFee !== "number" ||
+          typeof requestData.vat !== "boolean" ||
+          typeof requestData.rebate !== "number" ||
+          typeof requestData.supportAmount !== "number" ||
+          typeof requestData.isTaxed !== "boolean" ||
+          typeof requestData.companyPercent !== "number"
+        ) {
+          throw new Error("필수 필드의 데이터 타입이 올바르지 않습니다.");
+        }
+
         const result = await createContract(requestData);
         console.log("계약 생성 API 응답:", result);
 
         contractData = {
           ...data,
           id: result.id.toString(),
-          contractNumber: `CONTRACT-${result.id}`,
+          contractNumber: result.contractNo,
           contractDate: data.contractDate || now.toISOString().split("T")[0],
           status: data.status || "ongoing",
           createdAt: data.createdAt || now.toISOString(),
@@ -410,7 +451,7 @@ export function SalesContractRecordsModal({
 
         toast({
           title: "계약 생성 완료",
-          description: `계약 #${result.id}이 성공적으로 생성되었습니다.`,
+          description: `계약 ${result.contractNo}이 성공적으로 생성되었습니다.`,
         });
 
         onClose(); // 생성 후 모달 닫기
@@ -422,13 +463,21 @@ export function SalesContractRecordsModal({
       }
     } catch (error: any) {
       console.error("계약 저장 실패:", error);
+      const errorMessages = error?.response?.data?.messages;
+      const errorMessage = error?.response?.data?.message;
+      let errorDescription = errorMessage || 
+        (data.id
+          ? "계약 수정 중 오류가 발생했습니다."
+          : "계약 생성 중 오류가 발생했습니다.");
+      
+      // validation 에러 메시지가 있으면 추가
+      if (errorMessages && Array.isArray(errorMessages) && errorMessages.length > 0) {
+        errorDescription = errorMessages.join(", ");
+      }
+      
       toast({
         title: data.id ? "계약 수정 실패" : "계약 생성 실패",
-        description:
-          error?.response?.data?.message ||
-          (data.id
-            ? "계약 수정 중 오류가 발생했습니다."
-            : "계약 생성 중 오류가 발생했습니다."),
+        description: errorDescription,
         variant: "destructive",
       });
     } finally {

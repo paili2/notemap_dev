@@ -1,7 +1,13 @@
 import { SalesContractData } from "../types/contract-records";
-import { CreateContractRequest, ContractResponse } from "../api/contracts";
+import {
+  CreateContractRequest,
+  UpdateContractRequest,
+  ContractResponse,
+  ContractListItemResponse,
+} from "../api/contracts";
 import type { ContractAssigneeResponse } from "../api/assignees";
 import type { ContractFileResponse } from "../api/files";
+import type { ContractData } from "@/components/contract-management/types";
 
 type ProfileData =
   | {
@@ -18,178 +24,329 @@ export function transformSalesContractToCreateRequest(
   data: SalesContractData,
   profile?: ProfileData
 ): CreateContractRequest {
-  // 담당자는 항상 로그인한 사용자
-  const salespersonAccountId = profile?.account?.id;
+  // 회사 비율 추출 (type === "company"인 항목의 percentage)
+  const companyAllocation = data.staffAllocations.find(
+    (a) => a.type === "company"
+  );
+  const companyPercent = companyAllocation?.percentage ?? 0;
 
-  // 담당자 분배 변환
-  const assignees = data.staffAllocations.map((allocation, index) => ({
-    accountId:
-      allocation.type === "employee" ? allocation.accountId : undefined,
-    role:
-      allocation.type === "company" ? ("company" as const) : ("staff" as const),
-    sharePercent: allocation.percentage,
-    rebateAmount: allocation.rebateAllowance ?? 0,
-    finalAmount: allocation.finalAllowance ?? 0,
-    isManual: allocation.isDirectInput ?? false,
-    sortOrder: index + 1,
-  }));
+  // 직원 담당자 분배 변환 (type === "employee"인 항목만)
+  const employeeAllocations = data.staffAllocations.filter(
+    (a) => a.type === "employee" && a.accountId
+  );
 
-  // 최소한의 필수 필드만 전송
+  // 백엔드 규칙: companyPercent + sum(assignees.sharePercent) = 100
+  // 프론트엔드에서는 전체가 100%이고, 회사와 담당자 비율이 나뉘어 있음
+  // 백엔드로 보낼 때는 담당자 비율을 그대로 전송 (정규화하지 않음)
+  let assignees:
+    | Array<{ accountId: string; sharePercent: number; sortOrder: number }>
+    | undefined;
+  if (employeeAllocations.length > 0) {
+    assignees = employeeAllocations.map((allocation, index) => ({
+      accountId: allocation.accountId!,
+      // 프론트엔드의 percentage를 그대로 sharePercent로 전송 (정규화 없이)
+      sharePercent: allocation.percentage,
+      sortOrder: index,
+    }));
+  }
+
+  // 리베이트 units 변환 (원 단위 → units: 1 = 100만원)
+  // 백엔드는 정수만 받으므로 반올림
+  const totalRebate = Number(data.financialInfo.totalRebate) || 0;
+  const rebateUnits = Math.round(totalRebate / 1000000);
+
+  // 부가세 boolean 변환
+  const vat = data.financialInfo.vatStatus === "vat-included";
+
   // 계약 이미지 URL (http/https 로 시작하는 실제 URL만 전송)
   const validUrls =
     data.contractImages
       ?.map((img) => img.preview)
-      .filter(
-        (url) => typeof url === "string" && /^https?:\/\//.test(url)
-      ) ?? [];
+      .filter((url) => typeof url === "string" && /^https?:\/\//.test(url)) ??
+    [];
+
+  // 상태 매핑 (프론트엔드 4가지 상태 -> 백엔드 4가지 상태)
+  const status: "ongoing" | "done" | "canceled" | "rejected" | undefined =
+    data.status === "completed"
+      ? "done"
+      : data.status === "cancelled"
+      ? "canceled"
+      : data.status === "rejected"
+      ? "rejected"
+      : "ongoing";
 
   const request: CreateContractRequest = {
-    // 핀(매물) 연동
-    pinId: typeof data.pinId === "number" ? data.pinId : undefined,
+    customerName: data.customerInfo.name || "",
+    customerPhone: data.customerInfo.contact || "",
     brokerageFee: Number(data.financialInfo.brokerageFee) || 0,
-    vat: Number(data.financialInfo.vat) || 0,
-    brokerageTotal: Number(data.financialInfo.totalBrokerageFee) || 0,
-    rebateTotal: Number(data.financialInfo.totalRebate) || 0,
+    vat,
+    rebate: rebateUnits,
     supportAmount: Number(data.financialInfo.totalSupportAmount) || 0,
     isTaxed: Boolean(data.financialInfo.taxStatus === "taxable"),
-    grandTotal: Number(data.totalCalculation) || 0,
-    // 고객 정보 추가
-    customerName: data.customerInfo.name || undefined,
-    customerPhone: data.customerInfo.contact || undefined,
-    // 담당자 ID 추가
-    salespersonAccountId,
-    createdByAccountId: profile?.account?.id,
-    // 계산 메모 추가
     calcMemo: data.financialInfo.supportContent || undefined,
-    // 계약 날짜 추가
-    contractDate: data.contractDate,
-    // 상태 추가 (프론트엔드 4가지 상태 -> 백엔드 3가지 상태 매핑)
-    status:
-      data.status === "completed"
-        ? ("done" as const)
-        : data.status === "cancelled" || data.status === "rejected"
-        ? ("canceled" as const)
-        : ("ongoing" as const),
-    // 담당자 분배 추가
-    assignees: assignees.length > 0 ? assignees : undefined,
-    // 계약 이미지 URL 목록 (검증 통과하는 URL만 전송)
+    companyPercent,
+    contractDate: data.contractDate || new Date().toISOString().split("T")[0],
+    finalPaymentDate:
+      data.balanceDate ||
+      data.contractDate ||
+      new Date().toISOString().split("T")[0],
+    status,
+    siteAddress: data.contractSite?.address || "",
+    siteName: data.contractSite?.siteName || "",
+    salesTeamPhone: data.contractSite?.teamContact || "",
+    bank: data.financialInfo.customerBank || undefined,
+    account: data.financialInfo.customerAccountNumber || undefined,
+    assignees,
     urls: validUrls.length > 0 ? validUrls : undefined,
   };
 
   console.log("변환된 요청 데이터 상세:", request);
+  console.log("변환된 요청 데이터 - companyPercent:", request.companyPercent);
+  console.log("변환된 요청 데이터 - assignees:", request.assignees);
+  if (request.assignees) {
+    const assigneesSum = request.assignees.reduce(
+      (sum, a) => sum + a.sharePercent,
+      0
+    );
+    console.log(
+      "변환된 요청 데이터 - assignees sharePercent 합계:",
+      assigneesSum
+    );
+    console.log(
+      "변환된 요청 데이터 - companyPercent + assigneesSum:",
+      request.companyPercent + assigneesSum
+    );
+  }
   console.log("변환된 요청 데이터 - urls:", request.urls);
   console.log("변환된 요청 데이터 - validUrls:", validUrls);
   console.log("변환된 요청 데이터 - contractImages:", data.contractImages);
   return request;
 }
 
+// 프론트엔드 SalesContractData를 백엔드 UpdateContractRequest로 변환
+// 수정 API는 Partial 업데이트를 지원하므로, 필요한 필드만 변환
+export function transformSalesContractToUpdateRequest(
+  data: SalesContractData,
+  profile?: ProfileData
+): UpdateContractRequest {
+  // 회사 비율 추출 (type === "company"인 항목의 percentage)
+  const companyAllocation = data.staffAllocations.find(
+    (a) => a.type === "company"
+  );
+  const companyPercent = companyAllocation?.percentage ?? 0;
+
+  // 직원 담당자 분배 변환 (type === "employee"인 항목만)
+  // 백엔드 규칙: assignees 포함 시 전체 교체
+  const employeeAllocations = data.staffAllocations.filter(
+    (a) => a.type === "employee" && a.accountId
+  );
+
+  // 백엔드 규칙: companyPercent + sum(assignees.sharePercent) = 100
+  let assignees:
+    | Array<{ accountId: string; sharePercent: number; sortOrder?: number }>
+    | undefined;
+  if (employeeAllocations.length > 0) {
+    assignees = employeeAllocations.map((allocation, index) => ({
+      accountId: allocation.accountId!,
+      sharePercent: allocation.percentage,
+      sortOrder: index,
+    }));
+  }
+
+  // 리베이트 units 변환 (원 단위 → units: 1 = 100만원)
+  const totalRebate = Number(data.financialInfo.totalRebate) || 0;
+  const rebateUnits = Math.round(totalRebate / 1000000);
+
+  // 부가세 boolean 변환
+  const vat = data.financialInfo.vatStatus === "vat-included";
+
+  // 계약 이미지 URL (http/https 로 시작하는 실제 URL만 전송)
+  // 백엔드 규칙: urls 포함 시 전체 교체
+  const validUrls =
+    data.contractImages
+      ?.map((img) => img.preview)
+      .filter((url) => typeof url === "string" && /^https?:\/\//.test(url)) ??
+    [];
+
+  // 상태 매핑 (프론트엔드 4가지 상태 -> 백엔드 4가지 상태)
+  const status: "ongoing" | "done" | "canceled" | "rejected" | undefined =
+    data.status === "completed"
+      ? "done"
+      : data.status === "cancelled"
+      ? "canceled"
+      : data.status === "rejected"
+      ? "rejected"
+      : "ongoing";
+
+  const request: UpdateContractRequest = {
+    customerName: data.customerInfo.name || undefined,
+    customerPhone: data.customerInfo.contact || undefined,
+    brokerageFee: Number(data.financialInfo.brokerageFee) || undefined,
+    vat,
+    rebate: rebateUnits,
+    supportAmount: Number(data.financialInfo.totalSupportAmount) || undefined,
+    isTaxed: Boolean(data.financialInfo.taxStatus === "taxable"),
+    calcMemo: data.financialInfo.supportContent || undefined,
+    companyPercent,
+    contractDate: data.contractDate || undefined,
+    finalPaymentDate: data.balanceDate || data.contractDate || undefined,
+    status,
+    siteAddress: data.contractSite?.address || undefined,
+    siteName: data.contractSite?.siteName || undefined,
+    salesTeamPhone: data.contractSite?.teamContact || undefined,
+    bank: data.financialInfo.customerBank || undefined,
+    account: data.financialInfo.customerAccountNumber || undefined,
+    assignees, // 포함 시 전체 교체
+    urls: validUrls.length > 0 ? validUrls : undefined, // 포함 시 전체 교체
+  };
+
+  // undefined 필드 제거 (Partial 업데이트이므로, undefined는 제외)
+  const cleanedRequest: UpdateContractRequest = {};
+  (Object.keys(request) as Array<keyof UpdateContractRequest>).forEach(
+    (key) => {
+      const value = request[key];
+      if (value !== undefined) {
+        (cleanedRequest as any)[key] = value;
+      }
+    }
+  );
+
+  console.log("변환된 수정 요청 데이터:", cleanedRequest);
+  return cleanedRequest;
+}
+
 // 백엔드 ContractResponse를 프론트엔드 SalesContractData로 변환
 export function transformContractResponseToSalesContract(
-  contract: ContractResponse,
-  opts?: {
-    assignees?: ContractAssigneeResponse[];
-    files?: ContractFileResponse[];
-  }
+  contract: ContractResponse
 ): SalesContractData {
-  const staffAllocations =
-    opts?.assignees?.map((a) => ({
-      id: String(a.id),
-      name:
-        a.assigneeName ||
-        a.account?.name ||
-        (a.role === "company" ? "회사" : a.accountId ? `직원 #${a.accountId}` : ""),
-      // accountId 우선순위: assignee의 accountId -> account.id
-      accountId: a.accountId ?? a.account?.id ?? undefined,
-      type: a.role === "company" ? ("company" as const) : ("employee" as const),
-      percentage: Number(a.sharePercent) || 0, // 문자열을 숫자로 변환
-      isDirectInput: a.isManual,
-      rebateAllowance: Number(a.rebateAmount) || 0, // 문자열을 숫자로 변환
-      finalAllowance: Number(a.finalAmount) || 0, // 문자열을 숫자로 변환
-    })) ?? [];
+  // 회사 할당 추가 (companyPercent를 percentage로 변환)
+  const companyAllocation = {
+    id: "company",
+    name: "회사",
+    accountId: undefined,
+    type: "company" as const,
+    percentage: contract.companyPercent || 0,
+    isDirectInput: false,
+    rebateAllowance: 0,
+    finalAllowance: 0,
+  };
+
+  // 직원 할당 변환 (백엔드에서 assignees 배열로 제공)
+  const employeeAllocations =
+    contract.assignees?.map((a, index) => ({
+      id: String(index + 1),
+      name: a.name || "",
+      accountId: a.accountId || undefined,
+      type: "employee" as const,
+      percentage: Number(a.sharePercent) || 0,
+      isDirectInput: false,
+      rebateAllowance: 0,
+      finalAllowance: 0,
+    })) || [];
+
+  const staffAllocations = [companyAllocation, ...employeeAllocations];
 
   // 접근 가능한 URL인지 확인 (s3:// 형태는 브라우저에서 접근 불가)
   const isAccessibleUrl = (url?: string | null): boolean => {
     if (!url) return false;
-    return url.startsWith('http://') || url.startsWith('https://');
+    return url.startsWith("http://") || url.startsWith("https://");
   };
 
   // URL을 접근 가능한 형태로 변환 (s3:// -> undefined)
   const getAccessibleUrl = (url?: string | null): string | undefined => {
     if (!url) return undefined;
     // s3:// 형태는 브라우저에서 접근 불가
-    if (url.startsWith('s3://')) {
-      console.warn('⚠️ 계약 이미지 s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:', url);
+    if (url.startsWith("s3://")) {
+      console.warn(
+        "⚠️ 계약 이미지 s3:// 형태의 URL은 브라우저에서 접근할 수 없습니다:",
+        url
+      );
       return undefined; // 프리사인 URL 생성 API 필요
     }
     return url;
   };
 
+  // 계약 이미지 변환 (백엔드에서 urls 배열로 제공)
   const contractImages =
-    opts?.files
-      ?.map((f) => {
-        const accessibleUrl = getAccessibleUrl(f.url);
+    contract.urls
+      ?.map((url, index) => {
+        const accessibleUrl = getAccessibleUrl(url);
         if (!accessibleUrl) {
-          console.warn('⚠️ 계약 이미지 URL이 접근 불가능합니다. id:', f.id, 'url:', f.url);
+          console.warn(
+            "⚠️ 계약 이미지 URL이 접근 불가능합니다. index:",
+            index,
+            "url:",
+            url
+          );
+          return null;
         }
         return {
-          id: String(f.id),
-          // 접근 가능한 URL만 preview로 사용
-          preview: accessibleUrl || '',
-          // 기존 타입 호환을 위해 빈 File 객체 사용 (UI에서는 preview만 사용)
-          file: new File([], f.filename || "contract-image"),
+          id: `img-${index}`,
+          preview: accessibleUrl,
+          file: new File([], `contract-image-${index}`),
         };
       })
-      .filter((img) => img.preview) ?? []; // 접근 불가능한 URL 필터링
-  
-  console.log("transformContractResponseToSalesContract - files:", opts?.files);
-  console.log("transformContractResponseToSalesContract - contractImages:", contractImages);
+      .filter((img): img is NonNullable<typeof img> => img !== null) || [];
+
+  // 부가세 금액 계산
+  const brokerageFee = Number(contract.brokerageFee) || 0;
+  const vatAmount = contract.vat ? Math.round(brokerageFee * 0.1) : 0;
+  const totalBrokerageFee = brokerageFee + vatAmount;
+
+  // 리베이트 금액 계산 (units -> 원)
+  const rebateAmount = (Number(contract.rebate) || 0) * 1000000;
+  const totalRebate = rebateAmount;
+
+  // 총 금액 계산 (프론트엔드 계산 로직)
+  const supportAmount = Number(contract.supportAmount) || 0;
+  const rebateMinusSupport = totalRebate - supportAmount;
+  const multiplier = contract.isTaxed ? 0.967 : 1;
+  const totalCalculation = totalBrokerageFee + rebateMinusSupport * multiplier;
 
   return {
-    id: contract.id.toString(),
-    contractNumber: `CONTRACT-${contract.id}`,
+    id: String(contract.id),
+    contractNumber: contract.contractNo,
     customerInfo: {
       name: contract.customerName || "",
       contact: contract.customerPhone || "",
     },
     salesManager: undefined, // 백엔드에 없음
     salesPerson: {
-      name: contract.salesperson?.name || "",
-      contact: contract.salesperson?.phone || "",
+      name: contract.createdBy?.name || "",
+      contact: "", // 백엔드에 없음
+    },
+    contractSite: {
+      address: contract.siteAddress || "",
+      siteName: contract.siteName || "",
+      teamContact: contract.salesTeamPhone || "",
     },
     financialInfo: {
-      brokerageFee: Number(contract.brokerageFee) || 0,
-      vat: Number(contract.vat) || 0,
-      vatStatus: contract.vat > 0 ? "vat-included" : "vat-excluded",
-      totalBrokerageFee: Number(contract.brokerageTotal) || 0,
-      totalRebate: Number(contract.rebateTotal) || 0,
+      brokerageFee,
+      vat: vatAmount,
+      vatStatus: contract.vat ? "vat-included" : "vat-excluded",
+      totalBrokerageFee,
+      totalRebate,
       taxStatus: contract.isTaxed ? "taxable" : "tax-free",
-      totalSupportAmount: Number(contract.supportAmount) || 0,
-      customerAccountNumber: "", // 백엔드에 없음
-      customerBank: "", // 백엔드에 없음
+      totalSupportAmount: supportAmount,
+      customerAccountNumber: contract.account || "",
+      customerBank: contract.bank || "",
       supportContent: contract.calcMemo || "",
     },
     staffAllocations,
     contractImages,
-    // 백엔드 grandTotal 대신 프론트엔드에서 계산
-    // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
-    // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
-    totalCalculation: (() => {
-      const brokerageAndVat = Number(contract.brokerageTotal) || 0;
-      const totalRebate = Number(contract.rebateTotal) || 0;
-      const totalSupportAmount = Number(contract.supportAmount) || 0;
-      const rebateMinusSupport = totalRebate - totalSupportAmount;
-      const multiplier = contract.isTaxed ? 0.967 : 1;
-      return brokerageAndVat + rebateMinusSupport * multiplier;
-    })(),
+    totalCalculation,
     contractDate: contract.contractDate,
+    balanceDate: contract.finalPaymentDate || undefined,
     status:
       contract.status === "done"
         ? "completed"
         : contract.status === "canceled"
-        ? "cancelled" // 백엔드 canceled는 해약으로 매핑 (부결은 별도 관리 필요시 확장)
+        ? "cancelled"
+        : contract.status === "rejected"
+        ? "rejected"
         : "ongoing",
     createdAt: contract.createdAt,
-    updatedAt: contract.createdAt,
+    updatedAt: contract.updatedAt || contract.createdAt,
   };
 }
 
@@ -215,8 +372,10 @@ export function transformContractResponseToContractData(
   // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
   // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
   const calculatedTotal = (() => {
-    const brokerageAndVat = Number(contract.brokerageTotal) || 0;
-    const totalRebate = Number(contract.rebateTotal) || 0;
+    const brokerageFee = Number(contract.brokerageFee) || 0;
+    const vatAmount = contract.vat ? Math.round(brokerageFee * 0.1) : 0;
+    const brokerageAndVat = brokerageFee + vatAmount;
+    const totalRebate = (Number(contract.rebate) || 0) * 1000000; // units를 원으로 변환
     const totalSupportAmount = Number(contract.supportAmount) || 0;
     const rebateMinusSupport = totalRebate - totalSupportAmount;
     const multiplier = contract.isTaxed ? 0.967 : 1;
@@ -225,10 +384,10 @@ export function transformContractResponseToContractData(
 
   return {
     id: contract.id.toString(),
-    contractNumber: `CONTRACT-${contract.id}`,
+    contractNumber: contract.contractNo || `CONTRACT-${contract.id}`,
     customerName: contract.customerName || "",
     customerContact: contract.customerPhone || "",
-    salesPerson: contract.salesperson?.name || "",
+    salesPerson: contract.createdBy?.name || "",
     salesPersonSalary: 0, // 백엔드에 없음, 기본값
     totalCalculation: calculatedTotal,
     contractDate: contract.contractDate,
@@ -242,5 +401,44 @@ export function transformContractResponseToContractData(
         : ("ongoing" as const),
     createdAt: contract.createdAt,
     backendContractId: contract.id,
+  };
+}
+
+// 계약 목록 응답을 ContractData로 변환
+export function transformContractListItemToContractData(
+  item: ContractListItemResponse
+): ContractData {
+  // 프론트엔드 계산 로직 사용
+  // 계산 공식: 과세시 (중개수수료+부가세)+((리베이트-지원금액)×0.967)
+  // 비과세시 (중개수수료+부가세)+(리베이트-지원금액)
+  const brokerageFee = Number(item.brokerageFee) || 0;
+  const vatAmount = item.vatEnabled ? Math.round(brokerageFee * 0.1) : 0;
+  const brokerageAndVat = brokerageFee + vatAmount;
+
+  const rebateAmount = (Number(item.rebateUnits) || 0) * 1000000; // units를 원으로 변환
+  const supportAmount = Number(item.supportAmount) || 0;
+  const rebateMinusSupport = rebateAmount - supportAmount;
+  const multiplier = item.isTaxed ? 0.967 : 1;
+  const totalCalculation = brokerageAndVat + rebateMinusSupport * multiplier;
+
+  return {
+    id: String(item.id),
+    contractNumber: item.contractNo,
+    customerName: item.customerName || "",
+    customerContact: item.customerPhone || "",
+    salesPerson: item.createdByName || "",
+    salesPersonSalary: 0, // 목록 응답에 없으므로 0으로 설정 (사용하지 않음)
+    totalCalculation,
+    contractDate: item.contractDate,
+    balanceDate: item.finalPaymentDate || undefined,
+    status:
+      item.status === "done"
+        ? "completed"
+        : item.status === "canceled"
+        ? "cancelled"
+        : item.status === "rejected"
+        ? "rejected"
+        : "ongoing",
+    backendContractId: item.id,
   };
 }
