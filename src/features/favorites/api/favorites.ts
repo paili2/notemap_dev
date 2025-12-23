@@ -82,6 +82,21 @@ export async function reorderGroups(data: ReorderGroupsRequest): Promise<void> {
   }
 }
 
+// 즐겨찾기 그룹 삭제
+export async function deleteFavoriteGroup(groupId: string): Promise<void> {
+  try {
+    console.log("즐겨찾기 그룹 삭제:", { groupId });
+    const response = await api.delete<{ message: string }>(
+      `/favorite/group/${groupId}`
+    );
+    console.log("즐겨찾기 그룹 삭제 응답:", response.data);
+  } catch (error: any) {
+    console.error("즐겨찾기 그룹 삭제 실패:", error);
+    console.error("에러 상세:", error?.response?.data);
+    throw error;
+  }
+}
+
 // 즐겨찾기 아이템 삭제
 export async function deleteFavoriteItem(
   groupId: string,

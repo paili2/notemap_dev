@@ -15,6 +15,7 @@ import {
   upsertFavoriteItem,
   deleteFavoriteItem,
   updateGroupTitle,
+  deleteFavoriteGroup as deleteFavoriteGroupAPI,
 } from "@/features/favorites/api/favorites";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -466,10 +467,33 @@ export function useSidebarState() {
     [loadFavorites, toast]
   );
 
-  const deleteFavoriteGroup = useCallback(async (groupId: string) => {
-    // 백엔드에서는 그룹 삭제 API가 없으므로 로컬에서만 처리
-    setNestedFavorites((prev) => prev.filter((g) => g.title !== groupId));
-  }, []);
+  const deleteFavoriteGroup = useCallback(
+    async (groupId: string) => {
+      try {
+        await deleteFavoriteGroupAPI(groupId);
+
+        // 성공 시 로컬 상태 업데이트
+        await loadFavorites();
+
+        toast({
+          title: "그룹 삭제 완료",
+          description: "그룹이 삭제되었습니다.",
+        });
+      } catch (error: any) {
+        console.error("그룹 삭제 실패:", error);
+        toast({
+          title: "그룹 삭제 실패",
+          description:
+            error?.response?.data?.message ||
+            error?.message ||
+            "그룹 삭제 중 오류가 발생했습니다.",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    [loadFavorites, toast]
+  );
 
   const updateFavoriteGroupTitle = useCallback(
     async (groupId: string, newTitle: string) => {
@@ -563,10 +587,31 @@ export function useSidebarState() {
     return Object.keys(favoriteIndexRef.current);
   }, []);
 
-  const handleDeleteNestedFavorite = useCallback(async (id: string) => {
-    // 그룹 삭제는 로컬에서만 처리 (백엔드 API 없음)
-    setNestedFavorites((prev) => prev.filter((item) => item.id !== id));
-  }, []);
+  const handleDeleteNestedFavorite = useCallback(
+    async (id: string) => {
+      // 삭제할 그룹 찾기
+      const group = nestedFavorites.find((g) => g.id === id);
+      if (!group) return;
+
+      // 삭제 확인 다이얼로그
+      const confirmed = window.confirm(
+        `"${group.title}" 그룹을 삭제하시겠습니까?\n그룹 내 모든 즐겨찾기도 함께 삭제됩니다.`
+      );
+
+      if (!confirmed) return;
+
+      // API 호출하여 삭제
+      try {
+        await deleteFavoriteGroup(id);
+        // deleteFavoriteGroup 내부에서 이미 loadFavorites()를 호출하므로
+        // 여기서는 추가 작업 불필요
+      } catch (error) {
+        // 에러는 deleteFavoriteGroup 내부에서 toast로 표시됨
+        console.error("그룹 삭제 실패:", error);
+      }
+    },
+    [nestedFavorites, deleteFavoriteGroup]
+  );
 
   const handleContractRecordsClick = () => {
     console.log("영업자 계약기록 버튼 클릭됨");

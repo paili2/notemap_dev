@@ -29,24 +29,32 @@ type Props = {
 let inFlightSessionCheck: Promise<boolean> | null = null;
 
 async function fetchSessionValid(): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/auth/me`, {
-    method: "GET",
-    credentials: "include",
-    cache: "no-store",
-  });
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
 
-  const isAuthErrorStatus =
-    res.status === 401 || res.status === 419 || res.status === 440;
+    const isAuthErrorStatus =
+      res.status === 401 || res.status === 419 || res.status === 440;
 
-  if (!res.ok) {
-    return !isAuthErrorStatus; // 5xx 같은 건 "모르겠음" 취급할 수도 있지만, 여기서는 false 로
+    if (!res.ok) {
+      return !isAuthErrorStatus; // 5xx 같은 건 "모르겠음" 취급할 수도 있지만, 여기서는 false 로
+    }
+
+    const json = await res.json().catch(() => null);
+    const hasUser = !!json?.data;
+
+    if (isAuthErrorStatus || !hasUser) return false;
+    return true;
+  } catch (error: any) {
+    // 네트워크 에러 (백엔드 서버가 실행되지 않았거나 연결 불가)
+    console.error("세션 확인 실패:", error);
+    console.error(`백엔드 서버(${API_BASE})에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.`);
+    // 개발 환경에서는 에러를 던지지 않고 false 반환 (로그인 페이지로 리다이렉트)
+    return false;
   }
-
-  const json = await res.json().catch(() => null);
-  const hasUser = !!json?.data;
-
-  if (isAuthErrorStatus || !hasUser) return false;
-  return true;
 }
 
 /** 여러 곳에서 동시에 호출돼도 실제 네트워크는 1번만 */
